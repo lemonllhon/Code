@@ -105,6 +105,7 @@ import {
   type LCodeAutomationRun,
   type LCodeAutomationRunOutcome,
   type ModelSelection,
+  describeProviderProvisioningFailure,
 } from "@lcode/shared";
 import {
   parseHostIncomingMessageEvent,
@@ -2641,7 +2642,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
         requestId: msg.requestId,
         environmentKey: msg.environmentKey,
         status: "failed",
-        error: "Remote Environment registration 已失效",
+        failure: { stage: "registration", code: "stale-registration" },
       });
       return;
     }
@@ -2669,7 +2670,8 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
           requestId: msg.requestId,
           environmentKey: msg.environmentKey,
           status: result.status,
-          ...(result.errorMessage ? { error: result.errorMessage } : {}),
+          ...(result.failure ? { failure: result.failure } : {}),
+          ...(result.rollbackFailure ? { rollbackFailure: result.rollbackFailure } : {}),
         });
       })
       .catch((error: unknown) => {
@@ -2678,7 +2680,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
           requestId: msg.requestId,
           environmentKey: msg.environmentKey,
           status: "failed",
-          error: error instanceof Error ? error.message : String(error),
+          failure: describeProviderProvisioningFailure("registration", error),
         });
       });
     return;

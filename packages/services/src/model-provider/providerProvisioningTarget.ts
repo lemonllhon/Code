@@ -13,6 +13,9 @@ import { decodeProviderConfigFile, encodeProviderConfigFile } from "@lcode/provi
 import {
   providerProvisioningEnvelopeSchema,
   providerProvisioningResultSchema,
+  describeProviderProvisioningFailure,
+  formatProviderProvisioningFailure,
+  runProviderProvisioningStage,
   isProviderProvisioningAccountCredentialKey,
   type ProviderProvisioningEnvelope,
   type ProviderProvisioningResult,
@@ -58,113 +61,171 @@ export function createProviderProvisioningTarget(
 ): IProviderProvisioningTargetService {
   return {
     async apply(input: ProviderProvisioningEnvelope): Promise<ProviderProvisioningResult> {
-      const envelope = providerProvisioningEnvelopeSchema.parse(input);
-      return withFileLock(options.stateFilePath, async () => {
-        const previousState = await readStateFile(options.stateFilePath);
-        const previousResult = previousState?.records.find(
-          (record) => record.syncId === envelope.syncId,
+      let syncId = "invalid-sync";
+      try {
+        const envelope = await runProviderProvisioningStage("remote-envelope", () =>
+          providerProvisioningEnvelopeSchema.parse(input),
         );
-        if (previousResult) {
-          return {
-            ...previousResult.result,
-            status: "already-applied",
-          } satisfies ProviderProvisioningResult;
-        }
+        syncId = envelope.syncId;
+        return await runProviderProvisioningStage("remote-state", () =>
+          withFileLock(options.stateFilePath, async () => {
+            const previousState = await readStateFile(options.stateFilePath);
+            const previousResult = previousState?.records.find(
+              (record) => record.syncId === envelope.syncId,
+            );
+            if (previousResult) {
+              return {
+                ...previousResult.result,
+                status: "already-applied",
+              } satisfies ProviderProvisioningResult;
+            }
 
-        validateCredentialEntries(envelope);
-        await options.providerRuntime.start();
-        const before = await captureBeforeState(envelope, options);
-        const personalUpdate = parsePersonalConfig(envelope);
-        const applied: AppliedProvisioningState = {
-          settings: false,
-          settingsExpected: envelope.accountSettings,
-          credentials: [],
-          personalConfig: false,
-          personalConfigExpected: personalUpdate,
+            await runProviderProvisioningStage("remote-envelope", () =>
+              validateCredentialEntries(envelope),
+            );
+            await runProviderProvisioningStage("remote-runtime", () =>
+              options.providerRuntime.start(),
+            );
+            const before = await runProviderProvisioningStage("remote-before-state", () =>
+              captureBeforeState(envelope, options),
+            );
+            const personalUpdate = await runProviderProvisioningStage("remote-envelope", () =>
+              parsePersonalConfig(envelope),
+            );
+            const applied: AppliedProvisioningState = {
+              settings: false,
+              settingsExpected: envelope.accountSettings,
+              credentials: [],
+              personalConfig: false,
+              personalConfigExpected: personalUpdate,
+            };
+
+            try {
+              // 先登记再写入：底层原子写即使在替换完成后才抛错，也必须进入回滚集合。
+              applied.settings = true;
+              await runProviderProvisioningStage("remote-settings", () =>
+                options.settingService.update({
+                  providerFamilyDomain: envelope.accountSettings.providerFamilyDomain ?? undefined,
+                  providerFamilyConnectionSelections:
+                    envelope.accountSettings.providerFamilyConnectionSelections,
+                }),
+              );
+
+              const incomingCredentials = new Map(
+                envelope.credentials.map((credential) => [credential.key, credential.value]),
+              );
+              await runProviderProvisioningStage("remote-credentials", async () => {
+                for (const key of before.credentials.keys()) {
+                  const value = incomingCredentials.get(key);
+                  applied.credentials.push({ key, value: value ?? null });
+                  if (value === undefined) {
+                    await options.credentialService.delete(key);
+                    // 品牌更名双写：旧版本客户端按旧键名读取（specs/brand-migration-lcode.md）。
+                    const legacyAlias = LEGACY_BRAND_CREDENTIAL_KEY_ALIASES[key];
+                    if (legacyAlias)
+                      await options.credentialService.delete(legacyAlias).catch(() => undefined);
+                  } else {
+                    await options.credentialService.save(key, value);
+                    const legacyAlias = LEGACY_BRAND_CREDENTIAL_KEY_ALIASES[key];
+                    if (legacyAlias)
+                      await options.credentialService
+                        .save(legacyAlias, value)
+                        .catch(() => undefined);
+                  }
+                }
+              });
+
+              applied.personalConfig = true;
+              await runProviderProvisioningStage("remote-personal", () =>
+                options.personalRepository.update((current) => {
+                  // 其他域写入期间 Personal 可能已被编辑；检查与替换必须在同一个文件锁内。
+                  if (!samePersonalConfig(current, before.personal)) {
+                    throw Object.assign(
+                      new Error("Personal Provider Config 在同步期间被其它操作修改"),
+                      { code: "LCODE_PROVISIONING_CONFLICT" },
+                    );
+                  }
+                  return personalUpdate;
+                }),
+              );
+
+              await runProviderProvisioningStage("remote-account", () =>
+                options.accountProviderSource.refresh("provider-provisioning"),
+              );
+              const snapshot = await runProviderProvisioningStage("remote-registry", () =>
+                options.providerRuntime.registryService.refresh("provider-provisioning"),
+              );
+              await runProviderProvisioningStage("remote-default", () => {
+                if (
+                  personalUpdate.defaultModelSelection &&
+                  !options.providerRuntime.registryService.validateSelection(
+                    personalUpdate.defaultModelSelection,
+                  ).ok
+                ) {
+                  throw Object.assign(new Error("同步后的远端 Registry 不支持本地默认模型"), {
+                    code: "LCODE_PROVISIONING_DEFAULT_UNAVAILABLE",
+                  });
+                }
+              });
+
+              const result = {
+                syncId: envelope.syncId,
+                status: "applied" as const,
+                personalProviderCount: personalUpdate.providers.keys().length,
+                credentialCount: envelope.credentials.length,
+                configRevision: snapshot.sourceRevisions.config,
+                rolledBack: false,
+              } satisfies ProviderProvisioningResult;
+              await runProviderProvisioningStage("remote-state-write", () =>
+                writeStateFile(options.stateFilePath, appendStateRecord(previousState, result)),
+              );
+              return result;
+            } catch (error) {
+              // 回滚前对每个 domain 做 CAS 式校验；若期间已有其它写入，宁可报告
+              // rollback_failed，也不能用过期快照覆盖或删除用户的新配置。
+              const rollbackError = await rollback(before, applied, options);
+              const failure = describeProviderProvisioningFailure("remote-request", error);
+              if (rollbackError) {
+                const rollbackFailure = describeProviderProvisioningFailure(
+                  "remote-rollback",
+                  rollbackError,
+                );
+                return {
+                  syncId: envelope.syncId,
+                  status: "rollback_failed",
+                  personalProviderCount: before.personal.providers.keys().length,
+                  credentialCount: envelope.credentials.length,
+                  failure,
+                  rollbackFailure,
+                  errorMessage: `${formatProviderProvisioningFailure(failure)}；回滚失败：${formatProviderProvisioningFailure(rollbackFailure)}`,
+                  rolledBack: false,
+                } satisfies ProviderProvisioningResult;
+              }
+              return {
+                syncId: envelope.syncId,
+                status: "failed",
+                personalProviderCount: before.personal.providers.keys().length,
+                credentialCount: envelope.credentials.length,
+                failure,
+                errorMessage: formatProviderProvisioningFailure(failure),
+                rolledBack: true,
+              } satisfies ProviderProvisioningResult;
+            }
+          }),
+        );
+      } catch (error) {
+        // 初始化/前像阶段尚未写入，但也必须经结果信封返回安全原因，不能让 RPC 序列化原始错误。
+        const failure = describeProviderProvisioningFailure("remote-request", error);
+        return {
+          syncId,
+          status: "failed",
+          personalProviderCount: 0,
+          credentialCount: 0,
+          failure,
+          errorMessage: formatProviderProvisioningFailure(failure),
+          rolledBack: true,
         };
-
-        try {
-          // 先登记再写入：底层原子写即使在替换完成后才抛错，也必须进入回滚集合。
-          applied.settings = true;
-          await options.settingService.update({
-            providerFamilyDomain: envelope.accountSettings.providerFamilyDomain ?? undefined,
-            providerFamilyConnectionSelections:
-              envelope.accountSettings.providerFamilyConnectionSelections,
-          });
-
-          const incomingCredentials = new Map(
-            envelope.credentials.map((credential) => [credential.key, credential.value]),
-          );
-          for (const key of before.credentials.keys()) {
-            const value = incomingCredentials.get(key);
-            applied.credentials.push({ key, value: value ?? null });
-            if (value === undefined) {
-              await options.credentialService.delete(key);
-              // 品牌更名双写：旧版本客户端按旧键名读取（specs/brand-migration-lcode.md）。
-              const legacyAlias = LEGACY_BRAND_CREDENTIAL_KEY_ALIASES[key];
-              if (legacyAlias) await options.credentialService.delete(legacyAlias).catch(() => undefined);
-            } else {
-              await options.credentialService.save(key, value);
-              const legacyAlias = LEGACY_BRAND_CREDENTIAL_KEY_ALIASES[key];
-              if (legacyAlias) await options.credentialService.save(legacyAlias, value).catch(() => undefined);
-            }
-          }
-
-          applied.personalConfig = true;
-          await options.personalRepository.update((current) => {
-            // 其他域写入期间 Personal 可能已被编辑；检查与替换必须在同一个文件锁内。
-            if (!samePersonalConfig(current, before.personal)) {
-              throw new Error("Personal Provider Config 在同步期间被其它操作修改");
-            }
-            return personalUpdate;
-          });
-
-          await options.accountProviderSource.refresh("provider-provisioning");
-          const snapshot =
-            await options.providerRuntime.registryService.refresh("provider-provisioning");
-          if (
-            personalUpdate.defaultModelSelection &&
-            !options.providerRuntime.registryService.validateSelection(
-              personalUpdate.defaultModelSelection,
-            ).ok
-          ) {
-            throw new Error("同步后的远端 Registry 不支持本地默认模型");
-          }
-
-          const result = {
-            syncId: envelope.syncId,
-            status: "applied" as const,
-            personalProviderCount: personalUpdate.providers.keys().length,
-            credentialCount: envelope.credentials.length,
-            configRevision: snapshot.sourceRevisions.config,
-            rolledBack: false,
-          } satisfies ProviderProvisioningResult;
-          await writeStateFile(options.stateFilePath, appendStateRecord(previousState, result));
-          return result;
-        } catch (error) {
-          // 回滚前对每个 domain 做 CAS 式校验；若期间已有其它写入，宁可报告
-          // rollback_failed，也不能用过期快照覆盖或删除用户的新配置。
-          const rollbackError = await rollback(before, applied, options);
-          if (rollbackError) {
-            return {
-              syncId: envelope.syncId,
-              status: "rollback_failed",
-              personalProviderCount: before.personal.providers.keys().length,
-              credentialCount: envelope.credentials.length,
-              errorMessage: `${formatError(error)}；回滚失败：${formatError(rollbackError)}`,
-              rolledBack: false,
-            } satisfies ProviderProvisioningResult;
-          }
-          return {
-            syncId: envelope.syncId,
-            status: "failed",
-            personalProviderCount: before.personal.providers.keys().length,
-            credentialCount: envelope.credentials.length,
-            errorMessage: formatError(error),
-            rolledBack: true,
-          } satisfies ProviderProvisioningResult;
-        }
-      });
+      }
     },
   };
 }
@@ -274,7 +335,7 @@ async function rollback(
     }
   }
   if (errors.length > 0) {
-    return new Error(errors.map(formatError).join("；"));
+    return new AggregateError(errors, "Provider 同步回滚失败");
   }
   try {
     await options.accountProviderSource.refresh("provider-provisioning-rollback");
@@ -314,12 +375,18 @@ function sameAccountSettings(
 function validateCredentialEntries(envelope: ProviderProvisioningEnvelope): void {
   const seen = new Set<string>();
   for (const entry of envelope.credentials) {
-    if (seen.has(entry.key)) throw new Error(`重复 Provisioning Credential key: ${entry.key}`);
+    if (seen.has(entry.key))
+      throw Object.assign(new Error("重复 Provisioning Credential key"), {
+        code: "LCODE_PROVISIONING_INVALID",
+      });
     seen.add(entry.key);
     const allowed =
       (entry.scope === "oauth-session" && OAUTH_CREDENTIAL_KEYS.has(entry.key)) ||
       (entry.scope === "account-provider" && isProviderProvisioningAccountCredentialKey(entry.key));
-    if (!allowed) throw new Error(`不允许同步的 Credential key: ${entry.key}`);
+    if (!allowed)
+      throw Object.assign(new Error("不允许同步的 Credential key"), {
+        code: "LCODE_PROVISIONING_INVALID",
+      });
   }
 }
 
@@ -373,8 +440,4 @@ function isFileNotFound(error: unknown): boolean {
     "code" in error &&
     (error as { code?: unknown }).code === "ENOENT"
   );
-}
-
-function formatError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

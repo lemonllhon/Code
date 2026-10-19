@@ -2,6 +2,7 @@ import { z } from "zod";
 import { modelSelectionSchema } from "./model-selection.js";
 import { providerFamilyConnectionSelectionSettingsSchema } from "./provider-family-connection-selection.js";
 import { proxyProfilesSchema } from "./networkProxy.js";
+import { providerProvisioningFailureSchema } from "./provider-provisioning-diagnostics.js";
 
 const nonEmptyString = z.string().trim().min(1);
 
@@ -93,6 +94,8 @@ export const providerProvisioningResultSchema = z
     credentialCount: z.number().int().nonnegative(),
     configRevision: nonEmptyString.optional(),
     errorMessage: z.string().optional(),
+    failure: providerProvisioningFailureSchema.optional(),
+    rollbackFailure: providerProvisioningFailureSchema.optional(),
     rolledBack: z.boolean(),
   })
   .strict();

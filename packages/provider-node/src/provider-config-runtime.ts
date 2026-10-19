@@ -3,7 +3,10 @@ import {
   type ProviderConfigLayerSnapshot,
   type ProviderConfigLayerUpdate,
 } from "@lcode/provider";
-import { NodeLCodeBuiltinProviderConfigSource } from "./lcode-builtin-provider-config-source.js";
+import {
+  NodeLCodeBuiltinProviderConfigSource,
+  type LCodeBuiltinRecoveryEvent,
+} from "./lcode-builtin-provider-config-source.js";
 import {
   EndpointScopedLCodeBuiltinSource,
   type EndpointScopedLCodeBuiltinSourceOptions,
@@ -27,6 +30,7 @@ export interface NodeProviderConfigRuntimeOptions {
     "bundledFilePath"
   >;
   readonly onLCodeBuiltinRefreshError?: (error: unknown) => void;
+  readonly onLCodeBuiltinRecovery?: (event: LCodeBuiltinRecoveryEvent) => void;
   readonly onPersonalConfigRecovery?: (event: PersonalProviderConfigRecoveryEvent) => void;
   readonly onPersonalConfigPollingError?: (error: unknown) => void;
   readonly personalFilePath: string;
@@ -56,12 +60,14 @@ export class NodeProviderConfigRuntime {
     this.#lcodeBuiltinSource = options.lcodeBuiltinEnvironment
       ? new EndpointScopedLCodeBuiltinSource({
           bundledFilePath: options.lcodeBuiltinFilePath,
+          onRecovery: options.onLCodeBuiltinRecovery,
           ...options.lcodeBuiltinEnvironment,
         })
       : new NodeLCodeBuiltinProviderConfigSource({
           bundledFilePath: options.lcodeBuiltinFilePath,
           activeFilePath: options.lcodeBuiltinActiveFilePath,
           watch: options.watch,
+          onRecovery: options.onLCodeBuiltinRecovery,
         });
     this.#remoteSynchronizer =
       options.lcodeBuiltinRemote &&

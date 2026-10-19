@@ -1,11 +1,12 @@
 /* eslint-disable max-lines -- Main 的完整薄转发契约集中维护请求与端口关联。 */
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { BrowserWindow, MessageChannelMain } from "electron";
 import type { MessagePortMain, UtilityProcess as ElectronUtilityProcess } from "electron";
 import {
   buildRemoteWorkspaceIdentity,
   buildRemoteEnvironmentKey,
   buildSshRemoteHostKey,
+  formatProviderProvisioningFailure,
   HostMessageTypes,
   HostResponseTypes,
   hostResponseMessageSchema,
@@ -62,6 +63,7 @@ interface RemoteAttachmentRoute {
 
 interface PendingProviderProvisioningExecution {
   readonly child: ElectronUtilityProcess;
+  readonly remoteSessionId: string;
   readonly trigger: ProviderProvisioningTrigger;
   readonly startedAtMonotonicMs: number;
   readonly resolve: () => void;
@@ -206,6 +208,9 @@ export function createRemoteWorkspaceSessionManager(options: {
     route: RemoteAttachmentRoute,
     reason: string,
   ): Promise<void> {
+    if (route.attachmentState !== "attachable") {
+      throw new Error("远端连接已关闭，无法发布远程 workspace");
+    }
     if (win.isDestroyed() || win.webContents.isDestroyed()) {
       throw new Error("窗口已关闭，无法 attachment 远程 workspace");
     }
@@ -415,6 +420,7 @@ export function createRemoteWorkspaceSessionManager(options: {
     return new Promise<void>((resolve, reject) => {
       pendingProviderProvisioningExecutions.set(requestId, {
         child,
+        remoteSessionId,
         trigger,
         startedAtMonotonicMs: monotonicNowMs(),
         resolve,
@@ -514,6 +520,20 @@ export function createRemoteWorkspaceSessionManager(options: {
     retireActiveRoute(route, "connection-closed", () => {
       route.attachmentState = "closed";
     });
+    const exitCode =
+      Number.isInteger(event.exitCode) && event.exitCode! >= 0 && event.exitCode! <= 255
+        ? event.exitCode
+        : undefined;
+    const closedMessage =
+      exitCode === 137
+        ? "远端进程被强制终止 (exitCode=137)，请检查远端系统终止记录"
+        : `远端连接已关闭${exitCode === undefined ? "" : ` (exitCode=${exitCode})`}`;
+    // 修复：远端在首次同步时被终止，原等待不会随 session 结束；迟到成功还可能创建已关闭连接的 attachment。
+    for (const [requestId, execution] of pendingProviderProvisioningExecutions) {
+      if (execution.remoteSessionId !== event.remoteSessionId) continue;
+      pendingProviderProvisioningExecutions.delete(requestId);
+      execution.reject(new Error(closedMessage));
+    }
     route.providerProvisioningDispose?.();
     // 连接断开只把 route 标成 closed，已暴露的 desktop attachment 仍留在窗口 Host；
     // sessionId 换代后 Main 又会删除 route，导致旧 ChannelServer 永久失去回收入口。
@@ -535,7 +555,7 @@ export function createRemoteWorkspaceSessionManager(options: {
       emitConnectionLog(win, {
         sessionId: event.remoteSessionId,
         level: "warn",
-        message: event.error || "远程 workspace 连接已断开",
+        message: closedMessage,
       });
     }
   }
@@ -567,19 +587,38 @@ export function createRemoteWorkspaceSessionManager(options: {
         if (!pending || pending.child !== child) return;
         pendingProviderProvisioningExecutions.delete(parsed.data.requestId);
         const logContext = {
-          environmentKey: parsed.data.environmentKey,
+          environmentRef: createHash("sha256")
+            .update(parsed.data.environmentKey)
+            .digest("hex")
+            .slice(0, 12),
           trigger: pending.trigger,
           status: parsed.data.status,
           durationMs: Math.max(0, monotonicNowMs() - pending.startedAtMonotonicMs),
+          ...(parsed.data.failure ? { failure: parsed.data.failure } : {}),
+          ...(parsed.data.rollbackFailure ? { rollbackFailure: parsed.data.rollbackFailure } : {}),
         };
         if (parsed.data.status !== "applied" && parsed.data.status !== "already-applied") {
+          const failure = parsed.data.failure ?? {
+            stage: "remote-request" as const,
+            code: "diagnostics-unavailable" as const,
+          };
+          options.logger.warn("[provider-provisioning] Environment sync did not apply", {
+            ...logContext,
+            failure,
+          });
           if (pending.trigger === "environment-online") {
-            pending.reject(new Error(`Provider Provisioning 首次同步失败 (${parsed.data.status})`));
+            const rollback = parsed.data.rollbackFailure
+              ? `；回滚失败：${formatProviderProvisioningFailure(parsed.data.rollbackFailure)}`
+              : "";
+            pending.reject(
+              new Error(
+                `Provider Provisioning 首次同步失败 (${parsed.data.status})：${formatProviderProvisioningFailure(failure)}${rollback}`,
+              ),
+            );
             return;
           }
           // Target 错误可能来自任意远端实现并携带请求材料；过渡期只记录可定位的状态事实，
           // 不转抄不可证明已脱敏的自由文本，避免 Provisioning 日志成为凭据泄露入口。
-          options.logger.warn("[provider-provisioning] Environment sync did not apply", logContext);
         } else {
           options.logger.info("[provider-provisioning] Environment sync completed", logContext);
         }

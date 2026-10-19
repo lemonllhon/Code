@@ -39,6 +39,7 @@ export { createWorktreeService, createCheckoutCoordinator } from "./worktree/nod
 import {
   buildLocalMediaPreviewUrl,
   isProviderProvisioningAccountCredentialKey,
+  describeProviderProvisioningFailure,
   type ProviderProvisioningTrigger,
 } from "@lcode/shared";
 
@@ -1620,21 +1621,34 @@ export function createLocalServices(options: {
         }),
     },
     onLCodeBuiltinRefreshError: (error) => {
-      providerConfigLog.warn(undefined, "LCode Built-in Config 远端刷新失败", { error });
+      providerConfigLog.warn(
+        undefined,
+        "LCode Built-in Config 远端刷新失败",
+        describeProviderProvisioningFailure("provider-runtime", error),
+      );
+    },
+    onLCodeBuiltinRecovery: (event) => {
+      providerConfigLog.warn(
+        undefined,
+        event.recovered === "disk"
+          ? "LCode Built-in 资源副本已恢复"
+          : "LCode Built-in 资源副本无法写回，正在使用已验证的内存基线",
+        event,
+      );
     },
     onPersonalConfigRecovery: (event) => {
       providerConfigLog.warn(
         undefined,
         "Personal Provider Config 加载失败，已保留磁盘状态并以内存空配置降级",
         {
-          error: event.error,
+          failure: describeProviderProvisioningFailure("provider-runtime", event.error),
         },
       );
     },
     onPersonalConfigPollingError: (error) => {
       // 轮询错误只在进入失败状态时回调一次；下一轮仍会自行重试，避免持续故障刷盘。
       providerConfigLog.warn(undefined, "Personal Provider Config 轮询暂时失败，将继续重试", {
-        error,
+        failure: describeProviderProvisioningFailure("provider-runtime", error),
       });
     },
     // 已发布 config.json 保存的是 LCode 用户配置；清理第三方 ACP 不能移除这条升级路径。
@@ -1693,8 +1707,8 @@ export function createLocalServices(options: {
   const accountProviderRefreshErrorDispose = accountProviderConfigSource.onDidRefreshError(
     (event) => {
       accountProviderRuntimeLog.warn(undefined, "account provider source refresh failed", {
-        error: event.error,
-        reasons: event.reasons,
+        failure: describeProviderProvisioningFailure("provider-runtime", event.error),
+        reasonCount: event.reasons.length,
       });
     },
   );
@@ -2896,7 +2910,11 @@ export function createLocalServices(options: {
       });
     },
     (error: unknown) => {
-      log.error("Provider 配置事实初始化失败", error);
+      log.error(
+        undefined,
+        "Provider 配置事实初始化失败",
+        describeProviderProvisioningFailure("provider-runtime", error),
+      );
     },
   );
 

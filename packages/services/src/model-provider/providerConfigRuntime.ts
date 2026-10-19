@@ -15,6 +15,7 @@ export interface ProviderConfigRuntimeOptions {
   readonly lcodeBuiltinRemote?: NodeProviderConfigRuntimeOptions["lcodeBuiltinRemote"];
   readonly lcodeBuiltinEnvironment?: NodeProviderConfigRuntimeOptions["lcodeBuiltinEnvironment"];
   readonly onLCodeBuiltinRefreshError?: (error: unknown) => void;
+  readonly onLCodeBuiltinRecovery?: NodeProviderConfigRuntimeOptions["onLCodeBuiltinRecovery"];
   readonly onPersonalConfigRecovery?: (event: PersonalProviderConfigRecoveryEvent) => void;
   readonly onPersonalConfigPollingError?: (error: unknown) => void;
   readonly personalFilePath?: string;
@@ -38,6 +39,7 @@ export class ProviderConfigRuntime {
       lcodeBuiltinRemote: options.lcodeBuiltinRemote,
       lcodeBuiltinEnvironment: options.lcodeBuiltinEnvironment,
       onLCodeBuiltinRefreshError: options.onLCodeBuiltinRefreshError,
+      onLCodeBuiltinRecovery: options.onLCodeBuiltinRecovery,
       onPersonalConfigRecovery: options.onPersonalConfigRecovery,
       onPersonalConfigPollingError: options.onPersonalConfigPollingError,
       personalFilePath:

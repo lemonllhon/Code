@@ -17,6 +17,7 @@ import { lcodeProviderSchema } from "./providers.js";
 import { lcodeAgentProviderSchema } from "./lcode-agent-policy.js";
 import { modelSelectionSchema } from "./model-selection.js";
 import { providerProvisioningTriggerSchema } from "./provider-provisioning.js";
+import { providerProvisioningFailureSchema } from "./provider-provisioning-diagnostics.js";
 import {
   lcodeMcpTelemetryEventSchema,
   lcodeMcpResourceSamplesSchema,
@@ -886,6 +887,8 @@ export const hostProviderProvisioningExecutionResultResponseSchema = z
     environmentKey: nonEmptyStringSchema,
     status: z.enum(["applied", "already-applied", "unsupported", "failed", "rollback_failed"]),
     error: z.string().optional(),
+    failure: providerProvisioningFailureSchema.optional(),
+    rollbackFailure: providerProvisioningFailureSchema.optional(),
   })
   .strict();
 

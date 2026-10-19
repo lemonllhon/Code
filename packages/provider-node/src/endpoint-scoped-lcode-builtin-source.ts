@@ -3,7 +3,10 @@ import {
   normalizeLCodeBuiltinEndpointOrigin,
   resolveLCodeBuiltinCachePaths,
 } from "./lcode-builtin-cache-paths.js";
-import { NodeLCodeBuiltinProviderConfigSource } from "./lcode-builtin-provider-config-source.js";
+import {
+  NodeLCodeBuiltinProviderConfigSource,
+  type LCodeBuiltinRecoveryEvent,
+} from "./lcode-builtin-provider-config-source.js";
 import {
   LCodeBuiltinRemoteSynchronizer,
   type LCodeBuiltinRefreshResult,
@@ -19,6 +22,7 @@ export interface EndpointScopedLCodeBuiltinSourceOptions {
   readonly fetchRelease: LCodeBuiltinRemoteSynchronizerOptions["fetchRelease"];
   readonly onRefreshResult?: LCodeBuiltinRemoteSynchronizerOptions["onRefreshResult"];
   readonly watch?: boolean;
+  readonly onRecovery?: (event: LCodeBuiltinRecoveryEvent) => void;
 }
 
 /**
@@ -89,6 +93,8 @@ export class EndpointScopedLCodeBuiltinSource implements ProviderSource<Provider
       bundledFilePath: this.#options.bundledFilePath,
       activeFilePath: paths.activeFilePath,
       watch: this.#options.watch,
+      onRecovery: this.#options.onRecovery,
+      bundledBaseline: this.#current?.source.bundledBaseline,
     });
     const sourceDispose = source.onDidChange((reason) => this.#emit(reason));
     const synchronizer = new LCodeBuiltinRemoteSynchronizer({

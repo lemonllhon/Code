@@ -1,20 +1,37 @@
 import { watch, type FSWatcher } from "node:fs";
 import { createHash } from "node:crypto";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import type { ProviderConfigLayerSnapshot, ProviderSource } from "@lcode/provider";
+import {
+  describeProviderProvisioningFailure,
+  type ProviderBuiltinAvailability,
+  type ProviderProvisioningFailure,
+} from "@lcode/shared";
 import { atomicWritePrivateTextFile, withFileLock } from "@lcode/shared/node";
 import {
-  decodeLCodeBuiltinRelease,
   encodeLCodeBuiltinRelease,
   serializeLCodeBuiltinRelease,
   type LCodeBuiltinRelease,
 } from "./lcode-builtin-release.js";
+import {
+  readReleaseCandidate,
+  LCodeBuiltinUnavailableError,
+  type ReleaseCandidate,
+} from "./lcode-builtin-availability.js";
+
+export interface LCodeBuiltinRecoveryEvent {
+  readonly sourceState: ProviderBuiltinAvailability["bundled"];
+  readonly recovered: "disk" | "memory";
+  readonly systemCode?: ProviderProvisioningFailure["systemCode"];
+}
 
 export interface NodeLCodeBuiltinProviderConfigSourceOptions {
   readonly bundledFilePath: string;
   readonly activeFilePath?: string;
   readonly watch?: boolean;
+  readonly onRecovery?: (event: LCodeBuiltinRecoveryEvent) => void;
+  readonly bundledBaseline?: LCodeBuiltinRelease;
 }
 
 export type ApplyLCodeBuiltinReleaseResult = "updated" | "unchanged" | "stale";
@@ -26,6 +43,9 @@ export class NodeLCodeBuiltinProviderConfigSource implements ProviderSource<Prov
   readonly #sourceKey: string;
   readonly #watchEnabled: boolean;
   readonly #listeners = new Set<(reason: string) => void>();
+  readonly #onRecovery?: (event: LCodeBuiltinRecoveryEvent) => void;
+  #bundledBaseline: LCodeBuiltinRelease | null;
+  #lastRecovery: string | null = null;
   #watcher: FSWatcher | null = null;
   #observedSignature: string | null = null;
   #watchRefresh = Promise.resolve();
@@ -40,10 +60,17 @@ export class NodeLCodeBuiltinProviderConfigSource implements ProviderSource<Prov
     // Active 路径已含规范化 Endpoint 隔离范围；Worker 收到同一路径，不另拼账号事实。
     this.#sourceKey = createHash("sha256").update(resolve(this.#activeFilePath)).digest("hex");
     this.#watchEnabled = options.watch !== false;
+    this.#onRecovery = options.onRecovery;
+    this.#bundledBaseline = options.bundledBaseline ?? null;
   }
 
   get activeFilePath(): string {
     return this.#activeFilePath;
+  }
+
+  /** 只允许同一个随包路径的 Endpoint Source 接棒，不包含上一 Endpoint 的 Active。 */
+  get bundledBaseline(): LCodeBuiltinRelease | undefined {
+    return this.#bundledBaseline ?? undefined;
   }
 
   async read(): Promise<ProviderConfigLayerSnapshot> {
@@ -53,10 +80,16 @@ export class NodeLCodeBuiltinProviderConfigSource implements ProviderSource<Prov
       await this.#ensureWatcher();
       release = await withFileLock(this.#activeFilePath, () => this.#readAndMaterializeLocked());
     } catch {
-      // Active 只是可丢弃缓存，目录锁、监听或原子物化失败不能阻断
-      // Bundled 基线。缓存边界不可用时绕过 Active；Bundled 自身无效仍会在这里抛错。
-      release = selectReleaseCandidate(await readReleaseCandidate(this.#bundledFilePath), null);
+      this.#assertNotDisposed();
+      // 修复：普通用户的 watch/缓存写入失败不代表 Active 失效；
+      // 原子文件可直接校验读取，不能在回退时丢掉仍然有效的 Active。
+      const [bundled, active] = await Promise.all([
+        this.#readBundledCandidate(),
+        readReleaseCandidate(this.#activeFilePath),
+      ]);
+      release = selectReleaseCandidate(bundled, active);
     }
+    this.#assertNotDisposed();
     this.#observedSignature ??= signatureOf(release);
     return snapshotFromRelease(release, this.#sourceKey);
   }
@@ -99,7 +132,7 @@ export class NodeLCodeBuiltinProviderConfigSource implements ProviderSource<Prov
 
   async #readAndMaterializeLocked(): Promise<LCodeBuiltinRelease> {
     const [bundled, active] = await Promise.all([
-      readReleaseCandidate(this.#bundledFilePath),
+      this.#readBundledCandidate(this.#activeFilePath === this.#bundledFilePath),
       this.#activeFilePath === this.#bundledFilePath
         ? Promise.resolve(null)
         : readReleaseCandidate(this.#activeFilePath),
@@ -110,6 +143,57 @@ export class NodeLCodeBuiltinProviderConfigSource implements ProviderSource<Prov
       if (activeSignature !== signatureOf(selected)) await this.#writeActiveLocked(selected);
     }
     return selected;
+  }
+
+  async #readBundledCandidate(lockHeld = false): Promise<ReleaseCandidate> {
+    const candidate = await readReleaseCandidate(this.#bundledFilePath);
+    if (candidate.release) {
+      this.#bundledBaseline = candidate.release;
+      this.#lastRecovery = null;
+      return candidate;
+    }
+    const baseline = this.#bundledBaseline;
+    if (!baseline) return candidate;
+    // 修复：远端 runtime 资源副本被清理后，原 Source 丢失已验证基线，
+    // 导致 Bundled/Active 同时缺失且后台刷新无法启动。恢复只作用于随包资源副本。
+    const restore = async () => {
+      this.#assertNotDisposed();
+      const latest = await readReleaseCandidate(this.#bundledFilePath);
+      if (latest.release) {
+        this.#bundledBaseline = latest.release;
+        return latest;
+      }
+      this.#assertNotDisposed();
+      await atomicWritePrivateTextFile(
+        this.#bundledFilePath,
+        `${JSON.stringify(encodeLCodeBuiltinRelease(baseline), null, 2)}\n`,
+      );
+      return { state: "available" as const, release: baseline };
+    };
+    try {
+      const restored = await (lockHeld ? restore() : withFileLock(this.#bundledFilePath, restore));
+      this.#reportRecovery({ sourceState: candidate.state, recovered: "disk" });
+      return restored;
+    } catch (error) {
+      this.#assertNotDisposed();
+      this.#reportRecovery({
+        sourceState: candidate.state,
+        recovered: "memory",
+        systemCode: describeProviderProvisioningFailure("provider-runtime", error).systemCode,
+      });
+      return { state: "available", release: baseline };
+    }
+  }
+
+  #reportRecovery(event: LCodeBuiltinRecoveryEvent): void {
+    const signature = JSON.stringify(event);
+    if (this.#disposed || this.#lastRecovery === signature) return;
+    this.#lastRecovery = signature;
+    try {
+      this.#onRecovery?.(event);
+    } catch {
+      /* 诊断不能把恢复成功变成初始化失败。 */
+    }
   }
 
   async #writeActiveLocked(release: LCodeBuiltinRelease): Promise<void> {
@@ -124,16 +208,30 @@ export class NodeLCodeBuiltinProviderConfigSource implements ProviderSource<Prov
     await mkdir(dirname(this.#activeFilePath), { recursive: true });
     if (!this.#watchEnabled || this.#watcher || this.#disposed) return;
     const target = basename(this.#activeFilePath);
-    this.#watcher = watch(dirname(this.#activeFilePath), (_eventType, fileName) => {
+    const watcher = watch(dirname(this.#activeFilePath), (eventType, fileName) => {
+      if (
+        eventType === "rename" &&
+        fileName?.toString() === basename(dirname(this.#activeFilePath))
+      ) {
+        if (this.#watcher === watcher) this.#watcher = null;
+        watcher.close();
+        this.#scheduleWatchRefresh();
+      }
       if (fileName === null || fileName.toString() === target) this.#scheduleWatchRefresh();
     });
-    this.#watcher.on("error", () => this.#emit("watch-error"));
+    this.#watcher = watcher;
+    watcher.on("error", () => {
+      if (this.#watcher === watcher) this.#watcher = null;
+      watcher.close();
+      this.#emit("watch-error");
+    });
   }
 
   #scheduleWatchRefresh(): void {
     this.#watchRefresh = this.#watchRefresh.then(async () => {
       if (this.#disposed) return;
       try {
+        await this.#ensureWatcher();
         const release = await withFileLock(this.#activeFilePath, () =>
           this.#readAndMaterializeLocked(),
         );
@@ -163,22 +261,8 @@ export function createNodeLCodeBuiltinProviderConfigSource(
   return new NodeLCodeBuiltinProviderConfigSource(options);
 }
 
-interface ReleaseCandidate {
-  readonly release?: LCodeBuiltinRelease;
-  readonly error?: unknown;
-}
-
-async function readReleaseCandidate(filePath: string): Promise<ReleaseCandidate | null> {
-  try {
-    return { release: decodeLCodeBuiltinRelease(JSON.parse(await readFile(filePath, "utf8"))) };
-  } catch (error) {
-    if (isFileNotFound(error)) return null;
-    return { error };
-  }
-}
-
 function selectReleaseCandidate(
-  bundled: ReleaseCandidate | null,
+  bundled: ReleaseCandidate,
   active: ReleaseCandidate | null,
 ): LCodeBuiltinRelease {
   if (
@@ -195,10 +279,7 @@ function selectReleaseCandidate(
     (candidate): candidate is LCodeBuiltinRelease => candidate !== undefined,
   );
   if (valid.length === 0) {
-    throw new AggregateError(
-      [bundled?.error, active?.error].filter((error) => error !== undefined),
-      "Bundled 与 Active LCode Built-in Release 均不可用",
-    );
+    throw new LCodeBuiltinUnavailableError(bundled, active);
   }
   return valid.reduce((newest, candidate) =>
     candidate.revision > newest.revision ? candidate : newest,
@@ -219,13 +300,4 @@ function snapshotFromRelease(
 
 function signatureOf(release: LCodeBuiltinRelease): string {
   return `${release.revision}:${serializeLCodeBuiltinRelease(release)}`;
-}
-
-function isFileNotFound(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: unknown }).code === "ENOENT"
-  );
 }

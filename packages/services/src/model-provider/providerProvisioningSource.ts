@@ -4,6 +4,7 @@ import { join } from "node:path";
 import {
   isProviderProvisioningAccountCredentialKey,
   providerProvisioningEnvelopeSchema,
+  runProviderProvisioningStage,
   type ProviderProvisioningCredentialEntry,
   type ProviderProvisioningEnvelope,
 } from "@lcode/shared";
@@ -49,9 +50,16 @@ export function createProviderProvisioningSource(
   return {
     async read(syncId: string): Promise<ProviderProvisioningEnvelope> {
       const [personal, settings, credentials] = await Promise.all([
-        readProvisionablePersonalConfig(options.personalRepository, options.personalConfigFilePath),
-        options.settingService.get(),
-        readProvisioningCredentials(options.credentialFilePath, options.cipherProvider),
+        runProviderProvisioningStage("local-personal", () =>
+          readProvisionablePersonalConfig(
+            options.personalRepository,
+            options.personalConfigFilePath,
+          ),
+        ),
+        runProviderProvisioningStage("local-settings", () => options.settingService.get()),
+        runProviderProvisioningStage("local-credentials", () =>
+          readProvisioningCredentials(options.credentialFilePath, options.cipherProvider),
+        ),
       ]);
       // 默认与规则来自同一份持锁读取，不能把两次读取的值拼成不存在的配置版本。
       const personalConfig = encodeProviderConfigFile(personal).config;
@@ -59,13 +67,15 @@ export function createProviderProvisioningSource(
         providerFamilyDomain: settings.providerFamilyDomain ?? null,
         providerFamilyConnectionSelections: settings.providerFamilyConnectionSelections ?? {},
       };
-      return providerProvisioningEnvelopeSchema.parse({
-        schemaVersion: 1,
-        syncId,
-        personalConfig,
-        accountSettings,
-        credentials,
-      });
+      return runProviderProvisioningStage("local-envelope", () =>
+        providerProvisioningEnvelopeSchema.parse({
+          schemaVersion: 1,
+          syncId,
+          personalConfig,
+          accountSettings,
+          credentials,
+        }),
+      );
     },
   };
 }

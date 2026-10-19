@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  describeProviderProvisioningFailure,
+  ProviderProvisioningStageError,
+  type ProviderProvisioningFailure,
+} from "@lcode/shared";
 import { decodeLCodeBuiltinRelease, type LCodeBuiltinRelease } from "./lcode-builtin-release.js";
 
 const clientConfigSchema = z
@@ -45,7 +50,7 @@ export async function downloadLCodeBuiltinRelease(
   const signal = options.signal
     ? AbortSignal.any([controller.signal, options.signal])
     : controller.signal;
-  let stage = "client-config";
+  let stage: "client-config" | "cdn" = "client-config";
   try {
     const url = new URL("/api/v1/client/configs", options.endpointOrigin);
     url.searchParams.set("app_version", options.appVersion);
@@ -56,17 +61,38 @@ export async function downloadLCodeBuiltinRelease(
     stage = "cdn";
     return decodeLCodeBuiltinRelease(await readJson(new URL(downloadUrl)));
   } catch (error) {
-    // 不能把带 query 的 URL、响应正文或 Schema 输入（可能含凭据）交给上层日志。
+    // 修复：用固定字段保留下载阶段和 HTTP 状态，避免脱敏后所有失败都变成 unknown；
+    // URL、正文、Schema 输入和原始 cause 不得离开下载边界。
     const reason = signal.aborted
       ? timedOut
         ? "timeout"
         : "cancelled"
       : error instanceof DownloadBoundaryError
-        ? error.message
+        ? error.reason
         : error instanceof z.ZodError
-          ? `invalid schema at ${error.issues[0]?.path.join(".") || "root"} (${error.issues[0]?.code})`
-          : "invalid response";
-    throw new Error(`LCode Built-in ${stage}: ${reason}`);
+          ? "invalid-schema"
+          : error instanceof SyntaxError
+            ? "invalid-response"
+            : "network-error";
+    const code: ProviderProvisioningFailure["code"] =
+      reason === "cancelled"
+        ? "cancelled"
+        : ["invalid-schema", "invalid-response", "empty-body", "body-limit"].includes(reason)
+          ? "invalid-config"
+          : "network-error";
+    const systemCode = describeProviderProvisioningFailure("provider-runtime", error).systemCode;
+    throw new ProviderProvisioningStageError({
+      stage: "provider-runtime",
+      code,
+      ...(systemCode ? { systemCode } : {}),
+      download: {
+        stage,
+        reason,
+        ...(error instanceof DownloadBoundaryError && error.httpStatus !== undefined
+          ? { httpStatus: error.httpStatus }
+          : {}),
+      },
+    });
   } finally {
     clearTimeout(timer);
   }
@@ -88,10 +114,10 @@ export async function downloadLCodeBuiltinRelease(
     );
     if (!response.ok) {
       void response.body?.cancel().catch(() => {});
-      throw new DownloadBoundaryError(`HTTP ${response.status}`);
+      throw new DownloadBoundaryError("http-error", response.status);
     }
     const reader = response.body?.getReader();
-    if (!reader) throw new DownloadBoundaryError("empty body");
+    if (!reader) throw new DownloadBoundaryError("empty-body");
     const decoder = new TextDecoder();
     const chunks: string[] = [];
     let bytes = 0;
@@ -100,7 +126,7 @@ export async function downloadLCodeBuiltinRelease(
         const part = await abortable(reader.read(), signal);
         if (part.done) break;
         bytes += part.value.byteLength;
-        if (bytes > 10_000_000) throw new DownloadBoundaryError("body limit exceeded");
+        if (bytes > 10_000_000) throw new DownloadBoundaryError("body-limit");
         chunks.push(decoder.decode(part.value, { stream: true }));
       }
       chunks.push(decoder.decode());
@@ -116,7 +142,14 @@ export async function downloadLCodeBuiltinRelease(
   }
 }
 
-class DownloadBoundaryError extends Error {}
+class DownloadBoundaryError extends Error {
+  constructor(
+    readonly reason: "http-error" | "empty-body" | "body-limit",
+    readonly httpStatus?: number,
+  ) {
+    super(reason);
+  }
+}
 
 function abortable<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise<T>((resolve, reject) => {
