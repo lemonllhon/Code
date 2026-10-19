@@ -28,7 +28,7 @@
     "test:release": "node --test scripts/github-release.test.mjs scripts/github-actions-environment.test.mjs scripts/verify-release-inputs.test.mjs scripts/workspace-patch-notices.test.mjs scripts/notice-artifacts.test.mjs scripts/desktop-agent-sync.test.mjs scripts/desktop-agent-network-alias.test.mjs scripts/spawn-command.test.mjs packages/desktop/scripts/electron-runtime-version.test.mjs packages/desktop/scripts/main-runtime-boundaries.test.mjs packages/desktop/scripts/provider-network-runtime.test.mjs packages/desktop/scripts/packaged-product-identity.test.mjs packages/desktop/scripts/windows-installer-brand-isolation.test.mjs",
     "test:dependency-security": "node --test scripts/dependency-security.test.mjs scripts/dependency-rsa-security.test.mjs",
     "verify:release-inputs": "node scripts/verify-release-inputs.mjs",
-    "verify:pre-push": "pnpm run verify:release-inputs --source=HEAD && pnpm run lint && pnpm run architecture:check -- --changed",
+    "verify:pre-push": "pnpm run verify:release-inputs --source=HEAD && node --test scripts/desktop-agent-sync.test.mjs && pnpm run lint && pnpm run architecture:check -- --changed",
     "build": "pnpm -r build",
     "build:desktop-agent:bytecode": "node scripts/build-desktop-agent-bytecode.mjs",
     "build:lcode": "node scripts/build-lcode.mjs",

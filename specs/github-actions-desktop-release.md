@@ -574,6 +574,14 @@ sequenceDiagram
 
 ## 内嵌 OAuth Worker 的生成一致性
 
+### v3.19.5 发行失败修复（2026-10-19）
+
+- Actions `39202365690` 的 Linux x64 实际生成回归检出旧 Worker；远端与其他桌面目标重建后，又因 `worker-source.ts` 与已提交库存摘要不同而失败。这是同一生成产物遗漏，不放宽声明、版本或材料基线检查。
+- 原有 `verify:pre-push` 只验证 HEAD 的文件与库存互相一致，未执行从源码重建的 Worker 一致性回归。将已有 `scripts/desktop-agent-sync.test.mjs` 加入该入口，在 HEAD 完整性检查之后、Lint 与架构检查之前执行；失败时中止，检查本身不得写回 Worker 或库存。它与已有 Lint 一样检查当前工作区，不代替 HEAD 完整性检查；推送前仍须确认修复产物与库存均已提交。
+- 使用唯一 Worker 生成器同步产物，再用原有 licenses 生成器更新声明库存。验收旧产物的真实失败、修复后完整发行回归、远端资源回归，以及发行模式输入准备连续两次通过且产物哈希不变。
+- 本次先在本地修复并验证。既有 `v3.19.5` tag 保持原提交；重新发行采用新 tag 或移动旧 tag，须由用户明确选择后执行。
+- 本地验证：旧 Worker 的真实回归先复现与 CI 完全相同的哈希不一致，更新后发行测试 138 项中 137 通过、1 项 Chromium helper 按条件跳过；远端资源 37 项全部通过。发行模式输入准备连续两次通过且 Worker、库存和声明哈希不变；声明正文及 20 项材料复核基线均不变。根 typecheck、Lint、架构和格式检查通过；CLI typecheck 27 项与 Lint 14 项通过，均命中已有 Turbo 缓存，仍有既有 lockfile 闭包警告。六平台原生安装包尚待重新发行验证。
+
 - `scripts/build-auth-plugin-worker.mjs` 是 `worker-source.ts` 的唯一生成入口。其输入包括
   Worker、固定插件及间接依赖的 shared 协议；只修改 SSH 等共享 schema 也必须同步生成产物。
 - 提交前按顺序执行 `node scripts/build-auth-plugin-worker.mjs` 与
