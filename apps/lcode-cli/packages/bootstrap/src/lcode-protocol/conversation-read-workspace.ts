@@ -4,7 +4,7 @@ import type { LCodeProtocolAgentServerContext } from "./server-types.js";
 import { buildWorkspaceRef, originWorkspaceRef } from "./workspace.js";
 import { WORKTREE_BINDING_ENTRY } from "./worktree-execution.js";
 
-const workspaceKey = (workspace: LCodeWorkspaceRef) =>
+export const conversationWorkspaceKey = (workspace: LCodeWorkspaceRef) =>
   workspace.workspaceIdentity?.trim() || workspace.workspacePath;
 
 export class ConversationReadWorkspaceError extends Error {
@@ -20,6 +20,39 @@ export class ConversationReadWorkspaceError extends Error {
   }
 }
 
+async function resolveExecutionWorkspace(
+  context: LCodeProtocolAgentServerContext,
+  sessionId: string,
+  stored: SessionInfo | null | undefined,
+  visited: Set<string>,
+): Promise<LCodeWorkspaceRef | undefined> {
+  if (visited.has(sessionId)) throw new Error("fault.history.parentCycle");
+  visited.add(sessionId);
+  const direct = context.sessions.get(sessionId)?.workspace;
+  if (direct) return direct;
+  const entries = stored
+    ? await context.deps.sessionStore?.sessionEntries?.({
+        sessionID: sessionId as SessionId,
+        type: WORKTREE_BINDING_ENTRY,
+      })
+    : undefined;
+  const binding = entries?.filter((entry) => entry.type === WORKTREE_BINDING_ENTRY).at(-1);
+  // 已声明但损坏的绑定不是“旧记录缺失”，不能降级继承另一工作区。
+  if (binding) return lcodeWorkspaceRefSchema.parse(binding.data);
+  if (!stored) return undefined;
+  // 旧 Agent child 只保存了执行 cwd，丢失父 workspacePath/identity/binding。
+  // 仅对无显式身份的真实 subagent 关系沿持久 parentID 还原，不能用请求路径放宽校验。
+  if (stored.taskType === "subagent_child" && !stored.workspaceID?.trim() && stored.parentID) {
+    const parent = await context.deps.sessionStore?.getSession(stored.parentID);
+    const inherited = await resolveExecutionWorkspace(context, stored.parentID, parent, visited);
+    if (inherited) return inherited;
+  }
+  return buildWorkspaceRef({
+    workspacePath: stored.path || stored.directory,
+    workspaceIdentity: stored.workspaceID,
+  });
+}
+
 /** 沿用执行绑定的 schema 与 origin 语义，不能把详情入口路径当作文件执行 cwd。 */
 export async function resolveConversationReadWorkspace(
   context: LCodeProtocolAgentServerContext,
@@ -27,32 +60,15 @@ export async function resolveConversationReadWorkspace(
   stored: SessionInfo | null | undefined,
   requested?: LCodeWorkspaceRef,
 ): Promise<LCodeWorkspaceRef> {
-  const direct = context.sessions.get(sessionId)?.workspace;
-  const entries =
-    !direct && stored
-      ? await context.deps.sessionStore?.sessionEntries?.({
-          sessionID: sessionId as SessionId,
-          type: WORKTREE_BINDING_ENTRY,
-        })
-      : undefined;
-  const binding = lcodeWorkspaceRefSchema.safeParse(
-    entries?.filter((entry) => entry.type === WORKTREE_BINDING_ENTRY).at(-1)?.data,
-  );
-  const execution =
-    direct ??
-    (binding.success
-      ? binding.data
-      : stored
-        ? buildWorkspaceRef({
-            workspacePath: stored.path ?? stored.directory,
-            workspaceIdentity: stored.workspaceID,
-          })
-        : undefined);
+  const execution = await resolveExecutionWorkspace(context, sessionId, stored, new Set());
   if (!execution)
     throw new ConversationReadWorkspaceError("fault.history.sessionNotFound", sessionId);
   if (requested) {
-    const key = workspaceKey(requested);
-    if (key !== workspaceKey(execution) && key !== workspaceKey(originWorkspaceRef(execution)))
+    const key = conversationWorkspaceKey(requested);
+    if (
+      key !== conversationWorkspaceKey(execution) &&
+      key !== conversationWorkspaceKey(originWorkspaceRef(execution))
+    )
       throw new ConversationReadWorkspaceError("fault.history.workspaceMismatch");
     if (
       execution.remoteSessionId &&

@@ -20,6 +20,9 @@
 - projection-only READY 后将可回收时间登记到 gateway 既有 detachedTerminalAt；没有订阅者、执行 record 和在途命令时按原 grace 回收。收到真实 live child 事件后由原生命周期覆盖该时间，不新增观察缓存或假 live 身份。
 - workspaceIdentity 与 remoteSessionId 贯穿校验，不按路径或 session ID 前缀推断权限。模型统计来自 child 的持久绑定/事件，未知保持未知，不为展示绑定模型。
 - 只读 workspace 使用现有 `worktree_binding` entry schema 还原执行路径；请求可用执行身份或其 origin 身份进入，但不能换到同路径的另一远程身份。请求的 remoteSessionId 保留在当前 attachment 的投影 seed，不写回持久绑定。
+- 普通 Agent child 创建时继承父 runtime 的 `workspacePath`、`workspaceIdentity`（兼容既有 memory identity 来源）、`workspaceBinding` 和 attachment/delivery 字段。`workingDirectory` 仍是本次工具请求的 cwd，不能用它重新生成子会话工作区身份；本地路径表示也不能再次 resolve 后用作身份。
+- 历史工作区解析只有一个入口：live record、该会话持久 worktree binding、该会话显式 workspaceID 依次作为事实。只有旧 `subagent_child` 同时缺少 binding 与 workspaceID 时，才沿持久 `parentID` 继承父工作区；父不活跃时读取其持久记录，不靠 sessionId 前缀、UI 请求路径或路径包含关系猜测。缺失父记录时保留原本地 path/directory fallback；读取异常与父链环必须显式失败。
+- 借用父 record 的能力前，对父链每一层使用上述同一工作区解析和身份 key 校验。显式跨工作区子会话不能借用父能力；worktree origin 只用于请求入口校验，不替换执行身份。旧记录的兼容仅发生在读取投影，不回写历史、不新建 child runtime、不扩大执行权限。
 - 模型目录或历史选模 entry 不可用只影响容量展示，记录诊断并保持未知，不阻断已有正文读取。正文/entry 读取失败则显式失败，不能丢弃 checkpoint 后报恢复成功。
 - 本次保持详情完整 transcript 读取语义；现有 bounded snapshot 是搜索用前缀（256 messages / 1,024 parts / 256 KiB），直接替换会截断长详情。因此该端口仍用于原搜索入口，详情的分页原子读取需要另行扩展契约，不能声称本次已实现。
 
@@ -44,6 +47,23 @@ sequenceDiagram
     end
 ```
 
+```mermaid
+sequenceDiagram
+    participant P as 父 Runtime（工作区事实 owner）
+    participant C as 子 Runtime
+    participant S as 原 SessionStore
+    participant R as 统一历史工作区解析
+    participant V as V4 gateway
+    P->>C: 继承工作区/绑定/attachment，单独传执行 cwd
+    C->>S: 原子保存 child session + 初始绑定
+    C-->>P: SessionReady 后通知 child 可观察
+    V->>R: childSessionId + 请求 workspace
+    R->>S: 读取 child；旧无身份 child 沿持久 parentID 读取
+    R->>R: 校验请求身份、remoteSessionId 与每层父绑定
+    R-->>V: 同一执行 workspace 与可信父只读能力
+    V-->>V: Desktop continuous / Mobile replayable 各自投影
+```
+
 ## 验收
 
 1. live/cold child 订阅、重载、重连不新增可执行 record/scope 或模型请求；旧 turn 始终被拒绝。
@@ -51,7 +71,20 @@ sequenceDiagram
 3. 根 resume 失败不留下半初始化 record；第二次真实 resume；并发订阅/命令同一 flight，迟到失败不删除新代。
 4. 两类 child 的通用执行入口在接受前拒绝；专用 workflow 控制和授权文件回溯继续有效，拒绝保留未提交草稿/附件。
 5. continuous 与 replayable 同一事实，不重复提交已接受 busy/running 输入，不添加旧 strict reader 不认识的 wire 字段。
+6. 父 cwd 切入子目录、本地入口路径含尾分隔符、显式远程身份与 worktree origin 时，真实 Agent child 持久化仍保留父工作区身份与 binding；attachment/delivery 继续透传。
+7. 旧无身份 subagent child 在父 active/inactive、同级及嵌套 parent 链下，continuous/replayable 均可读取与订阅；无需数据迁移或创建 runtime。
+8. 借用父能力时 child 显式身份与父身份冲突、请求来自同路径另一 remote identity、attachment 不匹配、父链环、损坏的显式 binding 与读取错误时仍失败；未就绪或历史观察不能变成执行 admission。父记录已缺失时只保留 child 自身本地 path fallback。没有可借用的 live record 时，独立 fork 等会话仍可按自身工作区读取冷历史，不因父工作区不同而阻断。
 
 ## 迁移与验证
 
 无数据库迁移，不热修改正在运行的 workflow，不把诊断“缺陷复现通过”当作修复验收。正式结果与未验证范围在执行后记录。
+
+### 2026-10-19 工作区不一致修复
+
+源码复现链路：`createDefaultSubagentPort` 构造 child 时只传执行 cwd，遗漏父 workspacePath/identity/binding；`ensureSessionPersisted` 因此回落到 cwd 保存 path/directory，workspaceID 为空。父 cwd 变为子目录、本地路径表示被规范化、远端身份或 worktree origin 存在时，child 的持久身份与父/UI 请求不再一致。原 `resolveConversationBackingRecord` 又直接用这份 path/identity 比较 live 父，未使用历史读取入口的 binding/origin 解析。
+
+修复保留原持久化 owner 与原子初始 entry 写入，只修正 child 配置派生；历史读取与父能力借用共用工作区解析。旧无身份 subagent 沿持久父关系恢复工作区，既不修库，也不将 UI 请求当作身份来源。
+
+定向验证覆盖真实 Agent 构造和持久化、两种 clientMode 的 gateway 订阅/历史读取、父 active/inactive 与嵌套父链、显式远程身份和 attachment 拒绝、损坏 binding、缺失父记录、父链环、读取异常、跨工作区中间祖先，以及独立 cold fork。日志本身未记录冲突双方的实际 key；没有原机数据库，不能据此声称已逐一还原历史报错会话的具体 cwd。
+
+验证结果：6 个定向测试文件共 33 项通过；根目录 `pnpm typecheck`、`pnpm lint`，以及 `pnpm --dir apps/lcode-cli typecheck`、`pnpm --dir apps/lcode-cli lint` 均通过。`pnpm architecture:check --changed` 为 0 violations / 0 baseline / 0 new；本次 7 个文件的格式检查与 diff whitespace 检查通过。Turbo 仍输出已有的 lockfile workspace 发现警告。未在原 macOS 安装包与原数据库上重放历史会话，未执行桌面 UI E2E。

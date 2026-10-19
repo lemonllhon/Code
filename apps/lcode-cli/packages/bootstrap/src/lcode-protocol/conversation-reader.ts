@@ -25,14 +25,13 @@ export async function resolveConversationReader(
 ) {
   const store = context.deps.sessionStore;
   const stored = await store?.getSession(sessionId as SessionId);
-  const record = await resolveConversationBackingRecord(context, sessionId);
-  if (!stored && !record) throw new Error(`fault.history.sessionNotFound: ${sessionId}`);
   const workspace = await resolveConversationReadWorkspace(
     context,
     sessionId,
     stored,
     requestedWorkspace,
   );
+  const record = await resolveConversationBackingRecord(context, sessionId, workspace);
   const ports = context.deps.conversationReadPorts;
   const traceContext = createRootTraceContext({
     sessionId: sessionId as SessionId,
