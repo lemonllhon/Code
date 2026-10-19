@@ -83,6 +83,11 @@ export interface AgentRuntimeCoreMethods {
   getMode(): CollaborationMode;
   getPlanEnabled(): boolean;
   grantPermissionFullAccess(interactionId: string, signal?: AbortSignal): Promise<string>;
+  setPermissionMode(
+    mode: import("@lcode/contracts").SessionPermissionMode,
+    changeId: string,
+    signal?: AbortSignal,
+  ): Promise<string>;
   setExecutionState(
     input: { mode?: string; planEnabled?: boolean },
     traceContext?: TraceContext,

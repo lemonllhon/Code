@@ -1,8 +1,8 @@
+import { persistAssistantContent } from "./assistant-content-persistence.js";
 import {
   CoreErrorType,
   SessionEventType,
   createCoreError,
-  createPartId,
   getModelUsageTotalTokens,
   traceContextToLogContext,
   TurnMachineImpl,
@@ -34,7 +34,6 @@ import {
   classifyOutputTokenContinuation,
   commitAssistantToTurnRequest,
   completeOutputTokenRecovery,
-  hasAssistantReasoningContent,
   OUTPUT_TOKEN_LIMIT_ERROR_MESSAGE,
 } from "./turn-output-token-continuation.js";
 import { hasExecutionFailoverTarget } from "./model-failover-router.js";
@@ -188,40 +187,13 @@ export async function commitModelStepResult(
   // AI SDK 可能把非标准 output-limit 归一化为 other；Runtime 已确认恢复语义后，
   // live 事件与持久化必须统一使用 length，同时由上方 diagnostics 保留 provider 原始事实。
   if (outputTokenContinuation !== "none") result.finishReason = "length";
-  for (const reasoning of result.reasoning ?? []) {
-    if (!hasAssistantReasoningContent(reasoning)) continue;
-    await this.persistPart(
-      {
-        id: createPartId(),
-        sessionID: this.sessionId,
-        messageID: assistantMessageId,
-        type: "reasoning",
-        text: reasoning.text,
-        metadata: reasoning.providerOptions,
-        time: {
-          start: modelStartedAt,
-          end: Date.now(),
-        },
-      },
-      modelTraceContext,
-    );
-  }
-  if (state.modelResponse.length > 0) {
-    await this.persistPart(
-      {
-        id: createPartId(),
-        sessionID: this.sessionId,
-        messageID: assistantMessageId,
-        type: "text",
-        text: state.modelResponse,
-        time: {
-          start: modelStartedAt,
-          end: Date.now(),
-        },
-      },
-      modelTraceContext,
-    );
-  }
+  await persistAssistantContent(this, {
+    assistantMessageId,
+    createdAt: modelStartedAt,
+    reasoning: result.reasoning,
+    text: state.modelResponse,
+    traceContext: modelTraceContext,
+  });
 
   const cacheHit =
     querySource === "main_turn" ? recordMainTurnCacheHitUsage(this, result.usage) : undefined;

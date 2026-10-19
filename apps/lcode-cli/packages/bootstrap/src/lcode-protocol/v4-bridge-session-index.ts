@@ -88,7 +88,12 @@ export function createV4SessionIndexHost(
         mode: record.app.getMode(),
         planEnabled: record.app.runtime.getPlanEnabled(),
         ...(record.app.runtime.lastPermissionGrantId
-          ? { permissionGrant: { interactionId: record.app.runtime.lastPermissionGrantId } }
+          ? {
+              permissionGrant: {
+                interactionId: record.app.runtime.lastPermissionGrantId,
+                mode: record.app.runtime.lastPermissionGrantMode,
+              },
+            }
           : {}),
       };
     },

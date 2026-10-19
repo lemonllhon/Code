@@ -120,6 +120,7 @@ import { formatModelChangeLabel } from "@/v4/composer/modelTriggerDisplay.js";
 import { resolveAppFollowupMode } from "@/v4/composer/followupModeSettings.js";
 import {
   createComposerSubmissionConfig,
+  isComposerPermissionSubmissionCurrent,
   type ComposerSubmissionConfig,
 } from "@/v4/composer/composerSubmissionConfig.js";
 import { useDraftSessionPrewarm } from "@/v4/composer/useDraftSessionPrewarm.js";
@@ -250,6 +251,7 @@ import {
 import { shouldResyncForStaleAuthority } from "@/v4/staleAuthorityRecovery.js";
 import { createCommandEnvelope } from "@/v4/commandFactory.js";
 import { createConfigCommandBarrier } from "@/v4/configCommandBarrier.js";
+import { usePermissionModeSwitch } from "@/v4/composer/usePermissionModeSwitch.js";
 import { recordV4CommandAck } from "@/v4/commandAckObservability.js";
 import { pendingCommandRegistry } from "@/v4/pendingCommandRegistry.js";
 import type {
@@ -1421,7 +1423,7 @@ export function SessionPane({
     modelSelectionService,
   });
 
-  // Composer 保存下一次 Submission 的 renderer intent；prewarm session 仅承载草稿预热。
+  // Composer 保存下一次 Submission 的意图；已有任务权限跟随 Runtime，prewarm 仅承载预热。
   const {
     composerDraft,
     modelSelectionRead,
@@ -1472,8 +1474,12 @@ export function SessionPane({
     useLCodeSessionStore.getState().invalidateDraftRuntime(workspacePath, workspaceIdentity);
   }, [draftConfigRef, modelSelectionView?.revision, sessionId, workspaceIdentity, workspacePath]);
   const recommendStartPlan = useStartPlanRecommendation(modelSelectionView);
+  const permissionModePendingRef = useRef(false);
   const createSubmissionFromComposer = useCallback(
-    () => createComposerSubmissionConfig(draftConfigRef.current, modelSelectionView),
+    () =>
+      permissionModePendingRef.current
+        ? null
+        : createComposerSubmissionConfig(draftConfigRef.current, modelSelectionView),
     [draftConfigRef, modelSelectionView],
   );
   const composerSubmissionReady = useMemo(
@@ -3809,6 +3815,15 @@ export function SessionPane({
         submission:
           options?.submission === undefined ? createSubmissionFromComposer() : options.submission,
       };
+      // 编辑器可能已冻结 Submission 后等待附件上传；期间改选权限不能被迟到发送撤销。
+      if (
+        !isComposerPermissionSubmissionCurrent(
+          submissionOptions.submission,
+          createSubmissionFromComposer(),
+        )
+      ) {
+        return Promise.resolve("blocked" as const);
+      }
       // followupMode 仍通过 Session CAS 同步；模型和模式已封装进 Submission，不再
       // 依赖“配置命令先到、sendText 后到”的跨命令时序。
       return configCommandBarrier.enqueue(async () => {
@@ -4475,12 +4490,32 @@ export function SessionPane({
     ],
   );
 
-  // 模式与模型一样属于下一次 Submission；选择时只更新 Composer。
+  const commitPermissionMode = useCallback(
+    (mode: "build" | "edit" | "yolo") => dispatchConfigCas("switchCollaborationMode", { mode }),
+    [dispatchConfigCas],
+  );
+  const permissionModeSwitch = usePermissionModeSwitch({
+    scopeKey: JSON.stringify([workspaceIdentity?.trim() || workspacePath, sessionId]),
+    owner: lcodeTaskService,
+    pendingRef: permissionModePendingRef,
+    barrier: configCommandBarrier,
+    commit: sessionId ? commitPermissionMode : null,
+    onCommitted: handleDraftSwitchMode,
+    onError: (error) => {
+      logger.warn(`[v4-pane] 权限切换失败: ${String(error)}`);
+      toast(intl.formatMessage({ id: "chat.permissionMode.switchFailed" }));
+    },
+  });
+  // Plan 仍编辑下一次 Submission；权限必须先由当前 Runtime 原子提交。
   const handleSwitchMode = useCallback(
     (mode: string) => {
-      handleDraftSwitchMode(mode);
+      if (mode === "build" || mode === "edit" || mode === "yolo") {
+        permissionModeSwitch.switchMode(mode);
+      } else {
+        handleDraftSwitchMode(mode);
+      }
     },
-    [handleDraftSwitchMode],
+    [handleDraftSwitchMode, permissionModeSwitch.switchMode],
   );
 
   // context usage 面板的压缩入口（命令文本 = "/compact"，复用 slash 解析路径）。
@@ -5304,6 +5339,9 @@ export function SessionPane({
       }
       // Snapshot 仍服务用量、路由与运行态；工具栏的 mode/model 只读下方 Composer Draft。
       snapshot={snapshot}
+      predictionLiveUpdate={
+        state.status === "live" && state.lastUpdateIsOnlineDelta === true && state.syncing !== true
+      }
       sessionId={sessionId}
       // 草稿 taskId 仍为 null，但 prewarm 已经拥有独立 AgentRuntime。
       // 只给 Skill catalog 下发 effective id，避免 UI 扫到 prewarm runtime 尚未加载的新 Skill。
@@ -5314,10 +5352,12 @@ export function SessionPane({
       replaceComposerDraft={replaceComposerDraft}
       submissionReady={
         composerSubmissionReady &&
+        !permissionModeSwitch.pending &&
         !(sessionId === null && Boolean(draftExecution?.requestId || draftExecution?.error))
       }
       updateComposerContent={updateComposerContent}
       createSubmissionFromComposer={createSubmissionFromComposer}
+      permissionModePending={permissionModeSwitch.pending}
       contextHeader={
         isDraft ? (
           <>

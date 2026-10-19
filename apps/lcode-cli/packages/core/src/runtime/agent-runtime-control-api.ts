@@ -34,6 +34,7 @@ import {
 
 export interface AgentRuntimeControlApi {
   lastPermissionGrantId?: string;
+  lastPermissionGrantMode?: import("@lcode/contracts").SessionPermissionMode;
   beginShutdown(): void;
   closeBrowserSession(): Promise<void>;
   /** 登记 workflow actor dispose 等仍可能访问父 session store 的异步关闭工作。 */
@@ -55,6 +56,11 @@ export interface AgentRuntimeControlApi {
   getMode(): CollaborationMode;
   getPlanEnabled(): boolean;
   grantPermissionFullAccess(interactionId: string, signal?: AbortSignal): Promise<string>;
+  setPermissionMode(
+    mode: import("@lcode/contracts").SessionPermissionMode,
+    changeId: string,
+    signal?: AbortSignal,
+  ): Promise<string>;
   setExecutionState(
     input: { mode?: string; planEnabled?: boolean },
     traceContext?: TraceContext,

@@ -43,6 +43,8 @@ interface LCodeProtocolClientRequestOptions {
   signal?: AbortSignal;
   trace?: LCodeProtocolTrace;
   timeoutMs?: number;
+  /** 可选辅助工作超时不能单独证明 Agent 故障；operation 的在途/空闲语义仍保留。 */
+  timeoutAffectsRuntimeHealth?: boolean;
 }
 
 const DEFAULT_LCODE_PROTOCOL_REQUEST_TIMEOUT_MS = 3 * 60_000;
@@ -146,6 +148,8 @@ export class LCodeProtocolClient implements IDisposable {
     const requestKey = String(id);
     const requestTimeoutMs = options?.timeoutMs ?? this.requestTimeoutMs;
     const observation = options?.lifecycle === "observation";
+    const timeoutAffectsRuntimeHealth =
+      !observation && options?.timeoutAffectsRuntimeHealth !== false;
 
     const resultPromise = new Promise<T>((resolve, reject) => {
       const expire = () => {
@@ -157,7 +161,8 @@ export class LCodeProtocolClient implements IDisposable {
         // process manager 仍复用这个 stale client，导致后续 plugins/list 等请求连续卡在超时窗口。
         // 超时事件把“连接已不可信”的事实上抛给 owner，由 owner 负责淘汰进程。
         // 资源查询的短超时只表示本轮无数据，不能被升级成整个 Agent 的故障回收。
-        if (!observation) {
+        // 可选预测仍占用 operation 生命周期，但辅助模型耗时也不能单独证明进程已失效。
+        if (timeoutAffectsRuntimeHealth) {
           this.requestTimeoutEmitter.fire({ method, requestId: id, timeoutMs: requestTimeoutMs });
         }
         reject(error);

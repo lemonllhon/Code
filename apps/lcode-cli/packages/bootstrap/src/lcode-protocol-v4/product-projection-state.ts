@@ -32,7 +32,7 @@ export interface PendingSessionHookInvocation {
 
 export interface SessionConfigSeed {
   executionWorkspace?: ConversationSnapshot["executionWorkspace"];
-  permissionGrant?: { interactionId: string };
+  permissionGrant?: ConversationSnapshot["config"]["permissionGrant"];
   planEnabled?: boolean;
   modelSelection?: ModelSelectedPayload["modelSelection"];
   provider?: string;

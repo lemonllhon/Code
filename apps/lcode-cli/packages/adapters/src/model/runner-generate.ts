@@ -12,7 +12,6 @@ import {
 } from "./empty-completion-retry.js";
 import { classifyModelFailure } from "./failure-classifier.js";
 import { unwrapRetryError } from "./failure-inspection.js";
-import { detectProviderBusinessFinishError } from "./provider-finish-business-error.js";
 import { admitAttempt, type AttemptAdmission } from "./request-admission.js";
 import {
   normalizeRetryAttemptOffset,
@@ -57,6 +56,7 @@ import { logModelSpeedObservation } from "./runner-speed-observation.js";
 import { handleGenerateFailure } from "./runner-generate-failure.js";
 import {
   generationExhaustedError,
+  assertGenerateTextFinish,
   serializeStructuredOutput,
   waitForGenerateTextOrAbort,
 } from "./runner-generate-result.js";
@@ -73,7 +73,10 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
     maxAttempts: statusMaxAttempts(0),
     request: input.request,
     resolved: input.resolved,
-    transport: ModelTransportKindValue.Http,
+    transport:
+      input.resolved.generateTextTransport === "sse"
+        ? ModelTransportKindValue.Sse
+        : ModelTransportKindValue.Http,
   });
   const recordModelIO =
     input.request.metadata?.skipTranscript !== true && shouldRecordModelIO(input.env);
@@ -238,7 +241,10 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
       // 部分非流式 provider/fetch 兼容层收到 AbortSignal 后不会及时 settle
       // generateText promise，导致 runtime 已 Stop，goal verifier 仍要等上游自然返回才收口。
       // adapter 是本地取消契约边界：signal 一旦 abort 就立即拒绝，迟到 provider 结果只丢弃。
-      const pendingResult = input.runtime.generateText(attemptState.options);
+      const pendingResult = input.runtime.generateText(
+        attemptState.options,
+        attemptState.resolved.generateTextTransport,
+      );
       // options 构造成功不等于 runtime 已接受请求；同步 setup 异常会在调用点直接抛出。
       // 只有 generateText 调用返回 pending promise 后才进入 response 归因边界，避免把本地 setup 记成 provider。
       attemptState.requestInvocationCompleted = true;
@@ -246,18 +252,7 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
       const responseHeaders = sanitizeModelNetworkHeaders(
         getGenerateTextResultMetadata(result)?.response?.headers,
       );
-      const providerBusinessFinishError = detectProviderBusinessFinishError({
-        providerId: String(attemptState.resolved.providerId),
-        providerKind: attemptState.resolved.providerKind,
-        source: {
-          finishReason: result.finishReason,
-          providerMetadata: result.providerMetadata,
-          rawFinishReason: (result.providerMetadata as Record<string, unknown> | undefined)
-            ?.rawFinishReason,
-          response: (result as unknown as { response?: unknown }).response,
-        },
-      });
-      if (providerBusinessFinishError) throw providerBusinessFinishError;
+      assertGenerateTextFinish(attemptState.resolved, result);
       const usage = normalizeUsage(result.totalUsage ?? result.usage);
       attemptState.resolved.apiKeyAttempt?.observeUsage?.(usage);
       await attemptState.resolved.apiKeyAttempt?.flushRouting?.();
@@ -349,6 +344,7 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
       const completedAt = Date.now();
 
       recordGenerateTextDebug({
+        stream: attemptState.resolved.generateTextTransport === "sse",
         modelIoFullRetentionEnabled: input.modelIoFullRetentionEnabled,
         attempt,
         debugDir: input.debugDir,

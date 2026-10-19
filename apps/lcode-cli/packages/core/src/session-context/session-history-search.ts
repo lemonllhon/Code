@@ -7,6 +7,7 @@ import {
   type SessionTaskType,
 } from "@lcode/contracts";
 import { tokenizeMemoryRecallText } from "../memory/recall/tokenizer.js";
+import { selectMemoryExcerpt } from "../memory/recall/excerpt.js";
 import { activeSessionMessagesForSession } from "./active-session-messages.js";
 import { truncateText } from "./utils.js";
 
@@ -49,10 +50,12 @@ export function projectSessionHistorySearchText(input: {
   characterLimit?: number;
   messages: MessageWithParts[];
   session: SessionInfo;
+  query?: string;
 }): SessionHistoryProjection {
   const characterLimit = clampProjectionCharacterLimit(input.characterLimit);
   const activeMessages = activeSessionMessagesForSession(input.messages, input.session);
   const chunks: string[] = [];
+  const queryTokens = input.query ? tokenizeMemoryRecallText(input.query) : [];
   let projectedCharacterCount = 0;
   let truncated = false;
 
@@ -73,6 +76,10 @@ export function projectSessionHistorySearchText(input: {
       if (!text) continue;
 
       const chunk = `${role === "user" ? "User" : "Assistant"}: ${text}`;
+      if (queryTokens.length > 0) {
+        chunks.push(chunk);
+        continue;
+      }
       const separatorLength = chunks.length === 0 ? 0 : 2;
       const remaining = characterLimit - projectedCharacterCount - separatorLength;
       if (remaining <= 0) {
@@ -89,11 +96,14 @@ export function projectSessionHistorySearchText(input: {
     }
   }
 
+  const fullText = chunks.join("\n\n");
+  const searchText =
+    queryTokens.length > 0 ? selectMemoryExcerpt(fullText, queryTokens, characterLimit) : fullText;
   return {
     activeMessageCount: activeMessages.length,
-    projectedCharacterCount,
-    searchText: chunks.join("\n\n"),
-    truncated,
+    projectedCharacterCount: queryTokens.length > 0 ? searchText.length : projectedCharacterCount,
+    searchText,
+    truncated: truncated || searchText.length < fullText.length,
   };
 }
 

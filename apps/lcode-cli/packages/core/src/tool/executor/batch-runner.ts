@@ -27,30 +27,18 @@ export async function executeToolBatch(
   toolCalls: ExecutableToolCall[],
   options?: ToolBatchExecuteOptions,
 ): Promise<ToolExecutionResult[]> {
-  const maxConcurrency = options?.maxConcurrency ?? deps.maxConcurrency;
-
-  if (toolCalls.length <= maxConcurrency) {
-    return Promise.all(toolCalls.map((tc) => executeOne(tc, options)));
-  }
-
-  const results: ToolExecutionResult[] = [];
-  for (let i = 0; i < toolCalls.length; i += maxConcurrency) {
-    const batch = toolCalls.slice(i, i + maxConcurrency);
-    const batchResults = await Promise.all(
-      batch.map((tc) =>
-        executeOne(tc, {
-          automationTurn: options?.automationTurn,
-          offPeakTurn: options?.offPeakTurn,
-          signal: options?.signal,
-          traceContext: options?.traceContext,
-          subagentModelOverride: options?.subagentModelOverride,
-          model: options?.model,
-        }),
-      ),
-    );
-    results.push(...batchResults);
-  }
-  return results;
+  // 修复整批等待最慢项：所有入口在权限后领取同一 executor 许可，空槽可立即补位。
+  return Promise.all(
+    toolCalls.map((tc) =>
+      executeOne(tc, {
+        ...options,
+        maxConcurrency: Math.min(
+          options?.maxConcurrency ?? deps.maxConcurrency,
+          deps.maxConcurrency,
+        ),
+      }),
+    ),
+  );
 }
 
 export async function* executeToolSchedule(
@@ -65,7 +53,11 @@ export async function* executeToolSchedule(
 ): AsyncGenerator<ToolBatchEvent, ToolExecutionResult[], void> {
   const toolMap = new Map(toolCalls.map((tc) => [tc.id, tc]));
   const allResults: ToolExecutionResult[] = [];
-  const maxConcurrency = options?.maxConcurrency ?? deps.maxConcurrency;
+  const maxConcurrency = Math.min(
+    options?.maxConcurrency ?? deps.maxConcurrency,
+    schedule.maxConcurrency ?? deps.maxConcurrency,
+    deps.maxConcurrency,
+  );
 
   for (let groupIndex = 0; groupIndex < schedule.parallelGroups.length; groupIndex++) {
     const group = schedule.parallelGroups[groupIndex];
@@ -78,6 +70,7 @@ export async function* executeToolSchedule(
     yield { type: "batch_start", parallelGroupIndex: groupIndex, toolCallIds: group };
 
     const groupResults = await executeBatch(groupTools, {
+      ...options,
       automationTurn: options?.automationTurn,
       signal: options?.signal,
       traceContext: options?.traceContext,
@@ -156,5 +149,10 @@ export async function* executeToolSchedule(
     // break;
   }
 
-  return allResults;
+  // 拓扑执行顺序可能不同于模型声明顺序；回灌 history 时仍必须按声明闭合结果。
+  const resultsById = new Map(allResults.map((result) => [result.toolCallId, result]));
+  return toolCalls.flatMap((tool) => {
+    const result = resultsById.get(tool.id);
+    return result ? [result] : [];
+  });
 }

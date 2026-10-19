@@ -297,6 +297,10 @@ export const completedToolPartMetadataSchema = z
     schemaVersion: z.literal(COMPLETED_TOOL_PART_METADATA_SCHEMA_VERSION),
     display: toolResultDisplayPayloadSchema.optional(),
     serialization: toolResultSerializationMetadataSchema.optional(),
+    execution: z
+      .object({ exitCode: z.number().int().nullable(), cancelled: z.boolean() })
+      .strict()
+      .optional(),
   })
   .passthrough();
 

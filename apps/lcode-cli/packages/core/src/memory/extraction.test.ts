@@ -93,6 +93,73 @@ test("extraction errors retain the cursor so the same evidence can be retried", 
   assert.equal(scheduler.getCursor(), snapshot.boundaryMessageId);
 });
 
+test("busy or full learning is deferred without advancing the local cursor", async () => {
+  let calls = 0;
+  const scheduler = createMemoryExtractionScheduler(async () => {
+    calls++;
+    return "deferred";
+  });
+  const snapshot = createSnapshot("remember this project preference");
+  scheduler.schedule(snapshot);
+  await scheduler.drain();
+  assert.equal(scheduler.getCursor(), undefined);
+  assert.equal(calls, 1);
+  scheduler.schedule(snapshot);
+  await scheduler.drain();
+  assert.equal(calls, 2);
+  assert.equal(scheduler.getCursor(), undefined);
+});
+
+test("completed turns retain intermediate snapshots while extraction is busy", async () => {
+  const gate = Promise.withResolvers<void>();
+  const captured: string[] = [];
+  const scheduler = createMemoryExtractionScheduler(async ({ snapshot }) => {
+    captured.push(snapshot.boundaryMessageId);
+    if (captured.length === 1) await gate.promise;
+    return "success";
+  });
+  scheduler.schedule(createSnapshot("remember first preference", "msg_first"));
+  scheduler.schedule(createSnapshot("remember second preference", "msg_second"));
+  scheduler.schedule(createSnapshot("remember third preference", "msg_third"));
+  gate.resolve();
+  await scheduler.drain();
+  assert.deepEqual(captured, ["msg_first", "msg_second", "msg_third"]);
+});
+
+test("extraction backlog is bounded and explicitly reports overflow", async () => {
+  const gate = Promise.withResolvers<void>();
+  const captured: string[] = [];
+  let overflow = 0;
+  const scheduler = createMemoryExtractionScheduler(
+    async ({ snapshot }) => {
+      captured.push(snapshot.boundaryMessageId);
+      if (captured.length === 1) await gate.promise;
+      return "success";
+    },
+    {
+      onOverflow: () => {
+        overflow++;
+      },
+    },
+  );
+  for (let index = 0; index < 12; index++)
+    scheduler.schedule(createSnapshot("remember project preference", `msg_${index}`));
+  gate.resolve();
+  await scheduler.drain();
+  assert.deepEqual(captured, [
+    "msg_0",
+    "msg_1",
+    "msg_2",
+    "msg_3",
+    "msg_4",
+    "msg_5",
+    "msg_6",
+    "msg_7",
+    "msg_11",
+  ]);
+  assert.equal(overflow, 3);
+});
+
 test("shutdown aborts in-flight extraction, drops pending work and never advances the cursor", async () => {
   const started = Promise.withResolvers<AbortSignal>();
   let executions = 0;

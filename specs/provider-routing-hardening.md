@@ -10,6 +10,7 @@ UI 保持当前紧凑、展开/折叠与问号帮助；不增加手工配置或�
 
 ## 唯一所有者与协议
 
+- 强绑定账号仍存在且 generation 一致时，临时并发满或冷却必须保留该账号真实的拒绝原因（concurrency-full / route-cooling 等），由原 Runner 预算决定等待与取消；不能误报永久 binding-blocked。绑定缺失或 generation 改变仍拒绝，不切到其它账号。Planner 与 reserve 返回同一原因，不受候选排列或其它账号的 binding-blocked 影响。该规则适用于同轮未知可移植性和 provider-session-bound，不增加队列或放宽并发。
 - 原 Runner 创建不可变 attempt、Token 上界与兼容上下文。OAuth RoutingInvocation 增加严格校验的 tokens（input/output/total、quality）与 compatibilityKey，沿原鉴权票据和远程协议传递。无可验证 Token 边界时不能伪造零；未知额度最多一个探索请求。
 - 原 ProviderAccountScheduler 持有 OAuth 预留、恢复及反馈句柄；活跃物理流和未确认归一反馈不按五分钟 TTL 删除。只有双终态确认后才进入有界终态缓存。容量满明确拒绝新 admission，不驱逐未知消费。Transport 票据在物理流期间及终态反馈宽限期内有效；过期票据不允许再发模型 POST。
 - 原 RoutingRecovery 持有恢复事实。同一健康代次并发失败合并最大 retryAt；新 probe 开始后旧失败不能覆盖。每 permit/资源的失败时间首次冻结，重复反馈不顺延。恢复后的健康记录只有无旧 permit 可引用时才能回收；通过 permit 退休标记与无活跃引用检查防止删除后 revision=0 复活旧回调；文件租约还校验原 sequence/fence。

@@ -49,6 +49,8 @@ export function ChatPromptEditor({
   initialValue,
   syncInitialValueOnMount = true,
   placeholder,
+  predictionText,
+  onPredictionDismiss,
   disabled = false,
   disabledReason,
   submitting = false,
@@ -109,6 +111,8 @@ export function ChatPromptEditor({
   initialValue?: string;
   syncInitialValueOnMount?: boolean;
   placeholder?: string;
+  predictionText?: string;
+  onPredictionDismiss?: () => void;
   disabled?: boolean;
   disabledReason?: string;
   submitting?: boolean;
@@ -395,6 +399,8 @@ export function ChatPromptEditor({
         {topContent}
         <LexicalChatInput
           placeholder={placeholder}
+          predictionText={predictionText}
+          onPredictionDismiss={onPredictionDismiss}
           disabled={disabled}
           submitDisabled={submitDisabled}
           allowSubmitWhenEmpty={allowSubmitWhenEmpty}

@@ -28,9 +28,7 @@ import type {
   SessionInputStatus,
   SessionRevert,
   ReadSessionTranscriptSnapshotInput,
-  ReadSessionTranscriptWindowInput,
   SessionTranscriptSnapshot,
-  SessionTranscriptWindow,
   SessionStorePort,
   UpdateSessionInput,
   UsageStorePort,
@@ -56,7 +54,8 @@ import * as sessionEntryRepository from "./repositories/session-entries.js";
 import * as sessionInputRepository from "./repositories/session-inputs.js";
 import * as sessionRepository from "./repositories/sessions.js";
 import * as transcriptSnapshotRepository from "./repositories/transcript-snapshot.js";
-import { readTranscriptWindow } from "./repositories/transcript-window.js";
+import { historyDiscoveryMethods } from "./store-history-discovery.js";
+import { messagePartMethods } from "./store-message-parts.js";
 
 import { sessionForkMethods } from "./store-fork.js";
 import { sharedContextMethods } from "./store-shared-context.js";
@@ -83,6 +82,8 @@ export class SqliteSessionStore
     ScriptWorkflowStorePort,
     UsageStorePort
 {
+  declare savePart: StoreMethods<typeof messagePartMethods>["savePart"];
+  declare saveParts: StoreMethods<typeof messagePartMethods>["saveParts"];
   // 方法由下方 descriptor 安装，declare 不生成实例字段；连接/缓存仍由本类独占。
   declare createForkedSessionWithMetadata: ForkMethods["createForkedSessionWithMetadata"];
   declare commitForkBundle: ForkMethods["commitForkBundle"];
@@ -244,6 +245,9 @@ export class SqliteSessionStore
   async listSessions(input: ListSessionsInput = {}): Promise<SessionInfo[]> {
     return sessionRepository.listSessions(this.db, input);
   }
+  declare discoverSessionHistory: StoreMethods<
+    typeof historyDiscoveryMethods
+  >["discoverSessionHistory"];
 
   async claimLegacySessionWorkspace(input: ClaimLegacySessionWorkspaceInput): Promise<number> {
     this.throwBeforeWrite();
@@ -275,14 +279,6 @@ export class SqliteSessionStore
     return messageRepository.removeMessage(this.db, input);
   }
 
-  async savePart(
-    input: MessagePart,
-    copyFrom?: Parameters<SessionStorePort["savePart"]>[1],
-  ): Promise<void> {
-    this.throwBeforeWrite();
-    return messageRepository.savePart(this.db, input, copyFrom);
-  }
-
   async removePart(input: {
     sessionID: SessionId;
     messageID: MessageId;
@@ -309,11 +305,9 @@ export class SqliteSessionStore
     return transcriptSnapshotRepository.readTranscriptSnapshot(this.db, input);
   }
 
-  async readTranscriptWindow(
-    input: ReadSessionTranscriptWindowInput,
-  ): Promise<SessionTranscriptWindow> {
-    return readTranscriptWindow(this.db, input);
-  }
+  declare readTranscriptWindow: StoreMethods<
+    typeof historyDiscoveryMethods
+  >["readTranscriptWindow"];
 
   async saveSessionEntry(input: SessionEntryInfo): Promise<void> {
     this.throwBeforeWrite();
@@ -433,6 +427,8 @@ for (const methods of [
   worktreeCleanupMethods,
   worktreeRebindMethods,
   workflowJournalMethods,
+  historyDiscoveryMethods,
+  messagePartMethods,
 ]) {
   for (const [name, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(methods))) {
     Object.defineProperty(SqliteSessionStore.prototype, name, { ...descriptor, enumerable: false });

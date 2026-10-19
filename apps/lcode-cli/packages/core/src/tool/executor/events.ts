@@ -18,6 +18,7 @@ import type { PermissionContext } from "../../permission/service.js";
 import type { ExecutableToolCall, ToolExecutionResult, ToolResultSerialization } from "../types.js";
 import type { ToolExecutorDeps } from "./types.js";
 import { summarizeInput } from "./utils.js";
+import { bashExecutionStatus } from "../handlers/bash-execution-status.js";
 
 export async function emitToolCallStarted(
   deps: ToolExecutorDeps,
@@ -104,16 +105,7 @@ function bashExecutionFacts(output: unknown) {
   const stderr = result?.stderr ?? "";
   // 后台启动只证明进程已启动，不能把缺席 exitCode 当作检查通过。
   return {
-    exitCode:
-      result?.cancelled ||
-      result?.interrupted ||
-      result?.timedOut ||
-      result?.status === "backgrounded" ||
-      result?.status === "spawn_error"
-        ? null
-        : (result?.exitCode ?? null),
-    cancelled:
-      result?.cancelled === true || result?.interrupted === true || result?.status === "cancelled",
+    ...bashExecutionStatus(result),
     output: {
       sha256: createHash("sha256").update(stdout).update("\0").update(stderr).digest("hex"),
       bytes:

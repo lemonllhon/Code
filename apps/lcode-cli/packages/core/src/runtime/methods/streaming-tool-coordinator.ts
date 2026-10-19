@@ -1,19 +1,8 @@
+import { executeDuringStream, shouldExecuteToolDuringStream } from "./streaming-tool-execution.js";
 /* eslint-disable max-lines -- streaming tool ledger 与失败恢复安全性必须在同一 coordinator 内判定。 */
-import { TurnMachineImpl, createPartId } from "../deps.js";
-import type {
-  MessageId,
-  Model,
-  ModelToolCall,
-  ToolCall,
-  ToolCallId,
-  TraceContext,
-} from "../deps.js";
-import {
-  emitStreamingToolLedgerUpdate,
-  requireRuntimeToolCallName,
-  toRecordInput,
-  throwIfTurnAborted,
-} from "../helpers/index.js";
+import { TurnMachineImpl } from "../deps.js";
+import type { MessageId, Model, ModelToolCall, ToolCallId, TraceContext } from "../deps.js";
+import { emitStreamingToolLedgerUpdate } from "../helpers/index.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import type { StreamedToolExecutionResult } from "../types.js";
 import { createSyntheticStreamedToolResult } from "./streaming-tool-synthetic-result.js";
@@ -26,19 +15,11 @@ import {
   recoverPartialAssistantOutputFailure,
 } from "./streaming-recovery.js";
 import { executeToolCallsForModelStep } from "./turn-tools.js";
-import { mcpToolPartMetadata } from "./tool-part-metadata.js";
-import { persistPendingToolPart } from "./tool-part-persistence.js";
-import {
-  isAutomationMutationRestrictedTurn,
-  isOffPeakCreateRestrictedTurn,
-  recordModelHistoryRound,
-  type RegularTurnLoopState,
-} from "./turn-loop-state.js";
+import { recordModelHistoryRound, type RegularTurnLoopState } from "./turn-loop-state.js";
 import { createRuntimeAssistantEntry } from "../../agent/message-history.js";
 import { commitTurnRequestEntries } from "./turn-output-token-continuation.js";
 
 const STREAMING_TOOL_CANCEL_DRAIN_TIMEOUT_MS = 250;
-const STREAMING_TOOL_EXECUTION_MODE = "readOnly";
 
 interface StreamingToolCoordinator {
   accept(toolCall: ModelToolCall): void;
@@ -72,21 +53,31 @@ export function createStreamingToolCoordinator(
   let discardedReasoningBytes = 0;
   let discardedTextBytes = 0;
   let providerExecutedToolObserved = false;
+  let streamingPrefixOpen = true;
+  let closed = false;
 
   const abortOnTurnCancel = () => abortController.abort();
   state.turnAbortSignal.addEventListener("abort", abortOnTurnCancel, { once: true });
 
   return {
     accept(toolCall) {
+      if (closed || abortController.signal.aborted) return;
       // model.ts 已完成 runtime admission。这里必须保留空名原值，使正常 finish
       // 走 end-of-stream registry miss，同时让 finish 前断流保留 synthetic interrupted error。
       const normalizedToolCall = { ...toolCall };
       if (normalizedToolCall.providerExecuted) {
         providerExecutedToolObserved = true;
+        streamingPrefixOpen = false;
         return;
       }
+      if (acceptedToolCalls.has(normalizedToolCall.id)) return;
       acceptedToolCalls.set(normalizedToolCall.id, normalizedToolCall);
-      if (!shouldExecuteToolDuringStream(runtime, normalizedToolCall)) return;
+      if (!shouldExecuteToolDuringStream(runtime, normalizedToolCall)) {
+        // 后置 Read 不能越过尚未执行的 Write/交互/未知能力，避免读取旧状态。
+        streamingPrefixOpen = false;
+        return;
+      }
+      if (!streamingPrefixOpen) return;
       if (handles.has(normalizedToolCall.id)) return;
       const promise = executeDuringStream(runtime, state, {
         abortSignal: abortController.signal,
@@ -111,6 +102,7 @@ export function createStreamingToolCoordinator(
     },
 
     async abandon(reason) {
+      closed = true;
       abortController.abort();
       const status = reason === "cancelled" ? "tool_cancelled" : "tool_abandoned";
       await Promise.all(
@@ -136,6 +128,7 @@ export function createStreamingToolCoordinator(
     },
 
     async drain(toolCalls) {
+      closed = true;
       const results: StreamedToolExecutionResult[] = [];
       for (const toolCall of toolCalls) {
         const handle = handles.get(toolCall.id);
@@ -253,151 +246,6 @@ export function createStreamingToolCoordinator(
       };
     },
   };
-}
-
-async function executeDuringStream(
-  runtime: AgentRuntimeInternal,
-  state: RegularTurnLoopState,
-  options: {
-    abortSignal: AbortSignal;
-    assistantMessageId: MessageId;
-    declarationIndex: number;
-    model: Model;
-    toolCall: ModelToolCall;
-    traceContext: TraceContext;
-  },
-): Promise<StreamedToolExecutionResult | undefined> {
-  throwIfTurnAborted(state.turnAbortSignal);
-  const toolName = requireRuntimeToolCallName(options.toolCall, {
-    logger: runtime.logger,
-    model: options.model,
-    source: "streamingToolCoordinator.executeDuringStream",
-    traceContext: options.traceContext,
-  });
-  const toolCall: ToolCall = {
-    ...(options.toolCall.inputError === undefined
-      ? {}
-      : { inputError: options.toolCall.inputError }),
-    id: options.toolCall.id as ToolCallId,
-    input: options.toolCall.input,
-    name: toolName,
-  };
-  const partID = createPartId();
-  const input = toRecordInput(toolCall.input);
-  const metadata = mcpToolPartMetadata(
-    runtime.registry.getMetadata(toolCall.name)?.mcpPresentation,
-  );
-  // during_stream 是 pending/running part 的首个 durable writer；若绕过
-  // turn-tools 的 metadata 写入，Stop 发生在 drain 前时冷恢复只能退化成通用工具卡。
-  await persistPendingToolPart(runtime, {
-    assistantMessageId: options.assistantMessageId,
-    declarationIndex: options.declarationIndex,
-    input,
-    metadata,
-    model: options.model,
-    partID,
-    toolCall,
-    traceContext: options.traceContext,
-  });
-  await emitStreamingToolLedgerUpdate(runtime, state.events, options.traceContext, {
-    assistantMessageId: options.assistantMessageId,
-    toolCall,
-    status: "tool_call_closed",
-    executionTiming: "during_stream",
-    input,
-  });
-
-  const schedule = await runtime.scheduleTools([toolCall]);
-  const scheduledEvents = await runtime.emitToolScheduledEvents(
-    [toolCall],
-    schedule,
-    options.assistantMessageId,
-    options.traceContext,
-  );
-  state.events.push(...scheduledEvents);
-  await emitStreamingToolLedgerUpdate(runtime, state.events, options.traceContext, {
-    assistantMessageId: options.assistantMessageId,
-    toolCall,
-    status: "tool_queued",
-    executionTiming: "during_stream",
-    input,
-  });
-
-  const execution = await runtime.executeTools([toolCall], schedule, {
-    subagentModelOverride: state.subagentModelOverride,
-    model: state.model,
-    automationTurn: isAutomationMutationRestrictedTurn(state),
-    offPeakTurn: isOffPeakCreateRestrictedTurn(state),
-    signal: options.abortSignal,
-    traceContext: options.traceContext,
-    onBatchStart: async () => {
-      const startedAt = Date.now();
-      await runtime.persistPart(
-        {
-          id: partID,
-          sessionID: runtime.sessionId,
-          messageID: options.assistantMessageId,
-          type: "tool",
-          callID: toolCall.id,
-          declarationIndex: options.declarationIndex,
-          tool: toolCall.name,
-          state: {
-            status: "running",
-            input,
-            title: toolCall.name,
-            metadata: metadata ?? {},
-            time: {
-              start: startedAt,
-            },
-          },
-        },
-        options.traceContext,
-      );
-      await emitStreamingToolLedgerUpdate(runtime, state.events, options.traceContext, {
-        assistantMessageId: options.assistantMessageId,
-        toolCall,
-        status: "tool_started",
-        executionTiming: "during_stream",
-        input,
-        startedAt: new Date(startedAt),
-      });
-    },
-  });
-  state.events.push(...execution.events);
-  const result = execution.results[0];
-  if (!result) return undefined;
-  return {
-    input,
-    ledgerRecorded: true,
-    partID,
-    result,
-    toolCallId: toolCall.id as ToolCallId,
-  };
-}
-
-function shouldExecuteToolDuringStream(
-  runtime: AgentRuntimeInternal,
-  toolCall: ModelToolCall,
-): boolean {
-  if (toolCall.providerExecuted) return false;
-  if (toolCall.name.trim().length === 0) return false;
-  if (runtime.config.modelStreaming !== "on") return false;
-  if ((runtime.config.streamingToolExecution ?? STREAMING_TOOL_EXECUTION_MODE) === "off") {
-    return false;
-  }
-  const entry = runtime.registry.get(toolCall.name);
-  if (!entry) return false;
-  const metadata = entry.metadata;
-  const sideEffectScope = entry.permission?.sideEffectScope ?? metadata.sideEffectScope;
-  const requiresUserInteraction = entry.requiresUserInteraction ?? metadata.requiresUserInteraction;
-  return (
-    metadata.readOnly &&
-    metadata.concurrentSafe &&
-    !metadata.destructive &&
-    !metadata.needsApproval &&
-    !requiresUserInteraction &&
-    sideEffectScope === "none"
-  );
 }
 
 async function raceWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | undefined> {

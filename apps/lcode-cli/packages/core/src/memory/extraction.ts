@@ -11,8 +11,9 @@ import { formatMemoryManifest } from "./recall/manifest.js";
 import type { MemoryManifestEntry } from "./recall/types.js";
 
 const MINIMUM_USER_WORDS = 3;
+const PENDING_EXTRACTION_LIMIT = 8;
 
-type MemoryExtractionExecutionStatus = "success" | "no-op" | "error" | "aborted";
+type MemoryExtractionExecutionStatus = "success" | "no-op" | "deferred" | "error" | "aborted";
 
 export interface MemoryExtractionSnapshot {
   boundaryMessageId: MessageId;
@@ -148,9 +149,10 @@ export function createMemoryExtractionScheduler<
   execute: (
     input: Omit<MemoryExtractionExecutionInput, "snapshot"> & { snapshot: TSnapshot },
   ) => Promise<MemoryExtractionExecutionStatus>,
+  options?: { onOverflow?: () => void },
 ): MemoryExtractionScheduler<TSnapshot> {
   let cursor: MessageId | undefined;
-  let latestPending: Promise<SnapshotAcquisition<TSnapshot>> | undefined;
+  const pending: Promise<SnapshotAcquisition<TSnapshot>>[] = [];
   let running: Promise<void> | undefined;
   let shuttingDown = false;
   const shutdownController = new AbortController();
@@ -196,14 +198,13 @@ export function createMemoryExtractionScheduler<
           try {
             await processSnapshot(acquisition.snapshot);
           } catch {
-            // 本次 error 不推进 cursor；latest pending 仍按既有 coalescing 语义继续。
+            // 本次 error 不推进 cursor；已完成的中间轮次仍按顺序处理，不能被新快照覆盖。
           }
         }
-        current = shuttingDown ? undefined : latestPending;
-        latestPending = undefined;
+        current = shuttingDown ? undefined : pending.shift();
       }
     } finally {
-      if (shuttingDown) latestPending = undefined;
+      if (shuttingDown) pending.length = 0;
       running = undefined;
     }
   };
@@ -218,13 +219,17 @@ export function createMemoryExtractionScheduler<
       return cursor;
     },
     hasPendingWork() {
-      return running !== undefined || latestPending !== undefined;
+      return running !== undefined || pending.length > 0;
     },
     schedule(snapshot) {
       if (shuttingDown) return;
       const acquisition = acquireSnapshot(snapshot);
       if (running) {
-        latestPending = acquisition;
+        if (pending.length >= PENDING_EXTRACTION_LIMIT) {
+          pending.pop();
+          options?.onOverflow?.();
+        }
+        pending.push(acquisition);
         return;
       }
 
@@ -235,7 +240,7 @@ export function createMemoryExtractionScheduler<
       // LCode 关闭单个 session 后进程仍继续运行；旧 scheduler 只让调用方
       // 放弃等待，running/pending Extraction 仍可能继续请求模型和写 Memory。
       shuttingDown = true;
-      latestPending = undefined;
+      pending.length = 0;
       shutdownController.abort();
     },
   };

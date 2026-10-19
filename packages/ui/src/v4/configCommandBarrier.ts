@@ -6,8 +6,8 @@ interface ConfigCommandBarrier {
 /**
  * 配置命令与发送命令之间的顺序屏障。
  *
- * 模式/模型选择先乐观更新 UI，再异步提交 CAS；用户紧接着发送时，
- * sendText 可能先于 CAS 重试完成，导致界面显示新配置而 runtime 仍使用旧配置。
+ * 当前权限切换、Session 配置 CAS 与发送共享顺序；权限 ACK 前还由 Composer
+ * 同步门禁阻止冻结旧 Submission，不能只等待已冻结请求进入此屏障。
  */
 export function createConfigCommandBarrier(): ConfigCommandBarrier {
   let pending: Promise<void> = Promise.resolve();

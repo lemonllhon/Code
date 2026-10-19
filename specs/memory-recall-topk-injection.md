@@ -43,6 +43,11 @@ The index is keyed by file path and `mtimeMs`. Reconcile removes deleted/unreada
 - Maximum formatted attachment: 12,000 characters.
 - A result must have a score greater than zero.
 
+2026-10-18: bounded excerpts are centered on matching body paragraphs with adjacent context instead
+of always returning the document prefix. Metadata-only matches retain the prefix. Runtime review
+may reuse a frozen candidate selector without additional body reads; full target evidence remains
+independently read and revision-checked. See agent-memory-learning-v2.md.
+
 These are named constants. Changing them is a behavior change and requires updating this spec and its fixtures.
 
 ## Ordering and idempotency

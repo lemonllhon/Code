@@ -94,6 +94,7 @@ export function createToolExecutionContext(input: {
     deliveryKind: deps.deliveryKind,
     memoryRoot: deps.getMemoryRoot?.(),
     memoryWorkspaceIdentity: deps.getMemoryWorkspaceIdentity?.(),
+    selectMemoryCandidates: deps.selectMemoryCandidates,
     runtimeScope: deps.runtimeScope,
     providerVisibleToolNames: deps.registry
       .list()

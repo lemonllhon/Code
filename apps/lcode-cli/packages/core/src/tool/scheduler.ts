@@ -10,6 +10,7 @@ import { createCoreError, CoreErrorType } from "@lcode/contracts";
 // -----------------------------------------------
 
 export interface ToolSchedule {
+  maxConcurrency?: number;
   items: ToolScheduleItem[];
   parallelGroups: ToolCallId[][];
   executionOrder: ToolCallId[];
@@ -27,6 +28,10 @@ export interface ToolScheduleItem {
 }
 
 export interface ToolDependency {
+  needsApproval?: boolean;
+  alwaysAsk?: boolean;
+  requiresUserInteraction?: boolean;
+  stopTurnOnSuccess?: boolean;
   toolCallId: ToolCallId;
   toolName?: string;
   dependsOn: ToolCallId[];
@@ -63,7 +68,8 @@ export class ToolScheduler {
       toolName: tool.toolName,
       dependencies: tool.dependsOn,
       canRunParallel: this.canRunInParallel(tool),
-      readOnly: tool.readOnly ?? (tool.toolName ? this.readOnlyTools.has(tool.toolName) : undefined),
+      readOnly:
+        tool.readOnly ?? (tool.toolName ? this.readOnlyTools.has(tool.toolName) : undefined),
       destructive: tool.destructive,
       concurrentSafe: tool.concurrentSafe,
       sideEffectScope: tool.sideEffectScope,
@@ -76,6 +82,7 @@ export class ToolScheduler {
     this.validateNoCycles(groups);
 
     return {
+      maxConcurrency: this.maxConcurrency,
       items,
       parallelGroups: groups,
       executionOrder: groups.flat(),
@@ -83,6 +90,13 @@ export class ToolScheduler {
   }
 
   private canRunInParallel(tool: ToolDependency): boolean {
+    if (
+      tool.needsApproval ||
+      tool.alwaysAsk ||
+      tool.requiresUserInteraction ||
+      tool.stopTurnOnSuccess
+    )
+      return false;
     const hasToolName = typeof tool.toolName === "string" && tool.toolName.length > 0;
     const hasSafetyMetadata =
       tool.readOnly !== undefined ||
@@ -94,8 +108,14 @@ export class ToolScheduler {
       return true;
     }
 
-    const readOnly = tool.readOnly ?? (hasToolName ? this.readOnlyTools.has(tool.toolName!) : false);
+    const readOnly =
+      tool.readOnly ?? (hasToolName ? this.readOnlyTools.has(tool.toolName!) : false);
     if (tool.destructive) return false;
+    if (
+      tool.readOnly !== true &&
+      ["workspace", "git", "system"].includes(tool.sideEffectScope ?? "")
+    )
+      return false;
     if (tool.concurrentSafe === true) return true;
     if (tool.concurrentSafe === false) return false;
     if (readOnly) return true;
@@ -183,10 +203,7 @@ export class ToolScheduler {
 
       for (const item of byLevel.get(level) ?? []) {
         if (item.canRunParallel) {
-          // Flush if current group is full
-          if (parallelGroup.length >= this.maxConcurrency) {
-            flushParallelGroup();
-          }
+          // 阶段只表达依赖/副作用屏障；并发容量由 executor 统一控制并及时补位。
           parallelGroup.push(item.toolCallId);
           continue;
         }

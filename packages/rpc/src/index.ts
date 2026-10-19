@@ -37,7 +37,7 @@ export {
   Emitter,
   Relay,
   EventMultiplexer,
-  type CancellationToken,
+  CancellationToken,
   CancellationTokenSource,
 } from "./foundation.js";
 

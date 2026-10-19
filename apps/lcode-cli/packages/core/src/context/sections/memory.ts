@@ -45,6 +45,6 @@ function buildMemoryContent(memoryRoot: string): string {
     "",
     "After writing the file, add a one-line pointer in `MEMORY.md` (`- [Title](file.md) — hook`). `MEMORY.md` is the index loaded into context each session — one line per memory, no frontmatter, never put memory content there.",
     "",
-    "Before saving, check for an existing file that already covers it — update that file rather than creating a duplicate; delete memories that turn out to be wrong. Don't save what the repo already records (code structure, past fixes, git history, AGENTS.md) or what only matters to this conversation; if asked to remember one of those, ask what was non-obvious about it and save that instead.",
+    "Before saving, check for an existing file that already covers it — update that file rather than creating a duplicate. Correct mistaken facts with a supported revision. Automatic deletion is not supported; leave removal to the user in an external editor and never claim a memory was deleted. Don't save what the repo already records (code structure, past fixes, git history, AGENTS.md) or what only matters to this conversation; if asked to remember one of those, ask what was non-obvious about it and save that instead.",
   ].join("\n");
 }

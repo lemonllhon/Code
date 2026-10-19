@@ -16,6 +16,9 @@ import {
   type SessionStorePort,
   type SessionTranscriptSnapshot,
   type WorkspaceId,
+  type MessageId,
+  HISTORY_DISCOVERY_TERM_LIMIT,
+  HISTORY_DISCOVERY_TERM_CHARACTERS,
 } from "@lcode/contracts";
 import {
   SESSION_HISTORY_SEARCH_TASK_TYPES,
@@ -25,6 +28,8 @@ import {
   type SessionHistorySearchCandidate,
 } from "./session-history-search.js";
 import { canReadSessionContextFromWorkspace } from "./workspace-session-scope.js";
+import { tokenizeMemoryRecallText } from "../memory/recall/tokenizer.js";
+import { activeReviewWindowMessages } from "../memory/review-session-window.js";
 
 export interface SessionHistorySearchBounds {
   candidateLimit: number;
@@ -68,8 +73,25 @@ export async function searchSessionHistory(
   const query = input.query.trim().slice(0, SESSION_HISTORY_SEARCH_QUERY_MAX_LENGTH);
   const bounds = normalizeBounds(input.bounds);
   let listed: SessionInfo[];
+  const boundaries = new Map<SessionId, MessageId>();
+  let discoveryPartial = false;
   try {
-    listed = await store.listSessions(buildSessionListInput(input, bounds.candidateLimit));
+    if (store.discoverSessionHistory && store.readTranscriptWindow) {
+      const discovered = await store.discoverSessionHistory({
+        workspaceRoot: input.workspaceRoot,
+        workspaceIdentity: input.workspaceIdentity,
+        excludeSessionID: input.currentSessionId,
+        queryTerms: [...new Set(tokenizeMemoryRecallText(query))]
+          .slice(0, HISTORY_DISCOVERY_TERM_LIMIT)
+          .map((term) => term.slice(0, HISTORY_DISCOVERY_TERM_CHARACTERS)),
+        limit: bounds.candidateLimit,
+        signal: input.abortSignal,
+      });
+      listed = discovered.candidates.map((entry) => entry.session);
+      for (const entry of discovered.candidates)
+        if (entry.throughMessageID) boundaries.set(entry.session.id, entry.throughMessageID);
+      discoveryPartial = discovered.partial;
+    } else listed = await store.listSessions(buildSessionListInput(input, bounds.candidateLimit));
   } catch (error) {
     if (input.abortSignal.aborted) throw error;
     return unavailable("session_list_failed");
@@ -88,6 +110,7 @@ export async function searchSessionHistory(
   );
   const sessions = scoped.slice(0, bounds.candidateLimit);
   let truncated =
+    discoveryPartial ||
     listed.length >= storeLookaheadLimit(bounds.candidateLimit) ||
     scoped.length > bounds.candidateLimit;
   let failedSessionCount = 0;
@@ -108,7 +131,13 @@ export async function searchSessionHistory(
     let messages: MessageWithParts[];
     let refreshedSession: SessionInfo | null;
     try {
-      const snapshot = await readSearchSnapshot(store, session.id, bounds, input.abortSignal);
+      const snapshot = await readSearchSnapshot(
+        store,
+        session.id,
+        bounds,
+        input.abortSignal,
+        boundaries.get(session.id),
+      );
       messages = snapshot.messages;
       refreshedSession = snapshot.session;
       truncated ||= snapshot.truncated;
@@ -147,6 +176,7 @@ export async function searchSessionHistory(
       ),
       messages,
       session: refreshedSession,
+      ...(boundaries.has(session.id) ? { query } : {}),
     });
     projectedCharacterCount += projection.projectedCharacterCount;
     truncated ||= projection.truncated;
@@ -224,7 +254,29 @@ async function readSearchSnapshot(
   sessionID: SessionId,
   bounds: SessionHistorySearchBounds,
   abortSignal: AbortSignal,
+  throughMessageID?: MessageId,
 ): Promise<SessionTranscriptSnapshot> {
+  if (throughMessageID && store.readTranscriptWindow) {
+    const window = await store.readTranscriptWindow({
+      sessionID,
+      throughMessageID,
+      limits: {
+        maxDataBytes: bounds.transcriptDataByteLimit,
+        maxMessageRows: bounds.transcriptMessageRowLimit,
+        maxPartRows: bounds.transcriptPartRowLimit,
+      },
+    });
+    const active =
+      window.session && activeReviewWindowMessages(window, window.session, throughMessageID);
+    if (!active)
+      throw new Error("Historical candidate window is incomplete or outside the active branch");
+    return {
+      ...window,
+      messages: active,
+      session: { ...window.session!, revert: undefined },
+      truncated: window.prefixTruncated || window.truncated,
+    };
+  }
   if (store.readTranscriptSnapshot) {
     return store.readTranscriptSnapshot({
       sessionID,

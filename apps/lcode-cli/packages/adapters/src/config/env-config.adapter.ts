@@ -1,6 +1,7 @@
 // Env Config Adapter - Parse the intentionally small LCODE_* environment surface.
 
 import type { RuntimeConfigPatch } from "@lcode/contracts";
+import { dataBaseStoragePaths } from "./data-base-paths.js";
 
 interface EnvConfigOptions {
   prefix?: string;
@@ -17,6 +18,8 @@ export function parseEnvConfig(
 ): RuntimeConfigPatch {
   const prefix = options.prefix ?? DEFAULT_PREFIX;
   const config: RuntimeConfigPatch = {};
+  const paths = dataBaseStoragePaths(env, prefix);
+  if (paths) config.storage = { dir: paths.root, sessionDbPath: paths.database };
 
   for (const [key, value] of Object.entries(env)) {
     if (!key.startsWith(prefix) || value === undefined) continue;

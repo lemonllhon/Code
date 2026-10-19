@@ -106,6 +106,8 @@ export interface ConversationStoreState {
   status: ConversationStoreStatus;
   /** 仅展示：从现有 initial/recovery 闸门派生，不构成新的连接或工作流状态所有者。 */
   syncing?: boolean;
+  /** 同次投影提交的投递来源；恢复/快照不能冒充实时完成以触发收费辅助请求。 */
+  lastUpdateIsOnlineDelta?: boolean;
   snapshot: ConversationSnapshot | null;
   subscriptionId: string | null;
   lastError: string | null;
@@ -387,9 +389,12 @@ export class ConversationProjectionStore {
     const next = { ...this.state, ...patch };
     // subscribe ACK 不代表 initial 已应用，same-sub recovery 也不切 status。
     // 从同一 owner 的现有闸门派生提示，避免历史 activity 在恢复期间被误读成实时输出。
-    const syncing = next.status === "connecting" || (next.status === "live" && (
-      this.awaitingInitial !== null || this.recovery !== null || !this.subscriptionHasAppliedBase
-    ));
+    const syncing =
+      next.status === "connecting" ||
+      (next.status === "live" &&
+        (this.awaitingInitial !== null ||
+          this.recovery !== null ||
+          !this.subscriptionHasAppliedBase));
     if (Object.keys(patch).length === 0 && this.state.syncing === syncing) return;
     this.state = { ...next, syncing };
     for (const listener of this.listeners) listener();
@@ -673,6 +678,7 @@ export class ConversationProjectionStore {
       // 规则 1：整体替换，扔掉手里的一切换新的。
       this.setState({
         snapshot: frame.payload.snapshot,
+        lastUpdateIsOnlineDelta: false,
         planDirectoryRevision: this.state.planDirectoryRevision + 1,
         // snapshot 整体替换后 real-user query 集合可能已变，终态缓存必须失效。
         turnNavigatorDirectoryRevision: this.state.turnNavigatorDirectoryRevision + 1,
@@ -740,6 +746,7 @@ export class ConversationProjectionStore {
     );
     this.setState({
       snapshot: next,
+      lastUpdateIsOnlineDelta: context.online,
       // row.removed 已给出权威裁剪边界，可以同步删掉缓存目录中的旧分支计划；
       // 完整 query 继续负责补回 wire tail 之外、但仍属于当前分支的早期计划。
       ...(removedFromRowId === null

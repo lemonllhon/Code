@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const PERMISSION_FULL_ACCESS_ENTRY = "runtime/permission_full_access";
+export type SessionPermissionMode = "build" | "edit" | "yolo";
 
 /** 持久化 receipt 是授权重试事实源；损坏时拒绝重试，不能按当前队列重新扩大授权范围。 */
 export const permissionFullAccessReceiptSchema = z
@@ -17,7 +18,7 @@ export const permissionFullAccessReceiptSchema = z
         sequenceNumber: z.number().int().nonnegative(),
         payload: z
           .object({
-            mode: z.literal("yolo"),
+            mode: z.enum(["build", "edit", "yolo"]),
             planEnabled: z.boolean(),
             previousMode: z.enum(["build", "edit", "yolo", "auto", "plan"]),
             previousPlanEnabled: z.boolean(),

@@ -36,6 +36,8 @@ import { WorktreeManagementActions } from "@/worktree/WorktreeManagementActions.
 import { createReviewWorkspaceFixture } from "./review-workspace-service.js";
 import { installRemoteDirectoryAttachmentBridge } from "./remote-directory-attachment-bridge.js";
 import "@lcode/ui/styles.css";
+import { PipelineRowsFixture } from "./pipeline-rows.js";
+import { PermissionModeFixture } from "./permission-mode-switch.js";
 
 const query = new URLSearchParams(location.search);
 const remoteProviders = query.has("remoteProviders");
@@ -572,7 +574,15 @@ createRoot(document.getElementById("root")!).render(
         <LCodeIntlProvider initialLocale={query.has("english") ? "en-US" : "zh-CN"}>
           <TooltipProvider>
             <V4ConversationContext value={context}>
-              {query.has("timelineDepth") ? <TimelineDepthFixture /> : <App />}
+              {query.has("pipelineRows") ? (
+                <PipelineRowsFixture />
+              ) : query.has("timelineDepth") ? (
+                <TimelineDepthFixture />
+              ) : query.has("permissionSwitch") ? (
+                <PermissionModeFixture view={view} existing={existing} />
+              ) : (
+                <App />
+              )}
             </V4ConversationContext>
           </TooltipProvider>
         </LCodeIntlProvider>

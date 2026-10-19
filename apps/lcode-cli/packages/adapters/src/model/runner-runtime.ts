@@ -1,4 +1,5 @@
 import { generateText as aiGenerateText, streamText as aiStreamText } from "ai";
+import { generateTextFromStream } from "./runner-generate-stream.js";
 import type {
   ModelErrorCode,
   ModelFailureReason,
@@ -20,7 +21,10 @@ export type ResolvedAiSdkModel = AiSdkResolvedModel & {
 };
 
 export interface AiSdkModelRuntime {
-  generateText(options: AiSdkGenerateTextOptions): Promise<AiSdkGenerateTextResult>;
+  generateText(
+    options: AiSdkGenerateTextOptions,
+    transport?: "http" | "sse",
+  ): Promise<AiSdkGenerateTextResult>;
   streamText(options: AiSdkStreamTextOptions): AiSdkStreamTextResult;
 }
 
@@ -83,6 +87,7 @@ export interface AiSdkModelTextRequest extends ModelTextRequest {
 }
 
 export const defaultRuntime: AiSdkModelRuntime = {
-  generateText: aiGenerateText,
+  generateText: (options, transport) =>
+    transport === "sse" ? generateTextFromStream(options) : aiGenerateText(options),
   streamText: aiStreamText,
 };

@@ -1,0 +1,67 @@
+{
+  "node": "v24.21.0",
+  "platform": "win32",
+  "database": "real SQLite files; unchanged production durability",
+  "results": [
+    {
+      "count": 2256,
+      "mode": "single",
+      "samples": 20,
+      "warmups": 5,
+      "p50Ms": 15554.045200000022,
+      "p95Ms": 16273.436300000001,
+      "p99Ms": 16718.589199999988,
+      "eventLoopTurnDelayP95Ms": 16273.500799999994,
+      "sql": {
+        "nextSequenceReads": 2256,
+        "sessionTouches": 2256,
+        "explicitCommits": 0
+      }
+    },
+    {
+      "count": 2256,
+      "mode": "batch",
+      "samples": 20,
+      "warmups": 5,
+      "p50Ms": 27.79710000002524,
+      "p95Ms": 34.21759999997448,
+      "p99Ms": 36.037799999990966,
+      "eventLoopTurnDelayP95Ms": 34.260499999974854,
+      "sql": {
+        "nextSequenceReads": 1,
+        "sessionTouches": 1,
+        "explicitCommits": 1
+      }
+    },
+    {
+      "count": 10000,
+      "mode": "single",
+      "samples": 5,
+      "warmups": 2,
+      "p50Ms": 67726.07719999994,
+      "p95Ms": 73244.63690000004,
+      "p99Ms": 73244.63690000004,
+      "eventLoopTurnDelayP95Ms": 73245.1246000001,
+      "sql": {
+        "nextSequenceReads": 10000,
+        "sessionTouches": 10000,
+        "explicitCommits": 0
+      }
+    },
+    {
+      "count": 10000,
+      "mode": "batch",
+      "samples": 5,
+      "warmups": 2,
+      "p50Ms": 252.8876000000164,
+      "p95Ms": 258.33660000003874,
+      "p99Ms": 258.33660000003874,
+      "eventLoopTurnDelayP95Ms": 258.391100000008,
+      "sql": {
+        "nextSequenceReads": 1,
+        "sessionTouches": 1,
+        "explicitCommits": 1
+      }
+    }
+  ]
+}

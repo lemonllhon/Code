@@ -9,6 +9,14 @@ export interface ComposerSubmissionConfig {
   planEnabled: boolean;
 }
 
+/** 附件上传等异步准备后，不能把改选前冻结的权限重新写回当前任务。 */
+export function isComposerPermissionSubmissionCurrent(
+  submission: ComposerSubmissionConfig | null | undefined,
+  current: ComposerSubmissionConfig | null,
+): boolean {
+  return Boolean(submission && current && submission.mode === current.mode);
+}
+
 /** 在点击提交的瞬间，把 Composer 意图冻结成本次 Submission 的执行配置。 */
 export function createComposerSubmissionConfig(
   composer:

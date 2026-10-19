@@ -1,7 +1,7 @@
 import type { BackgroundBashOutputResult, SessionDebugSnapshot } from "@lcode/shared";
 import type { GitFileMutationJournal } from "@lcode/shared";
 /* eslint-disable max-lines -- LCode agent service 接口集中声明 protocol/session/workspace 方法，拆分会增加 service descriptor 迁移成本。 */
-import type { Event, IDisposable } from "@lcode/rpc";
+import type { Event, IDisposable, CancellationToken } from "@lcode/rpc";
 import { ServiceChannels } from "@lcode/shared";
 import type { AppUsageRange, AppUsageSnapshot, LCodeTaskTokenUsageResult } from "@lcode/shared";
 import type { ProviderUsageRequest, ProviderUsageSnapshot } from "@lcode/shared";
@@ -305,12 +305,14 @@ export interface LCodeAgentSetModeParams extends LCodeAgentSessionTarget {
 }
 
 export interface LCodeAgentGenerateWorkspaceTextParams extends LCodeAgentWorkspaceTarget {
+  composerPrediction?: LCodeWorkspaceGenerateTextParams["composerPrediction"];
   selection: LCodeWorkspaceGenerateTextParams["selection"];
   prompt?: string;
   messages?: LCodeWorkspaceGenerateTextParams["messages"];
   tools?: LCodeWorkspaceGenerateTextParams["tools"];
   querySource: string;
   maxOutputTokens?: number;
+  /** 仅同进程调用可用；服务代理调用通过末尾 CancellationToken 取消。 */
   signal?: AbortSignal;
   /**
    * 协议层 RPC 超时。thinking 模型的长请求会超过协议 client 默认的
@@ -694,6 +696,7 @@ export interface ILCodeAgentService {
   deleteAutomationRun(params: LCodeAgentDeleteAutomationRunParams): Promise<void>;
   generateWorkspaceText(
     params: LCodeAgentGenerateWorkspaceTextParams,
+    cancellationToken?: CancellationToken,
   ): Promise<LCodeWorkspaceGenerateTextResult>;
   getWorkspaceFileMutationJournal(
     params: LCodeAgentWorkspaceTarget & { paths: string[] },

@@ -6,6 +6,7 @@ import {
   type ModelRetryBudget,
 } from "@lcode/contracts";
 import { classifyModelFailure, type ClassifiedModelFailure } from "./failure-classifier.js";
+import { shouldReportRoutingFailure } from "./routing-feedback.js";
 import { getResponseHeaders, unwrapRetryError } from "./failure-inspection.js";
 import { offPeakTicketExpiredMessage, resolveOffPeakFailureDecision } from "./offpeak-retry.js";
 import { type AttemptAdmission } from "./request-admission.js";
@@ -124,12 +125,18 @@ export async function handleStreamFailure(
     state.streamOutputCommitted || state.emittedRetryBoundaryEvent,
     input.request.abortSignal?.aborted,
   );
-  await state.resolved.observeRoutingFailure?.(
-    classified.statusCode,
-    getResponseHeaders(unwrapRetryError(error)),
-    state.streamOutputCommitted || state.emittedRetryBoundaryEvent,
-    input.request.abortSignal?.aborted,
-  );
+  if (
+    shouldReportRoutingFailure(
+      classified.routing,
+      state.streamOutputCommitted || state.emittedRetryBoundaryEvent,
+    )
+  )
+    await state.resolved.observeRoutingFailure?.(
+      classified.statusCode,
+      getResponseHeaders(unwrapRetryError(error)),
+      state.streamOutputCommitted || state.emittedRetryBoundaryEvent,
+      input.request.abortSignal?.aborted,
+    );
   if (error instanceof RuntimeHeadersRefreshError) {
     classified.message = error.message;
     classified.retryable = false;

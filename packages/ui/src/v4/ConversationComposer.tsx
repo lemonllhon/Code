@@ -1,5 +1,6 @@
 /* oxlint-disable max-lines -- composer 集中收口输入区 wiring（附件/草稿/历史/mention），拆分会打散收口粒度。 */
 import { getLocalTtftObserver } from "@/v4/telemetry/localTtftObserver.js";
+import { useComposerPrediction } from "@/hooks/useComposerPrediction.js";
 /**
  * v4 会话 composer（composer parity）。
  *
@@ -385,6 +386,7 @@ function arePromptHistoryEntriesEqual(left: readonly string[], right: readonly s
 }
 
 interface ConversationComposerProps {
+  predictionLiveUpdate?: boolean;
   snapshot: ConversationSnapshot | null;
   /** 草稿 scope（sessionId；draft 态 null → "__draft__" scope）。 */
   sessionId?: string | null;
@@ -402,6 +404,8 @@ interface ConversationComposerProps {
   replaceComposerDraft: (draft: Omit<V4ComposerDraft, "updatedAt">) => void;
   /** 当前 Composer 是否能构造完整 Submission；空模型或空 Reasoning 时为 false。 */
   submissionReady?: boolean;
+  /** 当前权限切换尚未被 Runtime 接受，禁止重复切换。 */
+  permissionModePending?: boolean;
   createSubmissionFromComposer?: () => ComposerSubmissionConfig | null;
   /** 仅供发送埋点冻结模型维度；包含草稿初始化 config 与显式 intent 的合并值。 */
   telemetryDraftConfig?: Partial<SessionConfigState>;
@@ -523,6 +527,7 @@ function formatAttachmentLineCount(attachment: ChatComposerAttachment, locale: s
 }
 
 function ConversationComposerImpl({
+  predictionLiveUpdate = false,
   snapshot,
   sessionId = null,
   skillCatalogSessionId = sessionId,
@@ -532,6 +537,7 @@ function ConversationComposerImpl({
   updateComposerContent,
   replaceComposerDraft,
   submissionReady = true,
+  permissionModePending = false,
   createSubmissionFromComposer,
   telemetryDraftConfig,
   contextHeader,
@@ -1562,6 +1568,16 @@ function ConversationComposerImpl({
     hasPptxElementReferences ||
     hasConversationSelectionReferences ||
     Boolean(pendingShareContext);
+  const composerPrediction = useComposerPrediction({
+    liveUpdate: predictionLiveUpdate,
+    workspacePath,
+    workspaceIdentity,
+    remoteSessionId,
+    sessionId,
+    snapshot,
+    active: telemetryVisible && !disabled && !draftMode && !pending && !blockingRequestId,
+    hasDraft: hasComposerDraftContent,
+  });
   useEffect(() => {
     onDraftStateChange?.({
       hasContent: hasComposerDraftContent,
@@ -2664,7 +2680,7 @@ function ConversationComposerImpl({
           workspaceIdentity={workspaceIdentity}
           provider={provider}
           draftConfig={draftConfig}
-          disabled={disabled}
+          disabled={disabled || permissionModePending}
           activeConfigPicker={activeConfigPicker}
           onConfigPickerOpenChange={handleConfigPickerOpenChange}
           onSwitchMode={onSwitchMode}
@@ -2689,6 +2705,7 @@ function ConversationComposerImpl({
       activeConfigPicker,
       canStop,
       disabled,
+      permissionModePending,
       draftConfig,
       handleConfigPickerOpenChange,
       backgroundWorkOpenTarget,
@@ -2784,6 +2801,8 @@ function ConversationComposerImpl({
           taskId={sessionId}
           skillCatalogSessionId={skillCatalogSessionId}
           placeholder={placeholder}
+          predictionText={composerPrediction.text}
+          onPredictionDismiss={composerPrediction.dismiss}
           disabled={disabled || mode === "reject"}
           submitting={pending}
           submitDisabled={pending || !routingAllowsSend || !attachmentsReady || !submissionReady}

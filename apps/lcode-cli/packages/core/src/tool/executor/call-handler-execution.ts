@@ -44,6 +44,10 @@ import type { ToolExecuteOptions, ToolExecutorDeps } from "./types.js";
 import { validateOutput } from "./validation.js";
 import { errorCategoryForToolError, resolveModelOutputEntry } from "./call-result-policy.js";
 import { createToolExecutionContext } from "./call-execution-context.js";
+import {
+  acquireAuthorizedToolResources,
+  type ToolAuthorization,
+} from "./permission-execution-admission.js";
 
 export interface ToolHandlerExecutionInput {
   deps: ToolExecutorDeps;
@@ -60,6 +64,8 @@ export interface ToolHandlerExecutionInput {
   executionInput: unknown;
   preToolHookResult: HookRunResult;
   permissionWaitMs: number | undefined;
+  permissionState: string;
+  authorize: () => Promise<ToolAuthorization>;
 }
 
 export async function executeAdmittedToolHandler(
@@ -77,21 +83,20 @@ export async function executeAdmittedToolHandler(
     traceContext,
     traceId,
     turnId,
-    executionInput,
     preToolHookResult,
-    permissionWaitMs,
   } = input;
-  const startTime = Date.now();
+  let { executionInput, permissionWaitMs } = input;
+  let startTime = Date.now();
   const executionAbortController = new AbortController();
   const unlinkParentAbort = linkAbortSignal(options?.signal, executionAbortController);
-  let releaseOperation: (() => void) | undefined;
+  let releaseExecution: (() => void) | undefined;
   let handlerStarted = false;
   const timeoutMs = resolveTimeoutMs(entry, executionInput, deps.defaultTimeoutMs, {
     model,
   });
   // 可暂停的 deadline：本次调用内部的模型请求在准入闸门前排队时暂停计时。排队的两端
   // 以本 toolCallId 的 ModelNetworkStatus 会话事件到达，所以在事件出口拦一层即可，handler 无感。
-  const deadline = new ToolDeadline(timeoutMs);
+  let deadline = new ToolDeadline(timeoutMs);
   const emitEvent =
     deps.emitEvent === undefined
       ? undefined
@@ -105,15 +110,62 @@ export async function executeAdmittedToolHandler(
 
   try {
     // 准入早于 started 事件；handler 超时返回后仍可能在清理，锁必须由真实 handler 的 finally 释放。
-    const capability = resolveToolCallCapabilityFlags(deps, entry, executionInput);
-    releaseOperation = await deps.toolOperationAdmission?.acquire({
-      toolName: canonicalToolCall.name,
-      toolInput: executionInput,
-      ...capability,
-      workingDirectory: deps.getWorkingDirectory(),
-      workspaceRoot: deps.getWorkspaceRoot(),
+    let executorWaitMs = 0,
+      operationWaitMs = 0;
+    const admission = await acquireAuthorizedToolResources({
+      deps,
+      initial: {
+        allowed: true,
+        executionInput,
+        permissionWaitMs,
+        permissionState: input.permissionState,
+      },
+      authorize: input.authorize,
       signal: executionAbortController.signal,
+      acquire: async (toolInput) => {
+        const started = Date.now();
+        const executionRelease = await deps.executionPermits.acquire(
+          executionAbortController.signal,
+          options?.maxConcurrency,
+        );
+        executorWaitMs += Date.now() - started;
+        const operationStartedAt = Date.now();
+        try {
+          const operationRelease = await deps.toolOperationAdmission?.acquire({
+            toolName: canonicalToolCall.name,
+            toolInput,
+            ...resolveToolCallCapabilityFlags(deps, entry, toolInput),
+            workingDirectory: deps.getWorkingDirectory(),
+            workspaceRoot: deps.getWorkspaceRoot(),
+            signal: executionAbortController.signal,
+          });
+          operationWaitMs += Date.now() - operationStartedAt;
+          return () => {
+            try {
+              operationRelease?.();
+            } finally {
+              executionRelease();
+            }
+          };
+        } catch (error) {
+          executionRelease();
+          throw error;
+        }
+      },
     });
+    if (!admission.allowed) return admission.result;
+    releaseExecution = admission.release;
+    executionInput = admission.executionInput;
+    permissionWaitMs = admission.permissionWaitMs;
+    deadline = new ToolDeadline(
+      resolveTimeoutMs(entry, executionInput, deps.defaultTimeoutMs, { model }),
+    );
+    const capability = resolveToolCallCapabilityFlags(deps, entry, executionInput);
+    if (executionAbortController.signal.aborted) throw executionAbortController.signal.reason;
+    startTime = Date.now();
+    // 只有取得执行资源后才写 running，批次入队不等于 handler 已开始。
+    await options?.onToolStart?.(canonicalToolCall.id);
+    if (executionAbortController.signal.aborted) throw executionAbortController.signal.reason;
     await emitToolCallStarted(
       deps,
       canonicalToolCall,
@@ -130,6 +182,8 @@ export async function executeAdmittedToolHandler(
       status: "started",
       toolCallId: canonicalToolCall.id,
       toolName: canonicalToolCall.name,
+      executorWaitMs,
+      operationWaitMs,
     });
     const context = createToolExecutionContext({
       deps,
@@ -155,8 +209,8 @@ export async function executeAdmittedToolHandler(
         try {
           return await entry.handler(input, context);
         } finally {
-          releaseOperation?.();
-          releaseOperation = undefined;
+          releaseExecution?.();
+          releaseExecution = undefined;
         }
       },
       executionInput,
@@ -352,7 +406,9 @@ export async function executeAdmittedToolHandler(
     }
     return result;
   } finally {
-    if (!handlerStarted) releaseOperation?.();
+    if (!handlerStarted) {
+      releaseExecution?.();
+    }
     unlinkParentAbort();
   }
 }

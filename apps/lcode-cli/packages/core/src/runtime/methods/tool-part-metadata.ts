@@ -3,12 +3,12 @@ import {
   type CompletedToolPartMetadata,
   type ToolExecutionResult,
 } from "../deps.js";
+import { BashOutputSchema } from "@lcode/contracts";
 import { createMcpToolDisplay } from "../../tool/executor/result-display.js";
+import { bashExecutionStatus } from "../../tool/handlers/bash-execution-status.js";
 
 export function mcpToolPartMetadata(
-  presentation:
-    | { serverName: string; toolName: string; description?: string }
-    | undefined,
+  presentation: { serverName: string; toolName: string; description?: string } | undefined,
 ): CompletedToolPartMetadata | undefined {
   const display = createMcpToolDisplay(presentation);
   return display
@@ -16,9 +16,7 @@ export function mcpToolPartMetadata(
     : undefined;
 }
 
-export function completedToolPartMetadata(
-  result: ToolExecutionResult,
-): CompletedToolPartMetadata {
+export function completedToolPartMetadata(result: ToolExecutionResult): CompletedToolPartMetadata {
   const serialization = result.serialization
     ? {
         truncated: result.serialization.truncated,
@@ -30,8 +28,11 @@ export function completedToolPartMetadata(
           : {}),
       }
     : undefined;
+  const bash = result.toolName === "Bash" ? BashOutputSchema.safeParse(result.output) : undefined;
+  const execution = bash?.success ? bashExecutionStatus(bash.data) : undefined;
   return {
     schemaVersion: COMPLETED_TOOL_PART_METADATA_SCHEMA_VERSION,
+    ...(execution ? { execution } : {}),
     ...(result.display ? { display: result.display } : {}),
     ...(serialization ? { serialization } : {}),
     // resume 需要恢复模型当时真实读到的文件快照；只依赖 tool_result 文本

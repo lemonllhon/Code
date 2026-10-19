@@ -5,6 +5,7 @@ import {
   type TraceContext,
 } from "@lcode/contracts";
 import type { AgentRuntimeInternal } from "../internal.js";
+import { readRuntimeExecutionState } from "../execution-state.js";
 
 /** 授权 receipt 在恢复时仅提供辅助标记；格式损坏不能阻断历史及执行状态恢复。 */
 export async function restorePermissionGrantMarker(
@@ -12,6 +13,7 @@ export async function restorePermissionGrantMarker(
   traceContext: TraceContext,
 ): Promise<void> {
   runtime.lastPermissionGrantId = undefined;
+  runtime.lastPermissionGrantMode = undefined;
   const entries = await runtime.sessionStore?.sessionEntries?.({
     sessionID: runtime.sessionId,
     type: PERMISSION_FULL_ACCESS_ENTRY,
@@ -29,5 +31,8 @@ export async function restorePermissionGrantMarker(
     });
     return;
   }
+  // receipt 是历史选择，恢复后的执行状态可能已被后续 Submission 改写。
+  if (receipt.data.event.payload.mode !== readRuntimeExecutionState(runtime).mode) return;
   runtime.lastPermissionGrantId = receipt.data.interactionId;
+  runtime.lastPermissionGrantMode = receipt.data.event.payload.mode;
 }

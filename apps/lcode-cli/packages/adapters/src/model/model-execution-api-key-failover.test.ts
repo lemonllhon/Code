@@ -7,6 +7,8 @@ import {
   type RegistryProviderConfig,
 } from "@lcode/provider";
 import { AiSdkModelExecution, createApiKeyFailoverFetch } from "./model-execution.js";
+import { runGenerateText } from "./runner-generate.js";
+import { defaultRuntime } from "./runner-runtime.js";
 
 const keys = [
   { id: "bad", apiKey: "bad", enabled: true },
@@ -164,33 +166,50 @@ function bindProvider(
   providerId: string,
   saveGeneration: string | undefined,
 ) {
-  const model = execution
-    .bindModel({
-      providerId,
-      modelId: "demo",
-      providerConfig: providerConfig(),
-      ...(saveGeneration === undefined ? {} : { providerSaveGeneration: saveGeneration }),
+  const binding = execution.bindModel({
+    providerId,
+    modelId: "demo",
+    providerConfig: providerConfig(),
+    ...(saveGeneration === undefined ? {} : { providerSaveGeneration: saveGeneration }),
+    supportsJsonSchemaOutput: false,
+    optionSpecs,
+  });
+  return () => ({
+    ...binding.resolveRequest({ options: { reasoningLevel: "off", maxOutputTokens: 16 } }),
+    properties: {
+      contextWindow: 128,
+      inputFormat: {
+        supportsText: true,
+        supportsImage: false,
+        supportsVideo: false,
+        supportsAudio: false,
+        supportsPdf: false,
+      },
+      outputFormat: { supportsText: true },
+      supportsToolCall: false,
       supportsJsonSchemaOutput: false,
-      optionSpecs,
-    })
-    .resolveRequest({ options: { reasoningLevel: "off", maxOutputTokens: 16 } }).model;
-  if (typeof model === "string") throw new Error("Expected a bound language model");
-  return model as unknown as { doGenerate(input: never): Promise<unknown> };
+      requiresMfjsToolSchema: false,
+      supportsNativeWebSearch: false,
+      supportsMidConversationSystem: false,
+    },
+  });
 }
 
-function bindKeys(
-  execution: AiSdkModelExecution,
-  saveGeneration: string | undefined,
-) {
+function bindKeys(execution: AiSdkModelExecution, saveGeneration: string | undefined) {
   return bindProvider(execution, "custom", saveGeneration);
 }
 
-async function generate(model: { doGenerate(input: never): Promise<unknown> }): Promise<void> {
-  await model.doGenerate({
-    prompt: [{ role: "user", content: [{ type: "text", text: "ping" }] }],
-    maxOutputTokens: 16,
-    headers: {},
-  } as never);
+async function generate(resolveModel: ReturnType<typeof bindProvider>): Promise<void> {
+  // 现行派发许可归 Runner；直接 doGenerate 绕过每次 Key 尝试的准入与预算，不能证明正式回退链路。
+  await runGenerateText({
+    env: { LCODE_RUNTIME_ENV: "test" },
+    modelIoFullRetentionEnabled: false,
+    request: { messages: [{ role: "user", content: "ping" }], maxOutputTokens: 16 },
+    resolved: resolveModel(),
+    resolveModel,
+    runtime: defaultRuntime,
+    retry: { maxAttempts: 2, baseDelayMs: 0, maxDelayMs: 0, backoffFactor: 1, jitter: false },
+  });
 }
 
 test("a new frozen save generation clears failed keys and the same generation keeps skipping", async () => {
@@ -267,7 +286,7 @@ test("saving another provider keeps this provider's failed keys", async () => {
   assert.deepEqual(calls, ["Bearer cipher-good"]);
 });
 
-test("all failed keys send one request", async () => {
+test("all failed keys do not dispatch another POST", async () => {
   const calls: string[] = [];
   const execution = new AiSdkModelExecution(
     {},
@@ -283,5 +302,5 @@ test("all failed keys send one request", async () => {
   assert.deepEqual(calls, ["Bearer cipher-bad", "Bearer cipher-good"]);
   calls.length = 0;
   await assert.rejects(generate(model));
-  assert.deepEqual(calls, ["Bearer cipher-good"]);
+  assert.deepEqual(calls, []);
 });

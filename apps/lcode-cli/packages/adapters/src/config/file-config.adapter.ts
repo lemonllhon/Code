@@ -6,6 +6,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import type { RuntimeConfigPatch, UiLocale } from "@lcode/contracts";
 import { z } from "zod";
+import { dataBaseStoragePaths } from "./data-base-paths.js";
 import {
   canonicalizePluginId,
   parseConfigFileToRuntimePatchWithDiagnostics,
@@ -78,7 +79,7 @@ export function loadFileConfig(filePath?: string, options: FileConfigOptions = {
   const resolvedPath = filePath
     ? resolvePath(filePath)
     : join(
-        resolvePath(options.baseDir ?? DEFAULT_BASE_DIR),
+        resolvePath(options.baseDir ?? dataBaseStoragePaths(process.env)?.cli ?? DEFAULT_BASE_DIR),
         options.configFileName ?? DEFAULT_CONFIG_FILE,
       );
 
@@ -392,8 +393,10 @@ export async function removeSuppressedBuiltinInFileConfig(
 /**
  * Get default config file path
  */
-export function getDefaultConfigPath(): string {
-  return join(resolvePath(DEFAULT_BASE_DIR), DEFAULT_CONFIG_FILE);
+export function getDefaultConfigPath(
+  env: Record<string, string | undefined> = process.env,
+): string {
+  return join(resolvePath(dataBaseStoragePaths(env)?.cli ?? DEFAULT_BASE_DIR), DEFAULT_CONFIG_FILE);
 }
 
 /**

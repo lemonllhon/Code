@@ -8,6 +8,7 @@ import {
   type ModelRequest,
   type ModelInvocationContext,
 } from "@lcode/contracts";
+import { SessionEventType } from "@lcode/contracts";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { generateWorkspaceText } from "./workspace-generate-text.js";
 
@@ -73,4 +74,59 @@ test("worktree naming uses the governed auxiliary model without changing the for
   assert.deepEqual(request?.tools, []);
   assert.equal(invocation?.modelRequestAdmission, admission);
   assert.equal(invocation?.traceContext?.traceId, runtime.rootTraceContext.traceId);
+});
+
+test("unaccepted composer prediction text stays out of durable model events while usage remains", async () => {
+  const events: Array<{ type: unknown; payload: Record<string, unknown> }> = [];
+  let request: ModelRequest | undefined;
+  const model = {
+    providerId: "fixture",
+    modelId: "model",
+    properties: {},
+    optionSpecs: { reasoningLevel: { values: ["low"] }, maxOutputTokens: { max: 1024 } },
+    options: {},
+    bind: () => model,
+    generateText: async (value: ModelRequest) => {
+      request = value;
+      return {
+        text: '{"suggestion":"PRIVATE_UNACCEPTED_SUGGESTION"}',
+        finishReason: "stop",
+        usage: { inputTokens: 20, outputTokens: 5 },
+      };
+    },
+  } as unknown as Model;
+  const operation = {
+    run: (fn: () => Promise<unknown>) => fn(),
+    setResultType: () => {},
+    finishCompleted: () => {},
+    finishFailed: () => {},
+    finishCancelled: () => {},
+  };
+  const runtime = {
+    config: {},
+    sessionId: "fixture",
+    rootTraceContext: createRootTraceContext(),
+    modelFactory: () => model,
+    modelRequestAdmission: { acquire: async () => ({ publish: () => {}, release: () => {} }) },
+    agentTelemetry: { detached: () => operation },
+    createEvent: (type: unknown, payload: Record<string, unknown>) => ({ type, payload }),
+    appendEvent: async (event: (typeof events)[number]) => {
+      events.push(event);
+    },
+    createModelStatusSink: () => undefined,
+    extractToolCallsFromResult: () => [],
+  } as unknown as AgentRuntimeInternal;
+  await generateWorkspaceText.call(runtime, {
+    selection: { providerId: "fixture", modelId: "model" },
+    querySource: "composer_prediction",
+    messages: [{ role: "user", content: "PRIVATE_CURRENT_TURN" }],
+    tools: [],
+    maxOutputTokens: 256,
+  });
+  assert.ok(JSON.stringify(request).includes("PRIVATE_CURRENT_TURN"));
+  assert.ok(!JSON.stringify(events).includes("PRIVATE_"));
+  assert.deepEqual(
+    events.find((event) => event.type === SessionEventType.ModelComplete)?.payload.usage,
+    { inputTokens: 20, outputTokens: 5 },
+  );
 });

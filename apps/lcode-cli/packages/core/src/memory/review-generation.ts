@@ -53,6 +53,7 @@ type ModelReviewItem = Pick<
 export async function generateMemoryReviewDraft(input: {
   query: string;
   context: ToolExecutionContext;
+  preparedSessions?: Awaited<ReturnType<typeof collectReviewSessionEvidence>>;
 }): Promise<ProjectMemoryReviewDraft> {
   const context = { ...input.context };
   assertReviewCapabilities(context);
@@ -74,7 +75,7 @@ export async function generateMemoryReviewDraft(input: {
   ) {
     throw new MemoryReviewError("unavailable");
   }
-  const sessions = await collectReviewSessionEvidence(context);
+  const sessions = input.preparedSessions ?? (await collectReviewSessionEvidence(context));
   if (context.reviewMode === "incremental" && sessions.materials.length === 0) {
     // 当前完整turn缺席时不能仅拿旧memory继续自我总结；在枚举memory和请求模型前零成本结束。
     return ProjectMemoryReviewDraftSchema.parse({

@@ -123,12 +123,9 @@ async function switchModelConfig(
 
 /**
  * switchCollaborationMode：切换 agent 协作模式（plan/build/edit/yolo）。
- * app.setMode 统一更新独立执行状态、持久化并发布 SessionModeChanged，
- * 命令层不再补发第二次事件，
- * v4 投影 reducer onSessionModeChanged 据此更新 config.mode。
- * 同值切换 → noop ACK：静默 return undefined 会被当 accepted，若投影种子缺失
- * 会叠加成「点完全访问没反应」的用户可见问题——CLI 认为已是 yolo
- * 提前返回，投影却还停在种子 build，且客户端无从判别。因此必须显式 ACK。
+ * 权限由 Runtime 与审批 fullAccess 共用事务，固定已有队列范围并发布授权标记；
+ * 同值也需确认已有队列和 Composer 已收敛，不能只按 Runtime.mode 提前 noop。
+ * Plan 兼容原 app.setMode 入口；命令层不重复发布 SessionModeChanged。
  */
 async function switchCollaborationMode(
   host: V4CommandCoreHost,
@@ -137,6 +134,11 @@ async function switchCollaborationMode(
   const payload = envelope.payload as CommandPayloadMap["switchCollaborationMode"];
   const record = requireRecord(host, envelope.sessionId);
   const mode = payload.mode as CollaborationMode;
+  if (mode === "build" || mode === "edit" || mode === "yolo") {
+    // 菜单权限必须与确认框走同一 Runtime 事务，不能只改下一条草稿或遗留旧队列权限。
+    await record.app.runtime.setPermissionMode(mode, String(envelope.commandId));
+    return undefined;
+  }
   const previousMode = record.app.getMode();
   if (previousMode === mode && !record.app.runtime.getPlanEnabled()) {
     throw new V4CommandNoopError(CONFIG_UNCHANGED);

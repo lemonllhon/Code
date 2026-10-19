@@ -21,6 +21,8 @@ import { recordModelUsageFact } from "./usage-observability.js";
 import { createRuntimeModel } from "./runtime-model.js";
 import { normalizeStreamError } from "../helpers/index.js";
 import { auxiliaryModelOptions } from "../../model/auxiliary-model-options.js";
+import { COMPOSER_PREDICTION_QUERY_SOURCE, type ComposerPredictionRequest } from "@lcode/shared";
+import { withComposerPrediction } from "./composer-prediction.js";
 
 const WORKSPACE_GENERATE_TEXT_TIMEOUT_MS = 60_000;
 // 探测请求使用固定最小 prompt，避免多余推理开销；不可改写角色、文本或混入会话历史。
@@ -30,6 +32,7 @@ const GIT_COMMIT_MESSAGE_QUERY_SOURCE = "git_commit_message";
 const WORKTREE_TASK_NAME_QUERY_SOURCE = "worktree_task_name";
 
 export interface WorkspaceGenerateTextInput {
+  composerPrediction?: ComposerPredictionRequest;
   selection: ModelSelection;
   prompt?: string;
   messages?: ModelInputMessage[];
@@ -121,17 +124,21 @@ export async function generateWorkspaceText(
   input: WorkspaceGenerateTextInput,
   options?: { abortSignal?: AbortSignal; traceContext?: TraceContext },
 ): Promise<WorkspaceGenerateTextResult> {
+  if (input.composerPrediction)
+    return withComposerPrediction(this, input, options, (prepared, abortSignal) =>
+      generateWorkspaceText.call(this, prepared, { ...options, abortSignal }),
+    );
   assertWorkspaceModelInput(input);
   const querySource = input.querySource.trim() || "workspace_generate_text";
   const traceContext = options?.traceContext ?? this.rootTraceContext;
   const operationTelemetry = this.agentTelemetry.detached({
-    executionKind: "foreground",
+    executionKind: querySource === COMPOSER_PREDICTION_QUERY_SOURCE ? "background" : "foreground",
     operation:
       querySource === GIT_COMMIT_MESSAGE_QUERY_SOURCE
         ? "workspace_git_commit_message"
         : "workspace_generate_text",
     targetKind: "workspace",
-    trigger: "user",
+    trigger: querySource === COMPOSER_PREDICTION_QUERY_SOURCE ? "scheduler" : "user",
     traceContext,
   });
   return operationTelemetry.run(async () => {
@@ -163,7 +170,8 @@ async function generateWorkspaceTextImpl(
   // 辅助请求需要的是最低公开档位，不是扫描 off/nothink 等名称后强制关闭。
   const model =
     querySource === GIT_COMMIT_MESSAGE_QUERY_SOURCE ||
-    querySource === WORKTREE_TASK_NAME_QUERY_SOURCE
+    querySource === WORKTREE_TASK_NAME_QUERY_SOURCE ||
+    querySource === COMPOSER_PREDICTION_QUERY_SOURCE
       ? baseModel.bind(auxiliaryModelOptions(baseModel))
       : baseModel;
   const baseTraceContext = options?.traceContext ?? this.rootTraceContext;
@@ -178,11 +186,12 @@ async function generateWorkspaceTextImpl(
   const messages: ModelInputMessage[] = input.messages
     ? input.messages.map((message) => ({ ...message }))
     : [{ role: "user", content: input.prompt!.trim() }];
+  const isPrediction = querySource === COMPOSER_PREDICTION_QUERY_SOURCE;
   const tools = input.tools ?? [];
   const modelRequestEvent = this.createEvent(
     SessionEventType.ModelRequest,
     {
-      messages,
+      messages: isPrediction ? [] : messages,
       providerId: String(model.providerId),
       modelId: String(model.modelId),
       querySource,
@@ -251,7 +260,8 @@ async function generateWorkspaceTextImpl(
   const modelCompleteEvent = this.createEvent(
     SessionEventType.ModelComplete,
     {
-      content: result.text,
+      // 未接受的灰字不是会话正文；只保留辅助请求的用量和结束事实。
+      content: isPrediction ? "" : result.text,
       querySource,
       stopReason: result.finishReason,
       toolCallCount: toolCalls.length,

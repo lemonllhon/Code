@@ -5,6 +5,7 @@ import type { ExecutableToolCall, ToolBatchEvent, ToolExecutionResult } from "..
 import { BackgroundTaskTracker } from "./background-tasks.js";
 import { executeToolBatch, executeToolSchedule } from "./batch-runner.js";
 import { executeToolCall } from "./call-runner.js";
+import { ToolExecutionPermits } from "./execution-permits.js";
 import type {
   ToolBatchExecuteOptions,
   ToolExecuteOptions,
@@ -19,6 +20,7 @@ export class ToolExecutorImpl implements ToolExecutor {
 
   constructor(options: ToolExecutorOptions) {
     this.deps = {
+      executionPermits: new ToolExecutionPermits(options.maxConcurrency ?? 10),
       toolOperationAdmission: options.toolOperationAdmission,
       agentTelemetry: options.agentTelemetry,
       agentTelemetryActorKind: options.agentTelemetryActorKind,
@@ -79,6 +81,7 @@ export class ToolExecutorImpl implements ToolExecutor {
       deliveryKind: options.deliveryKind,
       getMemoryRoot: options.getMemoryRoot,
       getMemoryWorkspaceIdentity: options.getMemoryWorkspaceIdentity,
+      selectMemoryCandidates: options.selectMemoryCandidates,
       runtimeScope: options.runtimeScope ?? "main",
       traceContext: options.traceContext,
       getMode: options.getMode ?? (() => options.mode ?? "build"),

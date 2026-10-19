@@ -3,6 +3,7 @@ import { dirname, isAbsolute, join, normalize, parse, relative, resolve, sep } f
 import { ProjectMemoryChangeSchema } from "@lcode/contracts";
 import { getNodeErrorCode } from "./file-system-common.js";
 import { memoryError } from "./project-memory-io.js";
+import { selectMemoryStateDirectory } from "./project-memory-relocation.js";
 
 interface DirectoryIdentity {
   dev: number;
@@ -10,6 +11,7 @@ interface DirectoryIdentity {
 }
 export interface MemoryRoot {
   rootDir: string;
+  controlDir: string;
   stateDir: string;
   lockPath: string;
   pins: Map<string, DirectoryIdentity>;
@@ -99,12 +101,21 @@ export async function prepareMemoryRoot(rawRoot: string): Promise<MemoryRoot> {
   }
   const root = {
     rootDir,
+    controlDir: stateDir,
     stateDir,
     lockPath: join(stateDir, "writer"),
     pins: new Map<string, DirectoryIdentity>(),
   };
   await directoryChain(rootDir, root.pins, true);
   await directoryChain(stateDir, root.pins, true);
+  root.stateDir = await selectMemoryStateDirectory({
+    rootDir,
+    controlDir: stateDir,
+    validate: () => assertMemoryRoot(root),
+    prepareDirectory: (path) => directoryChain(path, root.pins, true),
+  });
+  await directoryChain(root.stateDir, root.pins, true);
+  root.lockPath = join(root.stateDir, "writer");
   await assertMemoryRoot(root);
   return root;
 }
@@ -237,7 +248,7 @@ export class MemoryRootRegistry {
     let matched: MemoryRoot | undefined;
     for (const root of roots) {
       const rootPrefix = normalizeCase(root.rootDir.replaceAll("\\", "/"));
-      const statePrefix = normalizeCase(root.stateDir.replaceAll("\\", "/"));
+      const statePrefix = normalizeCase(root.controlDir.replaceAll("\\", "/"));
       const candidate = normalizeCase(lexical);
       if (
         candidate === rootPrefix ||
@@ -246,7 +257,7 @@ export class MemoryRootRegistry {
         candidate.startsWith(`${statePrefix}/`)
       )
         localAbsolutePath(rawPath);
-      if (contained(root.stateDir, path))
+      if (contained(root.controlDir, path))
         throw memoryError(
           "invalid_path",
           path,
@@ -267,7 +278,7 @@ export class MemoryRootRegistry {
       }
     }
     const physical = await existingRealPath(path);
-    if (roots.some((root) => contained(root.stateDir, physical))) {
+    if (roots.some((root) => contained(root.controlDir, physical))) {
       throw memoryError(
         "invalid_path",
         path,

@@ -16,6 +16,7 @@
  */
 import { $getPromptMarkdown } from "@/mentions/promptSerialization.js";
 import { PromptClipboardPlugin } from "@/mentions/PromptClipboardPlugin.js";
+import { ComposerPredictionPlugin } from "@/prompt-editor/ComposerPredictionPlugin.js";
 import {
   resolveComposerKeyAction,
   shouldBareEnterFallThroughToNewline,
@@ -1317,6 +1318,8 @@ function EditorApiPlugin({
 }
 
 interface LexicalChatInputProps {
+  predictionText?: string;
+  onPredictionDismiss?: () => void;
   placeholder?: string;
   disabled?: boolean;
   submitDisabled?: boolean;
@@ -1355,6 +1358,8 @@ const EDITOR_THEME = {
 };
 
 export function LexicalChatInput({
+  predictionText,
+  onPredictionDismiss,
   placeholder,
   disabled = false,
   submitDisabled = false,
@@ -1454,20 +1459,21 @@ export function LexicalChatInput({
   // Lexical 的 ContentEditable props 是一个互斥联合类型，
   // aria-placeholder 一旦出现就要求 placeholder 同时存在。
   // 之前直接写三元 JSX，TypeScript 在合并两条分支时没有正确保留这组联动约束，导致误报缺少 placeholder。
-  const contentEditableProps: React.ComponentProps<typeof ContentEditable> = placeholder
-    ? {
-        "aria-placeholder": placeholder,
-        placeholder: (
-          <div
-            className={`pointer-events-none absolute left-0 top-0 ${compactPlaceholder ? "line-clamp-2" : ""} text-ui-base leading-5 text-foreground-subtlest`}
-          >
-            {placeholder}
-          </div>
-        ),
-      }
-    : {
-        placeholder: null,
-      };
+  const contentEditableProps: React.ComponentProps<typeof ContentEditable> =
+    placeholder && !predictionText
+      ? {
+          "aria-placeholder": placeholder,
+          placeholder: (
+            <div
+              className={`pointer-events-none absolute left-0 top-0 ${compactPlaceholder ? "line-clamp-2" : ""} text-ui-base leading-5 text-foreground-subtlest`}
+            >
+              {placeholder}
+            </div>
+          ),
+        }
+      : {
+          placeholder: null,
+        };
 
   const contentEditable = (
     <ContentEditable
@@ -1500,6 +1506,13 @@ export function LexicalChatInput({
       <LexicalComposer initialConfig={initialConfig}>
         <div className="relative">
           <PlainTextPlugin contentEditable={contentEditable} ErrorBoundary={LexicalErrorBoundary} />
+          {predictionText ? (
+            <ComposerPredictionPlugin
+              text={predictionText}
+              disabled={disabled}
+              onDismiss={onPredictionDismiss}
+            />
+          ) : null}
           <HistoryPlugin />
           <PromptClipboardPlugin />
           <TextContentPlugin onChange={onChange} taskId={taskId} />

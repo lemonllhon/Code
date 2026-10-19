@@ -48,10 +48,6 @@ export function seedConfig(host: SeedConfigHost, seed: SessionConfigSeed): void 
   }
   const config = { ...host.snapshot.config };
   let changed = false;
-  if (!config.permissionGrant && seed.permissionGrant) {
-    config.permissionGrant = seed.permissionGrant;
-    changed = true;
-  }
   if (!host.configModelTouchedByEvent) {
     if (
       Object.hasOwn(seed, "modelSelection") &&
@@ -96,6 +92,14 @@ export function seedConfig(host: SeedConfigHost, seed: SessionConfigSeed): void 
     config.planEnabled !== seed.planEnabled
   ) {
     config.planEnabled = seed.planEnabled;
+    changed = true;
+  }
+  if (
+    !config.permissionGrant &&
+    seed.permissionGrant &&
+    (seed.permissionGrant.mode ?? "yolo") === config.mode
+  ) {
+    config.permissionGrant = seed.permissionGrant;
     changed = true;
   }
   if (changed) {

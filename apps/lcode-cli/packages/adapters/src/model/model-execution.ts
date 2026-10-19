@@ -85,6 +85,8 @@ export interface AiSdkNetworkConfig {
 }
 
 export interface AiSdkResolvedModel {
+  /** Binding 冻结传输：OAuth 复用已认证流式通道，API 保留原 HTTP 最终结果协议。 */
+  generateTextTransport?: "http" | "sse";
   acquireApiKeyAttempt?: (
     signal?: AbortSignal,
     outsideTicket?: (wait: () => Promise<void>, signal?: AbortSignal) => Promise<void>,
@@ -434,6 +436,7 @@ export class AiSdkModelExecution {
           }
         : {}),
       baseURL: providerConfig.baseURL,
+      generateTextTransport: providerConfig.access.type === "oauth-account" ? "sse" : "http",
       ...(feedback
         ? {
             readRoutingFeedbackState: feedback.diagnostics,

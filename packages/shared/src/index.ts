@@ -1,3 +1,4 @@
+export * from "./composer-predictions.js";
 export type {
   FileBinaryPreview,
   FileEntry,

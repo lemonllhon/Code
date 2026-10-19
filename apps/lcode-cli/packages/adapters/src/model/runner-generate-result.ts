@@ -1,5 +1,25 @@
 import { ModelErrorCode } from "@lcode/contracts";
 import { AiSdkModelAdapterError } from "./errors.js";
+import { detectProviderBusinessFinishError } from "./provider-finish-business-error.js";
+import type { AiSdkGenerateTextResult, ResolvedAiSdkModel } from "./runner-runtime.js";
+
+export function assertGenerateTextFinish(
+  resolved: ResolvedAiSdkModel,
+  result: AiSdkGenerateTextResult,
+): void {
+  const error = detectProviderBusinessFinishError({
+    providerId: String(resolved.providerId),
+    providerKind: resolved.providerKind,
+    source: {
+      finishReason: result.finishReason,
+      providerMetadata: result.providerMetadata,
+      rawFinishReason: (result.providerMetadata as Record<string, unknown> | undefined)
+        ?.rawFinishReason,
+      response: (result as unknown as { response?: unknown }).response,
+    },
+  });
+  if (error) throw error;
+}
 
 export function serializeStructuredOutput(result: unknown): string {
   const output = (result as { output?: unknown }).output;

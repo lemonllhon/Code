@@ -215,6 +215,12 @@ function createRuntimeToolExecutor(
     getMemoryRoot: () =>
       deps.memoryRoot ?? resolveEnabledProjectMemoryRoot(runtime.config, runtime.workspaceRoot),
     getMemoryWorkspaceIdentity: () => runtime.config.memory?.workspaceIdentity,
+    selectMemoryCandidates: (query) => {
+      const root = deps.memoryRoot ?? runtime.memoryRoot;
+      return root
+        ? (runtime.projectMemoryRecallIndex?.createCandidateSelector(root)(query) ?? [])
+        : [];
+    },
     runtimeScope: runtime.config.taskType === "subagent_child" ? "subagent" : "main",
     permissionTimeoutMs: runtime.config.permissionTimeoutMs,
     sessionId: runtime.sessionId,

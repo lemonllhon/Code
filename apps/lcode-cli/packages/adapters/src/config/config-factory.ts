@@ -21,7 +21,12 @@ import {
   type WorkspaceHookRuntimeRoot,
 } from "@lcode/shared/workspace-hook-discovery";
 import { createConfigPort } from "./index.js";
-import { loadFileConfig, getDefaultConfigPath, type LoadedConfig } from "./file-config.adapter.js";
+import {
+  loadFileConfig,
+  getDefaultConfigPath,
+  resolvePath,
+  type LoadedConfig,
+} from "./file-config.adapter.js";
 import { parseEnvConfig } from "./env-config.adapter.js";
 import { mergeConfigs, createPrioritizedConfig } from "./config-merger.js";
 import { createNodeLoggerFactory } from "../logging/index.js";
@@ -133,9 +138,10 @@ export function createConfig(options: ConfigFactoryOptions = {}): ConfigResult {
   ];
 
   // 2. User config file
+  const userConfigPath = options.userConfigPath ?? getDefaultConfigPath(options.env ?? process.env);
   const userConfigResult: LoadedConfig = options.skipUserConfig
-    ? { config: {}, diagnostics: [], path: getDefaultConfigPath(), loaded: false }
-    : loadFileConfig(options.userConfigPath);
+    ? { config: {}, diagnostics: [], path: resolvePath(userConfigPath), loaded: false }
+    : loadFileConfig(userConfigPath);
 
   if (userConfigResult.loaded) {
     configs.push(

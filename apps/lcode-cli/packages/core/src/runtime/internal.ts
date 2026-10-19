@@ -165,6 +165,7 @@ export interface AgentRuntimeInternal
   permissionFullAccessPending?: boolean;
   pendingInputDrains?: number;
   lastPermissionGrantId?: string;
+  lastPermissionGrantMode?: import("@lcode/contracts").SessionPermissionMode;
   queueAutoDrain: boolean;
   queueExternalDrainActive: boolean;
   shuttingDown: boolean;

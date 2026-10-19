@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { opendir } from "node:fs/promises";
 import { z } from "zod";
+import { MemoryOwnerSchema } from "./project-memory-relocation.js";
 import {
   PROJECT_MEMORY_FILE_MAX_BYTES,
   PROJECT_MEMORY_PREIMAGES_MAX_BYTES,
@@ -28,7 +29,7 @@ import {
   samePath,
 } from "./project-memory-paths.js";
 
-const OwnerSchema = z.object({ schemaVersion: z.literal(1), rootDir: z.string() }).strict();
+const OwnerSchema = MemoryOwnerSchema;
 // contracts 仍使用 Zod 3；adapter 的 Zod 4 不得把其 schema 嵌入本地 object。
 const ChangeRecordSchema = OwnerSchema.extend({ change: z.unknown() }).strict();
 const ReviewRecordSchema = OwnerSchema.extend({ review: z.unknown() }).strict();
@@ -98,6 +99,8 @@ export class MemoryStore {
       "reviews",
       "staging",
       "effects.json",
+      "learning.json",
+      "relocated",
     ]);
     for await (const entry of directory) {
       if (++entryCount > PROJECT_MEMORY_RECORD_LIMIT + controlEntries.size)

@@ -61,6 +61,8 @@ function getErrorMessage(error: unknown): string {
 
 export function MemorySettingsSection({
   memoryEnabled,
+  composerPredictionsEnabled = false,
+  onComposerPredictionsEnabledChange,
   memoryService,
   memoryStorageLocation,
   memoryStorageLocationLoading = false,
@@ -72,6 +74,8 @@ export function MemorySettingsSection({
   workspaceDisplayNames = [],
 }: {
   memoryEnabled: boolean;
+  composerPredictionsEnabled?: boolean;
+  onComposerPredictionsEnabledChange?: (enabled: boolean) => Promise<unknown>;
   memoryService: MemoryCatalogService;
   memoryStorageLocation: MemoryStorageLocation;
   memoryStorageLocationLoading?: boolean;
@@ -260,6 +264,21 @@ export function MemorySettingsSection({
               data-testid={TID_SETTINGS_SESSION_RECALL_SWITCH}
               onCheckedChange={(checked) => {
                 void onSessionRecallEnabledChange(checked);
+              }}
+            />
+          }
+        />
+        <SettingsRow
+          label={intl.formatMessage({ id: "settings.composerPredictions" })}
+          description={intl.formatMessage({ id: "settings.composerPredictionsDescription" })}
+          control={
+            <Switch
+              aria-label={intl.formatMessage({ id: "settings.composerPredictions" })}
+              data-testid="settings-composer-predictions"
+              checked={composerPredictionsEnabled}
+              disabled={!onComposerPredictionsEnabledChange}
+              onCheckedChange={(enabled) => {
+                void onComposerPredictionsEnabledChange?.(enabled);
               }}
             />
           }

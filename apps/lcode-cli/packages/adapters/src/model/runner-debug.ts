@@ -49,6 +49,7 @@ export function recordGenerateTextDebug(input: {
   resolved: ResolvedAiSdkModel;
   result?: AiSdkGenerateTextResult;
   startedAt: number;
+  stream?: boolean;
 }): void {
   if (!input.recordModelIO) {
     return;
@@ -64,7 +65,7 @@ export function recordGenerateTextDebug(input: {
       ? buildFallbackRequestBodyFromOptions({
           options: input.options,
           resolved: input.resolved,
-          stream: false,
+          stream: input.stream ?? false,
         })
       : undefined);
 

@@ -274,42 +274,46 @@ async function executeToolCallImpl(
     }
   }
 
-  const permissionResult = await resolveToolPermission(
-    deps,
-    canonicalToolCall,
-    entry,
-    executionInput,
-    preToolHookResult,
-    mode,
-    traceContext,
-    options?.signal,
-    telemetry,
-  );
-  if (!permissionResult.allowed) {
-    const result = appendPreToolAdditionalContextsToErrorResult(
-      withWorkflowRefineDeniedFollowUp(
-        withPlanExitDeniedTurnStop(permissionResult.result, {
-          mode,
-          planEnabled: deps.sessionModePort?.isPlanEnabled?.(),
-          toolName: canonicalToolCall.name,
-        }),
-        { toolName: canonicalToolCall.name },
-      ),
-      preToolHookResult.additionalContexts,
+  const authorize = async () => {
+    const permissionResult = await resolveToolPermission(
+      deps,
+      canonicalToolCall,
+      entry,
+      executionInput,
+      preToolHookResult,
+      deps.getMode(),
+      traceContext,
+      options?.signal,
+      telemetry,
     );
-    if (result.error?.type === CoreErrorType.PermissionDenied) {
-      telemetry?.finishDenied("user_denied");
-    } else {
-      telemetry?.finishFailed(
-        "permission",
-        errorCategoryForToolError(result.error?.type),
-        result.error,
+    if (!permissionResult.allowed) {
+      const result = appendPreToolAdditionalContextsToErrorResult(
+        withWorkflowRefineDeniedFollowUp(
+          withPlanExitDeniedTurnStop(permissionResult.result, {
+            mode: deps.getMode(),
+            planEnabled: deps.sessionModePort?.isPlanEnabled?.(),
+            toolName: canonicalToolCall.name,
+          }),
+          { toolName: canonicalToolCall.name },
+        ),
+        preToolHookResult.additionalContexts,
       );
+      if (result.error?.type === CoreErrorType.PermissionDenied) {
+        telemetry?.finishDenied("user_denied");
+      } else {
+        telemetry?.finishFailed(
+          "permission",
+          errorCategoryForToolError(result.error?.type),
+          result.error,
+        );
+      }
+      return { allowed: false as const, result };
     }
-    return result;
-  }
-  executionInput = permissionResult.executionInput;
-  const permissionWaitMs = permissionResult.permissionWaitMs;
+    executionInput = permissionResult.executionInput;
+    return permissionResult;
+  };
+  const approved = await authorize();
+  if (!approved.allowed) return approved.result;
 
   return executeAdmittedToolHandler({
     deps,
@@ -325,7 +329,9 @@ async function executeToolCallImpl(
     turnId,
     executionInput,
     preToolHookResult,
-    permissionWaitMs,
+    permissionWaitMs: approved.permissionWaitMs,
+    permissionState: approved.permissionState,
+    authorize,
   });
 }
 

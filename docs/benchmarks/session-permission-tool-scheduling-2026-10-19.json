@@ -1,0 +1,27 @@
+{
+  "node": "v24.21.0",
+  "platform": "win32",
+  "baseline": "fixed-wave schedule model, same real executor and controlled handlers; no network",
+  "results": [
+    {
+      "mode": "fixed-waves",
+      "samples": 20,
+      "warmups": 5,
+      "durationsMs": [60, 5, 5, 60],
+      "concurrency": 2,
+      "p50Ms": 125.9656,
+      "p95Ms": 127.88519999999971,
+      "p99Ms": 128.11040000000003
+    },
+    {
+      "mode": "refill",
+      "samples": 20,
+      "warmups": 5,
+      "durationsMs": [60, 5, 5, 60],
+      "concurrency": 2,
+      "p50Ms": 93.87910000000011,
+      "p95Ms": 94.91829999999936,
+      "p99Ms": 95.82340000000022
+    }
+  ]
+}

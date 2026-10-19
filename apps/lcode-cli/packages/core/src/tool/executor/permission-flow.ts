@@ -11,32 +11,35 @@ import {
   type ToolExecutionSpanWriter,
 } from "@lcode/contracts";
 import type { HookRunResult } from "../../hooks/index.js";
-import type { PermissionContext } from "../../permission/service.js";
 import type { ExecutableToolCall, ToolEntry, ToolExecutionResult } from "../types.js";
 import { normalizeToolExecutionInput } from "../input-normalization.js";
 import { resolveToolApproval } from "./approval-gate.js";
 import { createErrorResult, createPermissionErrorResult } from "./errors.js";
 import { emitPermissionDenied, emitPermissionRequested, emitPermissionResolved } from "./events.js";
-import { applyPreToolPermissionDecision, runPermissionRequestHooks } from "./hook-flow.js";
+import { runPermissionRequestHooks } from "./hook-flow.js";
 import { racePermissionResponders } from "./permission-responder-race.js";
 import {
   loadProjectPermissionRuleset,
   persistProjectPermissionUpdates,
 } from "./permission-rules-persistence.js";
 import {
-  resolveRuntimePermissionCapability,
   resolveRuntimePermissionContext,
   scopePermissionApprovalResult,
 } from "./permission-capability.js";
 import { buildDefaultPermissionUpdates } from "./permission-suggestions.js";
 import { recheckPermissionHookModifiedInput } from "./permission-input-recheck.js";
 import type { ToolExecutorDeps } from "./types.js";
-import { summarizeInput } from "./utils.js";
 import { validateInput } from "./validation.js";
-import { applyMemoryFilePermission } from "./memory-file-permission.js";
+import {
+  evaluateCurrentToolPermission,
+  logToolPermissionEvaluation,
+  recheckResolvedPermission,
+  permissionStateKey,
+  watchPermissionMode,
+} from "./permission-mode-recheck.js";
 
 type ToolPermissionFlowResult =
-  | { allowed: true; executionInput: unknown; permissionWaitMs?: number }
+  | { allowed: true; executionInput: unknown; permissionWaitMs?: number; permissionState: string }
   | { allowed: false; result: ToolExecutionResult };
 
 export async function resolveToolPermission(
@@ -50,17 +53,6 @@ export async function resolveToolPermission(
   signal?: AbortSignal,
   telemetry?: ToolExecutionSpanWriter,
 ): Promise<ToolPermissionFlowResult> {
-  const permissionContext: PermissionContext = {
-    toolName: toolCall.name,
-    input: executionInput,
-    riskLevel: entry.metadata.riskLevel,
-    mode,
-    prePlanMode: deps.sessionModePort?.getPrePlanMode(),
-    planEnabled: deps.sessionModePort?.isPlanEnabled?.(),
-    // workflow 草稿免确认要按工作目录解析相对路径，见 PermissionService 的
-    // isPreapprovedWorkflowDraftWrite。
-    workingDirectory: deps.getWorkingDirectory(),
-  };
   const runtimePermissionContext = resolveRuntimePermissionContext(deps);
   const rulePolicy = entry.resolvePermissionRulePolicy?.(executionInput, runtimePermissionContext);
   const suggestedPermissionUpdates =
@@ -84,46 +76,25 @@ export async function resolveToolPermission(
     };
   }
 
-  let permissionDecision = deps.permissionService.checkPermission(
-    permissionContext,
-    resolveRuntimePermissionCapability(entry, executionInput, runtimePermissionContext),
+  const permissionInput = {
+    deps,
+    toolCall,
+    entry,
+    executionInput,
+    preToolHookResult,
     projectRules,
     rulePolicy,
-  );
-  permissionDecision = applyPreToolPermissionDecision(permissionDecision, preToolHookResult, mode);
-  permissionDecision = applyMemoryFilePermission({
-    decision: permissionDecision,
-    executionInput,
-    memoryRoot: deps.getMemoryRoot?.(),
-    toolName: toolCall.name,
-    workingDirectory: deps.getWorkingDirectory(),
-    workspaceRoot: deps.getWorkspaceRoot(),
-  });
+  };
+  const evaluated = evaluateCurrentToolPermission(permissionInput);
+  let permissionState = permissionStateKey(deps);
+  mode = evaluated.mode;
+  let permissionDecision = evaluated.decision;
 
-  deps.logger?.debug("Tool permission evaluated", {
-    ...traceContextToLogContext(traceContext),
-    decision: permissionDecision.decision,
-    event: "tool.permission.evaluated",
-    inputSummary: summarizeInput(toolCall.input),
-    mode,
-    module: "core.tool.executor",
-    reason: permissionDecision.reason,
-    riskLevel: permissionDecision.riskLevel,
-    ruleId: permissionDecision.ruleId,
-    sideEffectScope: permissionDecision.sideEffectScope,
-    status:
-      permissionDecision.decision === "allow"
-        ? "completed"
-        : permissionDecision.decision === "ask"
-          ? "waiting"
-          : "failed",
-    toolCallId: toolCall.id,
-    toolName: toolCall.name,
-  });
+  logToolPermissionEvaluation(permissionInput, evaluated, traceContext);
 
   if (permissionDecision.allowed) {
     telemetry?.setPermissionDecision("not_required");
-    return { allowed: true, executionInput };
+    return { allowed: true, executionInput, permissionState };
   }
 
   if (permissionDecision.decision === "deny") {
@@ -155,7 +126,7 @@ export async function resolveToolPermission(
   const approval = resolveToolApproval(deps, toolCall, entry, executionInput, traceContext);
   if (approval.gate === "proceed") {
     telemetry?.setPermissionDecision("not_required");
-    return { allowed: true, executionInput };
+    return { allowed: true, executionInput, permissionState };
   }
 
   const requestId = `perm_${crypto.randomUUID()}`;
@@ -183,6 +154,7 @@ export async function resolveToolPermission(
     // 每一次点击都被 resolveInteraction 按幂等语义静默丢弃——确认窗永久死亡。
     // 修法：hook 链与 broker 并发竞速，先到的决定生效，败者被 abort 且不被等待。
     const raceOutcome = await racePermissionResponders({
+      watchMode: (modeSignal) => watchPermissionMode(permissionInput, modeSignal),
       onHookFailure: (error) => {
         // hook 链故障只令其退赛：辅助应答方的基础设施故障不应替用户做拒绝决定，
         // 确认窗继续等待 broker 应答。
@@ -236,6 +208,7 @@ export async function resolveToolPermission(
       ...(signal === undefined ? {} : { signal }),
     });
     brokerResult = raceOutcome.result;
+    if (raceOutcome.source === "mode") mode = deps.getMode();
     const permissionHookResult = raceOutcome.source === "hook" ? raceOutcome.result : undefined;
 
     if (permissionHookResult?.decision === "modify") {
@@ -289,6 +262,17 @@ export async function resolveToolPermission(
     return { allowed: false, result: createErrorResult(toolCall, coreError) };
   }
 
+  const currentPermission = recheckResolvedPermission(
+    {
+      ...permissionInput,
+      executionInput: useNormalizedHookModifiedInput ? normalizedHookModifiedInput : executionInput,
+    },
+    brokerResult,
+    permissionState,
+  );
+  permissionState = currentPermission.permissionState;
+  mode = currentPermission.mode;
+  brokerResult = currentPermission.result;
   const resolvedPermission = {
     ...scopePermissionApprovalResult(brokerResult, permissionDecision.approvalSource),
     resolvedAt: brokerResult.resolvedAt ?? new Date(),
@@ -410,6 +394,7 @@ export async function resolveToolPermission(
       allowed: true,
       executionInput: useNormalizedHookModifiedInput ? normalizedHookModifiedInput : executionInput,
       permissionWaitMs,
+      permissionState,
     };
   }
 
@@ -428,5 +413,5 @@ export async function resolveToolPermission(
       result: createErrorResult(toolCall, modifiedInputValidation),
     };
   }
-  return { allowed: true, executionInput: modifiedInput, permissionWaitMs };
+  return { allowed: true, executionInput: modifiedInput, permissionWaitMs, permissionState };
 }

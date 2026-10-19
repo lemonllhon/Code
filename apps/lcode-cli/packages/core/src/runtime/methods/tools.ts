@@ -53,7 +53,12 @@ export async function scheduleTools(
           : metadata.readOnly && sideEffectScope === "none",
       destructive: metadata?.destructive,
       concurrentSafe: metadata?.concurrentSafe,
+      needsApproval: entry?.permission?.needsApproval ?? metadata?.needsApproval,
+      alwaysAsk: entry?.permission?.alwaysAsk,
+      requiresUserInteraction: entry?.requiresUserInteraction ?? metadata?.requiresUserInteraction,
+      stopTurnOnSuccess: metadata?.stopTurnOnSuccess,
       sideEffectScope,
+      ...(!entry ? { concurrentSafe: false } : {}),
     };
   });
 
@@ -82,6 +87,7 @@ export async function executeTools(
   });
 
   const generator = this.executor.executeSchedule(executableCalls, schedule, {
+    onToolStart: options?.onToolStart,
     automationTurn: options?.automationTurn,
     offPeakTurn: options?.offPeakTurn,
     signal: options?.signal,
@@ -99,7 +105,6 @@ export async function executeTools(
     }
 
     if (next.value.type === "batch_start") {
-      await options?.onBatchStart?.(next.value.toolCallIds);
       continue;
     }
 

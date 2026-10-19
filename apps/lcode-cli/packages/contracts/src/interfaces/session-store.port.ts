@@ -17,6 +17,11 @@ import type {
   ContextCapsuleAttachInput,
 } from "./session-store/context-capsule.js";
 import type { PermissionRuleset } from "./permission.port.js";
+import type {
+  DiscoverSessionHistoryInput,
+  DiscoveredSessionHistory,
+} from "./session-store/history-discovery.js";
+export * from "./session-store/history-discovery.js";
 import type { CollaborationMode } from "./session.port.js";
 import type {
   CreateSessionInput,
@@ -108,6 +113,7 @@ export interface SessionStorePort {
   updateSession(input: UpdateSessionInput): Promise<SessionInfo>;
   getSession(sessionID: SessionId): Promise<SessionInfo | null>;
   listSessions(input?: ListSessionsInput): Promise<SessionInfo[]>;
+  discoverSessionHistory?(input: DiscoverSessionHistoryInput): Promise<DiscoveredSessionHistory>;
   /**
    * 用 host task-index allowlist 为旧远端 session 补写 workspace identity。
    * 实现必须同时校验 id、directory 与 workspace_id is null，禁止覆盖已有 identity。
@@ -128,6 +134,12 @@ export interface SessionStorePort {
   saveMessage(input: MessageInfo, copyFrom?: { sessionID: SessionId; id: string }): Promise<void>;
   removeMessage(input: { sessionID: SessionId; messageID: MessageId }): Promise<void>;
   savePart(input: MessagePart, copyFrom?: { sessionID: SessionId; id: string }): Promise<void>;
+  /** 单 message 原子提交；保留原 part 身份/签名/顺序，任意失败整批回滚。 */
+  saveParts(input: {
+    sessionID: SessionId;
+    messageID: MessageId;
+    parts: readonly MessagePart[];
+  }): Promise<void>;
   removePart(input: { sessionID: SessionId; messageID: MessageId; partID: PartId }): Promise<void>;
   messageWithParts(input: {
     sessionID: SessionId;
@@ -162,10 +174,11 @@ export interface SessionStorePort {
     delivery: SessionInputDelivery;
     payload: { text: string; [key: string]: unknown };
   }): Promise<void>;
-  /** 审批完全访问：execution、固定队列权限和幂等 receipt 同一事务；无 schema migration。 */
+  /** 显式权限切换：execution、固定队列权限和 receipt 同一事务；旧调用默认 yolo。 */
   commitPermissionFullAccess?(input: {
     sessionID: SessionId;
     queueItemIds: string[];
+    mode?: import("./permission-full-access.js").SessionPermissionMode;
     execution: SessionEntryInfo;
     receipt: SessionEntryInfo;
     signal?: AbortSignal;

@@ -39,7 +39,8 @@ export async function commitPermissionFullAccess(
       for (const key of ["intent", "conversationInputIntent"]) {
         const intent = payload[key];
         if (intent && typeof intent === "object" && !Array.isArray(intent)) {
-          payload[key] = { ...intent, mode: "yolo" };
+          // 菜单降权也必须更新原队列，否则旧 yolo 输入 drain 时会重新升级权限。
+          payload[key] = { ...intent, mode: input.mode ?? "yolo" };
         }
       }
       write.run(JSON.stringify(payload), Date.now(), id, input.sessionID);

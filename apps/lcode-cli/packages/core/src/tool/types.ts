@@ -197,6 +197,8 @@ export interface ToolExecutionContext {
   reviewBoundary?: { sessionId: string; messageId: string };
   /** 自动维护只读取本轮增量；显式跨会话复盘不设置此字段。 */
   reviewMode?: "incremental";
+  /** Runtime 提供的冻结派生候选，只返回文件名；完整证据由复盘独立重读。 */
+  selectMemoryCandidates?: (query: string) => readonly string[];
   runtimeScope?: ToolRuntimeScope;
   providerVisibleToolNames?: readonly string[];
   sessionId: SessionId;

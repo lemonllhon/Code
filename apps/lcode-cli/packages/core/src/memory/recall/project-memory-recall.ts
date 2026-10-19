@@ -14,6 +14,7 @@ import { parseMemoryDocument } from "./document.js";
 import { scanMemoryCandidatePaths } from "./manifest.js";
 import { applyMemoryRankingSignals, rankMemoryDocuments } from "./ranking.js";
 import { tokenizeMemoryRecallText } from "./tokenizer.js";
+import { selectMemoryExcerpt } from "./excerpt.js";
 import type {
   IndexedMemoryDocument,
   MemoryRecallResult,
@@ -42,6 +43,15 @@ export class ProjectMemoryRecallIndex {
 
   get size(): number {
     return this.documents.size;
+  }
+
+  /** 冻结候选引用，不把旧索引当作复盘可写正文；调用方仍须完整重读和校验版本。 */
+  createCandidateSelector(rootDir: string): (query: string) => readonly string[] {
+    const documents = this.rootDir === resolve(rootDir) ? [...this.documents.values()] : [];
+    return (query) =>
+      rankMemoryDocuments({ documents, queryTokens: tokenizeMemoryRecallText(query) }).map(
+        (entry) => entry.document.filename,
+      );
   }
 
   async recall(
@@ -264,8 +274,9 @@ export function formatMemoryRecallAttachment(ranked: readonly RankedMemoryDocume
     const remaining = MEMORY_RECALL_ATTACHMENT_CHARACTER_LIMIT - fixedLength;
     if (remaining < 0) break;
 
-    const content = truncateText(
+    const content = selectMemoryExcerpt(
       entry.document.content,
+      entry.matchedTerms ?? [],
       Math.min(MEMORY_RECALL_RESULT_CHARACTER_LIMIT, remaining),
     );
     attachment += `${separator}${metadata}\n${content}`;
@@ -289,12 +300,4 @@ export function formatMemoryRecallAttachment(ranked: readonly RankedMemoryDocume
 function emptyRecallOutcome(indexedCount: number): ProjectMemoryRecallOutcome {
   // 未执行扫描时省略健康信息；不能把上一轮缓存条数包装成当前目录已完整核验。
   return { candidateCount: indexedCount, indexedCount, matchCount: 0, results: [] };
-}
-
-function truncateText(text: string, maximumLength: number): string {
-  if (text.length <= maximumLength) return text;
-  let truncated = text.slice(0, maximumLength);
-  const lastCodeUnit = truncated.charCodeAt(truncated.length - 1);
-  if (lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff) truncated = truncated.slice(0, -1);
-  return truncated;
 }

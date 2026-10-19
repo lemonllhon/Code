@@ -18,6 +18,7 @@ import { messagesAfterLastMemoryReviewTurn } from "./extraction.js";
 import { memoryReviewProfile } from "./review-profile.js";
 import { activeReviewWindowMessages, isDerivedSummary } from "./review-session-window.js";
 import { assertReviewTranscriptBudget } from "./review-transcript-budget.js";
+import { projectReviewToolEvidence } from "./review-tool-evidence.js";
 import {
   isSessionHistorySearchTaskType,
   projectSessionHistorySearchText,
@@ -216,12 +217,15 @@ export async function readReviewSessionEvidence(
     characterLimit: REAL_USER_PROBE_CHARACTER_LIMIT,
   });
   if (!realUserText.searchText) return undefined;
+  const toolEvidence = projectReviewToolEvidence(evidenceMessages);
+  const toolText = toolEvidence.text.length < characterLimit ? toolEvidence.text : "";
   const textProjection = projectSessionHistorySearchText({
     messages: [...evidenceMessages],
     session: projectionSession,
-    characterLimit,
+    characterLimit: characterLimit - toolText.length,
   });
   if (!textProjection.searchText) return undefined;
+  const evidenceText = textProjection.searchText + toolText;
   const source = createReviewSource({
     context,
     kind: "session",
@@ -230,16 +234,18 @@ export async function readReviewSessionEvidence(
     boundaryMessageId,
     projection,
     material: {
-      text: textProjection.searchText,
+      text: evidenceText,
       selection: selectionFields(snapshot.session),
       compact: compactSelection(boundedMessages),
     },
   });
   return {
     source,
-    content: textProjection.searchText,
+    content: evidenceText,
     partial:
       textProjection.truncated ||
+      toolEvidence.partial ||
+      toolText !== toolEvidence.text ||
       window?.prefixTruncated === true ||
       evidenceMessages.length !== activeMessages.length,
   };

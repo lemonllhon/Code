@@ -9,6 +9,7 @@ import type { PermissionBrokerResult } from "@lcode/contracts";
 import { linkAbortSignal } from "./timeout.js";
 
 interface PermissionResponderRaceInput {
+  watchMode?: (signal: AbortSignal) => Promise<PermissionBrokerResult | undefined>;
   /**
    * hook 链应答方。resolve `undefined` 表示无决定（退赛，只剩 broker 单边等待）；
    * 抛错同样按退赛处理并回调 {@link PermissionResponderRaceInput.onHookFailure}——
@@ -32,7 +33,7 @@ interface PermissionResponderRaceInput {
 
 interface PermissionResponderRaceOutcome {
   result: PermissionBrokerResult;
-  source: "hook" | "broker";
+  source: "hook" | "broker" | "mode";
 }
 
 export async function racePermissionResponders(
@@ -40,20 +41,24 @@ export async function racePermissionResponders(
 ): Promise<PermissionResponderRaceOutcome> {
   const hookController = new AbortController();
   const brokerController = new AbortController();
+  const modeController = new AbortController();
   const unlinkHook = linkAbortSignal(input.signal, hookController);
   const unlinkBroker = linkAbortSignal(input.signal, brokerController);
+  const unlinkMode = linkAbortSignal(input.signal, modeController);
 
   let settled = false;
   let brokerClaimed = false;
   try {
     return await new Promise<PermissionResponderRaceOutcome>((resolve, reject) => {
-      const settle = (action: () => void, abortLoser: AbortController) => {
+      const settle = (action: () => void, winner: AbortController) => {
         if (settled) return;
         settled = true;
         action();
         // 先兑现结果再 abort 败者：败者的收尾（子进程终止、反向 RPC 取消）绝不能
         // 反过来阻塞胜者——挂死的就是败者本身。
-        abortLoser.abort();
+        for (const controller of [hookController, brokerController, modeController]) {
+          if (controller !== winner) controller.abort();
+        }
       };
 
       // broker 先启动：requestPermission 内同步注册应答 deferred，保证确认窗一可见
@@ -63,14 +68,15 @@ export async function racePermissionResponders(
           if (settled || brokerController.signal.aborted) return false;
           brokerClaimed = true;
           hookController.abort();
+          modeController.abort();
           return true;
         })
         .then(
-          (result) => settle(() => resolve({ result, source: "broker" }), hookController),
+          (result) => settle(() => resolve({ result, source: "broker" }), brokerController),
           (error) => {
             // hook 胜出后我们主动 abort broker 产生的拒绝是自己的取消，吞掉；
             // 竞速未收口时的拒绝（超时/外层取消/fail-closed）是真实错误，原样上抛。
-            settle(() => reject(error), hookController);
+            settle(() => reject(error), brokerController);
           },
         );
 
@@ -78,16 +84,27 @@ export async function racePermissionResponders(
         (decision) => {
           // 无决定 = 退赛：不迁移竞速状态，broker 继续单边等待。
           if (decision === undefined || brokerClaimed) return;
-          settle(() => resolve({ result: decision, source: "hook" }), brokerController);
+          settle(() => resolve({ result: decision, source: "hook" }), hookController);
         },
         (error) => {
           if (settled) return;
           input.onHookFailure?.(error);
         },
       );
+      input.watchMode?.(modeController.signal).then(
+        (decision) => {
+          if (decision === undefined || brokerClaimed) return;
+          settle(() => resolve({ result: decision, source: "mode" }), modeController);
+        },
+        (error) => {
+          if (!settled) input.onHookFailure?.(error);
+        },
+      );
     });
   } finally {
     unlinkHook();
     unlinkBroker();
+    unlinkMode();
+    modeController.abort();
   }
 }

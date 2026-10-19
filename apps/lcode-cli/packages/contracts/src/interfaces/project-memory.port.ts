@@ -1,7 +1,12 @@
 import { z } from "zod";
 import type { TraceContext } from "../tracing/tracer.js";
 import type { ProjectMemoryEffectPort } from "./project-memory-effects.port.js";
+import type {
+  MemoryLearningLease,
+  ProjectMemoryLearningPort,
+} from "./project-memory-learning.port.js";
 export * from "./project-memory-effects.port.js";
+export * from "./project-memory-learning.port.js";
 
 export const PROJECT_MEMORY_FILE_MAX_BYTES = 256 * 1024;
 export const PROJECT_MEMORY_RECORD_MAX_BYTES = 1024 * 1024;
@@ -165,6 +170,7 @@ export interface ProjectMemoryPort {
   }): Promise<{ rootDir: string; copiedCount: number; conflictCount: number }>;
   /** Optional bounded observation capability; content writes remain on this port. */
   effects?: ProjectMemoryEffectPort;
+  learning?: ProjectMemoryLearningPort;
   registerRoot(rootDir: string): Promise<void>;
   inspectCapacity(
     rootDir: string,
@@ -209,6 +215,7 @@ export interface ProjectMemoryPort {
       itemId: string;
       expectedItemHash: string;
       expectedSourceHashes: ReadonlyArray<{ fileName: string; hash: string }>;
+      learningLease?: MemoryLearningLease;
     },
     options?: ProjectMemoryOperationOptions,
   ): Promise<ProjectMemoryChange>;

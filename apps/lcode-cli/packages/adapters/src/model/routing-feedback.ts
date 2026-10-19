@@ -1,6 +1,14 @@
 import type { Logger } from "@lcode/contracts";
 import { readRateLimitHint } from "@lcode/provider";
-import type { RoutingUsage } from "@lcode/shared";
+import type { RoutingUsage, RoutingFailureInfo } from "@lcode/shared";
+
+/** 准入明确未派发时没有可归一化的租约；未知消费或已提交输出仍由原 owner 保守结算。 */
+export function shouldReportRoutingFailure(
+  routing: RoutingFailureInfo | undefined,
+  outputCommitted = false,
+): boolean {
+  return outputCommitted || routing?.dispatch !== "unsent";
+}
 
 const FEEDBACK_TIMEOUT = 5000;
 export function routingFailure(

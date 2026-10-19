@@ -268,7 +268,12 @@ export function planRouting(
       }
     } else if (hardBound) {
       routes = [];
-      reason = "binding-blocked";
+      // 同一绑定账号临时占满时保留真实原因，让原 Runner 等待；缺失或换代仍不能换账号。
+      const bound = listed.find(
+        (candidate) =>
+          candidate.id === binding.routeId && candidate.generation === binding.generation,
+      );
+      reason = bound ? (excluded[bound.id] ?? "binding-blocked") : "binding-blocked";
     }
   }
   const explorationQuality = (candidate: RoutingCandidate) =>

@@ -85,6 +85,9 @@ export async function collectReviewMemoryEvidence(
   partial ||= !scan.complete;
   const tokens = [...new Set(tokenizeMemoryRecallText(query))];
   const fileNames = [...new Set(paths.map((path) => reviewFileName(rootDir, path)))];
+  const candidates = new Map(
+    (context.selectMemoryCandidates?.(query) ?? []).map((name, index) => [name, index]),
+  );
   const relevance = (name: string) =>
     tokens.reduce(
       (score, token) => score + Number(name.normalize("NFKC").toLowerCase().includes(token)),
@@ -92,7 +95,10 @@ export async function collectReviewMemoryEvidence(
     );
   fileNames.sort(
     (left, right) =>
-      relevance(right) - relevance(left) || (left < right ? -1 : left > right ? 1 : 0),
+      (candidates.get(left) ?? Number.MAX_SAFE_INTEGER) -
+        (candidates.get(right) ?? Number.MAX_SAFE_INTEGER) ||
+      relevance(right) - relevance(left) ||
+      (left < right ? -1 : left > right ? 1 : 0),
   );
   partial ||= fileNames.length > profile.memoryLimit;
   const materials: FrozenReviewSource[] = [];

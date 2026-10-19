@@ -1,7 +1,7 @@
 import { applyComposerPermissionGrant } from "@/v4/composer/composerPermissionGrant.js";
 /* eslint-disable max-lines -- Composer 草稿 owner 同时收口选择、正文与提交生命周期，保持单一状态边界。 */
-// Composer 的模式/模型选择与正文使用同一 scope 草稿；Session 只提供一次初始化种子。
-// 菜单点击立即保存 Renderer 意图，Prewarm 与 Submission 只消费它，不反向覆盖。
+// Composer 的模型、Plan 与正文使用同一 scope 草稿；Session 为它们提供初始化种子。
+// 当前任务权限跟随 Runtime 新事实；菜单 ACK 后同步草稿，Prewarm 不覆盖用户选择。
 //
 // Workspace presentation 水合只提供 mode 与 slash commands；模型候选、能力和首选值
 // 统一来自目标 Host ModelSelectionView。
@@ -84,7 +84,7 @@ function shouldHydrateWorkspaceCatalog(params: {
 interface DraftConfigControl {
   modelSelectionRead: ModelSelectionRead;
   modelCatalogView: ModelSelectionView | null;
-  /** Renderer 下一次提交的配置；Session 只在 scope 首次初始化时提供种子。 */
+  /** 下一次提交配置；权限跟随当前任务事实，模型和 Plan 保留草稿意图。 */
   draftConfig: Partial<SessionConfigState>;
   /** 草稿已选 config（partial）；createSession 时经 buildDraftCreateConfigPayload 携带。 */
   draftConfigRef: React.RefObject<Partial<SessionConfigState>>;
@@ -216,9 +216,33 @@ export function useDraftConfigControl(params: {
       recentModelSelection,
     );
   }
+  const permissionFactRef = useRef<{
+    scopeKey: string;
+    owner: IModelSelectionService | null;
+    mode: string;
+    version?: string;
+  } | null>(null);
+  if (permissionFactRef.current?.scopeKey !== scopeKey) permissionFactRef.current = null;
+  const observedMode = submissionModeSchema.safeParse(sessionConfig?.mode);
+  if (sessionId !== null && sessionConfig && observedMode.success && !draft.initializeFromNewTask) {
+    const mode = observedMode.data === "plan" ? "build" : observedMode.data;
+    const previous = permissionFactRef.current;
+    const version = sessionConfig.permissionModeVersion;
+    if (
+      previous?.scopeKey !== scopeKey ||
+      previous.owner !== modelSelectionService ||
+      previous.mode !== mode ||
+      previous.version !== version
+    ) {
+      permissionFactRef.current = { scopeKey, owner: modelSelectionService, mode, version };
+      // 旧版保存的是下一次草稿权限，可能显示 yolo 而 Runtime 已是 build；新事实统一跟随任务。
+      // 只消费新的权限事实，重复旧快照不能覆盖刚收到 ACK、尚在等待投影的显式改选。
+      if (draft.mode !== mode) draft = { ...draft, mode, approvalModeEdited: true };
+    }
+  }
   if (sessionConfig) {
     draft = applyComposerPlanTransition(draft, sessionConfig.planTransition);
-    draft = applyComposerPermissionGrant(draft, sessionConfig.permissionGrant);
+    draft = applyComposerPermissionGrant(draft, sessionConfig.permissionGrant, sessionConfig.mode);
   }
   if (draft !== currentState.draft) currentState = { ...currentState, draft };
   if (currentState !== storedState) setStoredState(currentState);

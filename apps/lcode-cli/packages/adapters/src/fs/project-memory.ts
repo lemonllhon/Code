@@ -28,6 +28,7 @@ import {
 } from "./project-memory-paths.js";
 import { MemoryStore } from "./project-memory-store.js";
 import { MemoryEffects } from "./project-memory-effects.js";
+import { MemoryLearning } from "./project-memory-learning.js";
 import {
   assertCurrentReviewSources,
   validateReviewSourceHashes,
@@ -68,6 +69,9 @@ export class NodeProjectMemory implements ProjectMemoryPort {
   readonly effects = new MemoryEffects(async (rootDir, operation, options) =>
     this.locked(this.registry.get(rootDir), operation, options),
   );
+  readonly learning = new MemoryLearning((rootDir, operation, options) =>
+    this.locked(this.registry.get(rootDir), operation, options),
+  );
 
   async registerRoot(rootDir: string): Promise<void> {
     try {
@@ -87,9 +91,9 @@ export class NodeProjectMemory implements ProjectMemoryPort {
         if (
           contained(other.rootDir, root.rootDir) ||
           contained(root.rootDir, other.rootDir) ||
-          samePath(root.stateDir, other.stateDir) ||
-          contained(other.stateDir, root.rootDir) ||
-          contained(root.stateDir, other.rootDir)
+          samePath(root.controlDir, other.controlDir) ||
+          contained(other.controlDir, root.rootDir) ||
+          contained(root.controlDir, other.rootDir)
         ) {
           throw memoryError(
             "invalid_path",
@@ -341,6 +345,7 @@ export class NodeProjectMemory implements ProjectMemoryPort {
     return this.locked(
       this.registry.get(input.rootDir),
       async ({ store, journal, changes }) => {
+        if (input.learningLease) await this.learning.assertLease(store.root, input.learningLease);
         const review = await store.readReview(input.proposalId);
         const item = review.draft.items.find((entry) => entry.id === input.itemId);
         if (!item)

@@ -992,6 +992,8 @@ nodes:
         symbol: SESSION_HISTORY_SEARCH_TOOL_NAME
       - file: apps/lcode-cli/packages/core/src/tool/handlers/session-history-search.ts
         symbol: sessionHistorySearchToolEntry
+      - file: apps/lcode-cli/packages/adapters/src/storage/session-store/repositories/history-discovery.ts
+        symbol: discoverSessionHistory
     invariants:
       - "SessionHistorySearch is read-only, excludes the current session, applies identity-first
         workspace isolation, prefers an atomic bounded transcript snapshot while retaining a
@@ -1240,6 +1242,37 @@ nodes:
         file: packages/ui/src/lib/promptInputTriggers.ts
       - symbol: ChatPromptActionMenu
         file: packages/ui/src/prompt-editor/ChatPromptActionMenu.tsx
+  - id: capability.composer-predictions
+    kind: capability
+    label: Completed-turn composer input predictions
+    aliases: [灰字建议, 下一步输入建议, composer predictions]
+    codeSeeds:
+      - file: packages/ui/src/hooks/useComposerPrediction.ts
+        symbol: useComposerPrediction
+      - file: packages/ui/src/prompt-editor/ComposerPredictionPlugin.tsx
+        symbol: ComposerPredictionPlugin
+      - file: packages/ui/src/v4/conversationProjectionStore.ts
+        symbol: ConversationProjectionStore
+      - file: apps/lcode-cli/packages/core/src/runtime/methods/composer-prediction.ts
+        symbol: withComposerPrediction
+    invariants:
+      - "Opt-in live completion predictions use the existing cancellable auxiliary model channel,
+        an exact resident session and a Runtime-only completed boundary permit. Unaccepted text
+        stays outside the editor, draft, transcript and durable model event bodies."
+      - "Only trusted online deltas can trigger generation; initial, recovery and snapshot updates
+        remain display-only even if their phase changes from running to completed."
+  - id: persistence.memory-learning-consumption
+    kind: persistence
+    label: Root-locked memory learning consumption and fencing leases
+    aliases: [主动记忆去重, 持久学习消费]
+    codeSeeds:
+      - file: apps/lcode-cli/packages/adapters/src/fs/project-memory-learning.ts
+        symbol: MemoryLearning
+      - file: apps/lcode-cli/packages/core/src/memory/automatic-review-learning.ts
+        symbol: withAutomaticMemoryLearning
+    invariants:
+      - "Learning hashes and fenced leases share the original ProjectMemory root writer lock;
+        the ledger contains no transcript text and cannot become a second content writer."
   - id: surface.composer-at-context-picker
     kind: ui-surface
     label: Composer @ context picker (Plugins, files, sessions, Whiteboards)
@@ -2086,6 +2119,18 @@ edges:
     to: surface.composer-at-context-picker
     type: renders-in
     rank: must-inspect
+  - from: capability.composer-predictions
+    to: capability.conversation-runtime
+    type: requests-existing-runtime-auxiliary-generation
+    rank: must-inspect
+  - from: persistence.memory-learning-consumption
+    to: persistence.project-memory-files
+    type: shares-original-root-writer-lock
+    rank: must-inspect
+  - from: capability.composer-predictions
+    to: capability.composer-trigger-routing
+    type: preserves-higher-priority-keyboard-panels
+    rank: invariant-only
   - from: capability.composer-trigger-routing
     to: surface.composer-slash-capability-picker
     type: renders-in

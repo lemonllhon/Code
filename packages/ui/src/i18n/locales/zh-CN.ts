@@ -73,10 +73,10 @@ const zhCN: Record<string, string> = {
   "settings.startupAnimation.muted": "静音",
   "settings.startupAnimation.preview": "预览动画",
   "settings.startupAnimation.saveFailed": "保存失败，请重试。",
-  "settings.tokenUsageStatusBar.title": "Token 用量状态栏",
+  "settings.tokenUsageStatusBar.title": "用量状态栏",
   "settings.tokenUsageStatusBar.description":
     "集中查看当前会话的用量、上下文和输出速度。设置自动保存，并跟随界面主题。",
-  "settings.tokenUsageStatusBar.enabled": "显示 Token 用量状态栏",
+  "settings.tokenUsageStatusBar.enabled": "显示用量状态栏",
   "settings.tokenUsageStatusBar.enabledDescription": "关闭后仍保留输入框原有的上下文和额度入口。",
   "settings.tokenUsageStatusBar.position": "显示位置",
   "settings.tokenUsageStatusBar.positionDescription":
@@ -2252,7 +2252,7 @@ const zhCN: Record<string, string> = {
   "settings.memory.workspaceMemory": "工作区记忆",
   "settings.memory.storage.label": "记忆存储位置",
   "settings.memory.storage.description":
-    "适用于本机项目，多文件夹项目以主文件夹为准。切换会复制既有记忆并保留原文件，两处目录不会持续同步。远程工作区保持原位置。",
+    "本机资料目录便于集中管理和备份，项目主文件夹便于随项目携带和迁移。切换会复制既有记忆并保留原文件，两处不会持续同步。适用于本机项目；多文件夹项目以主文件夹为准，远程工作区保持原位置。",
   "settings.memory.storage.profile": "本机资料目录（默认）",
   "settings.memory.storage.workspace": "项目主文件夹（.lcode/memory）",
   "settings.memory.storage.saving": "正在复制记忆并保存设置…",
@@ -2265,6 +2265,10 @@ const zhCN: Record<string, string> = {
   "settings.memoryDescription":
     "在工作区中保存并复用长期上下文，新会话生效。开启后可能增加模型调用和 Token 成本。",
   "settings.memory.sessionRecall": "自动历史召回",
+  "settings.composerPredictions": "下一步输入建议",
+  "settings.composerPredictionsDescription":
+    "任务完成后，在空输入框显示可选建议。每轮最多一次额外模型请求，计入用量；按 Tab 或点击接受后仍需手动发送。",
+  "chat.composer.predictionAccept": "接受输入建议",
   "settings.memory.sessionRecallDescription":
     "在每轮开始前，从同一工作区的历史会话中查找与当前问题相关的内容。新建或冷恢复的会话生效。",
   "settings.memory.sessionRecallHelpLabel": "了解自动历史召回",
@@ -5302,7 +5306,6 @@ const zhCN: Record<string, string> = {
   "chat.toolbar.thoughtLevel.placeholder": "选择思考档位",
   "chat.toolbar.thoughtLevel.faster": "更快响应",
   "chat.toolbar.thoughtLevel.deeper": "更深入思考",
-  "chat.toolbar.thoughtLevel.sliderHint": "拖动、点击或用方向键调整",
   "chat.toolbar.thoughtLevel.description":
     "调整回答前的思考深度。通常越高越稳，但响应也会更慢一些。",
   "chat.toolbar.thoughtLevel.value.off": "关闭",
@@ -6336,6 +6339,7 @@ const zhCN: Record<string, string> = {
   "chat.error.feedbackOpened": "已打开反馈，并自动带上报错现场",
   "chat.error.noAvailableModel": "当前没有可用模型。请配置自定义模型。",
   "chat.error.sendFailed": "发送失败，请稍后重试。",
+  "chat.permissionMode.switchFailed": "权限切换失败，已保留原设置，请重试。",
   "chat.error.modelSettings": "模型设置",
   "chat.error.setModels": "配置",
 

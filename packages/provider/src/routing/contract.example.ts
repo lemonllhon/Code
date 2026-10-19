@@ -10,6 +10,7 @@ import { RoutingScheduler } from "./scheduler.js";
  * 重新获得 admission 后检查 indexReady，再同步 reserveIndexed。取消只撤销当前等待者。
  * 评分以完整可比窗口向量、归一在途和按模型衰减历史为投影，不拥有第二份额度。
  * readDiagnostics 是原 owner 的只读有界投影；共享 API 另读 SharedQuotaCoordinator.inspect，不能把本地 available 当成全局余额。
+ * 强绑定目标临时占满/冷却保留真实拒绝原因，等待和取消仍由原 Runner 预算决定；缺失或换代不切账号。
  */
 export function routingContractExample() {
   const owner = new RoutingScheduler({ version: 1, strategy: "primary-backup" });

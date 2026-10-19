@@ -1,5 +1,6 @@
 import { ModelRetryReason } from "@lcode/contracts";
 import { classifyModelFailure, type ClassifiedModelFailure } from "./failure-classifier.js";
+import { shouldReportRoutingFailure } from "./routing-feedback.js";
 import { getResponseHeaders, unwrapRetryError } from "./failure-inspection.js";
 import { offPeakTicketExpiredMessage, resolveOffPeakFailureDecision } from "./offpeak-retry.js";
 import { retryBudgetMaxAttempts } from "./retry-budget.js";
@@ -43,12 +44,13 @@ export async function handleStreamErrorEvent(
     input.emittedRetryBoundaryEvent,
     input.input.request.abortSignal?.aborted,
   );
-  await input.input.resolved.observeRoutingFailure?.(
-    classified.statusCode,
-    getResponseHeaders(unwrapRetryError(error)),
-    input.emittedRetryBoundaryEvent,
-    input.input.request.abortSignal?.aborted,
-  );
+  if (shouldReportRoutingFailure(classified.routing, input.emittedRetryBoundaryEvent))
+    await input.input.resolved.observeRoutingFailure?.(
+      classified.statusCode,
+      getResponseHeaders(unwrapRetryError(error)),
+      input.emittedRetryBoundaryEvent,
+      input.input.request.abortSignal?.aborted,
+    );
   // off-peak 特判：SSE 首块即错（尚无可见输出）时的排队 429 同样豁免预算重试。
   const offPeak = resolveOffPeakFailureDecision({
     offPeak: input.input.resolved.accountAccess?.mode === "off-peak",

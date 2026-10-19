@@ -790,7 +790,7 @@ export interface ExecuteToolsOptions {
   /** 仅透传给当前 turn 同步等待的 Agent child。 */
   subagentModelOverride?: import("@lcode/contracts").SubagentRunOptions["modelOverride"];
   model?: Model;
-  onBatchStart?: (toolCallIds: string[]) => Promise<void>;
+  onToolStart?: (toolCallId: string) => Promise<void>;
 }
 
 export interface ExecuteToolsResult {

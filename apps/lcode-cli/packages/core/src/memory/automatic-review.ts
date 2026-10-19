@@ -6,12 +6,17 @@ import {
   ProjectMemoryVerificationSchema,
   type ProjectMemoryReview,
   type ProjectMemoryReviewDraft,
+  type MemoryLearningLease,
 } from "@lcode/contracts";
 import type { ToolExecutionContext } from "../tool/types.js";
 import { generateMemoryReviewDraft } from "./review-generation.js";
 import { MemoryReviewError, throwIfReviewAborted } from "./review-common.js";
 import { readValidatedMemoryReviewSources } from "./review-validation.js";
 import { verifyMemoryReviewDraft } from "./review-verification.js";
+import {
+  withAutomaticMemoryLearning,
+  type PreparedReviewSessions,
+} from "./automatic-review-learning.js";
 
 export interface AutomaticMemoryReviewResult {
   status: "completed" | "no-change";
@@ -19,7 +24,14 @@ export interface AutomaticMemoryReviewResult {
   appliedCount: number;
   rejectedCount: number;
   conflictCount: number;
-  skippedReason?: "history-full" | "reviews-full" | "preimages-full" | "recovery-required";
+  skippedReason?:
+    | "history-full"
+    | "reviews-full"
+    | "preimages-full"
+    | "recovery-required"
+    | "already-consumed"
+    | "learning-busy"
+    | "learning-full";
 }
 
 export async function runAutomaticMemoryReview(input: {
@@ -44,6 +56,20 @@ export async function runAutomaticMemoryReview(input: {
       ...(capacity.reason ? { skippedReason: capacity.reason } : {}),
     };
   }
+  return withAutomaticMemoryLearning(context, (preparedSessions, learningLease) =>
+    applyAutomaticMemoryReview({ ...input, context, preparedSessions, learningLease }),
+  );
+}
+
+async function applyAutomaticMemoryReview(input: {
+  query: string;
+  context: ToolExecutionContext;
+  preparedSessions?: PreparedReviewSessions;
+  learningLease?: MemoryLearningLease;
+}): Promise<AutomaticMemoryReviewResult> {
+  const { context } = input;
+  const port = context.fileSystemPort!.projectMemory!;
+  const rootDir = context.memoryRoot!;
   const draft = ProjectMemoryReviewDraftSchema.parse(await generateMemoryReviewDraft(input));
   if (draft.items.length === 0) {
     return { status: "no-change", appliedCount: 0, rejectedCount: 0, conflictCount: 0 };
@@ -104,6 +130,7 @@ export async function runAutomaticMemoryReview(input: {
           itemId: item.id,
           expectedItemHash,
           expectedSourceHashes,
+          ...(input.learningLease ? { learningLease: input.learningLease } : {}),
         },
         options,
       );

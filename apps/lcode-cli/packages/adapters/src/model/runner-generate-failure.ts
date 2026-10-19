@@ -6,6 +6,7 @@ import {
 } from "@lcode/contracts";
 import type { ClassifiedModelFailure } from "./failure-classifier.js";
 import { classifyModelFailure, inspectProviderFailure } from "./failure-classifier.js";
+import { shouldReportRoutingFailure } from "./routing-feedback.js";
 import { getResponseHeaders, unwrapRetryError } from "./failure-inspection.js";
 import { offPeakTicketExpiredMessage, resolveOffPeakFailureDecision } from "./offpeak-retry.js";
 import { repairReasoningHistoryAfterSignatureRejection } from "./reasoning-history-normalization.js";
@@ -60,12 +61,13 @@ export async function handleGenerateFailure(
     false,
     input.request.abortSignal?.aborted,
   );
-  await attemptState.resolved.observeRoutingFailure?.(
-    classified.statusCode,
-    getResponseHeaders(unwrapRetryError(error)),
-    false,
-    input.request.abortSignal?.aborted,
-  );
+  if (shouldReportRoutingFailure(classified.routing))
+    await attemptState.resolved.observeRoutingFailure?.(
+      classified.statusCode,
+      getResponseHeaders(unwrapRetryError(error)),
+      false,
+      input.request.abortSignal?.aborted,
+    );
   if (error instanceof RuntimeHeadersRefreshError) {
     classified.message = error.message;
     classified.retryable = false;
@@ -126,6 +128,7 @@ export async function handleGenerateFailure(
 
   if (attemptState.options) {
     recordGenerateTextDebug({
+      stream: attemptState.resolved.generateTextTransport === "sse",
       modelIoFullRetentionEnabled: input.modelIoFullRetentionEnabled,
       attempt: attemptState.attempt,
       debugDir: input.debugDir,

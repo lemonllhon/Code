@@ -133,6 +133,7 @@ for (const profile of ["desktop-continuous", "web-remote-replayable"] as const) 
     store.handleFrame(frame("old-sub", 9), { deliveryKind: "initial" });
     assert.equal(store.getState().snapshot, null, "stale subscription remains fenced");
     store.handleFrame(frame("sub-1", 1), { deliveryKind: "initial" });
+    assert.equal(store.getState().lastUpdateIsOnlineDelta, false);
     assert.equal(store.getState().syncing, false);
     const initial = store.getState().snapshot;
     store.handleFrame(frame("sub-1", 5, 4), { deliveryKind: "online" });
@@ -157,6 +158,19 @@ for (const profile of ["desktop-continuous", "web-remote-replayable"] as const) 
     });
     assert.equal(store.getState().syncing, false);
     assert.equal(store.getState().snapshot?.seq, 5);
+    assert.equal(
+      store.getState().lastUpdateIsOnlineDelta,
+      false,
+      "recovery completion is not a live trigger",
+    );
+    store.handleFrame(frame("sub-1", 6, 5), { deliveryKind: "online" });
+    assert.equal(store.getState().lastUpdateIsOnlineDelta, true);
+    store.handleFrame(frame("sub-1", 7), { deliveryKind: "online" });
+    assert.equal(
+      store.getState().lastUpdateIsOnlineDelta,
+      false,
+      "online overflow snapshots remain display-only",
+    );
     assert.equal(
       store.getState().snapshot?.workflowRuns?.runs[0]?.nodes[0]?.activity?.observedAt,
       1_000,

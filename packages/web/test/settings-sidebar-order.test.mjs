@@ -68,7 +68,7 @@ test(
               );
             assert.equal(all[0].weight, "500");
             const entry = nav.getByRole("button", {
-              name: language === "zh" ? "Token 用量状态栏" : "Token usage status bar",
+              name: language === "zh" ? "用量状态栏" : "Usage status bar",
               exact: true,
             });
             await entry.click();

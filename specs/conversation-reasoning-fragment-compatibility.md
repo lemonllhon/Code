@@ -1,5 +1,7 @@
 # 会话思考片段兼容
 
+后续模型流及存储优化的拟实施约束见 [模型流、消息持久化与工具执行流水线](model-stream-tool-pipeline.md)：在 SDK 层修正空 tool_calls 数组导致的假边界，真实块和签名仍保留；存储批量化不替代本 spec 的展示分组、取消与两种 delivery 恢复规则。
+
 ## 产品规则
 
 供应商可能将一次连续思考输出为多个 reasoning start/delta/end block，甚至每个词、空格都各占一个 block。会话中同一 product turn、同一 assistant response 的相邻 reasoning block 应显示为一条持续增长的思考行，不重复显示标题或空卡片。

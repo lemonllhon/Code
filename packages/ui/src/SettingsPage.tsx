@@ -1504,6 +1504,12 @@ export function SettingsPage({
                             {/* Memory catalog 始终使用本地 Host，避免远程 workspace 误读本机数据。 */}
                             <MemorySettingsSectionController
                               memoryEnabled={memoryEnabled}
+                              composerPredictionsEnabled={
+                                sharedSettings?.composerPredictionsEnabled === true
+                              }
+                              onComposerPredictionsEnabledChange={(enabled) =>
+                                updateSharedSettings({ composerPredictionsEnabled: enabled })
+                              }
                               memoryService={localHostServices.memoryService}
                               onMemoryEnabledChange={handleMemoryEnabledChange}
                               onSessionRecallEnabledChange={handleSessionRecallEnabledChange}

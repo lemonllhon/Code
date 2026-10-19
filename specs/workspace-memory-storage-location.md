@@ -2,6 +2,7 @@
 
 ## 产品规则
 
+- 存储选择服务于记忆保留与项目迁移：本机资料目录便于集中管理和备份，项目主文件夹便于随项目携带。界面说明两者用途与保留源文件的切换规则，不把位置选择等同于自动备份或双向同步。关闭项目后复制整个 `.lcode` 的恢复边界见 `agent-memory-learning-v2.md`。
 - 设置 → Agent 能力 → 记忆增加 `memoryStorageLocation: "profile" | "workspace"`。缺省为 `profile`，保持现有用户数据目录布局；`workspace` 使用本地项目实际根下的 `.lcode/memory`，治理状态仍是旁边的 `.lcode/memory-state`。
 - 该选项是本机设置，适用于本机项目，包括 default 工作区和独立 worktree。文件操作以实际 checkout/workspace root 为准，Bash `cd` 不改变记忆归属。
 - 多源文件夹项目沿现有 `LocalProject.primaryFolderPath` 作为 workspace root，只在主文件夹存一份项目记忆。`sourceFolderPaths` 的附加文件夹扩展项目访问范围，不各建独立记忆；同一附加文件夹另行打开为独立项目时，按其自己的主根隔离。

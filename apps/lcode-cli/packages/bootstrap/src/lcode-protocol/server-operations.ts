@@ -2943,9 +2943,16 @@ export async function generateWorkspaceText(
   abortSignal?: AbortSignal,
 ) {
   const params = parseParams(lcodeWorkspaceGenerateTextParamsSchema, rawParams);
-  const active = Array.from(context.sessions.values()).find(
-    (record) => record.workspace.workspaceKey === params.workspace.workspaceKey,
-  );
+  const active = params.composerPrediction
+    ? context.sessions.get(params.composerPrediction.sessionId)
+    : Array.from(context.sessions.values()).find(
+        (record) => record.workspace.workspaceKey === params.workspace.workspaceKey,
+      );
+  if (
+    params.composerPrediction &&
+    (!active || active.workspace.workspaceKey !== params.workspace.workspaceKey)
+  )
+    throw new ProtocolRequestError(-32010, "Composer prediction source is unavailable");
   const input = {
     selection: params.selection,
     ...(params.prompt ? { prompt: params.prompt } : {}),
@@ -2960,6 +2967,7 @@ export async function generateWorkspaceText(
         }
       : {}),
     querySource: params.querySource,
+    ...(params.composerPrediction ? { composerPrediction: params.composerPrediction } : {}),
     ...(params.maxOutputTokens ? { maxOutputTokens: params.maxOutputTokens } : {}),
   };
   const app =

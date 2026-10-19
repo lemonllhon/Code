@@ -98,6 +98,7 @@ nul
 # 永久页面回归测试桩需覆盖用户全局 test/ 忽略，其他测试目录保持原规则。
 !/packages/web/test/
 /packages/web/test/*
+!/packages/web/test/composer-prediction.test.mjs
 !/packages/web/test/worktree-discard-pending-cases.mjs
 !/packages/web/test/git-review-redesign-cases.mjs
 /artifacts/git-review-redesign/
@@ -106,6 +107,8 @@ nul
 !/packages/web/test/context-capsule-composer.test.mjs
 !/packages/web/test/fixtures/
 /packages/web/test/fixtures/*
+!/packages/web/test/fixtures/composer-prediction.html
+!/packages/web/test/fixtures/composer-prediction.tsx
 !/packages/web/test/fixtures/task-handoff.tsx
 # 七色全局主题、生产 timeline 和独立窗口的永久品控回归。
 !/packages/web/test/sidebar-animation.test.mjs
@@ -397,3 +400,9 @@ nul
 !/packages/web/test/fixtures/project-creation-controls.tsx
 !/packages/web/test/fixtures/project-form.html
 !/packages/web/test/fixtures/project-form.tsx
+
+# Model pipeline and permission switching browser regressions.
+!/packages/web/test/model-stream-tool-pipeline.test.mjs
+!/packages/web/test/permission-mode-switch.test.mjs
+!/packages/web/test/fixtures/pipeline-rows.tsx
+!/packages/web/test/fixtures/permission-mode-switch.tsx

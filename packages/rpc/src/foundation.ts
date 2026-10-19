@@ -230,6 +230,36 @@ export namespace CancellationToken {
     isCancellationRequested: false,
     onCancellationRequested: Event.None,
   };
+
+  export function is(value: unknown): value is CancellationToken {
+    return (
+      typeof value === "object" &&
+      value !== null &&
+      typeof (value as CancellationToken).isCancellationRequested === "boolean" &&
+      typeof (value as CancellationToken).onCancellationRequested === "function"
+    );
+  }
+
+  /** 只在本进程桥接；signal 不能放进 RPC 的普通序列化参数。 */
+  export function fromAbortSignal(signal: AbortSignal): CancellationToken {
+    return {
+      get isCancellationRequested() {
+        return signal.aborted;
+      },
+      onCancellationRequested(listener) {
+        const notify = () => listener();
+        signal.addEventListener("abort", notify, { once: true });
+        return { dispose: () => signal.removeEventListener("abort", notify) };
+      },
+    };
+  }
+
+  export function toAbortSignal(token: CancellationToken): IDisposable & { signal: AbortSignal } {
+    const controller = new AbortController();
+    const subscription = token.onCancellationRequested(() => controller.abort());
+    if (token.isCancellationRequested) controller.abort();
+    return { signal: controller.signal, dispose: () => subscription.dispose() };
+  }
 }
 
 export class CancellationTokenSource implements IDisposable {
@@ -239,8 +269,12 @@ export class CancellationTokenSource implements IDisposable {
 
   get token(): CancellationToken {
     if (!this._token) {
+      const requested = () => this._isCancelled;
       this._token = {
-        isCancellationRequested: false,
+        // 取消可能先于 token 创建或发生在连接初始化等待期间，不能冻结为 false。
+        get isCancellationRequested() {
+          return requested();
+        },
         onCancellationRequested: this.emitter.event,
       };
     }

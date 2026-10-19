@@ -1,6 +1,7 @@
 import { RoutingReservationOwner, type RoutingReservation } from "./reservation-owner.js";
 import {
   providerRoutingPolicySchema,
+  routingFailureCodeSchema,
   type ProviderRoutingPolicy,
   type RoutingCandidate,
   type RoutingPlan,
@@ -168,10 +169,11 @@ export class RoutingScheduler extends RoutingReservationOwner {
         for (const window of candidate.windows) this.ledger.observe(window);
     const { plan, credits, round } = this.decision(candidates, request, directory, now);
     const chosen = candidates.find((candidate) => candidate.id === plan.routes[0]);
-    if (!chosen)
+    if (!chosen) {
+      const plannedFailure = routingFailureCodeSchema.safeParse(plan.reason);
       throw new RoutingError(
-        plan.reason === "binding-blocked"
-          ? plan.reason
+        plannedFailure.success
+          ? plannedFailure.data
           : (Object.values(plan.excluded)[0] ?? "no-compatible-route"),
         {
           phase: "admission",
@@ -181,6 +183,7 @@ export class RoutingScheduler extends RoutingReservationOwner {
             : {}),
         },
       );
+    }
     const present = new Set(directory ? [] : candidates.map((candidate) => candidate.id));
     const leading = directory ? [] : (this.policy.order?.filter((id) => present.has(id)) ?? []);
     const seen = new Set(leading);

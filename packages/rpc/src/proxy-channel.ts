@@ -27,7 +27,7 @@
  * - toService: 利用 ES6 Proxy 拦截属性访问，自动分派到 call/listen
  */
 
-import { Event, Emitter, IDisposable, DisposableStore } from "./foundation.js";
+import { Event, Emitter, IDisposable, DisposableStore, CancellationToken } from "./foundation.js";
 import { IChannel, IServerChannel } from "./channels.js";
 
 // ============================================================================
@@ -82,10 +82,15 @@ export namespace ProxyChannel {
         throw new Error(`Event not found: ${event}`);
       },
 
-      call<T>(_ctx: TContext, command: string, args?: any[]): Promise<T> {
+      call<T>(_ctx: TContext, command: string, args?: any, token?: CancellationToken): Promise<T> {
         const target = handler[command];
         if (typeof target === "function") {
-          let result = target.apply(handler, args || []);
+          // 原数组调用保持参数个数；只有明确 envelope 才追加本地取消 token。
+          const methodArgs =
+            args?.__rpcCancellation === true && Array.isArray(args.args)
+              ? [...args.args, token ?? CancellationToken.None]
+              : args || [];
+          let result = target.apply(handler, methodArgs);
           if (!(result instanceof Promise)) {
             result = Promise.resolve(result);
           }
@@ -134,9 +139,17 @@ export namespace ProxyChannel {
 
           // 方法调用
           return async (...args: unknown[]) => {
+            // token 走 Channel 原取消控制面，不能把事件函数或 AbortSignal 序列化为普通对象。
+            const token = CancellationToken.is(args.at(-1))
+              ? (args.pop() as CancellationToken)
+              : undefined;
             // 可选：注入 context 作为第一个参数
             const methodArgs = options?.context !== undefined ? [options.context, ...args] : args;
-            return channel.call(propKey, methodArgs);
+            return channel.call(
+              propKey,
+              token ? { __rpcCancellation: true, args: methodArgs } : methodArgs,
+              token,
+            );
           };
         }
 

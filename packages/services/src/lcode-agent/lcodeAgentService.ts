@@ -27,7 +27,7 @@ import { randomUUID } from "node:crypto";
 import { ensureIndependentPlanSupport } from "./independentPlanSupport.js";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { Emitter } from "@lcode/rpc";
+import { Emitter, CancellationToken } from "@lcode/rpc";
 import type { IDisposable } from "@lcode/rpc";
 import type {
   AccountProviderConfigSnapshot,
@@ -4732,60 +4732,79 @@ export function createLCodeAgentService(
       );
     },
 
-    async generateWorkspaceText(params: LCodeAgentGenerateWorkspaceTextParams) {
-      const client = await getClient(params);
-      // Worker 自己读取 LCode Built-in / Personal Config；Host 只在执行前确保账号状态形成的
-      // Account Config Overlay 已同步，避免新进程先按旧套餐状态创建 Model。
-      await ensureAccountProviderConfigSynced({
-        client,
-        reason: "workspace_generate_text",
-        workspace: params,
-      });
-      const operationId = params.signal ? randomUUID() : undefined;
-      const cancel = () => {
-        if (!operationId) return;
-        void client
-          .request(
-            lcodeProtocolMethods.workspaceCancelGenerateText,
-            { operationId },
-            lcodeWorkspaceCancelGenerateTextResultSchema,
-            { timeoutMs: 5_000 },
-          )
-          .catch((error: unknown) => {
-            // 取消是 best-effort 控制面操作，失败不能覆盖调用方原本的 AbortError；
-            // 保留 debug 轨迹用于区分“本地停止等待”和“CLI 已收到取消”。
-            logger.debug(undefined, "workspace 模型请求取消通知失败", {
-              operationId,
-              workspaceKey: resolveWorkspaceKey(params),
-              error: error instanceof Error ? error.message : String(error),
-            });
-          });
-      };
-      params.signal?.addEventListener("abort", cancel, { once: true });
+    async generateWorkspaceText(
+      params: LCodeAgentGenerateWorkspaceTextParams,
+      token?: CancellationToken,
+    ) {
+      const cancellation = token ? CancellationToken.toAbortSignal(token) : undefined;
+      const signal =
+        params.signal && cancellation
+          ? AbortSignal.any([params.signal, cancellation.signal])
+          : (cancellation?.signal ?? params.signal);
       try {
-        return await client.request(
-          lcodeProtocolMethods.workspaceGenerateText,
-          {
-            workspace: buildWorkspaceRef(params),
-            selection: params.selection,
-            ...(params.prompt ? { prompt: params.prompt } : {}),
-            ...(params.messages ? { messages: params.messages } : {}),
-            ...(params.tools ? { tools: params.tools } : {}),
-            querySource: params.querySource,
-            ...(params.maxOutputTokens ? { maxOutputTokens: params.maxOutputTokens } : {}),
-            ...(operationId ? { operationId } : {}),
-          },
-          lcodeWorkspaceGenerateTextResultSchema,
-          // 不传 timeoutMs 时协议 client 默认 3 分钟超时会对 thinking 模型的长请求
-          // 先于调用方自身 deadline 触发，并被 onRequestTimeout 误判 stale 杀进程。
-          // 调用方显式传入 requestTimeoutMs（自身 deadline + 取消缓冲）时以其为准。
-          {
-            signal: params.signal,
-            ...(params.requestTimeoutMs ? { timeoutMs: params.requestTimeoutMs } : {}),
-          },
-        );
+        signal?.throwIfAborted();
+        const client = await getClient(params);
+        // Worker 自己读取 LCode Built-in / Personal Config；Host 只在执行前确保账号状态形成的
+        // Account Config Overlay 已同步，避免新进程先按旧套餐状态创建 Model。
+        await ensureAccountProviderConfigSynced({
+          client,
+          reason: "workspace_generate_text",
+          workspace: params,
+        });
+        // Renderer 取消经 RPC token 到达本地；鉴权准备期间取消不能再启动付费请求。
+        signal?.throwIfAborted();
+        const operationId = signal ? randomUUID() : undefined;
+        const cancel = () => {
+          if (!operationId) return;
+          void client
+            .request(
+              lcodeProtocolMethods.workspaceCancelGenerateText,
+              { operationId },
+              lcodeWorkspaceCancelGenerateTextResultSchema,
+              { timeoutMs: 5_000 },
+            )
+            .catch((error: unknown) => {
+              // 取消是 best-effort 控制面操作，失败不能覆盖调用方原本的 AbortError；
+              // 保留 debug 轨迹用于区分“本地停止等待”和“CLI 已收到取消”。
+              logger.debug(undefined, "workspace 模型请求取消通知失败", {
+                operationId,
+                workspaceKey: resolveWorkspaceKey(params),
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
+        };
+        signal?.addEventListener("abort", cancel, { once: true });
+        try {
+          return await client.request(
+            lcodeProtocolMethods.workspaceGenerateText,
+            {
+              workspace: buildWorkspaceRef(params),
+              selection: params.selection,
+              ...(params.prompt ? { prompt: params.prompt } : {}),
+              ...(params.messages ? { messages: params.messages } : {}),
+              ...(params.tools ? { tools: params.tools } : {}),
+              querySource: params.querySource,
+              ...(params.composerPrediction
+                ? { composerPrediction: params.composerPrediction }
+                : {}),
+              ...(params.maxOutputTokens ? { maxOutputTokens: params.maxOutputTokens } : {}),
+              ...(operationId ? { operationId } : {}),
+            },
+            lcodeWorkspaceGenerateTextResultSchema,
+            // 不传 timeoutMs 时协议 client 默认 3 分钟超时会对 thinking 模型的长请求
+            // 先于调用方自身 deadline 触发，并被 onRequestTimeout 误判 stale 杀进程。
+            // 调用方显式传入 requestTimeoutMs（自身 deadline + 取消缓冲）时以其为准。
+            {
+              signal,
+              ...(params.composerPrediction ? { timeoutAffectsRuntimeHealth: false } : {}),
+              ...(params.requestTimeoutMs ? { timeoutMs: params.requestTimeoutMs } : {}),
+            },
+          );
+        } finally {
+          signal?.removeEventListener("abort", cancel);
+        }
       } finally {
-        params.signal?.removeEventListener("abort", cancel);
+        cancellation?.dispose();
       }
     },
 

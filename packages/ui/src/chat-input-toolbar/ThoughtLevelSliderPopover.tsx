@@ -219,25 +219,25 @@ export function ThoughtLevelSliderPopover({
             ))}
           </div>
         </div>
-        <div className="flex flex-wrap gap-0.5">
-          {entries.map((entry, entryIndex) => (
-            <Button
-              key={entry.value}
-              variant="ghost"
-              size="xs"
-              disabled={disabled}
-              aria-pressed={entryIndex === index}
-              className="thought-level-option h-auto min-h-9 whitespace-normal rounded-md px-1.5 py-1 text-ui-xs leading-relaxed text-foreground-subtle aria-pressed:bg-accent aria-pressed:text-foreground"
-              data-testid={testId(TID_CHAT_THOUGHT_LEVEL_SELECT_ITEM, entry.value)}
-              onClick={() => selectIndex(entryIndex)}
-            >
-              {getThoughtLevelLabel(intl, provider, option, entry)}
-            </Button>
-          ))}
-        </div>
-        <p className="text-ui-xs text-foreground-subtle">
-          {intl.formatMessage({ id: "chat.toolbar.thoughtLevel.sliderHint" })}
-        </p>
+        {/* 多档由滑块选档，不重复显示文字按钮；单档失效值仍需明确选择入口。 */}
+        {entries.length === 1 ? (
+          <div className="flex flex-wrap gap-0.5">
+            {entries.map((entry, entryIndex) => (
+              <Button
+                key={entry.value}
+                variant="ghost"
+                size="xs"
+                disabled={disabled}
+                aria-pressed={entryIndex === index}
+                className="thought-level-option h-auto min-h-9 whitespace-normal rounded-md px-1.5 py-1 text-ui-xs leading-relaxed text-foreground-subtle aria-pressed:bg-accent aria-pressed:text-foreground"
+                data-testid={testId(TID_CHAT_THOUGHT_LEVEL_SELECT_ITEM, entry.value)}
+                onClick={() => selectIndex(entryIndex)}
+              >
+                {getThoughtLevelLabel(intl, provider, option, entry)}
+              </Button>
+            ))}
+          </div>
+        ) : null}
       </PopoverContent>
     </Popover>
   );

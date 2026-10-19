@@ -102,6 +102,8 @@ export interface ExitPlanModeTransitionResult {
 }
 
 export interface SessionModePort {
+  /** 仅在 Runtime 已持久并发布权限/Plan 变更后通知，不持有另一份权限状态。 */
+  onPermissionChanged?(listener: () => void): () => void;
   supportsPermissionFullAccess?(): boolean;
   isPlanEnabled?(): boolean;
   getMode(): CollaborationMode;

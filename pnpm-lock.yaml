@@ -32,7 +32,7 @@ patchedDependencies:
     hash: b0376c6c6742ae6862a70a9a447b102f6b058126629dd2488970de010f43eae1
     path: patches/@ai-sdk__anthropic@3.0.81.patch
   '@ai-sdk/openai-compatible@2.0.60':
-    hash: 1b9287b5a8cb536b359e18e04a9fb18fde5f05cbfe9d651b2d2697c54e8695fb
+    hash: a4172c1da483f488e781791c820d7bb603a48827f34bea20da96f8716034be09
     path: patches/@ai-sdk__openai-compatible@2.0.60.patch
   '@arms/rum-electron@0.0.3':
     hash: 36855354851ea495bc47a03340b0484ff62836b739cad56904b8a69f18e2ae97
@@ -172,7 +172,7 @@ importers:
         version: 3.0.124(zod@4.6.5)
       '@ai-sdk/openai-compatible':
         specifier: 2.0.60
-        version: 2.0.60(patch_hash=1b9287b5a8cb536b359e18e04a9fb18fde5f05cbfe9d651b2d2697c54e8695fb)(zod@4.6.5)
+        version: 2.0.60(patch_hash=a4172c1da483f488e781791c820d7bb603a48827f34bea20da96f8716034be09)(zod@4.6.5)
       '@lcode/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -10126,7 +10126,7 @@ snapshots:
       '@vercel/oidc': 3.2.0
       zod: 4.6.5
 
-  '@ai-sdk/openai-compatible@2.0.60(patch_hash=1b9287b5a8cb536b359e18e04a9fb18fde5f05cbfe9d651b2d2697c54e8695fb)(zod@4.6.5)':
+  '@ai-sdk/openai-compatible@2.0.60(patch_hash=a4172c1da483f488e781791c820d7bb603a48827f34bea20da96f8716034be09)(zod@4.6.5)':
     dependencies:
       '@ai-sdk/provider': 3.0.14
       '@ai-sdk/provider-utils': 4.0.39(zod@4.6.5)

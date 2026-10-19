@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index 6d3fc0792a237a90ab5f1d0a7a4bc20434ee1981..f5610afd3f946655b3f0decf9ec43b0138d6c8ca 100644
+index 6d3fc0792a237a90ab5f1d0a7a4bc20434ee1981..1089e0896f121e79e919383894ff938cca170867 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -85,14 +85,15 @@ function convertOpenAICompatibleChatUsage(usage) {
@@ -49,7 +49,17 @@ index 6d3fc0792a237a90ab5f1d0a7a4bc20434ee1981..f5610afd3f946655b3f0decf9ec43b01
                  if (part.mediaType === "application/pdf") {
                    if (part.data instanceof URL) {
                      throw new import_provider.UnsupportedFunctionalityError({
-@@ -943,7 +958,9 @@ var openaiCompatibleTokenUsageSchema = import_v43.z.looseObject({
+@@ -761,7 +776,8 @@ var OpenAICompatibleChatLanguageModel = class {
+                 delta: delta.content
+               });
+             }
+-            if (delta.tool_calls != null) {
++            // 空数组不声明工具调用；否则每个推理 delta 都被错误关闭成独立块。
++            if (delta.tool_calls != null && delta.tool_calls.length > 0) {
+               if (isActiveReasoning) {
+                 controller.enqueue({
+                   type: "reasoning-end",
+@@ -943,7 +959,9 @@ var openaiCompatibleTokenUsageSchema = import_v43.z.looseObject({
    completion_tokens: import_v43.z.number().nullish(),
    total_tokens: import_v43.z.number().nullish(),
    prompt_tokens_details: import_v43.z.object({
@@ -61,7 +71,7 @@ index 6d3fc0792a237a90ab5f1d0a7a4bc20434ee1981..f5610afd3f946655b3f0decf9ec43b01
    completion_tokens_details: import_v43.z.object({
      reasoning_tokens: import_v43.z.number().nullish(),
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 499fd17e4c9ac77352789c1f1f69ed32809218a4..f2604e0cef32d8cd39e84d6ae9928bfffe7a1e5e 100644
+index 499fd17e4c9ac77352789c1f1f69ed32809218a4..900f05f7d8ab01ed3dcd704a3f79040b6f00f4e9 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -64,14 +64,15 @@ function convertOpenAICompatibleChatUsage(usage) {
@@ -111,7 +121,17 @@ index 499fd17e4c9ac77352789c1f1f69ed32809218a4..f2604e0cef32d8cd39e84d6ae9928bff
                  if (part.mediaType === "application/pdf") {
                    if (part.data instanceof URL) {
                      throw new UnsupportedFunctionalityError({
-@@ -929,7 +944,9 @@ var openaiCompatibleTokenUsageSchema = z3.looseObject({
+@@ -747,7 +762,8 @@ var OpenAICompatibleChatLanguageModel = class {
+                 delta: delta.content
+               });
+             }
+-            if (delta.tool_calls != null) {
++            // 空数组不声明工具调用；否则每个推理 delta 都被错误关闭成独立块。
++            if (delta.tool_calls != null && delta.tool_calls.length > 0) {
+               if (isActiveReasoning) {
+                 controller.enqueue({
+                   type: "reasoning-end",
+@@ -929,7 +945,9 @@ var openaiCompatibleTokenUsageSchema = z3.looseObject({
    completion_tokens: z3.number().nullish(),
    total_tokens: z3.number().nullish(),
    prompt_tokens_details: z3.object({
@@ -174,10 +194,20 @@ index e68462daeeec762a98930807c0b1f806322c1327..f0f6d7ce4e82d0fa83183386c39c5c88
 +  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
 +}
 diff --git a/src/chat/openai-compatible-chat-language-model.ts b/src/chat/openai-compatible-chat-language-model.ts
-index fb29a0aa4f445c4c55873a2b78fa4775426109f6..10dc3ddc5177a8572b5465fd14ca59e994e051e2 100644
+index fb29a0aa4f445c4c55873a2b78fa4775426109f6..fbb3b0b18410a8ba39e4c42dc434a4bd7185cdd1 100644
 --- a/src/chat/openai-compatible-chat-language-model.ts
 +++ b/src/chat/openai-compatible-chat-language-model.ts
-@@ -794,6 +794,8 @@ const openaiCompatibleTokenUsageSchema = z
+@@ -551,7 +551,8 @@ export class OpenAICompatibleChatLanguageModel implements LanguageModelV3 {
+               });
+             }
+ 
+-            if (delta.tool_calls != null) {
++            // 空数组不声明工具调用；否则每个推理 delta 都被错误关闭成独立块。
++            if (delta.tool_calls != null && delta.tool_calls.length > 0) {
+               // end active reasoning block before tool calls start
+               if (isActiveReasoning) {
+                 controller.enqueue({
+@@ -794,6 +795,8 @@ const openaiCompatibleTokenUsageSchema = z
      prompt_tokens_details: z
        .object({
          cached_tokens: z.number().nullish(),

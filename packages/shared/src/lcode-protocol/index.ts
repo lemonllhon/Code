@@ -1,4 +1,8 @@
 import {
+  COMPOSER_PREDICTION_QUERY_SOURCE,
+  composerPredictionRequestSchema,
+} from "../composer-predictions.js";
+import {
   databaseStartupErrorCodeSchema,
   databaseStartupErrorDetailsSchema,
   databaseMigrationFactsSchema,
@@ -12,6 +16,7 @@ import {
 // prompt/enhance 全簇（含 promptEnhanceResult 通知）、plugins/marketplace/list；
 // session/fork 客户端链已删（op+schema 留存 = v4 stable fork 钩子消费）；侧栏分叉走 V4 forkSession。
 // 消费者：services 旧栈（lcodeProtocolClient/lcodeAgent/lcodeAgentService/lcodeSession*）、
+// 即时权限切换复用 v4 switchCollaborationMode；确认事实由 v4/session-config 的 permissionGrant 严格校验。
 // CLI bootstrap 旧协议 server（lcode-protocol/server-operations、plugins、session-mapper 等）、
 // UI 旧投影（lcodeSessionProjection 等读路径）。
 // 上述旧协议 client/server 组删除时，本文件整体删除。
@@ -2242,12 +2247,34 @@ export const lcodeWorkspaceGenerateTextParamsSchema = z
     messages: z.array(lcodeWorkspaceModelMessageSchema).min(1).optional(),
     tools: z.array(lcodeWorkspaceModelToolSchema).optional(),
     querySource: nonEmptyString,
+    composerPrediction: composerPredictionRequestSchema.optional(),
     maxOutputTokens: z.number().int().positive().optional(),
     operationId: nonEmptyString.optional(),
   })
   .strict()
-  .refine((value) => value.prompt !== undefined || value.messages !== undefined, {
-    message: "prompt 或 messages 至少需要提供一个",
+  .refine(
+    (value) =>
+      value.composerPrediction !== undefined ||
+      value.prompt !== undefined ||
+      value.messages !== undefined,
+    {
+      message: "prompt 或 messages 至少需要提供一个",
+    },
+  )
+  .superRefine((value, ctx) => {
+    if (
+      (value.querySource === COMPOSER_PREDICTION_QUERY_SOURCE) !==
+        Boolean(value.composerPrediction) ||
+      (value.composerPrediction &&
+        (value.prompt !== undefined ||
+          value.messages !== undefined ||
+          value.tools !== undefined ||
+          value.maxOutputTokens !== undefined))
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "Composer prediction requires only an exact source boundary",
+      });
   });
 export const lcodeWorkspaceGenerateTextResultSchema = z
   .object({
@@ -2263,6 +2290,8 @@ export const lcodeWorkspaceGenerateTextResultSchema = z
         totalTokens: z.number().nonnegative().optional(),
         cacheReadTokens: z.number().nonnegative().optional(),
         cacheWriteTokens: z.number().nonnegative().optional(),
+        // Adapter 会附带该证据；遗漏会使真实辅助模型结果被 strict schema 拒绝。
+        cacheWriteTokensReported: z.boolean().optional(),
         reasoningTokens: z.number().nonnegative().optional(),
         serverToolUse: z
           .object({

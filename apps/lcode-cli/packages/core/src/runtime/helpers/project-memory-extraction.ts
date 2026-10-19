@@ -1,4 +1,5 @@
 import {
+  MEMORY_LEARNING_REQUEST_MS,
   SESSION_TRANSCRIPT_SNAPSHOT_MAX_DATA_BYTES,
   SESSION_TRANSCRIPT_SNAPSHOT_MAX_MESSAGE_ROWS,
   SESSION_TRANSCRIPT_SNAPSHOT_MAX_PART_ROWS,
@@ -124,8 +125,17 @@ export function scheduleProjectMemoryExtraction(
       throw error;
     });
 
-  runtime.memoryExtractionScheduler ??= createMemoryExtractionScheduler((extraction) =>
-    executeProjectMemoryExtraction(runtime, extraction),
+  runtime.memoryExtractionScheduler ??= createMemoryExtractionScheduler(
+    (extraction) => executeProjectMemoryExtraction(runtime, extraction),
+    {
+      onOverflow: () =>
+        runtime.logger?.warn("Project memory extraction backlog coalesced", {
+          event: "memory.extraction.overflow",
+          ...traceContextToLogContext(runtime.rootTraceContext),
+          module: "core.runtime",
+          sessionId: runtime.sessionId,
+        }),
+    },
   );
   runtime.memoryExtractionScheduler.schedule(snapshot);
 }
@@ -164,6 +174,10 @@ async function executeProjectMemoryExtraction(
     snapshot: ProjectMemoryExtractionSnapshot;
   },
 ) {
+  const abortSignal = AbortSignal.any([
+    input.abortSignal,
+    AbortSignal.timeout(MEMORY_LEARNING_REQUEST_MS),
+  ]);
   const telemetry = runtime.agentTelemetry.detached({
     causation: input.snapshot.causation,
     executionKind: "background",
@@ -175,7 +189,7 @@ async function executeProjectMemoryExtraction(
 
   return telemetry.run(async () => {
     try {
-      input.abortSignal.throwIfAborted();
+      abortSignal.throwIfAborted();
       if (!runtime.fileSystemPort?.projectMemory || !runtime.sessionStore?.readTranscriptWindow) {
         telemetry.finishCompleted();
         return "no-op" as const;
@@ -185,7 +199,7 @@ async function executeProjectMemoryExtraction(
       const result = await runAutomaticMemoryReview({
         query: AUTOMATIC_REVIEW_QUERY,
         context: {
-          abortSignal: input.abortSignal,
+          abortSignal,
           fileSystemPort: runtime.fileSystemPort,
           sessionStore: runtime.sessionStore,
           sessionId: snapshot.sessionId,
@@ -202,10 +216,11 @@ async function executeProjectMemoryExtraction(
           workspaceIdentity: snapshot.workspaceIdentity,
           runtimeScope: "main",
           reviewMode: "incremental",
+          selectMemoryCandidates: snapshot.selectMemoryCandidates,
           reviewBoundary: { sessionId: snapshot.sessionId, messageId: snapshot.boundaryMessageId },
         },
       });
-      input.abortSignal.throwIfAborted();
+      abortSignal.throwIfAborted();
       // 冲突优先保留前景版本与 cursor；不在后台自动重试，仅后续新快照可以重新形成候选。
       runtime.logger?.info("Project memory extraction completed", {
         ...traceContextToLogContext(snapshot.traceContext),
@@ -225,9 +240,12 @@ async function executeProjectMemoryExtraction(
         return "error" as const;
       }
       telemetry.finishCompleted();
+      // 容量不足/其他 Runtime 持有租约并不代表证据已消费，不能把本地 cursor 提前推进。
+      if (result.skippedReason && result.skippedReason !== "already-consumed")
+        return "deferred" as const;
       return result.appliedCount > 0 ? ("success" as const) : ("no-op" as const);
     } catch (error) {
-      if (input.abortSignal.aborted || isAbortError(error)) {
+      if (abortSignal.aborted || isAbortError(error)) {
         telemetry.finishCancelled("abort_signal");
         return "aborted" as const;
       }

@@ -173,49 +173,47 @@ export async function executeToolCallsForModelStep(
       traceContext: options.modelTraceContext,
       subagentModelOverride: state.subagentModelOverride,
       model: state.model,
-      onBatchStart: async (toolCallIds) => {
+      onToolStart: async (toolCallId) => {
         // 已取消的 batch 仍由 executor 返回 cancelled results，但不能把从未进入
         // handler 的 tool parts 误标记为 running。
         if (state.turnAbortSignal?.aborted) return;
-        for (const toolCallId of toolCallIds) {
-          const toolCall = toolCallById.get(toolCallId as ToolCallId);
-          if (!toolCall) continue;
-          const persisted = toolParts.get(toolCall.id);
-          if (!persisted) continue;
-          persisted.startedAt = Date.now();
-          const projectedToolName = projectToolNameForNonEmptyBoundary(toolCall.name);
-          await this.persistPart(
-            {
-              id: persisted.partID,
-              sessionID: this.sessionId,
-              messageID: options.assistantMessageId,
-              type: "tool",
-              callID: toolCall.id,
-              declarationIndex: persisted.declarationIndex,
-              tool: projectedToolName.toolName,
-              metadata: projectedToolName.metadata,
-              state: {
-                status: "running",
-                input: persisted.input,
-                title: projectedToolName.toolName,
-                metadata:
-                  mcpToolPartMetadata(this.registry.getMetadata(toolCall.name)?.mcpPresentation) ??
-                  {},
-                time: {
-                  start: persisted.startedAt,
-                },
+        const toolCall = toolCallById.get(toolCallId as ToolCallId);
+        if (!toolCall) return;
+        const persisted = toolParts.get(toolCall.id);
+        if (!persisted) return;
+        persisted.startedAt = Date.now();
+        const projectedToolName = projectToolNameForNonEmptyBoundary(toolCall.name);
+        await this.persistPart(
+          {
+            id: persisted.partID,
+            sessionID: this.sessionId,
+            messageID: options.assistantMessageId,
+            type: "tool",
+            callID: toolCall.id,
+            declarationIndex: persisted.declarationIndex,
+            tool: projectedToolName.toolName,
+            metadata: projectedToolName.metadata,
+            state: {
+              status: "running",
+              input: persisted.input,
+              title: projectedToolName.toolName,
+              metadata:
+                mcpToolPartMetadata(this.registry.getMetadata(toolCall.name)?.mcpPresentation) ??
+                {},
+              time: {
+                start: persisted.startedAt,
               },
             },
-            options.modelTraceContext,
-          );
-          await emitStreamingToolLedgerUpdate(this, state.events, options.modelTraceContext, {
-            assistantMessageId: options.assistantMessageId,
-            toolCall,
-            status: "tool_started",
-            input: persisted.input,
-            startedAt: new Date(persisted.startedAt),
-          });
-        }
+          },
+          options.modelTraceContext,
+        );
+        await emitStreamingToolLedgerUpdate(this, state.events, options.modelTraceContext, {
+          assistantMessageId: options.assistantMessageId,
+          toolCall,
+          status: "tool_started",
+          input: persisted.input,
+          startedAt: new Date(persisted.startedAt),
+        });
       },
     });
     pendingExecutionResults = execution.results;

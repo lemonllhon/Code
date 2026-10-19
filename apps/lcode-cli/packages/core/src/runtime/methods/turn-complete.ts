@@ -24,6 +24,7 @@ import { scheduleProjectMemoryExtraction } from "../helpers/project-memory-extra
 import { appendBrowserTurnScreenshot } from "./browser-turn-screenshot.js";
 import { cleanupTurnBackgroundBash } from "./background.js";
 import { recordMemoryEffectTurn } from "./memory-effect-observation.js";
+import { markComposerPredictionBoundary } from "./composer-prediction.js";
 
 export async function completeRegularTurn(
   this: AgentRuntimeInternal,
@@ -73,6 +74,15 @@ export async function completeRegularTurn(
   // 主轮成功时先结算本轮临时后台 Bash，预览服务显式保留；
   // 进程生命周期由 Runtime 拥有，UI 只消费之后的完成事实。
   await cleanupTurnBackgroundBash(this, turnId, turnTraceContext);
+  markComposerPredictionBoundary(
+    this,
+    !options?.inputSource &&
+      !isAutomationMutationRestrictedTurn(loopState) &&
+      !isOffPeakCreateRestrictedTurn(loopState)
+      ? loopState.stableBoundaryAssistantMessageId
+      : undefined,
+    turnId,
+  );
   const completeEvent = this.createEvent(
     SessionEventType.TurnComplete,
     {

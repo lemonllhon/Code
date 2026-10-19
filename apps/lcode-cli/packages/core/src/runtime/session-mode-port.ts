@@ -1,9 +1,15 @@
-import type { SessionModePort } from "./deps.js";
+import { SessionEventType, type SessionModePort } from "./deps.js";
 import type { AgentRuntimeInternal } from "./internal.js";
 import { applyRuntimeExecutionState, readRuntimeExecutionState } from "./execution-state.js";
 
 export function createRuntimeSessionModePort(runtime: AgentRuntimeInternal): SessionModePort {
   return {
+    onPermissionChanged: (listener) =>
+      runtime.subscribeEvents({
+        onSessionEvent: (event) => {
+          if (event.type === SessionEventType.SessionModeChanged) listener();
+        },
+      }),
     supportsPermissionFullAccess: () => Boolean(runtime.sessionStore?.commitPermissionFullAccess),
     getMode: () => runtime.config.mode ?? "build",
     getPrePlanMode: () => undefined,

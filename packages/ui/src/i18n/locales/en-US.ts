@@ -75,10 +75,10 @@ const enUS: Record<string, string> = {
   "settings.startupAnimation.muted": "Muted",
   "settings.startupAnimation.preview": "Preview animation",
   "settings.startupAnimation.saveFailed": "Could not save. Please try again.",
-  "settings.tokenUsageStatusBar.title": "Token usage status bar",
+  "settings.tokenUsageStatusBar.title": "Usage status bar",
   "settings.tokenUsageStatusBar.description":
     "Keep session usage, context and output speed together. Preferences save automatically and follow your theme.",
-  "settings.tokenUsageStatusBar.enabled": "Show token usage status bar",
+  "settings.tokenUsageStatusBar.enabled": "Show usage status bar",
   "settings.tokenUsageStatusBar.enabledDescription":
     "When disabled, the original context and quota control remains in the composer.",
   "settings.tokenUsageStatusBar.position": "Position",
@@ -2340,7 +2340,7 @@ const enUS: Record<string, string> = {
   "settings.memory.workspaceMemory": "Workspace Memory",
   "settings.memory.storage.label": "Memory storage location",
   "settings.memory.storage.description":
-    "Applies to local projects; multi-folder projects use the primary folder. Switching copies existing memories and keeps the source files. The directories are not continuously synced. Remote workspaces keep their current location.",
+    "Use the local profile for central management and backups, or the project folder to carry memories when moving a project. Switching copies memories and keeps the source; the locations are not continuously synced. Local projects only; multi-folder projects use the primary folder. Remote workspaces keep their current location.",
   "settings.memory.storage.profile": "Local profile (default)",
   "settings.memory.storage.workspace": "Project primary folder (.lcode/memory)",
   "settings.memory.storage.saving": "Copying memories and saving the setting…",
@@ -2355,6 +2355,10 @@ const enUS: Record<string, string> = {
   "settings.memoryDescription":
     "Save and reuse long-term context in workspaces. Applies to new sessions and may increase model requests and token costs.",
   "settings.memory.sessionRecall": "Automatic history recall",
+  "settings.composerPredictions": "Next input suggestions",
+  "settings.composerPredictionsDescription":
+    "Show an optional suggestion in the empty composer after a task completes. Uses up to one additional model request per turn and counts toward usage. Press Tab or tap to accept, then send manually.",
+  "chat.composer.predictionAccept": "Accept input suggestion",
   "settings.memory.sessionRecallDescription":
     "Before each turn, find relevant content in prior sessions from the same workspace. Applies to new or cold-restored sessions.",
   "settings.memory.sessionRecallHelpLabel": "About automatic history recall",
@@ -5600,7 +5604,6 @@ const enUS: Record<string, string> = {
   "chat.toolbar.thoughtLevel.placeholder": "Select reasoning level",
   "chat.toolbar.thoughtLevel.faster": "Faster response",
   "chat.toolbar.thoughtLevel.deeper": "Deeper reasoning",
-  "chat.toolbar.thoughtLevel.sliderHint": "Drag, click or use arrow keys to adjust",
   "chat.toolbar.thoughtLevel.description":
     "Adjust how much the agent thinks before answering. Higher effort is usually steadier but slower.",
   "chat.toolbar.thoughtLevel.value.off": "Off",
@@ -6581,6 +6584,8 @@ const enUS: Record<string, string> = {
   "chat.error.feedbackOpened": "Feedback opened with the error context attached",
   "chat.error.noAvailableModel": "No model available. Set a custom model.",
   "chat.error.sendFailed": "Failed to send. Try again later.",
+  "chat.permissionMode.switchFailed":
+    "Permission change failed. Your previous setting was kept. Try again.",
   "chat.error.modelSettings": "Model settings",
   "chat.error.setModels": "Set",
 

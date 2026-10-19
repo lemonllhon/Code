@@ -41,6 +41,7 @@ import type { PermissionService } from "../../permission/service.js";
 import type { RuntimeTaskRegistry } from "../../runtime-task/registry.js";
 import type { ToolRegistry } from "../registry.js";
 import type { ToolSchedule } from "../scheduler.js";
+import type { ToolExecutionPermits } from "./execution-permits.js";
 import type {
   ExecutableToolCall,
   ReadFileStateMap,
@@ -135,6 +136,7 @@ export interface ToolExecutorOptions {
   getWorkspaceRoot?: () => string;
   getMemoryRoot?: () => string | undefined;
   getMemoryWorkspaceIdentity?: () => string | undefined;
+  selectMemoryCandidates?: (query: string) => readonly string[];
   traceContext?: TraceContext;
   mode?: CollaborationMode;
   getMode?: () => CollaborationMode;
@@ -169,6 +171,8 @@ export interface ToolExecutor {
 }
 
 export interface ToolExecuteOptions {
+  maxConcurrency?: number;
+  onToolStart?: (toolCallId: string) => Promise<void>;
   automationTurn?: boolean;
   offPeakTurn?: boolean;
   signal?: AbortSignal;
@@ -182,6 +186,7 @@ export interface ToolBatchExecuteOptions extends ToolExecuteOptions {
 }
 
 export interface ToolExecutorDeps {
+  executionPermits: ToolExecutionPermits;
   toolOperationAdmission?: ToolOperationAdmissionPort;
   agentTelemetry?: AgentExecutionTelemetryPort;
   agentTelemetryActorKind?: AgentTelemetryActorKind;
@@ -239,6 +244,7 @@ export interface ToolExecutorDeps {
   deliveryKind?: "desktop-continuous" | "web-remote-replayable";
   getMemoryRoot?: () => string | undefined;
   getMemoryWorkspaceIdentity?: () => string | undefined;
+  selectMemoryCandidates?: (query: string) => readonly string[];
   runtimeScope: ToolRuntimeScope;
   traceContext?: TraceContext;
   getMode: () => CollaborationMode;

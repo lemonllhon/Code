@@ -220,6 +220,15 @@ export function onSessionModeChanged(
   if (mode) host.configModeTouchedByEvent = true;
   if (!mode) return [];
   const planEnabled = payload.planEnabled ?? mode === "plan";
+  const permissionMode: "build" | "edit" | "yolo" | undefined =
+    mode === "build" || mode === "edit" || mode === "yolo" ? mode : undefined;
+  const permissionGrant =
+    payload.permissionGrant && permissionMode
+      ? { interactionId: payload.permissionGrant.interactionId, mode: permissionMode }
+      : host.snapshot.config.permissionGrant;
+  // 普通 Submission 也会改变执行权限；历史授权标记必须跟随当前事实失效。
+  const currentGrant =
+    permissionGrant && (permissionGrant.mode ?? "yolo") === mode ? permissionGrant : undefined;
   const planTransition =
     payload.source === "tool" && payload.toolCallId
       ? { toolCallId: payload.toolCallId, planEnabled }
@@ -228,6 +237,7 @@ export function onSessionModeChanged(
     host.snapshot.config.mode === mode &&
     host.snapshot.config.planEnabled === planEnabled &&
     planTransition === host.snapshot.config.planTransition &&
+    currentGrant === host.snapshot.config.permissionGrant &&
     !payload.permissionGrant
   )
     return [];
@@ -235,12 +245,12 @@ export function onSessionModeChanged(
     {
       op: "state.updated",
       patch: {
-        ...(payload.permissionGrant
+        ...(payload.permissionGrant && permissionMode
           ? queuePatch(host, {
               ...host.snapshot.queue,
               items: host.snapshot.queue.items.map((item) =>
                 payload.permissionGrant!.queueItemIds.includes(item.queueItemId)
-                  ? { ...item, mode: "yolo" as const }
+                  ? { ...item, mode: permissionMode }
                   : item,
               ),
             })
@@ -248,11 +258,10 @@ export function onSessionModeChanged(
         config: {
           ...host.snapshot.config,
           mode,
+          permissionModeVersion: String(event.id),
           planEnabled,
           planTransition,
-          ...(payload.permissionGrant
-            ? { permissionGrant: { interactionId: payload.permissionGrant.interactionId } }
-            : {}),
+          permissionGrant: currentGrant,
         },
       },
     },

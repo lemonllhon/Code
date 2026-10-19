@@ -70,13 +70,15 @@ export const lifecycleProjectionHandlers: EventProjectionHandlers = {
 
   [EventTypes.SessionModeChanged]: (p, e) => {
     const payload = e.payload as SessionModeChangedPayload;
+    const permissionMode = payload.mode;
     return {
       ...p,
-      ...(payload.permissionGrant
+      ...(payload.permissionGrant &&
+      (permissionMode === "build" || permissionMode === "edit" || permissionMode === "yolo")
         ? {
             pendingSteerInputs: p.pendingSteerInputs.map((item) =>
               payload.permissionGrant!.queueItemIds.includes(item.pendingInputId) && item.intent
-                ? { ...item, intent: { ...item.intent, mode: "yolo" as const } }
+                ? { ...item, intent: { ...item.intent, mode: permissionMode } }
                 : item,
             ),
           }

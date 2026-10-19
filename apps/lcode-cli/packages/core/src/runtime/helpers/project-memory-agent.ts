@@ -16,6 +16,7 @@ import { createRefreshRuntimeHeadersBeforeModelAttempt } from "../methods/model-
 import { createRuntimeModel, withModelInvocationContext } from "../methods/runtime-model.js";
 
 export interface ProjectMemoryAgentContext {
+  selectMemoryCandidates?: (query: string) => readonly string[];
   causation?: AgentTelemetryCausation;
   memoryRoot: string;
   memoryWorkspaceIdentity?: string;
@@ -64,6 +65,9 @@ export function captureProjectMemoryAgentContext(
   }));
   return {
     causation: runtime.agentTelemetry.captureCausation(),
+    selectMemoryCandidates: runtime.projectMemoryRecallIndex?.createCandidateSelector(
+      input.memoryRoot,
+    ),
     memoryRoot: input.memoryRoot,
     memoryWorkspaceIdentity: runtime.config.memory?.workspaceIdentity,
     // Extraction 会跨异步边界消费这份成员浅快照；它依赖 RuntimeMessageEntry
