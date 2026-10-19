@@ -87,12 +87,15 @@ interface CredentialServiceDependencies {
 export function createCredentialService(
   dependencies: CredentialServiceDependencies = {},
 ): ICredentialService {
-  const cipherProvider = dependencies.cipherProvider ?? createCredentialCipherProvider();
+  const getCipher = (credentialFilePath: string) =>
+    dependencies.cipherProvider ?? createCredentialCipherProvider({ credentialFilePath });
 
   return {
     async load(key: string): Promise<string | null> {
       const validatedKey = credentialKeySchema.parse(key);
-      const creds = await readAll();
+      const credentialsFile = getCredentialsFile();
+      const cipherProvider = await getCipher(credentialsFile);
+      const creds = await readAll(credentialsFile);
       const rawValue = creds[validatedKey];
       if (rawValue === undefined) {
         return null;
@@ -104,8 +107,9 @@ export function createCredentialService(
     async save(key: string, value: string): Promise<void> {
       const validatedKey = credentialKeySchema.parse(key);
       const validatedValue = credentialValueSchema.parse(value);
-      const encryptedValue = cipherProvider.encrypt(validatedValue);
       const credentialsFile = getCredentialsFile();
+      const cipherProvider = await getCipher(credentialsFile);
+      const encryptedValue = cipherProvider.encrypt(validatedValue);
       // desktop host 与 CLI adapter 是独立进程，进程内排队不能阻止 whole-file
       // read-modify-write 丢更新；共享目录锁必须覆盖读取、变更和原子替换全过程。
       await withFileLock(credentialsFile, async () => {
@@ -119,6 +123,7 @@ export function createCredentialService(
     async delete(key: string): Promise<void> {
       const validatedKey = credentialKeySchema.parse(key);
       const credentialsFile = getCredentialsFile();
+      await getCipher(credentialsFile);
       await withFileLock(credentialsFile, async () => {
         const creds = await readAll(credentialsFile);
         delete creds[validatedKey];

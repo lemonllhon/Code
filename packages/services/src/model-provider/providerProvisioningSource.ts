@@ -113,6 +113,8 @@ async function readProvisioningCredentials(
   credentialFilePath: string,
   cipherProvider?: CredentialCipherProvider,
 ): Promise<ProviderProvisioningCredentialEntry[]> {
+  // 迁移必须先于文件读取，不能拿迁移前的旧密文交给只持有新 key 的 cipher。
+  const cipher = cipherProvider ?? (await createCredentialCipherProvider({ credentialFilePath }));
   let raw: string;
   try {
     raw = await readFile(credentialFilePath, "utf8");
@@ -124,7 +126,6 @@ async function readProvisioningCredentials(
   if (!isRecord(parsed)) {
     throw new Error("Credential Store 必须是 JSON 对象");
   }
-  const cipher = cipherProvider ?? createCredentialCipherProvider();
   const allowedKeys = new Set<string>(PROVIDER_PROVISIONING_OAUTH_CREDENTIAL_KEYS);
   const entries: ProviderProvisioningCredentialEntry[] = [];
   // Credential Store 还可能包含不属于 Provisioning allowlist 的历史记录；

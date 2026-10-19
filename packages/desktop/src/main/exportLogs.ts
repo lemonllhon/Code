@@ -145,7 +145,11 @@ const NON_LOG_STATE_ARCHIVE_PATHS = [
   "session-bindings",
   "checkpoints",
 ] as const;
-const SENSITIVE_CREDENTIAL_ARCHIVE_FILE_NAMES = new Set(["credentials.json", ".credentials.json"]);
+const SENSITIVE_CREDENTIAL_ARCHIVE_FILE_NAMES = new Set([
+  "credentials.json",
+  ".credentials.json",
+  "credentials.key",
+]);
 const EXCLUDED_ARCHIVE_DIRECTORY_NAMES = new Set(["debug"]);
 const DEFAULT_LOG_EXPORT_LOOKBACK_DAYS = 3;
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -709,7 +713,11 @@ function isNonLogStateArchivePath(relativePath: string): boolean {
 function isSensitiveCredentialArchivePath(relativePath: string): boolean {
   const normalizedRelativePath = normalizeArchivePath(relativePath).toLowerCase();
   const fileName = normalizedRelativePath.split("/").at(-1) ?? "";
-  return SENSITIVE_CREDENTIAL_ARCHIVE_FILE_NAMES.has(fileName);
+  // 密钥原子写期间的临时文件同样包含完整 key，不能被并发日志导出收集。
+  return (
+    SENSITIVE_CREDENTIAL_ARCHIVE_FILE_NAMES.has(fileName) ||
+    /^\.credentials\.key\..+\.tmp$/.test(fileName)
+  );
 }
 
 function isExcludedDirectoryArchivePath(relativePath: string): boolean {

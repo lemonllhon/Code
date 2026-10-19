@@ -5,6 +5,11 @@
  */
 export { acquireFileLock } from "./node/atomicFileLock.js";
 export {
+  prepareLCodeCredentialStore,
+  type LCodeCredentialCipher,
+  type LCodeCredentialStoreOptions,
+} from "./node/lcodeCredentialStore.js";
+export {
   runtimeMemoryBudget,
   createRuntimeMemoryBudget,
   readRuntimeMemorySnapshot,

@@ -1,4 +1,3 @@
-import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -76,12 +75,13 @@ export function createSharedLCodeCredentialStore(
 ): SharedLCodeCredentialStore {
   const env = options.env ?? process.env;
   const filePath = resolveSharedLCodeCredentialsPath(options);
-  const cipher = options.cipher ?? createLCodeCredentialCipher({ env });
+  const getCipher = () => options.cipher ?? createLCodeCredentialCipher({ env, filePath });
 
   return {
     filePath,
 
     async clearZaiLoginCredentials(): Promise<void> {
+      const cipher = await getCipher();
       await mutateRawCredentialRecord(filePath, async (rawCredentials) => {
         const activeProviderRaw = rawCredentials[SHARED_LCODE_CREDENTIAL_KEYS.activeProvider];
         const activeProvider = activeProviderRaw ? cipher.decrypt(activeProviderRaw) : null;
@@ -97,12 +97,14 @@ export function createSharedLCodeCredentialStore(
 
     async delete(key: string): Promise<void> {
       const validatedKey = validateCredentialKey(key);
+      await getCipher();
       await mutateRawCredentialRecord(filePath, (rawCredentials) => {
         delete rawCredentials[validatedKey];
       });
     },
 
     async deleteIfValue(key: string, expectedValue: string): Promise<boolean> {
+      const cipher = await getCipher();
       const validatedKey = validateCredentialKey(key);
       const validatedExpectedValue = validateCredentialValue(expectedValue);
       let deleted = false;
@@ -123,6 +125,7 @@ export function createSharedLCodeCredentialStore(
     async deleteIfValues(
       expectedValues: Readonly<Record<string, string>>,
     ): Promise<Record<string, boolean>> {
+      const cipher = await getCipher();
       const validatedEntries = Object.entries(expectedValues).map(
         ([key, value]) => [validateCredentialKey(key), validateCredentialValue(value)] as const,
       );
@@ -152,6 +155,7 @@ export function createSharedLCodeCredentialStore(
       expectedGuardValue: string,
       keysToDelete: readonly string[],
     ): Promise<boolean> {
+      const cipher = await getCipher();
       const validatedGuardKey = validateCredentialKey(guardKey);
       const validatedExpectedValue = validateCredentialValue(expectedGuardValue);
       const validatedKeys = keysToDelete.map(validateCredentialKey);
@@ -171,6 +175,7 @@ export function createSharedLCodeCredentialStore(
     },
 
     async load(key: string): Promise<string | null> {
+      const cipher = await getCipher();
       const rawCredentials = await readRawCredentialRecord(filePath);
       const rawValue = rawCredentials[validateCredentialKey(key)];
       if (rawValue === undefined) {
@@ -180,6 +185,7 @@ export function createSharedLCodeCredentialStore(
     },
 
     async loadMany(keys: readonly string[]): Promise<Record<string, string | null>> {
+      const cipher = await getCipher();
       const validatedKeys = keys.map(validateCredentialKey);
       const rawCredentials = await readRawCredentialRecord(filePath);
       return Object.fromEntries(
@@ -204,6 +210,7 @@ export function createSharedLCodeCredentialStore(
     },
 
     async save(key: string, value: string): Promise<void> {
+      const cipher = await getCipher();
       const validatedKey = validateCredentialKey(key);
       const encryptedValue = cipher.encrypt(validateCredentialValue(value));
       await mutateRawCredentialRecord(filePath, (rawCredentials) => {
@@ -212,6 +219,7 @@ export function createSharedLCodeCredentialStore(
     },
 
     async saveMany(entries: Readonly<Record<string, string>>): Promise<void> {
+      const cipher = await getCipher();
       const encryptedEntries = Object.entries(entries).map(
         ([key, value]) =>
           [validateCredentialKey(key), cipher.encrypt(validateCredentialValue(value))] as const,
@@ -224,6 +232,7 @@ export function createSharedLCodeCredentialStore(
     },
 
     async saveManyIfValues(expected, entries): Promise<boolean> {
+      const cipher = await getCipher();
       const apply = prepareConditionalCredentialMutation(expected, entries, cipher);
       let saved = false;
       // 比较与完整 pair 写入必须在原文件锁的同一个临界区；先 load 再 save 存在换代窗口。
@@ -238,6 +247,7 @@ export function createSharedLCodeCredentialStore(
       value: string,
       replacedKeys: readonly string[],
     ): Promise<void> {
+      const cipher = await getCipher();
       const validatedKey = validateCredentialKey(key);
       const encryptedValue = cipher.encrypt(validateCredentialValue(value));
       const validatedReplacedKeys = replacedKeys.map(validateCredentialKey);
@@ -250,6 +260,7 @@ export function createSharedLCodeCredentialStore(
     },
 
     async saveZaiLoginCredentials(payload: ZaiLoginCredentialPayload): Promise<void> {
+      const cipher = await getCipher();
       const encryptedCredentials = {
         activeProvider: cipher.encrypt(ZAI_PROVIDER_ID),
         accessToken: cipher.encrypt(validateCredentialValue(payload.accessToken)),
@@ -266,31 +277,6 @@ export function createSharedLCodeCredentialStore(
       });
     },
   };
-}
-
-export function loadSharedLCodeCredentialSync(
-  key: string,
-  options: SharedLCodeCredentialStoreOptions = {},
-): string | undefined {
-  const filePath = resolveSharedLCodeCredentialsPath(options);
-  if (!existsSync(filePath)) {
-    return undefined;
-  }
-
-  try {
-    const raw = readFileSync(filePath, "utf-8");
-    const parsed = JSON.parse(raw);
-    const record = parseCredentialRecord(parsed);
-    const rawValue = record[validateCredentialKey(key)];
-    if (rawValue === undefined) {
-      return undefined;
-    }
-    const cipher = options.cipher ?? createLCodeCredentialCipher({ env: options.env });
-    const decrypted = cipher.decrypt(rawValue);
-    return decrypted.trim().length > 0 ? decrypted : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 export function resolveSharedLCodeCredentialsPath(
