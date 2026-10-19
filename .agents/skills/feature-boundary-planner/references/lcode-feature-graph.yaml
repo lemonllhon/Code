@@ -1273,6 +1273,26 @@ nodes:
     invariants:
       - "Learning hashes and fenced leases share the original ProjectMemory root writer lock;
         the ledger contains no transcript text and cannot become a second content writer."
+  - id: capability.completed-turn-memory-extraction
+    kind: capability
+    label: Completed-turn paged memory extraction and explicit recovery
+    aliases: [完成轮主动记忆, 分段提取, 记忆断点恢复]
+    codeSeeds:
+      - file: apps/lcode-cli/packages/core/src/runtime/helpers/project-memory-extraction.ts
+        symbol: scheduleProjectMemoryExtraction
+      - file: apps/lcode-cli/packages/core/src/runtime/helpers/project-memory-extraction-retry.ts
+        symbol: retryMemoryExtraction
+      - file: apps/lcode-cli/packages/core/src/memory/automatic-review-segments.ts
+        symbol: runAutomaticReviewSegments
+      - file: apps/lcode-cli/packages/adapters/src/storage/session-store/repositories/memory-evidence.ts
+        symbol: readMemoryReviewEvidence
+      - file: apps/lcode-cli/packages/adapters/src/fs/project-memory-history-page.ts
+        symbol: readMemoryHistoryPage
+    invariants:
+      - "The Runtime admits only lightweight fixed-boundary descriptors before IO; SQLite projects
+        bounded visible-text pages without returning reasoning or raw tool bodies."
+      - "Each page reuses independent verification and the original root-locked CAS and learning
+        owner. Explicit retry resumes consumed page keys; cold resume never starts paid backfill."
   - id: surface.composer-at-context-picker
     kind: ui-surface
     label: Composer @ context picker (Plugins, files, sessions, Whiteboards)
@@ -2126,6 +2146,14 @@ edges:
   - from: persistence.memory-learning-consumption
     to: persistence.project-memory-files
     type: shares-original-root-writer-lock
+    rank: must-inspect
+  - from: capability.completed-turn-memory-extraction
+    to: persistence.memory-learning-consumption
+    type: checkpoints-through-existing-owner
+    rank: must-inspect
+  - from: capability.completed-turn-memory-extraction
+    to: capability.conversation-runtime
+    type: schedules-from-stable-completed-boundary
     rank: must-inspect
   - from: capability.composer-predictions
     to: capability.composer-trigger-routing

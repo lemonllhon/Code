@@ -1,20 +1,23 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  PROJECT_MEMORY_FILE_MAX_BYTES,
-  type ProjectMemoryChange,
-  type ProjectMemoryOperationOptions,
-} from "@lcode/contracts";
+import { type ProjectMemoryChange, type ProjectMemoryOperationOptions } from "@lcode/contracts";
 import { getNodeErrorCode, hashBuffer, throwIfAborted } from "./file-system-common.js";
-import { memoryError, readMemoryBytes, strictAtomicWrite } from "./project-memory-io.js";
+import { memoryError, strictAtomicWrite } from "./project-memory-io.js";
 import { assertMemoryRoot, checkMemoryTarget } from "./project-memory-paths.js";
 import { MemoryStore } from "./project-memory-store.js";
+import {
+  checkedMemoryChunks,
+  describeMemoryFile,
+  spliceMemoryChunks,
+  type MemoryFileSource,
+} from "./project-memory-stream.js";
 
 export interface MemoryCommit {
   fileName: string;
-  content: Buffer;
+  content: Buffer | MemoryFileSource;
   expectedHash: string | null;
+  range?: { offset: number; length: number };
   createParents?: boolean;
   undoOf?: string;
   proposalId?: string;
@@ -27,8 +30,7 @@ export class MemoryJournal {
 
   private async currentHash(change: ProjectMemoryChange): Promise<string | null> {
     const path = await checkMemoryTarget(this.store.root, change.fileName);
-    const bytes = await readMemoryBytes(path, PROJECT_MEMORY_FILE_MAX_BYTES, true);
-    return bytes === null ? null : hashBuffer(bytes);
+    return (await describeMemoryFile(path))?.hash ?? null;
   }
 
   private async recoverChange(
@@ -85,17 +87,23 @@ export class MemoryJournal {
         "Project Memory has unresolved recovery records; writes are blocked",
       );
     }
-    if (input.content.length > PROJECT_MEMORY_FILE_MAX_BYTES)
-      throw memoryError(
-        "too_large",
-        input.fileName,
-        "Project Memory content exceeds its file budget",
-      );
     const path = await checkMemoryTarget(root, input.fileName, input.createParents);
-    const before = await readMemoryBytes(path, PROJECT_MEMORY_FILE_MAX_BYTES, true);
-    const beforeHash = before === null ? null : hashBuffer(before);
+    const before = await describeMemoryFile(path, options?.signal);
+    const beforeHash = before?.hash ?? null;
     if (input.expectedHash !== beforeHash)
       throw memoryError("stale_write", path, "Project Memory changed since the approved full read");
+    if (input.range && !before)
+      throw memoryError("stale_write", path, "A range replacement requires an existing source");
+    const produce = () =>
+      Buffer.isBuffer(input.content)
+        ? input.range && before
+          ? spliceMemoryChunks(before, input.content, input.range, options?.signal)
+          : input.content
+        : checkedMemoryChunks(input.content, options?.signal);
+    const hash = createHash("sha256");
+    const generated = produce();
+    if (Buffer.isBuffer(generated)) hash.update(generated);
+    else for await (const chunk of generated) hash.update(chunk);
     let mode = 0o600;
     try {
       mode = (await lstat(path)).mode & 0o777;
@@ -108,7 +116,10 @@ export class MemoryJournal {
       fileName: input.fileName,
       createdAt: Date.now(),
       beforeHash,
-      afterHash: hashBuffer(input.content),
+      afterHash: `sha256:${hash.digest("hex")}`,
+      ...(input.range && Buffer.isBuffer(input.content)
+        ? { replacementHash: hashBuffer(input.content) }
+        : {}),
       status: "prepared",
       ...(options?.trace?.sessionId ? { sessionId: options.trace.sessionId } : {}),
       ...(input.undoOf ? { undoOf: input.undoOf } : {}),
@@ -117,10 +128,10 @@ export class MemoryJournal {
         : {}),
     };
     throwIfAborted(options?.signal);
-    await this.store.reserveChange(change, before);
+    await this.store.reserveChange(change, before, options);
     let published = false;
     try {
-      await strictAtomicWrite(path, input.content, {
+      await strictAtomicWrite(path, produce(), {
         expectedMissing: before === null,
         mode,
         signal: options?.signal,
@@ -130,8 +141,8 @@ export class MemoryJournal {
           await checkMemoryTarget(root, input.fileName);
         },
         beforePublish: async () => {
-          const actual = await readMemoryBytes(path, PROJECT_MEMORY_FILE_MAX_BYTES, true);
-          if ((actual === null ? null : hashBuffer(actual)) !== beforeHash) {
+          const actual = await describeMemoryFile(path, options?.signal);
+          if ((actual?.hash ?? null) !== beforeHash) {
             throw memoryError(
               "stale_write",
               path,
@@ -157,7 +168,7 @@ export class MemoryJournal {
   async replaceForUndo(
     changeId: string,
     changes: readonly ProjectMemoryChange[],
-  ): Promise<{ change: ProjectMemoryChange; before: Buffer }> {
+  ): Promise<{ change: ProjectMemoryChange; before: MemoryFileSource }> {
     const change = changes.find((entry) => entry.id === changeId);
     if (!change) throw memoryError("not_found", changeId, "Project Memory change does not exist");
     if (change.beforeHash === null)
@@ -176,6 +187,6 @@ export class MemoryJournal {
         "Project Memory change is not an undoable committed replacement",
       );
     }
-    return { change, before: await this.store.readPreimage(change) };
+    return { change, before: await this.store.readPreimageSource(change) };
   }
 }

@@ -148,6 +148,7 @@ export class NodeFileSystemAdapter implements FileSystemPort {
       }
 
       const listed = await listNodeDirectoryEntries({
+        page: request.page,
         ...(request.limit === undefined ? {} : { limit: request.limit }),
         path,
         ...(options?.signal ? { signal: options.signal } : {}),
@@ -159,6 +160,7 @@ export class NodeFileSystemAdapter implements FileSystemPort {
         entries: listed.entries,
         numEntries: listed.entries.length,
         truncated: listed.truncated,
+        ...(listed.nextPage ? { nextPage: listed.nextPage } : {}),
       };
     } catch (error) {
       throw toFileSystemError(error, path);

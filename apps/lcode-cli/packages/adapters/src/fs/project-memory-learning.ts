@@ -1,9 +1,8 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
 import {
   MEMORY_LEARNING_BYTES_LIMIT,
   MEMORY_LEARNING_LEASE_MS,
-  MEMORY_LEARNING_RECORD_LIMIT,
   MemoryLearningLeaseSchema,
   MemoryLearningLedgerSchema,
   type MemoryLearningLease,
@@ -27,12 +26,25 @@ type WithRoot = <T>(
 export class MemoryLearning implements ProjectMemoryLearningPort {
   constructor(private readonly withRoot: WithRoot) {}
 
-  private async load(root: MemoryRoot): Promise<Ledger> {
-    const bytes = await readMemoryBytes(
-      join(root.stateDir, LEDGER_FILE),
-      MEMORY_LEARNING_BYTES_LIMIT,
-      true,
-    );
+  private path(
+    root: MemoryRoot,
+    key: Pick<MemoryLearningLease, "workspaceKey" | "evidenceKey">,
+  ): string {
+    const digest = createHash("sha256")
+      .update(JSON.stringify([key.workspaceKey, key.evidenceKey]))
+      .digest("hex");
+    return join(root.stateDir, "learning", `${digest}.json`);
+  }
+
+  private async load(
+    root: MemoryRoot,
+    key: Pick<MemoryLearningLease, "workspaceKey" | "evidenceKey">,
+  ): Promise<Ledger> {
+    const page = await readMemoryBytes(this.path(root, key), MEMORY_LEARNING_BYTES_LIMIT, true);
+    // 兼容旧 ledger，只读原消费记录；新页独立落盘，不迁移或清除已有学习事实。
+    const bytes =
+      page ??
+      (await readMemoryBytes(join(root.stateDir, LEDGER_FILE), MEMORY_LEARNING_BYTES_LIMIT, true));
     if (bytes === null) return { schemaVersion: 1, rootDir: root.rootDir, records: [] };
     let ledger: Ledger;
     try {
@@ -45,18 +57,25 @@ export class MemoryLearning implements ProjectMemoryLearningPort {
     );
     if (!samePath(ledger.rootDir, root.rootDir) || keys.size !== ledger.records.length)
       throw memoryError("invalid_path", root.rootDir, "Memory learning owner or keys differ");
-    return ledger;
+    return {
+      ...ledger,
+      records: ledger.records.filter(
+        (record) =>
+          record.workspaceKey === key.workspaceKey && record.evidenceKey === key.evidenceKey,
+      ),
+    };
   }
 
   private async save(
     root: MemoryRoot,
     ledger: Ledger,
+    key: Pick<MemoryLearningLease, "workspaceKey" | "evidenceKey">,
     options?: ProjectMemoryOperationOptions,
   ): Promise<boolean> {
     throwIfAborted(options?.signal);
     const bytes = Buffer.from(JSON.stringify(ledger));
     if (bytes.length > MEMORY_LEARNING_BYTES_LIMIT) return false;
-    await strictAtomicWrite(join(root.stateDir, LEDGER_FILE), bytes, {
+    await strictAtomicWrite(this.path(root, key), bytes, {
       mode: 0o600,
       signal: options?.signal,
       validate: () => assertMemoryRoot(root),
@@ -77,14 +96,12 @@ export class MemoryLearning implements ProjectMemoryLearningPort {
           token: randomUUID(),
           expiresAt: Date.now() + MEMORY_LEARNING_LEASE_MS,
         });
-        const ledger = await this.load(store.root);
+        const ledger = await this.load(store.root, lease);
         const prior = ledger.records.find(
           (r) => r.workspaceKey === lease.workspaceKey && r.evidenceKey === lease.evidenceKey,
         );
         if (prior?.consumed) return { status: "consumed" };
         if (prior && prior.lease.expiresAt > Date.now()) return { status: "busy" };
-        if (!prior && ledger.records.length >= MEMORY_LEARNING_RECORD_LIMIT)
-          return { status: "full" };
         const record = {
           workspaceKey: lease.workspaceKey,
           evidenceKey: lease.evidenceKey,
@@ -93,7 +110,7 @@ export class MemoryLearning implements ProjectMemoryLearningPort {
         };
         if (prior) Object.assign(prior, record);
         else ledger.records.push(record);
-        return (await this.save(store.root, ledger, options))
+        return (await this.save(store.root, ledger, lease, options))
           ? { status: "claimed", lease }
           : { status: "full" };
       },
@@ -103,7 +120,7 @@ export class MemoryLearning implements ProjectMemoryLearningPort {
 
   async assertLease(root: MemoryRoot, input: MemoryLearningLease): Promise<void> {
     const lease = MemoryLearningLeaseSchema.parse(input);
-    const ledger = await this.load(root);
+    const ledger = await this.load(root, lease);
     if (
       !ledger.records.some((r) => !r.consumed && sameLease(r.lease, lease)) ||
       lease.expiresAt <= Date.now()
@@ -119,7 +136,7 @@ export class MemoryLearning implements ProjectMemoryLearningPort {
       input.rootDir,
       async ({ store }) => {
         const lease = MemoryLearningLeaseSchema.parse(input.lease);
-        const ledger = await this.load(store.root);
+        const ledger = await this.load(store.root, lease);
         const record = ledger.records.find((r) => sameLease(r.lease, lease));
         if (!record || (!record.consumed && lease.expiresAt <= Date.now()))
           throw memoryError(
@@ -128,7 +145,7 @@ export class MemoryLearning implements ProjectMemoryLearningPort {
             "Memory learning lease is no longer current",
           );
         record.consumed = true;
-        if (!(await this.save(store.root, ledger, options)))
+        if (!(await this.save(store.root, ledger, lease, options)))
           throw memoryError("too_large", input.rootDir, "Memory learning ledger is full");
       },
       options,
@@ -143,9 +160,9 @@ export class MemoryLearning implements ProjectMemoryLearningPort {
       input.rootDir,
       async ({ store }) => {
         const lease = MemoryLearningLeaseSchema.parse(input.lease);
-        const ledger = await this.load(store.root);
+        const ledger = await this.load(store.root, lease);
         ledger.records = ledger.records.filter((r) => r.consumed || !sameLease(r.lease, lease));
-        await this.save(store.root, ledger, options);
+        await this.save(store.root, ledger, lease, options);
       },
       options,
     );

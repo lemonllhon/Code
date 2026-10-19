@@ -55,7 +55,7 @@ export const memoryReviewToolEntry: ToolEntry = {
     "Review and maintain enabled workspace memory through independent AI verification and version-checked writes",
   metadata: memoryToolMetadata(
     MEMORY_REVIEW_TOOL_NAME,
-    "Review enabled Project Memory on explicit user request, or inspect past reviews. The normal end-of-turn maintenance already runs automatically; do not call create routinely after every answer. create uses a bounded evidence-only model request followed by an independent AI verification request, then applies only supported memory changes through conflict-checked storage. It does not change code, skills, permissions, schedules or the memory index page. No per-item user confirmation is needed. list/read are local diagnostics; use the external editor for complete memory files.",
+    "Review enabled Project Memory on explicit user request, or inspect past reviews. The normal end-of-turn maintenance already runs automatically; do not call create routinely after every answer. create uses a bounded evidence-only model request followed by an independent AI verification request, then applies only supported memory changes through conflict-checked storage. It does not change code, skills, permissions, schedules or the memory index page. No per-item user confirmation is needed. list/read are local diagnostics; list returns one page, pass nextCursor as cursor to continue. Use the external editor for complete memory files.",
     true,
   ),
   permission: memoryManagedPermission,
@@ -79,6 +79,14 @@ export const memoryReviewToolEntry: ToolEntry = {
     const { rootDir, port } = requireMemory(context);
     const options = { signal: context.abortSignal, trace: context.traceContext };
     if (parsed.action === "list") {
+      if (port.listHistoryPage) {
+        const page = await port.listHistoryPage(
+          { rootDir, kind: "reviews", cursor: parsed.cursor },
+          options,
+        );
+        if (page.kind !== "reviews") throw new Error("Invalid memory history page kind");
+        return { status: "list", proposals: page.proposals, nextCursor: page.nextCursor };
+      }
       const proposals = await port.listReviews(rootDir, options);
       return {
         status: "list",

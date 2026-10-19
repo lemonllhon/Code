@@ -28,6 +28,7 @@ export const MemoryReviewInputSchema = z
     action: z.enum(["create", "list", "read"]),
     query: z.string().trim().min(1).max(4000).optional(),
     proposalId: id.optional(),
+    cursor: z.string().min(1).max(512).optional(),
   })
   .strict()
   .superRefine((input, context) => {
@@ -42,6 +43,7 @@ export const MemoryReviewInputSchema = z
 export const MemoryHistoryInputSchema = z
   .object({
     action: z.enum(["list", "undo", "effects", "feedback"]),
+    cursor: z.string().min(1).max(512).optional(),
     changeId: id.optional(),
     expectedHash: hash.optional(),
     effectSessionId: z.string().min(1).max(256).optional(),
@@ -145,6 +147,7 @@ export const MemoryReviewOutputSchema = z.union([
   z
     .object({
       status: z.literal("list"),
+      nextCursor: z.string().min(1).max(512).optional(),
       proposals: z
         .array(
           z
@@ -188,7 +191,11 @@ export const MemoryHistoryOutputSchema = z.union([
     .strict(),
   z.object({ status: z.literal("committed"), change: ProjectMemoryChangeSchema }).strict(),
   z
-    .object({ status: z.literal("list"), changes: z.array(ProjectMemoryChangeSchema).max(100) })
+    .object({
+      status: z.literal("list"),
+      changes: z.array(ProjectMemoryChangeSchema).max(100),
+      nextCursor: z.string().min(1).max(512).optional(),
+    })
     .strict(),
 ]);
 export const MemoryReviewOutputJsonSchema = toToolJsonSchema(MemoryReviewOutputSchema);

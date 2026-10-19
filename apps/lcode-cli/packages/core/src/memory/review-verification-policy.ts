@@ -47,6 +47,8 @@ export function assertReviewVerificationCandidates(
     const before = draft.sources.find(
       (source) => source.kind === "memory" && source.reference === item.fileName,
     );
+    if (JSON.stringify(item.range) !== JSON.stringify(before?.memoryRange))
+      throw new MemoryReviewError("invalid_target");
     if ((item.expectedHash !== null && !before) || (item.expectedHash === null && before)) {
       throw new MemoryReviewError("invalid_target");
     }

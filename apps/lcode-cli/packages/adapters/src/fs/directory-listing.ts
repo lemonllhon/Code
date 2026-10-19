@@ -1,4 +1,5 @@
 import type { Dirent } from "node:fs";
+import { listDirectoryPage } from "./directory-pages.js";
 import { opendir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -18,9 +19,16 @@ export async function listNodeDirectoryEntries(input: {
   limit?: number;
   path: string;
   signal?: AbortSignal;
-}): Promise<{ entries: FileSystemListDirectoryEntry[]; truncated: boolean }> {
+  page?: { afterName?: string; revision?: string };
+}): Promise<{
+  entries: FileSystemListDirectoryEntry[];
+  truncated: boolean;
+  nextPage?: { afterName: string; revision: string };
+}> {
   const limit = validateDirectoryListingLimit(input.path, input.limit);
   throwIfDirectoryListingAborted(input.signal);
+  if (input.page)
+    return listDirectoryPage({ ...input, page: input.page, limit: limit ?? DIRECTORY_BUFFER_SIZE });
 
   if (limit === undefined) {
     const dirents = await readdir(input.path, { withFileTypes: true });

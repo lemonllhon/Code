@@ -10,6 +10,7 @@ import {
 } from "@lcode/contracts";
 import type { ToolExecutionContext } from "../tool/types.js";
 import { generateMemoryReviewDraft } from "./review-generation.js";
+import { runAutomaticReviewSegments } from "./automatic-review-segments.js";
 import { MemoryReviewError, throwIfReviewAborted } from "./review-common.js";
 import { readValidatedMemoryReviewSources } from "./review-validation.js";
 import { verifyMemoryReviewDraft } from "./review-verification.js";
@@ -19,11 +20,13 @@ import {
 } from "./automatic-review-learning.js";
 
 export interface AutomaticMemoryReviewResult {
-  status: "completed" | "no-change";
+  status: "completed" | "no-change" | "skipped";
   proposalId?: string;
   appliedCount: number;
   rejectedCount: number;
   conflictCount: number;
+  evidenceSegmentCount?: number;
+  modelRequestCount?: number;
   skippedReason?:
     | "history-full"
     | "reviews-full"
@@ -32,6 +35,7 @@ export interface AutomaticMemoryReviewResult {
     | "already-consumed"
     | "learning-busy"
     | "learning-full";
+  policyReason?: "no-user-prose" | "foreground-review" | "direct-memory-write";
 }
 
 export async function runAutomaticMemoryReview(input: {
@@ -39,6 +43,15 @@ export async function runAutomaticMemoryReview(input: {
   context: ToolExecutionContext;
 }): Promise<AutomaticMemoryReviewResult> {
   const context = { ...input.context };
+  context.observeMemoryReviewPhase?.("admission");
+  if (
+    context.reviewMode === "incremental" &&
+    context.sessionStore?.readMemoryReviewEvidence &&
+    !context.reviewSegment
+  )
+    return runAutomaticReviewSegments(context, (segment) =>
+      runAutomaticMemoryReview({ ...input, context: segment }),
+    );
   const port = context.fileSystemPort?.projectMemory;
   const rootDir = context.memoryRoot;
   if (!port || !rootDir) throw new MemoryReviewError("unavailable");
@@ -70,12 +83,20 @@ async function applyAutomaticMemoryReview(input: {
   const { context } = input;
   const port = context.fileSystemPort!.projectMemory!;
   const rootDir = context.memoryRoot!;
+  context.observeMemoryReviewPhase?.("generation");
   const draft = ProjectMemoryReviewDraftSchema.parse(await generateMemoryReviewDraft(input));
   if (draft.items.length === 0) {
-    return { status: "no-change", appliedCount: 0, rejectedCount: 0, conflictCount: 0 };
+    return {
+      status: "no-change",
+      appliedCount: 0,
+      rejectedCount: 0,
+      conflictCount: 0,
+      ...(context.reviewMode === "incremental" ? { modelRequestCount: 1 } : {}),
+    };
   }
 
   // 第二次请求只有冻结候选和实际来源，不继承生成者的对话/推理；模型没有写端口。
+  context.observeMemoryReviewPhase?.("verification");
   const verification = ProjectMemoryVerificationSchema.parse(
     await verifyMemoryReviewDraft({ draft, context }),
   );
@@ -95,6 +116,7 @@ async function applyAutomaticMemoryReview(input: {
   }
   throwIfReviewAborted(context);
   const options = { signal: context.abortSignal, trace: context.traceContext };
+  context.observeMemoryReviewPhase?.("commit");
   // 生成者summary未经过逐项核验，不能作为持久事实或list诊断再次传播。
   const storedDraft = {
     ...draft,
@@ -154,6 +176,7 @@ async function applyAutomaticMemoryReview(input: {
     appliedCount,
     rejectedCount: draft.items.length - accepted.size,
     conflictCount,
+    ...(context.reviewMode === "incremental" ? { modelRequestCount: 2 } : {}),
   };
 }
 

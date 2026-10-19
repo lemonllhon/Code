@@ -28,6 +28,7 @@ test("structured tool evidence never infers success from prose, completed or bac
         part("known", { schemaVersion: 1, execution: { exitCode: 1, cancelled: false } }),
         part("unknown", {}),
         part("background", { schemaVersion: 1, execution: { exitCode: null, cancelled: false } }),
+        ...Array.from({ length: 12 }, (_, index) => part(`unknown-${index}`, {})),
       ],
     },
   ] as MessageWithParts[];

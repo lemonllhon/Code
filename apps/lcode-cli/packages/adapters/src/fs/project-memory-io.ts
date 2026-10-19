@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { link, lstat, open, opendir, rename, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { createFileSystemError, PROJECT_MEMORY_RECORD_LIMIT } from "@lcode/contracts";
+import { createFileSystemError } from "@lcode/contracts";
 import { maybeThrowStorageFsFault } from "../storage/fs-fault-injection.js";
 import { getNodeErrorCode, throwIfAborted } from "./file-system-common.js";
 
@@ -78,13 +78,6 @@ export async function listMemoryFiles(
   const entries = new Map<string, number>();
   const dir = await opendir(directory);
   for await (const entry of dir) {
-    if (entries.size >= PROJECT_MEMORY_RECORD_LIMIT) {
-      throw memoryError(
-        "too_large",
-        directory,
-        "Project Memory storage is full; no records were deleted",
-      );
-    }
     const path = join(directory, entry.name);
     const info = await lstat(path);
     if (info.isSymbolicLink() || !info.isFile()) {
@@ -110,7 +103,7 @@ export interface StrictAtomicWriteOptions {
 
 export async function strictAtomicWrite(
   path: string,
-  content: Buffer,
+  content: Buffer | AsyncIterable<Uint8Array>,
   options: StrictAtomicWriteOptions = {},
 ): Promise<void> {
   const validate = options.validate ?? (async () => {});

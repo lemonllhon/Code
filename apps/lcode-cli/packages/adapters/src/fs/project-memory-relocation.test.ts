@@ -1,5 +1,15 @@
 import assert from "node:assert/strict";
-import { cp, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -47,7 +57,8 @@ test("relocated project retains old recovery state and gets one restart-safe loc
     after: "must not replay at a different root",
   });
   const owner = await readFile(join(f.state, "owner.json"), "utf8");
-  const ledger = await readFile(join(f.state, "learning.json"), "utf8");
+  const ledgerName = (await readdir(join(f.state, "learning")))[0]!;
+  const ledger = await readFile(join(f.state, "learning", ledgerName), "utf8");
   await cp(join(f.base, "source", ".lcode"), join(f.base, "destination", ".lcode"), {
     recursive: true,
   });
@@ -62,7 +73,7 @@ test("relocated project retains old recovery state and gets one restart-safe loc
   const root = await prepareMemoryRoot(f.destination);
   assert.ok(root.stateDir.includes(`${join("memory-state", "relocated")}`));
   assert.equal(await readFile(join(f.copiedState, "owner.json"), "utf8"), owner);
-  assert.equal(await readFile(join(f.copiedState, "learning.json"), "utf8"), ledger);
+  assert.equal(await readFile(join(f.copiedState, "learning", ledgerName), "utf8"), ledger);
   const input = {
     rootDir: f.destination,
     workspaceKey: f.destination,
@@ -87,7 +98,7 @@ test("relocated project retains old recovery state and gets one restart-safe loc
     expectedMissing: true,
   });
   assert.equal(await readFile(join(f.destination, "new.md"), "utf8"), "new learned fact");
-  assert.equal(await readFile(join(f.state, "learning.json"), "utf8"), ledger);
+  assert.equal(await readFile(join(f.state, "learning", ledgerName), "utf8"), ledger);
 });
 
 test("different identity and profile layouts never adopt copied recovery owners", async (t) => {

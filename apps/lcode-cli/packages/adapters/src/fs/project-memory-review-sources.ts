@@ -1,15 +1,15 @@
 import { resolve } from "node:path";
 import {
-  PROJECT_MEMORY_FILE_MAX_BYTES,
   PROJECT_MEMORY_REVIEW_ITEM_LIMIT,
   ProjectMemoryChangeSchema,
   type ProjectMemoryPort,
   type ProjectMemoryReview,
   type ProjectMemoryReviewItem,
 } from "@lcode/contracts";
-import { getNodeErrorCode, hashBuffer, throwIfAborted } from "./file-system-common.js";
-import { memoryError, readMemoryBytes } from "./project-memory-io.js";
+import { getNodeErrorCode, throwIfAborted } from "./file-system-common.js";
+import { memoryError } from "./project-memory-io.js";
 import { checkMemoryTarget, memoryRelativePath, type MemoryRoot } from "./project-memory-paths.js";
+import { describeMemoryFile } from "./project-memory-stream.js";
 
 type ExpectedSources = Parameters<ProjectMemoryPort["applyReview"]>[0]["expectedSourceHashes"];
 const FULL_HASH = /^sha256:[a-f0-9]{64}$/u;
@@ -101,15 +101,15 @@ export async function assertCurrentReviewSources(
   // core 锁外复核后，协作 writer 仍可修正来源；来源与目标必须在同一 root 锁内检查再提交。
   for (const source of expected) {
     throwIfAborted(signal);
-    let current: Buffer | null;
+    let current: Awaited<ReturnType<typeof describeMemoryFile>>;
     try {
       const path = await checkMemoryTarget(root, source.fileName);
-      current = await readMemoryBytes(path, PROJECT_MEMORY_FILE_MAX_BYTES, true);
+      current = await describeMemoryFile(path, signal);
     } catch (error) {
       if (getNodeErrorCode(error) !== "ENOENT") throw error;
       current = null;
     }
-    if (current === null || hashBuffer(current) !== source.hash) {
+    if (current === null || current.hash !== source.hash) {
       throw memoryError(
         "stale_write",
         source.fileName,

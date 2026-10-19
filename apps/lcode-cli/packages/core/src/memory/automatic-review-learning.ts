@@ -2,7 +2,7 @@ import type { MemoryLearningLease } from "@lcode/contracts";
 import type { ToolExecutionContext } from "../tool/types.js";
 import type { AutomaticMemoryReviewResult } from "./automatic-review.js";
 import { collectReviewSessionEvidence } from "./review-session-evidence.js";
-import { reviewHash, throwIfReviewAborted } from "./review-common.js";
+import { MemoryReviewError, reviewHash, throwIfReviewAborted } from "./review-common.js";
 import { readValidatedMemoryReviewSources } from "./review-validation.js";
 
 export type PreparedReviewSessions = Awaited<ReturnType<typeof collectReviewSessionEvidence>>;
@@ -16,7 +16,8 @@ export async function withAutomaticMemoryLearning(
   const learning = context.fileSystemPort?.projectMemory?.learning;
   if (context.reviewMode !== "incremental" || !learning || !context.memoryRoot) return run();
   const sessions = await collectReviewSessionEvidence(context);
-  if (sessions.materials.length === 0) return run(sessions);
+  if (sessions.materials.length === 0)
+    throw new MemoryReviewError("source_unavailable", "admission");
   const rootDir = context.memoryRoot;
   const options = { signal: context.abortSignal, trace: context.traceContext };
   const claimed = await learning.claim(
@@ -45,6 +46,7 @@ export async function withAutomaticMemoryLearning(
     const result = await run(sessions, claimed.lease);
     throwIfReviewAborted(context);
     if (result.conflictCount === 0 && !result.skippedReason) {
+      context.observeMemoryReviewPhase?.("finish");
       // 空提案也必须重读来源，不能把生成期间已被改写的证据误记为已处理。
       await readValidatedMemoryReviewSources({
         sources: sessions.materials.map((entry) => entry.source),

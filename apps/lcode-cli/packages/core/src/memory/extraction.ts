@@ -1,4 +1,8 @@
 import {
+  createMemoryExtractionSchedulerInternal,
+  type MemoryExtractionExecutionStatus,
+} from "./extraction-scheduler.js";
+import {
   MEMORY_HISTORY_TOOL_NAME,
   MEMORY_REVIEW_APPLY_TOOL_NAME,
   MEMORY_REVIEW_TOOL_NAME,
@@ -10,10 +14,7 @@ import { resolveContainedMemoryFilePath } from "./memory-file-path.js";
 import { formatMemoryManifest } from "./recall/manifest.js";
 import type { MemoryManifestEntry } from "./recall/types.js";
 
-const MINIMUM_USER_WORDS = 3;
-const PENDING_EXTRACTION_LIMIT = 8;
-
-type MemoryExtractionExecutionStatus = "success" | "no-op" | "deferred" | "error" | "aborted";
+const MINIMUM_USER_WORDS = 1;
 
 export interface MemoryExtractionSnapshot {
   boundaryMessageId: MessageId;
@@ -21,6 +22,8 @@ export interface MemoryExtractionSnapshot {
   memoryRoot: string;
   workingDirectory: string;
   workspaceRoot: string;
+  /** 专用投影由 execute 验证，描述符准入阶段不读取正文。 */
+  evidenceOnly?: boolean;
 }
 
 type MemoryExtractionDecision =
@@ -43,7 +46,7 @@ export interface MemoryExtractionScheduler<
   drain(): Promise<void>;
   getCursor(): MessageId | undefined;
   hasPendingWork(): boolean;
-  schedule(snapshot: TSnapshot | Promise<TSnapshot>): void;
+  schedule(snapshot: TSnapshot | Promise<TSnapshot> | (() => Promise<TSnapshot>)): void;
   shutdown(): void;
 }
 
@@ -149,138 +152,16 @@ export function createMemoryExtractionScheduler<
   execute: (
     input: Omit<MemoryExtractionExecutionInput, "snapshot"> & { snapshot: TSnapshot },
   ) => Promise<MemoryExtractionExecutionStatus>,
-  options?: { onOverflow?: () => void },
+  options?: { onOverflow?: (boundary?: MessageId) => void },
 ): MemoryExtractionScheduler<TSnapshot> {
-  let cursor: MessageId | undefined;
-  const pending: Promise<SnapshotAcquisition<TSnapshot>>[] = [];
-  let running: Promise<void> | undefined;
-  let shuttingDown = false;
-  const shutdownController = new AbortController();
-
-  const processSnapshot = async (snapshot: TSnapshot): Promise<void> => {
-    const durableMessages = messagesAfterLastMemoryReviewTurn(snapshot.durableMessages);
-    const safeSnapshot =
-      durableMessages === snapshot.durableMessages ? snapshot : { ...snapshot, durableMessages };
-    const decision = evaluateMemoryExtraction(safeSnapshot, cursor);
-    const snapshotEnd = snapshot.boundaryMessageId;
-
-    if (decision.decision === "skip") {
-      if (snapshotEnd) cursor = snapshotEnd;
-      return;
-    }
-
-    let status: MemoryExtractionExecutionStatus;
-    try {
-      status = await execute({
-        abortSignal: shutdownController.signal,
-        messageCount: decision.messageCount,
-        snapshot: safeSnapshot,
-      });
-    } catch {
-      return;
-    }
-
-    if (!shuttingDown && (status === "success" || status === "no-op") && snapshotEnd) {
-      cursor = snapshotEnd;
-    }
-  };
-
-  const run = async (first: Promise<SnapshotAcquisition<TSnapshot>>): Promise<void> => {
-    try {
-      let current: Promise<SnapshotAcquisition<TSnapshot>> | undefined = first;
-      while (current && !shuttingDown) {
-        const acquisition = await waitForSnapshotAcquisitionOrShutdown(
-          current,
-          shutdownController.signal,
-        );
-        if (acquisition.status === "shutdown" || shuttingDown) break;
-        if (acquisition.status === "acquired") {
-          try {
-            await processSnapshot(acquisition.snapshot);
-          } catch {
-            // 本次 error 不推进 cursor；已完成的中间轮次仍按顺序处理，不能被新快照覆盖。
-          }
-        }
-        current = shuttingDown ? undefined : pending.shift();
-      }
-    } finally {
-      if (shuttingDown) pending.length = 0;
-      running = undefined;
-    }
-  };
-
-  return {
-    async drain() {
-      while (running) {
-        await running;
-      }
+  return createMemoryExtractionSchedulerInternal(execute, options, {
+    normalize(snapshot) {
+      const durableMessages = messagesAfterLastMemoryReviewTurn(snapshot.durableMessages);
+      return durableMessages === snapshot.durableMessages
+        ? snapshot
+        : { ...snapshot, durableMessages };
     },
-    getCursor() {
-      return cursor;
-    },
-    hasPendingWork() {
-      return running !== undefined || pending.length > 0;
-    },
-    schedule(snapshot) {
-      if (shuttingDown) return;
-      const acquisition = acquireSnapshot(snapshot);
-      if (running) {
-        if (pending.length >= PENDING_EXTRACTION_LIMIT) {
-          pending.pop();
-          options?.onOverflow?.();
-        }
-        pending.push(acquisition);
-        return;
-      }
-
-      running = run(acquisition);
-    },
-    shutdown() {
-      if (shuttingDown) return;
-      // LCode 关闭单个 session 后进程仍继续运行；旧 scheduler 只让调用方
-      // 放弃等待，running/pending Extraction 仍可能继续请求模型和写 Memory。
-      shuttingDown = true;
-      pending.length = 0;
-      shutdownController.abort();
-    },
-  };
-}
-
-type SnapshotAcquisition<TSnapshot> =
-  | { status: "acquired"; snapshot: TSnapshot }
-  | { status: "error" };
-
-type SnapshotAcquisitionWait<TSnapshot> = SnapshotAcquisition<TSnapshot> | { status: "shutdown" };
-
-function acquireSnapshot<TSnapshot>(
-  snapshot: TSnapshot | Promise<TSnapshot>,
-): Promise<SnapshotAcquisition<TSnapshot>> {
-  return Promise.resolve(snapshot).then(
-    (value) => ({ status: "acquired", snapshot: value }),
-    () => ({ status: "error" }),
-  );
-}
-
-function waitForSnapshotAcquisitionOrShutdown<TSnapshot>(
-  acquisition: Promise<SnapshotAcquisition<TSnapshot>>,
-  signal: AbortSignal,
-): Promise<SnapshotAcquisitionWait<TSnapshot>> {
-  if (signal.aborted) return Promise.resolve({ status: "shutdown" });
-
-  return new Promise((resolve) => {
-    const onAbort = (): void => {
-      cleanup();
-      resolve({ status: "shutdown" });
-    };
-    const cleanup = (): void => {
-      signal.removeEventListener("abort", onAbort);
-    };
-
-    signal.addEventListener("abort", onAbort, { once: true });
-    void acquisition.then((result) => {
-      cleanup();
-      resolve(result);
-    });
+    decide: evaluateMemoryExtraction,
   });
 }
 

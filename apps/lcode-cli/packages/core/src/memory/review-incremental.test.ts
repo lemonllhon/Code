@@ -95,11 +95,7 @@ test("incremental scope requires a real stored current-session boundary", async 
     if (failure === "missing") h.context.reviewBoundary = undefined;
     if (failure === "wrong-session") h.context.reviewBoundary!.sessionId = "sess_foreign";
     if (failure === "unknown-message") h.context.reviewBoundary!.messageId = "msg_not_persisted";
-    if (failure === "unknown-message") {
-      const draft = await generateMemoryReviewDraft({ query: "Facts", context: h.context });
-      assert.deepEqual(draft.items, []);
-      assert.deepEqual(draft.sources, []);
-    } else await assert.rejects(generateMemoryReviewDraft({ query: "Facts", context: h.context }));
+    await assert.rejects(generateMemoryReviewDraft({ query: "Facts", context: h.context }));
     assert.equal(h.requests.length, 0);
   }
 });

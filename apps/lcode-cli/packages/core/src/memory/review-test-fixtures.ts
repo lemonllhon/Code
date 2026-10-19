@@ -81,7 +81,7 @@ interface FakeMemoryFile {
   kind?: "file" | "symlink";
 }
 
-export function reviewHarness() {
+export function reviewHarness(fixtureOptions?: { allowDerivedSignals?: boolean }) {
   const controller = new AbortController();
   const sessions = new Map<SessionId, SessionInfo>([
     [REVIEW_CURRENT_SESSION, reviewSession(REVIEW_CURRENT_SESSION)],
@@ -107,7 +107,10 @@ export function reviewHarness() {
   };
   const fileSystem = {
     async listDirectory(request, options) {
-      assert.equal(options?.signal, controller.signal);
+      assert.ok(
+        options?.signal === controller.signal ||
+          (fixtureOptions?.allowDerivedSignals && options?.signal),
+      );
       const directory = resolve(request.path);
       const entries = new Map<string, FileSystemListDirectoryEntry>();
       for (const [filePath, file] of files) {
@@ -134,7 +137,10 @@ export function reviewHarness() {
       };
     },
     async readTextFile(request, options) {
-      assert.equal(options?.signal, controller.signal);
+      assert.ok(
+        options?.signal === controller.signal ||
+          (fixtureOptions?.allowDerivedSignals && options?.signal),
+      );
       assert.ok(request.maxBytes !== undefined && request.maxBytes <= 256 * 1024);
       reads.push(request.path);
       const file = files.get(request.path);
@@ -160,7 +166,10 @@ export function reviewHarness() {
       };
     },
     async stat(request, options) {
-      assert.equal(options?.signal, controller.signal);
+      assert.ok(
+        options?.signal === controller.signal ||
+          (fixtureOptions?.allowDerivedSignals && options?.signal),
+      );
       stats.push(request.path);
       const file = files.get(request.path);
       if (file)

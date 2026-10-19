@@ -14,7 +14,7 @@ import {
   seedPrepared,
 } from "./project-memory.test-support.js";
 
-test("preimage total byte budget rejects writes before creating a journal or deleting history", async (t) => {
+test("preimages continue beyond the old byte budget without deleting history", async (t) => {
   const { rootDir, stateDir, adapter, memory } = await memoryFixture(t);
   const bytes = Buffer.alloc(PROJECT_MEMORY_FILE_MAX_BYTES, 120);
   const count = PROJECT_MEMORY_PREIMAGES_MAX_BYTES / bytes.length;
@@ -28,18 +28,15 @@ test("preimage total byte budget rejects writes before creating a journal or del
   const path = join(rootDir, "fact.md");
   await writeFile(path, "original");
   const current = await adapter.readTextFile({ path });
-  await assert.rejects(
-    adapter.writeTextFile({ path, content: "replacement", expectedRevision: current.revision }),
-    hasCode("too_large"),
-  );
-  assert.equal(await readFile(path, "utf8"), "original");
-  assert.deepEqual(await memory.listChanges(rootDir), []);
-  assert.equal((await readdir(join(stateDir, "preimages"))).length, count);
+  await adapter.writeTextFile({ path, content: "replacement", expectedRevision: current.revision });
+  assert.equal(await readFile(path, "utf8"), "replacement");
+  assert.equal((await memory.listChanges(rootDir)).length, 1);
+  assert.equal((await readdir(join(stateDir, "preimages"))).length, count + 1);
   await writeFile(join(stateDir, "preimages", "orphan-over.bin"), "one extra byte");
-  await assert.rejects(memory.listChanges(rootDir), hasCode("too_large"));
+  assert.equal((await memory.listChanges(rootDir)).length, 1);
 });
 
-test("the 100-entry journal limit blocks before touching target content", async (t) => {
+test("journals continue past 100 entries without discarding earlier changes", async (t) => {
   const { rootDir, stateDir, adapter, memory } = await memoryFixture(t);
   for (let index = 0; index < PROJECT_MEMORY_RECORD_LIMIT; index += 1) {
     const change = await seedPrepared({
@@ -56,12 +53,9 @@ test("the 100-entry journal limit blocks before touching target content", async 
     );
   }
   const path = join(rootDir, "blocked.md");
-  await assert.rejects(
-    adapter.writeTextFile({ path, content: "new", expectedMissing: true }),
-    hasCode("too_large"),
-  );
-  await assert.rejects(readFile(path), { code: "ENOENT" });
-  assert.equal((await memory.listChanges(rootDir)).length, PROJECT_MEMORY_RECORD_LIMIT);
+  await adapter.writeTextFile({ path, content: "new", expectedMissing: true });
+  assert.equal(await readFile(path, "utf8"), "new");
+  assert.equal((await memory.listChanges(rootDir)).length, PROJECT_MEMORY_RECORD_LIMIT + 1);
 });
 
 test("sidecar files and subdirectories never follow injected symlinks or foreign schemas", async (t) => {

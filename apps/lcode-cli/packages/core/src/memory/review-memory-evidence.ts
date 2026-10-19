@@ -3,11 +3,11 @@ import {
   isFileSystemPortError,
   PROJECT_MEMORY_FILE_MAX_BYTES,
   type FileSystemListDirectoryEntry,
+  type FileSystemListDirectoryRequest,
   type FileSystemPort,
 } from "@lcode/contracts";
 import type { ToolExecutionContext } from "../tool/types.js";
 import { scanMemoryCandidatePaths } from "./recall/manifest.js";
-import { MEMORY_RECALL_DIRECTORY_ENTRY_LIMIT } from "./recall/constants.js";
 import { tokenizeMemoryRecallText } from "./recall/tokenizer.js";
 import { memoryReviewProfile } from "./review-profile.js";
 import {
@@ -42,10 +42,11 @@ export async function collectReviewMemoryEvidence(
   const rootDir = resolve(context.memoryRoot!);
   // 复用同一个有界枚举器，但不借 manifest 预览偷偷读取全部候选正文。
   const scanPort = {
+    projectMemory: context.fileSystemPort!.projectMemory,
     listDirectory: async (request: Parameters<FileSystemPort["listDirectory"]>[0]) => {
       let result;
       try {
-        result = await listReviewDirectory(context, request.path, request.limit!);
+        result = await listReviewDirectory(context, request.path, request.limit!, request.page);
       } catch (error) {
         // recall 扫描器允许跳过失败目录；复盘必须保留并重新抛出安全边界失败。
         scanFailure = error;
@@ -104,7 +105,12 @@ export async function collectReviewMemoryEvidence(
   const materials: FrozenReviewSource[] = [];
   let characters = 0;
   for (const fileName of fileNames.slice(0, profile.memoryLimit)) {
-    const material = await readReviewMemoryEvidence(fileName, context);
+    const material = await readReviewMemoryEvidence(
+      fileName,
+      context,
+      undefined,
+      context.selectMemoryCandidateOffsets?.(query)[fileName],
+    );
     if (!material || characters + material.content.length > profile.memoryCharacterLimit) {
       partial = true;
       continue;
@@ -130,9 +136,75 @@ export async function collectReviewMemoryEvidence(
 export async function readReviewMemoryEvidence(
   fileName: string,
   context: ToolExecutionContext,
+  range?: { offset: number; length: number },
+  candidateOffset?: number,
 ): Promise<FrozenReviewSource | undefined> {
   const path = assertSafeReviewFileName(fileName, context.memoryRoot!);
   if (!(await verifyReviewPath(fileName, context))) return undefined;
+  const paged = context.fileSystemPort?.projectMemory?.readContentPage;
+  if (paged) {
+    const maxBytes =
+      range?.length ??
+      Math.max(
+        4,
+        Math.min(
+          memoryReviewProfile(context).memoryCharacterLimit,
+          memoryReviewProfile(context).generationOutputTokenLimit * 2,
+        ),
+      );
+    const read = await reviewIO(context, async () => {
+      try {
+        let page = await paged.call(
+          context.fileSystemPort!.projectMemory,
+          {
+            rootDir: context.memoryRoot!,
+            fileName,
+            offset: range?.offset ?? candidateOffset ?? 0,
+            maxBytes,
+          },
+          { signal: context.abortSignal, trace: context.traceContext },
+        );
+        // 短文件应完整冻结；召回命中正文的偏移不能把 frontmatter 错当成未读前缀而重复插入。
+        if (!range && page.offset && page.sizeBytes <= maxBytes)
+          page = await paged.call(
+            context.fileSystemPort!.projectMemory,
+            {
+              rootDir: context.memoryRoot!,
+              fileName,
+              offset: 0,
+              maxBytes,
+              expectedHash: page.hash,
+            },
+            { signal: context.abortSignal, trace: context.traceContext },
+          );
+        return page;
+      } catch (error) {
+        if (!range && isFileSystemPortError(error) && error.code === "unsupported")
+          return undefined;
+        throw error;
+      }
+    });
+    if (read) {
+      if (range && read.bytesRead !== range.length) throw new MemoryReviewError("stale_source");
+      const memoryRange =
+        read.offset || read.nextOffset !== undefined
+          ? { offset: read.offset, length: read.bytesRead }
+          : undefined;
+      return {
+        source: createReviewSource({
+          context,
+          kind: "memory",
+          reference: fileName,
+          characterLimit: 0,
+          memoryRange,
+          material: { content: read.content, expectedHash: read.hash },
+        }),
+        content: read.content,
+        expectedHash: read.hash,
+        partial: Boolean(memoryRange),
+      };
+    }
+  }
   const read = await reviewIO(context, async () => {
     try {
       return await context.fileSystemPort!.readTextFile(
@@ -225,17 +297,23 @@ async function verifyReviewPath(fileName: string, context: ToolExecutionContext)
   const segments = fileName.split("/");
   let directory = resolve(context.memoryRoot!);
   for (let index = 0; index < segments.length; index++) {
-    const result = await listReviewDirectory(
-      context,
-      directory,
-      MEMORY_RECALL_DIRECTORY_ENTRY_LIMIT,
-    );
     const segment = segments[index]!;
-    const entry = result.entries.find(
-      (candidate) => candidate.name.toLowerCase() === segment.toLowerCase(),
-    );
+    let entry: FileSystemListDirectoryEntry | undefined;
+    let page: FileSystemListDirectoryRequest["page"] = context.fileSystemPort?.projectMemory
+      ?.readContentPage
+      ? {}
+      : undefined;
+    let truncated = false;
+    do {
+      const result = await listReviewDirectory(context, directory, 256, page);
+      entry = result.entries.find(
+        (candidate) => candidate.name.toLowerCase() === segment.toLowerCase(),
+      );
+      truncated = result.truncated;
+      page = result.nextPage;
+    } while (!entry && page);
     if (!entry) {
-      if (result.truncated) throw new MemoryReviewError("invalid_target");
+      if (truncated) throw new MemoryReviewError("invalid_target");
       return false;
     }
     if (
@@ -253,6 +331,7 @@ async function listReviewDirectory(
   context: ToolExecutionContext,
   directory: string,
   limit: number,
+  page?: FileSystemListDirectoryRequest["page"],
 ) {
   const root = resolve(context.memoryRoot!);
   const dir = resolve(directory);
@@ -266,6 +345,7 @@ async function listReviewDirectory(
         {
           path: dir,
           limit,
+          page,
           trace: reviewTrace(context),
         },
         { signal: context.abortSignal },

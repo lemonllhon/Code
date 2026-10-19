@@ -12,6 +12,9 @@ import {
   REVIEW_OUTPUT_TOKEN_LIMIT,
 } from "./review-common.js";
 
+export const REVIEW_ADJACENT_CHARACTER_LIMIT = 512;
+const ADJACENT_ENVELOPE_CHARACTERS = 128;
+
 export interface MemoryReviewProfile {
   sessionLimit: number;
   sessionCharacterLimit: number;
@@ -57,5 +60,37 @@ const INCREMENTAL_REVIEW_PROFILE: Readonly<MemoryReviewProfile> = Object.freeze(
 
 /** 档位只来自可信runtime上下文，不读取query、候选或模型响应中的预算覆盖。 */
 export function memoryReviewProfile(context: ToolExecutionContext): Readonly<MemoryReviewProfile> {
+  if (
+    context.reviewMode === "incremental" &&
+    context.sessionStore?.readMemoryReviewEvidence &&
+    context.model
+  ) {
+    const window = Math.floor(context.model.properties.contextWindow);
+    const output = Math.max(
+      1,
+      Math.min(
+        REVIEW_OUTPUT_TOKEN_LIMIT,
+        Math.floor(context.model.optionSpecs.maxOutputTokens.max),
+        Math.floor(window / 8),
+      ),
+    );
+    // JSON 转义、独立核验候选和系统提示均需预留；这里只约束单批，后续页继续读取。
+    const requestTokens = Math.max(1, window - output - 1_024);
+    const characters = Math.min(
+      65_536,
+      Math.max(1_024, Math.floor((window - output * 2 - 4_000) / 16)),
+    );
+    return {
+      ...INCREMENTAL_REVIEW_PROFILE,
+      sessionCharacterLimit: characters,
+      sessionTotalCharacterLimit:
+        characters + REVIEW_ADJACENT_CHARACTER_LIMIT + ADJACENT_ENVELOPE_CHARACTERS,
+      memoryCharacterLimit: Math.floor(characters / 2),
+      requestCharacterLimit: requestTokens * 4,
+      requestTokenLimit: requestTokens,
+      generationOutputTokenLimit: output,
+      verificationOutputTokenLimit: output,
+    };
+  }
   return context.reviewMode === "incremental" ? INCREMENTAL_REVIEW_PROFILE : FULL_REVIEW_PROFILE;
 }

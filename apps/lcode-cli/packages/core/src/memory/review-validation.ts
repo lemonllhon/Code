@@ -10,6 +10,7 @@ import {
 } from "./review-common.js";
 import { readReviewMemoryEvidence } from "./review-memory-evidence.js";
 import { memoryReviewProfile } from "./review-profile.js";
+import { readPagedReviewEvidence } from "./review-paged-evidence.js";
 import {
   readReviewSessionEvidence,
   validateReviewSessionScope,
@@ -51,7 +52,7 @@ export async function readValidatedMemoryReviewSources(input: {
         characterLimit > profile.sessionCharacterLimit ||
         (context.reviewMode === "incremental" &&
           (source.reference !== context.sessionId ||
-            source.projection !== "latest-turn" ||
+            (source.projection !== "latest-turn" && source.projection !== "completed-turn-v2") ||
             !source.boundaryMessageId))
       ) {
         throw new MemoryReviewError("stale_source");
@@ -72,14 +73,16 @@ export async function readValidatedMemoryReviewSources(input: {
   for (const { source, characterLimit } of sources) {
     const material =
       source.kind === "session"
-        ? await readReviewSessionEvidence(
-            source.reference,
-            characterLimit,
-            context,
-            source.boundaryMessageId,
-            source.projection,
-          )
-        : await readReviewMemoryEvidence(source.reference, context);
+        ? source.segment
+          ? await readPagedReviewEvidence(context, source.segment, source.boundaryMessageId!)
+          : await readReviewSessionEvidence(
+              source.reference,
+              characterLimit,
+              context,
+              source.boundaryMessageId,
+              source.projection === "latest-turn" ? "latest-turn" : undefined,
+            )
+        : await readReviewMemoryEvidence(source.reference, context, source.memoryRange);
     if (
       !material ||
       material.source.id !== source.id ||

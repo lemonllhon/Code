@@ -206,4 +206,8 @@ export interface AgentRuntimeExecutionApi {
   isProjectMemoryEnabled(): boolean;
   /** 缺省等待最多 60 秒；null 等待全部已调度提取结束，不设置 drain deadline。 */
   drainMemoryExtractions(timeoutMs?: number | null): Promise<void>;
+  /** 显式恢复指定成功轮的未消费分段；cold resume 不会自行调用。 */
+  retryMemoryExtraction(
+    input: import("@lcode/contracts").MemoryExtractionRetryInput,
+  ): Promise<void>;
 }

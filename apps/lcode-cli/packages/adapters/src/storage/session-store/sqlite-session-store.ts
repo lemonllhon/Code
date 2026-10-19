@@ -1,4 +1,5 @@
-import * as permissionFullAccessRepository from "./repositories/permission-full-access.js";
+import { sessionInputMethods } from "./store-inputs.js";
+
 import {
   beginGoalEvidenceExecution,
   saveSessionEntryWithGoalEvidence,
@@ -15,7 +16,6 @@ import type {
   LocalSettingStorePort,
   MessageId,
   MessageInfo,
-  MessagePart,
   MessageWithParts,
   PartId,
   SessionEntryInfo,
@@ -23,9 +23,6 @@ import type {
   ScriptWorkflowStorePort,
   SessionId,
   SessionInfo,
-  SessionInputDelivery,
-  SessionInputRecord,
-  SessionInputStatus,
   SessionRevert,
   ReadSessionTranscriptSnapshotInput,
   SessionTranscriptSnapshot,
@@ -51,7 +48,7 @@ import { maybeThrowStorageFsFault } from "../fs-fault-injection.js";
 import * as debugRepository from "./repositories/debug.js";
 import * as messageRepository from "./repositories/messages.js";
 import * as sessionEntryRepository from "./repositories/session-entries.js";
-import * as sessionInputRepository from "./repositories/session-inputs.js";
+
 import * as sessionRepository from "./repositories/sessions.js";
 import * as transcriptSnapshotRepository from "./repositories/transcript-snapshot.js";
 import { historyDiscoveryMethods } from "./store-history-discovery.js";
@@ -308,6 +305,9 @@ export class SqliteSessionStore
   declare readTranscriptWindow: StoreMethods<
     typeof historyDiscoveryMethods
   >["readTranscriptWindow"];
+  declare readMemoryReviewEvidence: StoreMethods<
+    typeof historyDiscoveryMethods
+  >["readMemoryReviewEvidence"];
 
   async saveSessionEntry(input: SessionEntryInfo): Promise<void> {
     this.throwBeforeWrite();
@@ -331,70 +331,18 @@ export class SqliteSessionStore
 
   // ── session_input 账本──
 
-  async saveSessionInput(input: {
-    id: string;
-    sessionID: SessionId;
-    kind: string;
-    delivery: SessionInputDelivery;
-    payload: { text: string; [key: string]: unknown };
-  }): Promise<void> {
-    this.throwBeforeWrite();
-    return sessionInputRepository.saveSessionInput(this.db, input);
-  }
-
-  async commitPermissionFullAccess(
-    input: Parameters<NonNullable<SessionStorePort["commitPermissionFullAccess"]>>[0],
-  ): Promise<void> {
-    this.throwBeforeWrite();
-    return permissionFullAccessRepository.commitPermissionFullAccess(this.db, input);
-  }
-
-  async updateSessionInputs(
-    input: Parameters<NonNullable<SessionStorePort["updateSessionInputs"]>>[0],
-  ): Promise<void> {
-    this.throwBeforeWrite();
-    return sessionInputRepository.updateSessionInputs(this.db, input);
-  }
-
-  async promoteSessionInput(input: {
-    id: string;
-    sessionID: SessionId;
-    message: MessageInfo;
-    parts: MessagePart[];
-  }): Promise<void> {
-    this.throwBeforeWrite();
-    return sessionInputRepository.promoteSessionInput(this.db, input);
-  }
-
-  async markSessionInputPromoted(input: {
-    id: string;
-    sessionID: SessionId;
-    promotedMessageID: MessageId;
-  }): Promise<void> {
-    this.throwBeforeWrite();
-    return sessionInputRepository.markSessionInputPromoted(this.db, input);
-  }
-
-  async settleSessionInput(input: {
-    id: string;
-    sessionID: SessionId;
-    status: "cancelled" | "discarded" | "failed";
-    reason?: string;
-  }): Promise<void> {
-    this.throwBeforeWrite();
-    return sessionInputRepository.settleSessionInput(this.db, input);
-  }
-
-  async listSessionInputs(input: {
-    sessionID: SessionId;
-    status?: SessionInputStatus;
-  }): Promise<SessionInputRecord[]> {
-    return sessionInputRepository.listSessionInputs(this.db, input);
-  }
-
-  async getSessionInputById(id: string): Promise<SessionInputRecord | null> {
-    return sessionInputRepository.getSessionInputById(this.db, id);
-  }
+  declare saveSessionInput: StoreMethods<typeof sessionInputMethods>["saveSessionInput"];
+  declare commitPermissionFullAccess: StoreMethods<
+    typeof sessionInputMethods
+  >["commitPermissionFullAccess"];
+  declare updateSessionInputs: StoreMethods<typeof sessionInputMethods>["updateSessionInputs"];
+  declare promoteSessionInput: StoreMethods<typeof sessionInputMethods>["promoteSessionInput"];
+  declare markSessionInputPromoted: StoreMethods<
+    typeof sessionInputMethods
+  >["markSessionInputPromoted"];
+  declare settleSessionInput: StoreMethods<typeof sessionInputMethods>["settleSessionInput"];
+  declare listSessionInputs: StoreMethods<typeof sessionInputMethods>["listSessionInputs"];
+  declare getSessionInputById: StoreMethods<typeof sessionInputMethods>["getSessionInputById"];
 
   async setRevert(input: {
     sessionID: SessionId;
@@ -428,6 +376,7 @@ for (const methods of [
   worktreeRebindMethods,
   workflowJournalMethods,
   historyDiscoveryMethods,
+  sessionInputMethods,
   messagePartMethods,
 ]) {
   for (const [name, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(methods))) {

@@ -43,6 +43,11 @@ export function applyMemoryRankingSignals(
 export function rankMemoryDocuments(input: {
   documents: readonly IndexedMemoryDocument[];
   queryTokens: readonly string[];
+  corpus?: {
+    documentCount: number;
+    averageDocumentLength: number;
+    documentFrequencies: ReadonlyMap<string, number>;
+  };
 }): RankedMemoryDocument[] {
   if (input.documents.length === 0 || input.queryTokens.length === 0) return [];
 
@@ -68,10 +73,10 @@ export function rankMemoryDocuments(input: {
       metadataMatches: queryTokens.filter((token) => document.metadataTokens.has(token)),
       score:
         calculateBm25Score({
-          averageDocumentLength,
+          averageDocumentLength: input.corpus?.averageDocumentLength ?? averageDocumentLength,
           document,
-          documentCount: input.documents.length,
-          documentFrequencies,
+          documentCount: input.corpus?.documentCount ?? input.documents.length,
+          documentFrequencies: input.corpus?.documentFrequencies ?? documentFrequencies,
           queryTokens,
         }) + calculateMetadataBoost(document, queryTokens),
     }))

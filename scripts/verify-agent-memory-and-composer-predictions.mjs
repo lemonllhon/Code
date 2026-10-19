@@ -30,17 +30,27 @@ const cli = [
     (
       await Promise.all([
         testsIn("apps/lcode-cli/packages/core/src/memory", /\.test\.ts$/u),
+        testsIn(
+          "apps/lcode-cli/packages/core/src/runtime/helpers",
+          /^project-memory.*\.test\.ts$/u,
+        ),
         testsIn("apps/lcode-cli/packages/adapters/src/fs", /memory.*\.test\.ts$/u),
         testsIn("apps/lcode-cli/packages/core/src/session-context", /history.*\.test\.ts$/u),
         testsIn(
           "apps/lcode-cli/packages/adapters/src/storage/session-store",
-          /^(?:transcript-.*|history-discovery)\.test\.ts$/u,
+          /^(?:transcript-.*|history-discovery|memory-evidence.*)\.test\.ts$/u,
         ),
         testsIn("apps/lcode-cli/packages/bootstrap/src/app", /memory.*\.test\.ts$/u),
+        testsIn("apps/lcode-cli/packages/core/src/tool/handlers", /memory.*\.test\.ts$/u),
       ])
     )
       .flat()
       .concat([
+        "apps/lcode-cli/packages/core/src/runtime/methods/turn-complete-memory.test.ts",
+        "apps/lcode-cli/packages/core/src/runtime/methods/turn-memory-recall.test.ts",
+        "apps/lcode-cli/packages/core/src/runtime/methods/context-project-memory.test.ts",
+        "apps/lcode-cli/packages/core/src/runtime/methods/memory-effect-observation.test.ts",
+        "apps/lcode-cli/packages/core/src/tool/executor/memory-maintenance.test.ts",
         "apps/lcode-cli/packages/core/src/runtime/methods/composer-prediction.test.ts",
         "apps/lcode-cli/packages/core/src/runtime/methods/workspace-task-name.test.ts",
         "apps/lcode-cli/packages/core/src/runtime/methods/goal-evidence-events.test.ts",

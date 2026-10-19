@@ -11,6 +11,7 @@ export interface MemoryManifestEntry {
 }
 
 export interface IndexedMemoryDocument extends MemoryManifestEntry {
+  byteOffset?: number;
   content: string;
   indexedBytes: number;
   metadataTokens: ReadonlySet<string>;

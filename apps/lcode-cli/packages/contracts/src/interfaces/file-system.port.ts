@@ -201,6 +201,8 @@ export interface FileSystemRemoveFileResult {
 }
 
 export interface FileSystemListDirectoryRequest {
+  /** 选择可续读模式；游标与目录 revision 不匹配时失败，不能拼接不同代目录。 */
+  page?: { afterName?: string; revision?: string };
   /** Normalized absolute directory path. Relative paths are resolved by the caller. */
   path: string;
   /** Optional positive safe integer cap enforced by the adapter before mapping the full directory. */
@@ -215,6 +217,7 @@ export interface FileSystemListDirectoryEntry {
 }
 
 export interface FileSystemListDirectoryResult {
+  nextPage?: { afterName: string; revision: string };
   durationMs: number;
   entries: FileSystemListDirectoryEntry[];
   numEntries: number;

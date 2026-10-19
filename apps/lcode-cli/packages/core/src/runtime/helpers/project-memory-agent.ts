@@ -16,6 +16,7 @@ import { createRefreshRuntimeHeadersBeforeModelAttempt } from "../methods/model-
 import { createRuntimeModel, withModelInvocationContext } from "../methods/runtime-model.js";
 
 export interface ProjectMemoryAgentContext {
+  selectMemoryCandidateOffsets?: (query: string) => Readonly<Record<string, number>>;
   selectMemoryCandidates?: (query: string) => readonly string[];
   causation?: AgentTelemetryCausation;
   memoryRoot: string;
@@ -41,6 +42,28 @@ export function captureProjectMemoryAgentContext(
     traceContext: TraceContext;
   },
 ): ProjectMemoryAgentContext {
+  const context = captureProjectMemoryReviewContext(runtime, input);
+  return {
+    ...context,
+    providerEntries: [...runtime.messageHistory.borrowReadOnlyRuntimeEntries()],
+    midConversationSystem: runtime.config.midConversationSystem,
+    readFileState: new Map(runtime.readFileState),
+    tools: runtime.getTools(context.model).map((tool) => ({ ...tool })),
+  };
+}
+
+export function captureProjectMemoryReviewContext(
+  runtime: AgentRuntimeInternal,
+  input: {
+    memoryRoot: string;
+    model?: Model;
+    operation: ModelApiOperation;
+    traceContext: TraceContext;
+  },
+): Omit<
+  ProjectMemoryAgentContext,
+  "providerEntries" | "midConversationSystem" | "readFileState" | "tools"
+> {
   const baseModel =
     input.model ??
     createRuntimeModel(runtime, {
@@ -65,20 +88,16 @@ export function captureProjectMemoryAgentContext(
   }));
   return {
     causation: runtime.agentTelemetry.captureCausation(),
+    selectMemoryCandidateOffsets: runtime.projectMemoryRecallIndex?.createCandidateOffsetSelector(
+      input.memoryRoot,
+    ),
     selectMemoryCandidates: runtime.projectMemoryRecallIndex?.createCandidateSelector(
       input.memoryRoot,
     ),
     memoryRoot: input.memoryRoot,
     memoryWorkspaceIdentity: runtime.config.memory?.workspaceIdentity,
-    // Extraction 会跨异步边界消费这份成员浅快照；它依赖 RuntimeMessageEntry
-    // 进入 MessageHistory 后保持不可变。后续只能 append、整体 replace 或 copy-on-write，
-    // 禁止原地修改共享的 entry/message/content，否则会污染已调度的 Memory 上下文。
-    providerEntries: [...runtime.messageHistory.borrowReadOnlyRuntimeEntries()],
-    midConversationSystem: runtime.config.midConversationSystem,
     model,
     operation: input.operation,
-    readFileState: new Map(runtime.readFileState),
-    tools: runtime.getTools(model).map((tool) => ({ ...tool })),
     traceContext: input.traceContext,
     workingDirectory: runtime.workingDirectory,
     workspaceRoot: runtime.workspaceRoot,

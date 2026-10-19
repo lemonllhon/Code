@@ -14,6 +14,7 @@ import {
   rethrowMemoryRecallAbort,
 } from "./concurrency.js";
 import { parseMemoryDocument } from "./document.js";
+import { scanPagedMemoryPaths } from "./paged-manifest.js";
 import type {
   MemoryCandidateScanResult,
   MemoryCandidateScanStats,
@@ -81,6 +82,7 @@ export async function collectMemoryCandidatePaths(input: MemoryScanInput): Promi
 export async function scanMemoryCandidatePaths(
   input: MemoryScanInput,
 ): Promise<MemoryCandidateScanResult> {
+  if (input.fileSystem.projectMemory?.readContentPage) return scanPagedMemoryPaths(input);
   input.signal?.throwIfAborted();
   const paths: string[] = [];
   const directories = [input.rootDir];

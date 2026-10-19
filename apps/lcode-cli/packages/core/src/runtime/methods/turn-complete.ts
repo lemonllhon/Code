@@ -21,6 +21,7 @@ import {
 import { recordTurnUsageFact } from "./usage-observability.js";
 import { persistStableForkCompletionBoundary } from "./stable-fork-boundary.js";
 import { scheduleProjectMemoryExtraction } from "../helpers/project-memory-extraction.js";
+import { logMemoryExtractionSkipped } from "../helpers/project-memory-extraction-outcome.js";
 import { appendBrowserTurnScreenshot } from "./browser-turn-screenshot.js";
 import { cleanupTurnBackgroundBash } from "./background.js";
 import { recordMemoryEffectTurn } from "./memory-effect-observation.js";
@@ -145,7 +146,20 @@ export async function completeRegularTurn(
     scheduleProjectMemoryExtraction(this, {
       model: loopState.model,
       traceContext: turnTraceContext,
+      startMessageId: loopState.stableProductStartMessageId ?? loopState.userMessageId,
+      boundaryMessageId: loopState.stableBoundaryAssistantMessageId,
     });
+  } else {
+    logMemoryExtractionSkipped(
+      this,
+      turnTraceContext,
+      options?.modelExecution?.memoryExtraction === "skip"
+        ? "explicit-skip"
+        : containsForegroundMemoryReview(events, this.sessionId, turnId)
+          ? "foreground-review"
+          : "task-restricted",
+      loopState.stableBoundaryAssistantMessageId,
+    );
   }
 
   const result: TurnResult = {

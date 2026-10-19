@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { previewProjectMemoryUndo } from "./project-memory-preview.js";
 import { withFileLock, prepareProjectMemoryStorage } from "@lcode/shared/node";
 import {
   ProjectMemoryReviewDraftSchema,
@@ -29,11 +30,16 @@ import {
 import { MemoryStore } from "./project-memory-store.js";
 import { MemoryEffects } from "./project-memory-effects.js";
 import { MemoryLearning } from "./project-memory-learning.js";
+import { readMemoryContentPage } from "./project-memory-content.js";
+import { projectReview } from "./project-memory-review-projection.js";
+import { readMemoryHistoryPage } from "./project-memory-history-page.js";
+import { iterateMemoryContentPages } from "./project-memory-content-stream.js";
+import { guardOrdinaryMemoryMutation } from "./project-memory-guard.js";
 import {
   assertCurrentReviewSources,
   validateReviewSourceHashes,
 } from "./project-memory-review-sources.js";
-import { applyRequestedLineEndings, decodeTextBuffer, encodeTextContent } from "./text-metadata.js";
+import { applyRequestedLineEndings, encodeTextContent } from "./text-metadata.js";
 
 const FULL_HASH = /^sha256:[a-f0-9]{64}$/u;
 interface LockedMemory {
@@ -42,29 +48,24 @@ interface LockedMemory {
   changes: ProjectMemoryChange[];
 }
 
-function projectReview(
-  review: ProjectMemoryReview,
-  changes: readonly ProjectMemoryChange[],
-): ProjectMemoryReview {
-  const appliedItems = new Map<string, string>();
-  for (const change of changes) {
-    if (change.proposalId !== review.id || change.status !== "committed" || !change.proposalItemId)
-      continue;
-    if (appliedItems.has(change.proposalItemId))
-      throw memoryError(
-        "io_error",
-        review.id,
-        "Duplicate committed Project Memory proposal application",
-      );
-    appliedItems.set(change.proposalItemId, change.id);
-  }
-  return { ...review, appliedItems: Object.fromEntries(appliedItems) };
-}
-
 export class NodeProjectMemory implements ProjectMemoryPort {
-  async prepareStorage(input: Parameters<NonNullable<ProjectMemoryPort["prepareStorage"]>>[0]) {
-    return prepareProjectMemoryStorage(input);
+  readonly iterateContentPages: NonNullable<ProjectMemoryPort["iterateContentPages"]> = (
+    input,
+    options,
+  ) => iterateMemoryContentPages(this.registry.get(input.rootDir), input, options);
+  readonly listHistoryPage: NonNullable<ProjectMemoryPort["listHistoryPage"]> = (input, options) =>
+    this.locked(
+      this.registry.get(input.rootDir),
+      ({ store, changes }) => readMemoryHistoryPage(store, changes, input, options?.signal),
+      options,
+    );
+  async readContentPage(
+    input: Parameters<NonNullable<ProjectMemoryPort["readContentPage"]>>[0],
+    options?: ProjectMemoryOperationOptions,
+  ) {
+    return readMemoryContentPage(this.registry.get(input.rootDir), input, options);
   }
+  prepareStorage = prepareProjectMemoryStorage;
   private readonly registry = new MemoryRootRegistry();
   readonly effects = new MemoryEffects(async (rootDir, operation, options) =>
     this.locked(this.registry.get(rootDir), operation, options),
@@ -134,21 +135,7 @@ export class NodeProjectMemory implements ProjectMemoryPort {
   }
 
   async guardOrdinaryMutation(path: string, action: "remove" | "mkdir"): Promise<void> {
-    try {
-      const root = await this.registry.route(path);
-      if (root) {
-        await assertMemoryRoot(root);
-        if (action === "remove" && /\.md$/iu.test(path)) {
-          throw memoryError(
-            "unsupported",
-            path,
-            "Project Memory deletion is not supported by the managed writer",
-          );
-        }
-      }
-    } catch (error) {
-      throw toFileSystemError(error, path);
-    }
+    return guardOrdinaryMemoryMutation(this.registry, path, action);
   }
 
   async write(
@@ -237,13 +224,10 @@ export class NodeProjectMemory implements ProjectMemoryPort {
   async previewUndo(
     input: Parameters<ProjectMemoryPort["previewUndo"]>[0],
     options?: ProjectMemoryOperationOptions,
-  ): Promise<{ change: ProjectMemoryChange; content: string }> {
-    return this.locked(
-      this.registry.get(input.rootDir),
-      async ({ journal, changes }) => {
-        const { change, before } = await journal.replaceForUndo(input.changeId, changes);
-        return { change, content: decodeTextBuffer({ buffer: before }).content };
-      },
+  ): ReturnType<ProjectMemoryPort["previewUndo"]> {
+    return previewProjectMemoryUndo(
+      input,
+      (operation) => this.locked(this.registry.get(input.rootDir), operation, options),
       options,
     );
   }
@@ -379,7 +363,8 @@ export class NodeProjectMemory implements ProjectMemoryPort {
             applied.status !== "committed" ||
             applied.fileName !== item.fileName ||
             applied.beforeHash !== item.expectedHash ||
-            applied.afterHash !== hashBuffer(Buffer.from(item.content))
+            (item.range ? applied.replacementHash : applied.afterHash) !==
+              hashBuffer(Buffer.from(item.content))
           ) {
             throw memoryError(
               "stale_write",
@@ -396,6 +381,7 @@ export class NodeProjectMemory implements ProjectMemoryPort {
           {
             fileName: item.fileName,
             content: Buffer.from(item.content),
+            range: item.range,
             expectedHash: item.expectedHash,
             createParents: true,
             proposalId: review.id,

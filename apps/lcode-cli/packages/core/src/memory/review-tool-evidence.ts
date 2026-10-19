@@ -9,7 +9,14 @@ export function projectReviewToolEvidence(messages: readonly MessageWithParts[])
   text: string;
   partial: boolean;
 } {
-  const parts = messages.flatMap((message) => message.parts.filter((part) => part.type === "tool"));
+  // 先筛选可信 execution 再取工作集；末尾未知工具不能挤掉更早的真实退出状态。
+  const parts = messages
+    .flatMap((message) => message.parts.filter((part) => part.type === "tool"))
+    .filter(
+      (part) =>
+        part.state.status === "completed" &&
+        parseCompletedToolPartMetadata(part.state.metadata)?.execution,
+    );
   const facts: unknown[] = [];
   let text = "";
   let truncated = parts.length > TOOL_EVIDENCE_LIMIT;

@@ -29,7 +29,7 @@ test("Chinese prose without spaces is admitted after three Han characters", asyn
   assert.equal(executions, 1);
 });
 
-test("English admission keeps the three whitespace-delimited word threshold", async () => {
+test("meaningful short prose has no fixed word threshold", async () => {
   let executions = 0;
   const scheduler = createMemoryExtractionScheduler(async () => {
     executions += 1;
@@ -41,7 +41,7 @@ test("English admission keeps the three whitespace-delimited word threshold", as
   scheduler.schedule(createSnapshot("now there are three", "msg_second"));
   await scheduler.drain();
 
-  assert.equal(executions, 1);
+  assert.equal(executions, 2);
 });
 
 for (const tool of ["Write", "Edit"]) {

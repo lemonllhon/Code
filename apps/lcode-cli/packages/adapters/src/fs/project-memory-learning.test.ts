@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import test from "node:test";
 import { NodeFileSystemAdapter } from "./index.js";
@@ -24,7 +25,8 @@ test("learning claims serialize across adapters and survive restart without reta
     (await restarted.learning!.claim({ ...input, workspaceKey: "other-workspace" })).status,
     "claimed",
   );
-  assert.ok(!(await readFile(join(stateDir, "learning.json"), "utf8")).includes("turn-one"));
+  for (const name of await readdir(join(stateDir, "learning")))
+    assert.ok(!(await readFile(join(stateDir, "learning", name), "utf8")).includes("turn-one"));
 });
 
 test("expired learning tokens cannot finish, release or commit a replacement claim", async (t) => {
@@ -33,7 +35,10 @@ test("expired learning tokens cannot finish, release or commit a replacement cla
   const initial = await memory.learning!.claim(input);
   assert.equal(initial.status, "claimed");
   if (initial.status !== "claimed") return;
-  const path = join(stateDir, "learning.json");
+  const key = createHash("sha256")
+    .update(JSON.stringify([input.workspaceKey, input.evidenceKey]))
+    .digest("hex");
+  const path = join(stateDir, "learning", `${key}.json`);
   const ledger = JSON.parse(await readFile(path, "utf8"));
   ledger.records[0].lease.expiresAt = 0;
   await writeFile(path, JSON.stringify(ledger));
@@ -85,7 +90,7 @@ test("full learning ledgers never evict consumed evidence and aborted claims lea
   const path = join(stateDir, "learning.json");
   const bytes = JSON.stringify({ schemaVersion: 1, rootDir, records });
   await writeFile(path, bytes);
-  assert.equal((await memory.learning!.claim(input)).status, "full");
+  assert.equal((await memory.learning!.claim(input)).status, "claimed");
   assert.equal(await readFile(path, "utf8"), bytes);
   assert.equal(
     (await memory.learning!.claim({ ...input, evidenceKey: records[0]!.evidenceKey })).status,

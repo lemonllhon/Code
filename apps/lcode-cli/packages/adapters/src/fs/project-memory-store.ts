@@ -1,10 +1,20 @@
 import { join } from "node:path";
 import { opendir } from "node:fs/promises";
+import { readMemoryReviewHeaders } from "./project-memory-review-headers.js";
+import {
+  checkedMemoryChunks,
+  describeMemoryFile,
+  type MemoryFileSource,
+} from "./project-memory-stream.js";
+import {
+  memoryRecordFitsPage,
+  readPagedMemoryRecord,
+  writePagedMemoryRecord,
+} from "./project-memory-record-pages.js";
 import { z } from "zod";
 import { MemoryOwnerSchema } from "./project-memory-relocation.js";
 import {
   PROJECT_MEMORY_FILE_MAX_BYTES,
-  PROJECT_MEMORY_PREIMAGES_MAX_BYTES,
   PROJECT_MEMORY_RECORD_LIMIT,
   PROJECT_MEMORY_RECORD_MAX_BYTES,
   ProjectMemoryChangeSchema,
@@ -12,6 +22,7 @@ import {
   type ProjectMemoryChange,
   type ProjectMemoryPort,
   type ProjectMemoryReview,
+  type ProjectMemoryOperationOptions,
 } from "@lcode/contracts";
 import { hashBuffer } from "./file-system-common.js";
 import {
@@ -40,11 +51,15 @@ const RECORD_NAME = /^[a-zA-Z0-9_-]{8,96}$/u;
 export class MemoryStore {
   constructor(readonly root: MemoryRoot) {}
 
+  reviewHeaders(signal?: AbortSignal) {
+    return readMemoryReviewHeaders(this.root, (id) => this.readReview(id), signal);
+  }
+
   private async readRecord<T>(path: string, schema: z.ZodType<T>): Promise<T> {
     await assertMemoryRoot(this.root);
     const bytes = await readMemoryBytes(path, PROJECT_MEMORY_RECORD_MAX_BYTES);
     try {
-      return schema.parse(JSON.parse(bytes!.toString("utf8")));
+      return schema.parse(await readPagedMemoryRecord(this.root, path, bytes!));
     } catch (cause) {
       throw memoryError(
         "io_error",
@@ -74,12 +89,16 @@ export class MemoryStore {
     path: string,
     record: unknown,
     expectedMissing: boolean,
+    options?: ProjectMemoryOperationOptions,
   ): Promise<void> {
+    if (path.startsWith(join(this.root.stateDir, "reviews")) && !memoryRecordFitsPage(record)) {
+      await writePagedMemoryRecord(this.root, path, record, expectedMissing);
+      return;
+    }
     const bytes = Buffer.from(JSON.stringify(record));
-    if (bytes.length > PROJECT_MEMORY_RECORD_MAX_BYTES)
-      throw memoryError("too_large", path, "Project Memory record exceeds its byte budget");
     await strictAtomicWrite(path, bytes, {
       expectedMissing,
+      signal: options?.signal,
       mode: 0o600,
       validate: () => assertMemoryRoot(this.root),
     });
@@ -100,6 +119,8 @@ export class MemoryStore {
       "staging",
       "effects.json",
       "learning.json",
+      "learning",
+      "record-pages",
       "relocated",
     ]);
     for await (const entry of directory) {
@@ -140,20 +161,9 @@ export class MemoryStore {
     const files = await listMemoryFiles(
       join(this.root.stateDir, directory),
       directory === "preimages" || directory === "staging"
-        ? PROJECT_MEMORY_FILE_MAX_BYTES
+        ? Number.MAX_SAFE_INTEGER
         : PROJECT_MEMORY_RECORD_MAX_BYTES,
     );
-    if (
-      directory === "preimages" &&
-      [...files.values()].reduce((total, size) => total + size, 0) >
-        PROJECT_MEMORY_PREIMAGES_MAX_BYTES
-    ) {
-      throw memoryError(
-        "too_large",
-        this.root.stateDir,
-        "Project Memory preimages exceed their total byte budget; no files were deleted",
-      );
-    }
     return files;
   }
 
@@ -186,15 +196,6 @@ export class MemoryStore {
       if (change.id !== id || Boolean(change.proposalId) !== Boolean(change.proposalItemId)) {
         throw memoryError("io_error", id, "Project Memory journal identity is inconsistent");
       }
-      const recordBytes =
-        journal.get(`${id}${RECORD_EXTENSION}`)! +
-        (preimages.get(`${id}${PREIMAGE_EXTENSION}`) ?? 0);
-      if (recordBytes > PROJECT_MEMORY_RECORD_MAX_BYTES)
-        throw memoryError(
-          "too_large",
-          id,
-          "Project Memory journal and preimage exceed their combined byte budget",
-        );
       changes.push(change);
     }
     return changes.sort((a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id));
@@ -203,73 +204,43 @@ export class MemoryStore {
   async inspectCapacity(
     changes: readonly ProjectMemoryChange[],
   ): ReturnType<ProjectMemoryPort["inspectCapacity"]> {
-    const journal = await this.inventory("journal");
-    const reviews = await this.inventory("reviews");
-    const preimages = await this.inventory("preimages");
-    const staging = await this.inventory("staging");
-    // 满额是正常不可用状态，损坏/跨根提案却不能被“空间满”掩盖。
-    for (const id of this.names(reviews, RECORD_EXTENSION)) await this.readReview(id);
+    // 容量不再依赖历史提案正文；被访问提案仍由 readReview 校验 owner/schema/page hash。
     if (
       changes.some(
         (change) => change.status === "prepared" || change.status === "recovery-required",
       )
     )
       return { available: false, reason: "recovery-required" };
-    if (journal.size >= PROJECT_MEMORY_RECORD_LIMIT || staging.size >= PROJECT_MEMORY_RECORD_LIMIT)
-      return { available: false, reason: "history-full" };
-    if (reviews.size >= PROJECT_MEMORY_RECORD_LIMIT)
-      return { available: false, reason: "reviews-full" };
-    const beforeBytes = [...preimages.values()].reduce((total, size) => total + size, 0);
-    // 在首个模型请求前保守预留单次最大前像；真正提交仍按实际字节再检查防竞争。
-    if (
-      preimages.size >= PROJECT_MEMORY_RECORD_LIMIT ||
-      beforeBytes + PROJECT_MEMORY_FILE_MAX_BYTES > PROJECT_MEMORY_PREIMAGES_MAX_BYTES
-    )
-      return { available: false, reason: "preimages-full" };
     return { available: true };
   }
 
-  async reserveChange(record: ProjectMemoryChange, before: Buffer | null): Promise<void> {
-    const journal = await this.inventory("journal");
-    const preimages = await this.inventory("preimages");
-    const staging = await this.inventory("staging");
-    if (
-      journal.size >= PROJECT_MEMORY_RECORD_LIMIT ||
-      staging.size >= PROJECT_MEMORY_RECORD_LIMIT ||
-      (before !== null && preimages.size >= PROJECT_MEMORY_RECORD_LIMIT)
-    ) {
-      throw memoryError(
-        "too_large",
-        this.root.stateDir,
-        "Project Memory history is full; no records were deleted",
-      );
-    }
-    if (
-      [...preimages.values()].reduce((total, size) => total + size, 0) + (before?.length ?? 0) >
-      PROJECT_MEMORY_PREIMAGES_MAX_BYTES
-    ) {
-      throw memoryError(
-        "too_large",
-        this.root.stateDir,
-        "Project Memory preimage storage is full; no files were deleted",
-      );
-    }
-    const encoded = Buffer.byteLength(
-      JSON.stringify({ schemaVersion: 1, rootDir: this.root.rootDir, change: record }),
-    );
-    if (encoded + (before?.length ?? 0) > PROJECT_MEMORY_RECORD_MAX_BYTES)
-      throw memoryError("too_large", record.id, "Project Memory change exceeds its record budget");
+  async reserveChange(
+    record: ProjectMemoryChange,
+    before: MemoryFileSource | null,
+    options?: ProjectMemoryOperationOptions,
+  ): Promise<void> {
     if (before !== null) {
-      await strictAtomicWrite(this.path("preimages", record.id, PREIMAGE_EXTENSION), before, {
-        expectedMissing: true,
-        mode: 0o600,
-        validate: () => assertMemoryRoot(this.root),
-      });
+      await strictAtomicWrite(
+        this.path("preimages", record.id, PREIMAGE_EXTENSION),
+        // 前像可能很长；必须继承同一取消信号，不能在 journal 已取消后继续复制并发布。
+        checkedMemoryChunks(before, options?.signal),
+        {
+          expectedMissing: true,
+          mode: 0o600,
+          signal: options?.signal,
+          validate: () => assertMemoryRoot(this.root),
+        },
+      );
     }
-    await this.writeChange(record, true);
+    options?.signal?.throwIfAborted();
+    await this.writeChange(record, true, options);
   }
 
-  async writeChange(change: ProjectMemoryChange, expectedMissing = false): Promise<void> {
+  async writeChange(
+    change: ProjectMemoryChange,
+    expectedMissing = false,
+    options?: ProjectMemoryOperationOptions,
+  ): Promise<void> {
     await this.writeRecord(
       this.path("journal", change.id),
       {
@@ -278,6 +249,7 @@ export class MemoryStore {
         change: ProjectMemoryChangeSchema.parse(change),
       },
       expectedMissing,
+      options,
     );
   }
 
@@ -293,6 +265,14 @@ export class MemoryStore {
       );
     }
     return bytes!;
+  }
+
+  async readPreimageSource(change: ProjectMemoryChange): Promise<MemoryFileSource> {
+    await assertMemoryRoot(this.root);
+    const source = await describeMemoryFile(this.path("preimages", change.id, PREIMAGE_EXTENSION));
+    if (!source || source.hash !== change.beforeHash)
+      throw memoryError("stale_write", change.id, "Memory preimage revision changed");
+    return source;
   }
 
   async readReview(id: string): Promise<ProjectMemoryReview> {
@@ -319,13 +299,6 @@ export class MemoryStore {
   }
 
   async saveReview(review: ProjectMemoryReview): Promise<void> {
-    if ((await this.inventory("reviews")).size >= PROJECT_MEMORY_RECORD_LIMIT) {
-      throw memoryError(
-        "too_large",
-        this.root.stateDir,
-        "Project Memory review storage is full; no records were deleted",
-      );
-    }
     await this.writeRecord(
       this.path("reviews", review.id),
       {

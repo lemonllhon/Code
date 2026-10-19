@@ -98,10 +98,9 @@ test("anchor missing, incomplete window or missing real-user turn skip before me
         loadedPartCount: messages.reduce((count, message) => count + message.parts.length, 0),
       };
     };
-    const draft = await generateMemoryReviewDraft({ query: "Recent facts", context: h.context });
-    assert.deepEqual(draft.items, []);
-    assert.deepEqual(draft.sources, []);
-    assert.ok(draft.partial);
+    await assert.rejects(generateMemoryReviewDraft({ query: "Recent facts", context: h.context }), {
+      code: "source_unavailable",
+    });
     assert.equal(h.requests.length, 0, failure);
     assert.equal(h.reads.length, 0, failure);
     assert.equal(h.stats.length, 0, failure);
@@ -148,9 +147,9 @@ test("unprovable rewind boundaries outside the window do not reopen discarded te
     keptMessageIDs: ["missing_keep" as MessageId],
     branchGeneration: 1,
   };
-  const draft = await generateMemoryReviewDraft({ query: "Recent facts", context: h.context });
-  assert.deepEqual(draft.items, []);
-  assert.deepEqual(draft.sources, []);
+  await assert.rejects(generateMemoryReviewDraft({ query: "Recent facts", context: h.context }), {
+    code: "source_unavailable",
+  });
   assert.equal(h.requests.length, 0);
 });
 
@@ -177,11 +176,18 @@ test("compact summaries never substitute for a complete real-user turn in the wi
       ...suffix,
       messages[301]!,
     ]);
-    const draft = await generateMemoryReviewDraft({ query: "Recent facts", context: h.context });
+    if (!hasRealSuffix) {
+      await assert.rejects(
+        generateMemoryReviewDraft({ query: "Recent facts", context: h.context }),
+        { code: "source_unavailable" },
+      );
+      assert.equal(h.requests.length, 0);
+      continue;
+    }
+    await generateMemoryReviewDraft({ query: "Recent facts", context: h.context });
     assert.equal(h.requests.length, hasRealSuffix ? 1 : 0);
     assert.ok(!JSON.stringify(h.requests).includes("COMPACT_DERIVED_TEXT"));
     assert.ok(!JSON.stringify(h.requests).includes("COMPACT_SUMMARY_NOT_REAL"));
-    if (!hasRealSuffix) assert.deepEqual(draft.sources, []);
   }
 });
 

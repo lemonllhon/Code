@@ -65,8 +65,9 @@ test("mismatched cut, generation or non-truncated prefix never authorizes a miss
         prefixTruncated: false,
       });
     }
-    const draft = await generateMemoryReviewDraft({ query: "Latest facts", context: h.context });
-    assert.equal(draft.sources.length, 0, invalid);
+    await assert.rejects(generateMemoryReviewDraft({ query: "Latest facts", context: h.context }), {
+      code: "source_unavailable",
+    });
     assert.equal(h.requests.length, 0, invalid);
   }
 });

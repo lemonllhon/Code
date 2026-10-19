@@ -125,7 +125,14 @@ export async function assertMemoryRoot(root: MemoryRoot): Promise<void> {
 }
 
 export async function initializeMemoryDirectories(root: MemoryRoot): Promise<void> {
-  for (const directory of ["journal", "preimages", "reviews", "staging"]) {
+  for (const directory of [
+    "journal",
+    "preimages",
+    "reviews",
+    "staging",
+    "learning",
+    "record-pages",
+  ]) {
     await assertMemoryRoot(root);
     await directoryChain(join(root.stateDir, directory), root.pins, true);
   }

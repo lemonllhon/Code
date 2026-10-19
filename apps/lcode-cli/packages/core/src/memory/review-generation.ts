@@ -28,7 +28,11 @@ import { memoryReviewProfile } from "./review-profile.js";
 
 const SUMMARY_CHARACTER_LIMIT = 4_000;
 const RESPONSE_KEYS = new Set(["summary", "items"]);
-const MODEL_ITEM_SCHEMA = ProjectMemoryReviewItemSchema.omit({ id: true, expectedHash: true });
+const MODEL_ITEM_SCHEMA = ProjectMemoryReviewItemSchema.omit({
+  id: true,
+  expectedHash: true,
+  range: true,
+});
 const FULL_JSON_FENCE = /^```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```$/u;
 const REVIEW_SYSTEM = [
   "You propose durable project memory changes for an independent verification step. You do not approve or apply changes.",
@@ -41,6 +45,7 @@ const REVIEW_SYSTEM = [
   "Do not output ids, hashes, revisions or approval fields; the trusted core supplies target versions.",
   "Only propose safe relative .md targets. Never target MEMORY.md, AGENTS.md, skills, hidden/control directories, or paths outside memory.",
   "You may edit an existing file only when its complete content is in a memory source. Other listed filenames are reserved unread targets.",
+  "A memory source with memoryRange contains exactly one file segment. Propose replacement content only for that segment; the trusted writer preserves all unseen content and assigns the range.",
   `Return at most ${PROJECT_MEMORY_REVIEW_ITEM_LIMIT} items; empty items is correct when no durable supported change is justified.`,
 ].join("\n");
 
@@ -77,14 +82,8 @@ export async function generateMemoryReviewDraft(input: {
   }
   const sessions = input.preparedSessions ?? (await collectReviewSessionEvidence(context));
   if (context.reviewMode === "incremental" && sessions.materials.length === 0) {
-    // 当前完整turn缺席时不能仅拿旧memory继续自我总结；在枚举memory和请求模型前零成本结束。
-    return ProjectMemoryReviewDraftSchema.parse({
-      fingerprint: reviewHash({ query, sources: [], items: [] }),
-      sources: [],
-      items: [],
-      partial: true,
-      summary: "No complete current-turn evidence is available for incremental review.",
-    });
+    // 证据不可用不是模型明确判断无变化，禁止借空 draft 推进整轮 cursor。
+    throw new MemoryReviewError("source_unavailable");
   }
   const retrievalQuery =
     context.reviewMode === "incremental"
@@ -102,6 +101,7 @@ export async function generateMemoryReviewDraft(input: {
       kind: entry.source.kind,
       reference: entry.source.reference,
       content: entry.content,
+      ...(entry.source.memoryRange ? { memoryRange: entry.source.memoryRange } : {}),
     })),
     otherMemoryFileNames: memory.otherMemoryFileNames,
   });
@@ -191,7 +191,11 @@ export async function generateMemoryReviewDraft(input: {
     // 同一冻结before正文的逐字no-op无需复核或提交，不再次读取以免改变模型依据。
     const frozenBefore = memory.materials.find((entry) => entry.source.reference === item.fileName);
     if (frozenBefore?.content === item.content) continue;
-    const trustedItem = { ...item, expectedHash };
+    const trustedItem = {
+      ...item,
+      expectedHash,
+      ...(frozenBefore?.source.memoryRange ? { range: frozenBefore.source.memoryRange } : {}),
+    };
     items.push({ id: `item_${reviewHash(trustedItem).slice("sha256:".length)}`, ...trustedItem });
   }
   throwIfReviewAborted(context);

@@ -15,6 +15,7 @@ import {
   type ModelRequest,
   type SessionId,
   type SessionTranscriptWindow,
+  type MemoryReviewEvidencePage,
 } from "@lcode/contracts";
 
 const FACT = "Fixture tests use isolated databases.";
@@ -24,13 +25,19 @@ const LIMITS = {
   maxDataBytes: SESSION_TRANSCRIPT_SNAPSHOT_MAX_DATA_BYTES,
 };
 
-for (const scenario of ["raw byte budget", "rewind cut outside window"] as const) {
+for (const scenario of [
+  "raw byte budget",
+  "rewind cut outside window",
+  "same-turn payload",
+] as const) {
   test(`real cold Runtime/SQLite/CAS saves memory after ${scenario}`, async (t) => {
     const root = await mkdtemp(join(await realpath(tmpdir()), "lcode-memory-reliable-"));
     const store = createSqliteSessionStore({ dbPath: join(root, "session.db") });
     const sessionId = "sess_reliable_fixture" as SessionId;
     const requests: ModelRequest[] = [];
     const windows: SessionTranscriptWindow[] = [];
+    const pages: MemoryReviewEvidencePage[] = [];
+    const failures: unknown[] = [];
     const model = {
       providerId: "fixture",
       modelId: "fixture",
@@ -151,7 +158,7 @@ for (const scenario of ["raw byte budget", "rewind cut outside window"] as const
           firstPart.state.output += "x".repeat(desiredBytes - before.loadedDataBytes);
         }
         await store.savePart(firstPart);
-      } else {
+      } else if (scenario === "rewind cut outside window") {
         await store.setRevert({
           sessionID: sessionId,
           revert: {
@@ -168,10 +175,88 @@ for (const scenario of ["raw byte budget", "rewind cut outside window"] as const
       }
       // 真正冷恢复，不能靠当前runtime的内存历史绕过SQLite窗口与分支元数据。
       cold = runtime();
+      const internal = cold as unknown as {
+        agentTelemetry: {
+          detached: (input: unknown) => { finishFailed: (...args: unknown[]) => unknown };
+        };
+      };
+      const detached = internal.agentTelemetry.detached.bind(internal.agentTelemetry);
+      internal.agentTelemetry.detached = (input) => {
+        const scope = detached(input);
+        const finish = scope.finishFailed.bind(scope);
+        scope.finishFailed = (...args) => {
+          failures.push(args[2] instanceof Error ? args[2].stack : String(args[2]));
+          return finish(...args);
+        };
+        return scope;
+      };
       await cold.resumeFromStore();
       const readWindow = store.readTranscriptWindow.bind(store);
+      const readEvidence = store.readMemoryReviewEvidence.bind(store);
+      const saveMessage = store.saveMessage.bind(store);
+      let injected = false;
+      store.saveMessage = async (message, copyFrom) => {
+        await saveMessage(message, copyFrom);
+        if (
+          scenario !== "same-turn payload" ||
+          injected ||
+          message.role !== "assistant" ||
+          !message.time.completed
+        )
+          return;
+        injected = true;
+        await store.saveParts({
+          sessionID: sessionId,
+          messageID: message.id,
+          parts: Array.from({ length: 2256 }, (_, i) => ({
+            id: `part_long_${i}`,
+            messageID: message.id,
+            sessionID: sessionId,
+            type: "reasoning",
+            text: "INTERNAL_REASONING".repeat(100),
+            time: { start: 1 },
+          })) as MessagePart[],
+        });
+        await store.savePart({
+          id: "part_huge_output",
+          messageID: message.id,
+          sessionID: sessionId,
+          type: "tool",
+          tool: "Read",
+          callID: "fixture-read",
+          state: {
+            status: "completed",
+            input: {},
+            output: "SAME_TURN_TOOL".repeat(30_000),
+            metadata: {},
+            title: "fixture",
+            time: { start: 1, end: 2 },
+          },
+        } as MessagePart);
+      };
       const readMessages = store.messages.bind(store);
       let extractionStarted = false;
+      store.readMemoryReviewEvidence = async (input) => {
+        extractionStarted = true;
+        const page = await readEvidence(input);
+        pages.push(page);
+        if (page.status !== "ready") {
+          const boundary = await store.messageWithParts({
+            sessionID: sessionId,
+            messageID: input.throughMessageID as MessageId,
+          });
+          assert.fail(
+            JSON.stringify({
+              reason: page.reason,
+              requestedTurn: input.turnId,
+              anchorTurn: boundary?.info.anchor?.turnId,
+              requestedStart: input.startMessageID,
+              anchorStart: boundary?.info.anchor?.orderedMessageIds?.[0],
+            }),
+          );
+        }
+        return page;
+      };
       store.readTranscriptWindow = async (input) => {
         extractionStarted = true;
         const window = await readWindow(input);
@@ -183,24 +268,65 @@ for (const scenario of ["raw byte budget", "rewind cut outside window"] as const
           throw new Error("No whole-history fallback during memory extraction");
         return readMessages(...args);
       };
-      await cold.executeTurn(`Remember the durable fixture constraint: ${FACT}`, undefined, {
-        abortSignal: t.signal,
-      });
+      const completed = await cold.executeTurn(
+        `Remember the durable fixture constraint: ${FACT}${scenario === "same-turn payload" ? " Additional durable fixture context.".repeat(5000) : ""}`,
+        undefined,
+        {
+          abortSignal: t.signal,
+        },
+      );
       await (
         cold as unknown as { drainMemoryExtractions(timeout: null): Promise<void> }
       ).drainMemoryExtractions(null);
-      assert.equal(requests.length, 2);
-      assert.deepEqual(
-        requests.map((r) => r.options!.maxOutputTokens),
-        [4096, 2048],
+      assert.ok(
+        requests.length >= 2,
+        JSON.stringify({
+          failures,
+          pages: pages.map((page) => ({
+            status: page.status,
+            reason: page.reason,
+            start: page.startMessageID,
+            end: page.throughMessageID,
+          })),
+        }),
       );
+      if (scenario === "same-turn payload") assert.ok(requests.length > 2);
+      assert.ok(requests.every((r) => r.options!.maxOutputTokens === 4096));
       assert.equal(await readFile(join(root, ".lcode", "memory", "testing.md"), "utf8"), FACT);
-      assert.doesNotMatch(JSON.stringify(requests), /OLD_TOOL_PAYLOAD/u);
-      assert.ok(windows.length >= 3, "scheduler, generator, verifier and commit use bounded reads");
+      assert.doesNotMatch(
+        JSON.stringify(requests),
+        /OLD_TOOL_PAYLOAD|SAME_TURN_TOOL|INTERNAL_REASONING/u,
+      );
+      assert.ok(
+        pages.length >= 5,
+        "generator, verifier, commit and completion re-read versioned pages",
+      );
+      assert.ok(pages.every((page) => page.status === "ready"));
+      const requestCount = requests.length;
+      await cold.retryMemoryExtraction({
+        startMessageId: pages[0]!.startMessageID,
+        boundaryMessageId: pages[0]!.throughMessageID,
+        turnId: completed.turnId,
+      });
+      await cold.drainMemoryExtractions(null);
+      assert.equal(
+        requests.length,
+        requestCount,
+        "explicit retries reuse durable segment consumption without another model call",
+      );
+      if (scenario === "same-turn payload") assert.ok(pages.some((page) => page.nextCursor));
+      const last = pages.at(-1)!;
+      windows.push(
+        await readWindow({
+          sessionID: sessionId,
+          throughMessageID: last.throughMessageID as MessageId,
+          limits: LIMITS,
+        }),
+      );
       if (scenario === "raw byte budget") {
         assert.ok(windows[0]!.loadedDataBytes <= LIMITS.maxDataBytes);
         assert.ok(Buffer.byteLength(JSON.stringify(windows[0]!.messages)) > LIMITS.maxDataBytes);
-      } else {
+      } else if (scenario === "rewind cut outside window") {
         assert.equal(windows[0]!.prefixTruncated, true);
         assert.deepEqual(windows[0]!.branchCutBeforeWindow, {
           messageID: oldId,

@@ -169,17 +169,15 @@ test("a parent directory replaced after registration cannot redirect the sidecar
   assert.deepEqual(await readdir(other), []);
 });
 
-test("memory and record size budgets reject instead of truncating or deleting records", async (t) => {
+test("large memory and paged history preserve content while malformed primary records still fail", async (t) => {
   const { rootDir, stateDir, adapter, memory } = await memoryFixture(t);
   const path = join(rootDir, "fact.md");
-  await assert.rejects(
-    adapter.writeTextFile({
-      path,
-      content: "x".repeat(PROJECT_MEMORY_FILE_MAX_BYTES + 1),
-      expectedMissing: true,
-    }),
-    hasCode("too_large"),
-  );
+  await adapter.writeTextFile({
+    path,
+    content: "x".repeat(PROJECT_MEMORY_FILE_MAX_BYTES + 1),
+    expectedMissing: true,
+  });
+  assert.equal((await readFile(path, "utf8")).length, PROJECT_MEMORY_FILE_MAX_BYTES + 1);
   for (let index = 0; index < PROJECT_MEMORY_RECORD_LIMIT; index += 1) {
     const id = `record-${String(index).padStart(4, "0")}`;
     const review = {
@@ -196,12 +194,12 @@ test("memory and record size budgets reject instead of truncating or deleting re
       { mode: 0o600 },
     );
   }
-  await assert.rejects(memory.saveReview({ rootDir, draft: reviewDraft() }), hasCode("too_large"));
-  assert.equal((await memory.listReviews(rootDir)).length, PROJECT_MEMORY_RECORD_LIMIT);
+  await memory.saveReview({ rootDir, draft: reviewDraft() });
+  assert.equal((await memory.listReviews(rootDir)).length, PROJECT_MEMORY_RECORD_LIMIT + 1);
   const oversized = join(stateDir, "reviews", "record-0000.json");
   await writeFile(oversized, "x".repeat(PROJECT_MEMORY_RECORD_MAX_BYTES + 1));
   await assert.rejects(memory.listReviews(rootDir), hasCode("too_large"));
-  assert.equal((await readdir(join(stateDir, "reviews"))).length, PROJECT_MEMORY_RECORD_LIMIT);
+  assert.equal((await readdir(join(stateDir, "reviews"))).length, PROJECT_MEMORY_RECORD_LIMIT + 1);
 });
 
 test("private sidecars use 0600 on systems with POSIX mode enforcement", async (t) => {

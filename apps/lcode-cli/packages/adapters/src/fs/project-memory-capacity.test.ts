@@ -27,7 +27,7 @@ test("capacity inspection reports available storage without changing user memory
 });
 
 for (const directory of ["journal", "reviews"] as const) {
-  test(`capacity inspection returns ${directory === "journal" ? "history-full" : "reviews-full"} without deleting full records`, async (t) => {
+  test(`capacity inspection continues beyond the former ${directory} record quota without deleting records`, async (t) => {
     const { rootDir, stateDir, memory } = await memoryFixture(t);
     for (let index = 0; index < PROJECT_MEMORY_RECORD_LIMIT; index += 1) {
       const id = `capacity-${String(index).padStart(4, "0")}`;
@@ -59,20 +59,20 @@ for (const directory of ["journal", "reviews"] as const) {
         JSON.stringify({ schemaVersion: 1, rootDir, ...value }),
       );
     }
-    assert.deepEqual(await memory.inspectCapacity(rootDir), {
-      available: false,
-      reason: directory === "journal" ? "history-full" : "reviews-full",
-    });
+    assert.deepEqual(await memory.inspectCapacity(rootDir), { available: true });
     assert.equal((await readdir(join(stateDir, directory))).length, PROJECT_MEMORY_RECORD_LIMIT);
     await writeFile(
       join(stateDir, directory, "capacity-0000.json"),
       JSON.stringify({ schemaVersion: 99 }),
     );
-    await assert.rejects(memory.inspectCapacity(rootDir), hasCode("io_error"));
+    await assert.rejects(
+      directory === "journal" ? memory.inspectCapacity(rootDir) : memory.listReviews(rootDir),
+      hasCode("io_error"),
+    );
   });
 }
 
-test("capacity inspection reserves one maximum-size preimage and reports full before the hard limit", async (t) => {
+test("capacity inspection continues beyond the former preimage byte quota", async (t) => {
   const { rootDir, stateDir, memory } = await memoryFixture(t);
   const bytes = Buffer.alloc(PROJECT_MEMORY_FILE_MAX_BYTES, 120);
   const count = PROJECT_MEMORY_PREIMAGES_MAX_BYTES / bytes.length - 1;
@@ -84,15 +84,9 @@ test("capacity inspection reserves one maximum-size preimage and reports full be
   }
   assert.deepEqual(await memory.inspectCapacity(rootDir), { available: true });
   await writeFile(join(stateDir, "preimages", "capacity-extra.bin"), "x");
-  assert.deepEqual(await memory.inspectCapacity(rootDir), {
-    available: false,
-    reason: "preimages-full",
-  });
+  assert.deepEqual(await memory.inspectCapacity(rootDir), { available: true });
   await writeFile(join(stateDir, "preimages", "capacity-extra.bin"), bytes);
-  assert.deepEqual(await memory.inspectCapacity(rootDir), {
-    available: false,
-    reason: "preimages-full",
-  });
+  assert.deepEqual(await memory.inspectCapacity(rootDir), { available: true });
   assert.equal((await readdir(join(stateDir, "preimages"))).length, count + 1);
 });
 

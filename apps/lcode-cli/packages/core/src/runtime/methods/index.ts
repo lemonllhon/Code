@@ -196,6 +196,7 @@ import {
   drainMemoryExtractions,
   isProjectMemoryEnabled,
 } from "../helpers/project-memory-extraction.js";
+import { retryMemoryExtraction } from "../helpers/project-memory-extraction-retry.js";
 
 type AgentRuntimeConstructor = { prototype: object };
 
@@ -394,5 +395,6 @@ export function installAgentRuntimeMethods(ctor: AgentRuntimeConstructor): void 
   proto.rebuildProjection = rebuildProjection;
   proto.generateWorkspaceText = generateWorkspaceText;
   proto.drainMemoryExtractions = drainMemoryExtractions;
+  proto.retryMemoryExtraction = retryMemoryExtraction;
   proto.isProjectMemoryEnabled = isProjectMemoryEnabled;
 }

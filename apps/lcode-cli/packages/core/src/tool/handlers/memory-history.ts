@@ -22,7 +22,7 @@ export const memoryHistoryToolEntry: ToolEntry = {
   capability: "Inspect managed memory changes or conditionally undo a replacement",
   metadata: memoryToolMetadata(
     MEMORY_HISTORY_TOOL_NAME,
-    "List managed memory changes or bounded effects observations. Use effects to find an actual injected session/turn, fileName and sourceHash. Use feedback only for the user's explicitly stated relevant/irrelevant/correction feedback; it requires a separate user approval and never infers benefit from task success. Use undo only when the user asks to revert an incorrect change; pass changeId and afterHash as expectedHash. Undo preserves newer external edits. Automatic maintenance does not require this tool.",
+    "List managed memory changes or bounded effects observations. list returns one page; pass nextCursor as cursor to continue. Use effects to find an actual injected session/turn, fileName and sourceHash. Use feedback only for the user's explicitly stated relevant/irrelevant/correction feedback; it requires a separate user approval and never infers benefit from task success. Use undo only when the user asks to revert an incorrect change; pass changeId and afterHash as expectedHash. Undo preserves newer external edits. Automatic maintenance does not require this tool.",
     true,
   ),
   permission: memoryManagedPermission,
@@ -60,8 +60,17 @@ export const memoryHistoryToolEntry: ToolEntry = {
     const parsed = MemoryHistoryInputSchema.parse(input);
     const { rootDir, port } = requireMemory(context);
     const options = { signal: context.abortSignal, trace: context.traceContext };
-    if (parsed.action === "list")
+    if (parsed.action === "list") {
+      if (port.listHistoryPage) {
+        const page = await port.listHistoryPage(
+          { rootDir, kind: "changes", cursor: parsed.cursor },
+          options,
+        );
+        if (page.kind !== "changes") throw new Error("Invalid memory history page kind");
+        return { status: "list", changes: page.changes, nextCursor: page.nextCursor };
+      }
       return { status: "list", changes: await port.listChanges(rootDir, options) };
+    }
     if (parsed.action === "effects" || parsed.action === "feedback") {
       if (!port.effects)
         throw memoryError("Memory effect observation is unavailable for this adapter.");

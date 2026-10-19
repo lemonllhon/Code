@@ -19,6 +19,7 @@ import { memoryReviewProfile } from "./review-profile.js";
 import { activeReviewWindowMessages, isDerivedSummary } from "./review-session-window.js";
 import { assertReviewTranscriptBudget } from "./review-transcript-budget.js";
 import { projectReviewToolEvidence } from "./review-tool-evidence.js";
+import { readPagedReviewEvidence } from "./review-paged-evidence.js";
 import {
   isSessionHistorySearchTaskType,
   projectSessionHistorySearchText,
@@ -59,6 +60,14 @@ export async function collectReviewSessionEvidence(context: ToolExecutionContext
   const profile = memoryReviewProfile(context);
   const current = await validateReviewSessionScope(context);
   if (context.reviewMode === "incremental") {
+    if (context.reviewSegment && context.sessionStore?.readMemoryReviewEvidence) {
+      const material = await readPagedReviewEvidence(
+        context,
+        context.reviewSegment,
+        context.reviewBoundary!.messageId,
+      );
+      return { materials: material.content ? [material] : [], partial: material.partial };
+    }
     const material = await readReviewSessionEvidence(
       current.id,
       profile.sessionCharacterLimit,

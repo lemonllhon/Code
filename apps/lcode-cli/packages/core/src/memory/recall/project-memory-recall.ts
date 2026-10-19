@@ -12,6 +12,7 @@ import {
 import { mapWithFixedConcurrency } from "./concurrency.js";
 import { parseMemoryDocument } from "./document.js";
 import { scanMemoryCandidatePaths } from "./manifest.js";
+import { reconcilePagedRecall } from "./paged-recall.js";
 import { applyMemoryRankingSignals, rankMemoryDocuments } from "./ranking.js";
 import { tokenizeMemoryRecallText } from "./tokenizer.js";
 import { selectMemoryExcerpt } from "./excerpt.js";
@@ -54,6 +55,31 @@ export class ProjectMemoryRecallIndex {
       );
   }
 
+  createCandidateOffsetSelector(rootDir: string): (query: string) => Record<string, number> {
+    const documents = this.rootDir === resolve(rootDir) ? [...this.documents.values()] : [];
+    return (query) => {
+      const tokens = tokenizeMemoryRecallText(query);
+      const offsets: Record<string, number> = Object.create(null);
+      for (const { document } of rankMemoryDocuments({ documents, queryTokens: tokens })) {
+        if (Object.hasOwn(offsets, document.filename)) continue;
+        const match =
+          tokens
+            .map((term) =>
+              document.content.search(
+                new RegExp(term.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "iu"),
+              ),
+            )
+            .filter((index) => index >= 0)
+            .sort((a, b) => a - b)[0] ?? 0;
+        const before = document.content
+          .slice(0, Math.max(0, match - 128))
+          .replace(/[\uD800-\uDBFF]$/u, "");
+        offsets[document.filename] = (document.byteOffset ?? 0) + Buffer.byteLength(before);
+      }
+      return offsets;
+    };
+  }
+
   async recall(
     input: MemoryRecallInput & {
       query: string;
@@ -71,12 +97,13 @@ export class ProjectMemoryRecallIndex {
     const queryTokens = tokenizeMemoryRecallText(input.query);
     if (queryTokens.length === 0) return emptyRecallOutcome(this.documents.size);
 
-    const snapshot = await this.reconcile(input, input.now ?? Date.now());
+    const snapshot = await this.reconcile(input, input.now ?? Date.now(), queryTokens);
     // 并发搜索只发布最新请求；旧 root 的慢读取不能覆盖新 root，调用者也只排名自己的快照。
     if (sequence === this.requestSequence) this.documents = snapshot.documents;
     let ranked = rankMemoryDocuments({
       documents: [...snapshot.documents.values()],
       queryTokens,
+      ...("corpus" in snapshot ? { corpus: snapshot.corpus } : {}),
     });
     const effects = input.fileSystem.projectMemory?.effects;
     if (input.rankingExperiment && effects) {
@@ -110,7 +137,7 @@ export class ProjectMemoryRecallIndex {
     return {
       ...(formatted.attachment ? { attachment: formatted.attachment } : {}),
       candidateCount: snapshot.candidateCount,
-      indexedCount: snapshot.documents.size,
+      indexedCount: "indexedCount" in snapshot ? snapshot.indexedCount : snapshot.documents.size,
       matchCount: ranked.length,
       results: formatted.results,
       health: snapshot.health,
@@ -118,8 +145,10 @@ export class ProjectMemoryRecallIndex {
     };
   }
 
-  private async reconcile(input: MemoryRecallInput, now: number) {
+  private async reconcile(input: MemoryRecallInput, now: number, queryTokens: readonly string[]) {
     const { paths, scan } = await scanMemoryCandidatePaths(input);
+    if (input.fileSystem.projectMemory?.readContentPage)
+      return reconcilePagedRecall(input, paths, scan, queryTokens, now);
     const statSettled = await mapWithFixedConcurrency(
       paths,
       MEMORY_RECALL_SCAN_CONCURRENCY,

@@ -22,7 +22,7 @@ export const REVIEW_OUTPUT_TOKEN_LIMIT = 4_096;
 export const REVIEW_RESPONSE_CHARACTER_LIMIT = 80_000;
 export const REVIEW_PATH_DEPTH_LIMIT = 8;
 
-const SOURCE_REVISION_PATTERN = /^review-v1:([a-f0-9]{64}):(0|[1-9][0-9]{0,4}):([a-f0-9]{64})$/u;
+const SOURCE_REVISION_PATTERN = /^review-v[12]:([a-f0-9]{64}):(0|[1-9][0-9]{0,4}):([a-f0-9]{64})$/u;
 const RESERVED_FILE_PATTERN = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu;
 const UNSAFE_SEGMENT_PATTERN = /[. ]$|[<>"|?*\u007f\u200c-\u200f\u202a-\u202e\u206a-\u206f\ufeff]/u;
 const PROTECTED_SEGMENTS = new Set(["agents.md", "memory.md", "skill.md", "memory-state"]);
@@ -30,6 +30,7 @@ const PROTECTED_SEGMENTS = new Set(["agents.md", "memory.md", "skill.md", "memor
 export type MemoryReviewErrorCode =
   | "unavailable"
   | "cancelled"
+  | "request_timeout"
   | "invalid_query"
   | "invalid_response"
   | "output_truncated"
@@ -42,6 +43,7 @@ export type MemoryReviewErrorCode =
 const ERROR_MESSAGES: Record<MemoryReviewErrorCode, string> = {
   unavailable: "Memory review requires a scoped main session and bounded read capabilities.",
   cancelled: "Memory review was cancelled.",
+  request_timeout: "Memory review work segment exceeded its request deadline.",
   invalid_query: "Memory review query is empty or exceeds its budget.",
   invalid_response: "Memory review model response is not a valid evidence-backed proposal.",
   output_truncated:
@@ -57,7 +59,8 @@ const ERROR_MESSAGES: Record<MemoryReviewErrorCode, string> = {
 export class MemoryReviewError extends Error {
   constructor(
     readonly code: MemoryReviewErrorCode,
-    readonly phase?: "generation" | "verification",
+    readonly phase?: "admission" | "generation" | "verification" | "commit" | "finish",
+    readonly reason?: string,
   ) {
     super(ERROR_MESSAGES[code]);
     this.name = code === "cancelled" ? "AbortError" : "MemoryReviewError";
@@ -73,7 +76,14 @@ export interface FrozenReviewSource {
 
 export function throwIfReviewAborted(context: ToolExecutionContext): void {
   // 原始 abort reason 可能包含用户正文或底层地址，公开错误只保留固定语义。
-  if (context.abortSignal.aborted) throw new MemoryReviewError("cancelled");
+  if (context.abortSignal.aborted) throw reviewAbortError(context);
+}
+
+function reviewAbortError(context: ToolExecutionContext): MemoryReviewError {
+  const reason: unknown = context.abortSignal.reason;
+  return new MemoryReviewError(
+    reason instanceof Error && reason.name === "TimeoutError" ? "request_timeout" : "cancelled",
+  );
 }
 
 /** SessionStore 尚无 signal 入参；等待可取消，且取消后不得继续发出新的 I/O。 */
@@ -85,7 +95,7 @@ export function reviewIO<T>(
   throwIfReviewAborted(context);
   return new Promise<T>((resolveResult, reject) => {
     const signal = context.abortSignal;
-    const aborted = () => reject(new MemoryReviewError("cancelled"));
+    const aborted = () => reject(reviewAbortError(context));
     signal.addEventListener("abort", aborted, { once: true });
     Promise.resolve()
       .then(() => {
@@ -103,7 +113,7 @@ export function reviewIO<T>(
           // 不把 port/provider 原始错误、cause 或正文带入上层日志。
           reject(
             signal.aborted
-              ? new MemoryReviewError("cancelled")
+              ? reviewAbortError(context)
               : error instanceof MemoryReviewError
                 ? error
                 : new MemoryReviewError(failureCode),
@@ -134,7 +144,10 @@ export function assertReviewCapabilities(context: ToolExecutionContext): void {
     !isAbsolute(context.memoryRoot) ||
     !isAbsolute(context.workspaceRoot) ||
     (context.reviewMode === "incremental"
-      ? !context.sessionStore?.readTranscriptWindow
+      ? !(
+          context.sessionStore?.readMemoryReviewEvidence ||
+          context.sessionStore?.readTranscriptWindow
+        )
       : !context.sessionStore?.readTranscriptSnapshot) ||
     context.runtimeScope === "subagent" ||
     context.automationTurn ||
@@ -180,10 +193,15 @@ function sourceId(
   kind: ProjectMemoryReviewSource["kind"],
   reference: string,
   boundaryMessageId?: string,
-  projection?: "latest-turn",
+  projection?: ProjectMemoryReviewSource["projection"],
+  segment?: ProjectMemoryReviewSource["segment"],
+  memoryRange?: ProjectMemoryReviewSource["memoryRange"],
 ): string {
   const identity = [scopeHash(context), kind, reference];
   if (boundaryMessageId || projection) identity.push(boundaryMessageId ?? "", projection ?? "");
+  // schema 会重排字段；来源身份必须与对象插入顺序无关，否则生成后会误报 stale。
+  if (segment) identity.push(reviewHash(segment));
+  if (memoryRange) identity.push(reviewHash(memoryRange));
   return `source_${reviewHash(identity).slice("sha256:".length)}`;
 }
 
@@ -194,7 +212,9 @@ export function createReviewSource(input: {
   characterLimit: number;
   material: unknown;
   boundaryMessageId?: string;
-  projection?: "latest-turn";
+  projection?: ProjectMemoryReviewSource["projection"];
+  segment?: ProjectMemoryReviewSource["segment"];
+  memoryRange?: ProjectMemoryReviewSource["memoryRange"];
 }): ProjectMemoryReviewSource {
   const scope = scopeHash(input.context);
   const digest = reviewHash([
@@ -203,6 +223,8 @@ export function createReviewSource(input: {
     input.reference,
     input.characterLimit,
     input.material,
+    ...(input.segment ? [input.segment] : []),
+    ...(input.memoryRange ? [input.memoryRange] : []),
     ...(input.boundaryMessageId || input.projection
       ? [input.boundaryMessageId ?? "", input.projection ?? ""]
       : []),
@@ -214,12 +236,16 @@ export function createReviewSource(input: {
       input.reference,
       input.boundaryMessageId,
       input.projection,
+      input.segment,
+      input.memoryRange,
     ),
     kind: input.kind,
     reference: input.reference,
-    revision: `review-v1:${scope}:${input.characterLimit}:${digest.slice("sha256:".length)}`,
+    revision: `review-v${input.segment || input.memoryRange ? 2 : 1}:${scope}:${input.characterLimit}:${digest.slice("sha256:".length)}`,
     ...(input.boundaryMessageId ? { boundaryMessageId: input.boundaryMessageId } : {}),
     ...(input.projection ? { projection: input.projection } : {}),
+    ...(input.segment ? { segment: input.segment } : {}),
+    ...(input.memoryRange ? { memoryRange: input.memoryRange } : {}),
   };
 }
 
@@ -231,6 +257,7 @@ export function reviewSourceCharacterLimit(
   const limit = Number(match?.[2]);
   if (
     !match ||
+    source.revision.startsWith("review-v2:") !== Boolean(source.segment || source.memoryRange) ||
     match[1] !== scopeHash(context) ||
     source.id !==
       sourceId(
@@ -239,10 +266,14 @@ export function reviewSourceCharacterLimit(
         source.reference,
         source.boundaryMessageId,
         source.projection,
+        source.segment,
+        source.memoryRange,
       ) ||
     (source.projection && (source.kind !== "session" || !source.boundaryMessageId)) ||
     (source.boundaryMessageId && source.kind !== "session") ||
-    (source.kind === "session" ? limit < 1 || limit > REVIEW_SESSION_CHARACTER_LIMIT : limit !== 0)
+    (source.kind === "session"
+      ? limit < 1 || limit > (source.segment?.maxCharacters ?? REVIEW_SESSION_CHARACTER_LIMIT)
+      : limit !== 0)
   ) {
     throw new MemoryReviewError("stale_source");
   }
