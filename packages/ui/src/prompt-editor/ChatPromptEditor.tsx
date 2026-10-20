@@ -5,6 +5,7 @@ import type {
   DragEventHandler,
   FormEventHandler,
   MutableRefObject,
+  CSSProperties,
   ReactNode,
 } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -29,6 +30,9 @@ import { appendWorkspaceFileMentionToComposer } from "@/lib/workspaceFileCompose
 import { usePromptEditorDragState } from "@/prompt-editor/usePromptEditorDragState.js";
 import { ChatPromptActionMenu } from "@/prompt-editor/ChatPromptActionMenu.js";
 import { useComposerToolbarFit } from "@/prompt-editor/useComposerToolbarFit.js";
+import { ComposerModelSparks } from "@/prompt-editor/ComposerModelSparks.js";
+import "./composerModelEmphasis.css";
+import "./promptBarSurface.css";
 
 function runAfterFrame(callback: () => void) {
   if (typeof requestAnimationFrame === "function") {
@@ -83,6 +87,8 @@ export function ChatPromptEditor({
   promptHistory,
   className,
   shellClassName,
+  modelEmphasis = 0,
+  presentation = "default",
   compactPlaceholder = false,
   onChange,
   onSubmit,
@@ -153,6 +159,9 @@ export function ChatPromptEditor({
   promptHistory?: readonly string[];
   className?: string;
   shellClassName?: string;
+  /** 当前模型/档位的纯视觉投影；选择仍由调用方 Composer 拥有。 */
+  modelEmphasis?: number;
+  presentation?: "default" | "prompt-bar";
   compactPlaceholder?: boolean;
   onChange?: (value: string) => void;
   // 适配：返回 false 表示业务层拒绝/延迟本次提交，Lexical 不自行 reset（草稿保留）。
@@ -377,16 +386,30 @@ export function ChatPromptEditor({
       ) : null}
       <div
         data-testid={shellTestId}
+        data-composer-model-emphasis={
+          modelEmphasis > 0 && !disabled && !submitting ? "true" : "false"
+        }
+        style={{ "--composer-model-strength": modelEmphasis } as CSSProperties}
+        data-composer-presentation={presentation}
+        data-composer-drop-active={
+          isWorkspaceFileDropActive || isExternalFileDropActive ? "true" : undefined
+        }
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={cn(
-          "relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-input-border bg-input p-3 transition-colors hover:border-input-border-hover focus-within:!border-input-border-focused focus-within:bg-input-focused",
+          "chat-prompt-shell relative flex flex-col overflow-hidden rounded-2xl border p-3",
+          presentation === "default"
+            ? "gap-3 border-input-border bg-input transition-colors hover:border-input-border-hover focus-within:!border-input-border-focused focus-within:bg-input-focused"
+            : "gap-2",
           (isWorkspaceFileDropActive || isExternalFileDropActive) &&
             "border-brand bg-input-focused ring-1 ring-brand/30",
           shellClassName,
         )}
       >
+        {modelEmphasis > 0 && !disabled && !submitting ? (
+          <ComposerModelSparks intensity={modelEmphasis} />
+        ) : null}
         {draggingOverlayHint ? (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-accent/55 backdrop-blur-sm">
             <div className="flex items-center gap-2 rounded-full border border-border bg-accent px-4 py-2 text-ui-base text-foreground shadow-sm">
@@ -430,6 +453,7 @@ export function ChatPromptEditor({
         />
         <div
           ref={toolbarRef}
+          data-composer-toolbar
           // 系统横向滚动条曾增加左侧工具区高度，items-end 把发送/停止挤到模型控件下方。
           // 隐去滚动条家具并统一居中，保留原生横扫/触摸/Tab 的溢出访问。
           className={cn("group/toolbar flex items-center", trailingActions ? "gap-1" : "gap-3")}
@@ -464,7 +488,10 @@ export function ChatPromptEditor({
               ) : null}
               {trailingActions ? (
                 <span
-                  className="ml-auto flex shrink-0 items-center gap-1"
+                  className={cn(
+                    "flex items-center gap-1",
+                    presentation === "prompt-bar" ? "min-w-0 flex-1" : "ml-auto shrink-0",
+                  )}
                   data-composer-config-actions
                 >
                   {trailingActions}
@@ -501,7 +528,7 @@ export function ChatPromptEditor({
                   disabled={submitDisabled}
                   data-testid={submitTestId ?? TID_CHAT_SEND_BUTTON}
                   aria-label={submitLabel}
-                  className="gap-1 rounded-lg bg-brand text-ui-base text-foreground-inverse hover:bg-brand/80"
+                  className="composer-submit-primary gap-1 rounded-lg bg-brand text-ui-base text-foreground-inverse hover:bg-brand/80"
                 >
                   {submitting ? <Spinner className="size-4" /> : <ArrowUpIcon className="size-4" />}
                   <span className="sr-only">{submitLabel}</span>

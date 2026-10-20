@@ -114,6 +114,8 @@ function V4ComposerModeSwitchImpl({
               disabled={disabled}
               data-testid={TID_CHAT_MODE_SELECT_TRIGGER}
               data-composer-collapse-priority="0"
+              data-composer-control="mode"
+              data-composer-warning={selected.id === "yolo" ? "true" : undefined}
               aria-label={intl.formatMessage({ id: "chat.toolbar.mode.label" })}
               className={cn(
                 "group/mode size-7 gap-1 rounded-lg p-0 text-ui-base @xl/composer:w-auto @xl/composer:px-2 data-[composer-compact=true]:w-7 data-[composer-compact=true]:px-0",

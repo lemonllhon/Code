@@ -267,6 +267,7 @@ export function ChatPromptActionMenu({
             onMouseDown={(event) => event.preventDefault()}
             aria-label={actionMenuTitle}
             data-testid={attachmentAction?.testId}
+            data-composer-control="add"
             disabled={disabled}
             title={disabledReason}
           >

@@ -1,6 +1,7 @@
 .token-usage-statusbar {
   padding-block: 0.125rem 0;
-  border-top: 1px solid var(--color-border);
+  /* 内部底栏与输入框共享表面；整条顶边会割裂正文、工具行和 Spark 底光。 */
+  border-top: 0;
 }
 .token-usage-tone[data-usage-tone="speed"] {
   --token-usage-tone: var(--color-usage-chart-2);

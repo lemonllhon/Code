@@ -1,6 +1,7 @@
 /* oxlint-disable max-lines -- composer 集中收口输入区 wiring（附件/草稿/历史/mention），拆分会打散收口粒度。 */
 import { getLocalTtftObserver } from "@/v4/telemetry/localTtftObserver.js";
 import { useComposerPrediction } from "@/hooks/useComposerPrediction.js";
+import { resolveComposerModelEmphasis } from "@/v4/composer/composerModelEmphasis.js";
 /**
  * v4 会话 composer（composer parity）。
  *
@@ -2528,6 +2529,10 @@ function ConversationComposerImpl({
   );
   // 模型配置原来与发送共用 shrink-0 trailing，极窄时被 overflow-hidden 裁掉。
   // 配置移入共享滚动插槽，仍使用同一受控草稿；发送/停止独立固定在滚动区外。
+  const modelEmphasis = useMemo(
+    () => resolveComposerModelEmphasis(draftConfig?.modelSelection, modelSelectionView),
+    [draftConfig?.modelSelection, modelSelectionView],
+  );
   const modelControlsNode = useMemo(
     () => (
       <V4ComposerModelControls
@@ -2613,7 +2618,7 @@ function ConversationComposerImpl({
               onClick={handleSendButtonClick}
               data-testid={TID_V4_COMPOSER_SEND}
               aria-label={resolvedSendTooltipTitle}
-              className="cursor-pointer gap-1 rounded-lg bg-brand text-ui-base text-foreground-inverse hover:bg-brand/80"
+              className="composer-submit-primary cursor-pointer gap-1 rounded-lg bg-brand text-ui-base text-foreground-inverse hover:bg-brand/80"
             >
               {pending ? <Spinner className="size-4" /> : <ArrowUpIcon className="size-4" />}
               <span className="sr-only">{resolvedSendTooltipTitle}</span>
@@ -2793,6 +2798,8 @@ function ConversationComposerImpl({
         <ContextCapsuleNotice text={text} existingSession={Boolean(sessionId)} />
         <GoalCommandNotice text={text} />
         <ChatPromptEditor
+          presentation="prompt-bar"
+          modelEmphasis={modelEmphasis}
           workspacePath={workspacePath}
           workspaceIdentity={workspaceIdentity}
           fileWorkspacePath={executionWorkspacePath}

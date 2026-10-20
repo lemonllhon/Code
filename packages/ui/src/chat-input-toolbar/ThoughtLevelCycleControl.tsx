@@ -6,7 +6,7 @@ import {
   type LCodeConfigOption,
   type LCodeProvider,
 } from "@lcode/shared";
-import { BrainIcon, ChevronDownIcon } from "lucide-react";
+import { BrainIcon, ChevronDownIcon, SparklesIcon } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
@@ -147,6 +147,9 @@ export function ThoughtLevelCycleControl({
       : thinkingEntries.indexOf(currentEntry) + 1;
   const dotCount = Math.max(1, thinkingEntries.length);
   const progressPercent = (activeDotCount / dotCount) * 100;
+  const isPeakThought =
+    currentValueIsValid && thinkingEntries.length > 1 && activeDotCount === dotCount;
+  const ThoughtIcon = interactionMode === "slider" && isPeakThought ? SparklesIcon : BrainIcon;
 
   if (option.type !== "select" || entries.length === 0 || !currentEntry) {
     return null;
@@ -190,11 +193,13 @@ export function ThoughtLevelCycleControl({
 
   const triggerContent = (
     <>
-      <BrainIcon className="pointer-events-none size-4 text-current" />
+      <ThoughtIcon className="pointer-events-none size-4 text-current" />
       <span
         className={cn(
           "relative w-1 self-stretch overflow-hidden rounded-full bg-current/10",
-          "hidden @sm/composer:inline-flex @xl/composer:hidden",
+          interactionMode === "slider"
+            ? "hidden"
+            : "hidden @sm/composer:inline-flex @xl/composer:hidden",
         )}
         aria-hidden="true"
       >
@@ -229,6 +234,8 @@ export function ThoughtLevelCycleControl({
           )}
           aria-label={currentLabel}
           data-thought-level-fixed="true"
+          data-composer-control="thought"
+          data-thought-peak="false"
           data-testid={TID_CHAT_THOUGHT_LEVEL_SELECT_TRIGGER}
         >
           {/* 单档模型（如 Kimi K3）没有可切换状态，不能继续渲染带箭头的 Select。*/}
@@ -262,6 +269,8 @@ export function ThoughtLevelCycleControl({
           className={cn("gap-1 rounded-lg px-1.5 py-1.5 text-ui-base", triggerClassName)}
           aria-label={currentLabel}
           data-chat-toolbar-popover-trigger="true"
+          data-composer-control="thought"
+          data-thought-peak={isPeakThought ? "true" : "false"}
           data-testid={TID_CHAT_THOUGHT_LEVEL_SELECT_TRIGGER}
         >
           {triggerContent}

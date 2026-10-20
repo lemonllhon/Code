@@ -38,9 +38,14 @@ import { installRemoteDirectoryAttachmentBridge } from "./remote-directory-attac
 import "@lcode/ui/styles.css";
 import { PipelineRowsFixture } from "./pipeline-rows.js";
 import { PermissionModeFixture } from "./permission-mode-switch.js";
+import { applyTheme, isThemeValue } from "@/useTheme.js";
 
 const query = new URLSearchParams(location.search);
+const previewTheme = query.get("theme");
+if (isThemeValue(previewTheme)) applyTheme(previewTheme);
+const previewWidth = Number(query.get("previewWidth"));
 const remoteProviders = query.has("remoteProviders");
+const modelEmphasis = query.has("modelEmphasis");
 const remoteAttachments = query.has("remoteAttachments");
 const existing = query.has("existing");
 const worktree = query.has("worktree");
@@ -49,7 +54,10 @@ const workspacePath = remoteProviders ? "/fixture/ssh" : "/fixture/origin";
 const modelSelection = {
   providerId: remoteProviders ? "openai" : "custom",
   modelId: "demo",
-  options: { reasoningLevel: "high", speed: query.has("standardOnly") ? "standard" : "fast" },
+  options: {
+    reasoningLevel: query.get("initialThought") ?? "high",
+    speed: query.has("standardOnly") ? "standard" : "fast",
+  },
 };
 const baseView = {
   revision: 1,
@@ -58,24 +66,22 @@ const baseView = {
       providerId: "custom",
       providerName: "Fixture",
       config: { api: { type: "anthropic" } },
-      models: [
-        {
-          modelId: "demo",
-          config: {
-            optionSpecs: {
-              reasoningLevel: {
-                values: query.get("thoughtLevels")?.split(",") ?? ["low", "high"],
-                map: "{}",
-              },
-              maxOutputTokens: { max: 4096, map: "{}" },
-              speed: {
-                values: query.has("standardOnly") ? ["standard"] : ["standard", "fast"],
-                map: "{}",
-              },
+      models: (modelEmphasis ? ["demo", "gpt-6.1-sol", "gpt-6-luna"] : ["demo"]).map((modelId) => ({
+        modelId,
+        config: {
+          optionSpecs: {
+            reasoningLevel: {
+              values: query.get("thoughtLevels")?.split(",") ?? ["low", "high"],
+              map: "{}",
+            },
+            maxOutputTokens: { max: 4096, map: "{}" },
+            speed: {
+              values: query.has("standardOnly") ? ["standard"] : ["standard", "fast"],
+              map: "{}",
             },
           },
         },
-      ],
+      })),
     },
   ],
 } as unknown as ModelSelectionView;
@@ -100,6 +106,15 @@ const services = {
   settingService: { get: async () => ({}), update: async () => {} },
   clientConfigService: { getSnapshot: async () => ({ pluginStoreOrder: null }) },
   lcodeAgentService: {},
+  // 输入预览也会读取 @ 子代理目录；空目录需显式返回，避免用缺失服务制造控制台错误。
+  subagentsService: {
+    list: async () => ({
+      agents: [],
+      userAgents: [],
+      pluginAgents: [],
+      capability: { userScopeAvailable: false },
+    }),
+  },
   lcodeTaskService: { getTaskMeta: async ({ taskId }: { taskId: string }) => ({ taskId }) },
   broadcastService: {},
   promptAttachmentTransferService: {
@@ -367,7 +382,7 @@ function App() {
       }}
       onStop={() => {}}
       onSelectModel={(providerId, modelId) => {
-        if (remoteProviders)
+        if (remoteProviders || modelEmphasis)
           setDraft((current) => ({
             ...current,
             modelSelection: { ...current.modelSelection!, providerId, modelId },
@@ -401,6 +416,9 @@ function App() {
       onDragLeave={dropTarget?.onDragLeave}
       onDrop={dropTarget?.onDrop}
     >
+      {previewWidth >= 300 && previewWidth <= 760 ? (
+        <style>{`.chat-composer-region { max-width: ${previewWidth}px; margin-inline: auto; }`}</style>
+      ) : null}
       {query.has("handoff") && !query.has("preparationFailure") ? (
         <GitFailureAction
           workspacePath={workspacePath}

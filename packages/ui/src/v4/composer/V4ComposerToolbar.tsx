@@ -1129,6 +1129,7 @@ function V4ComposerModelControlsImpl({
       {thoughtOption ? (
         <ThoughtLevelCycleControl
           interactionMode="slider"
+          labelVisibilityClassName="hidden @sm/composer:inline-flex"
           indicatorClassName="hidden @xl/composer:block"
           triggerClassName="@max-sm/composer:size-7 @max-sm/composer:justify-center @max-sm/composer:p-0"
           option={thoughtOption}

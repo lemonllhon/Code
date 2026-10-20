@@ -1,0 +1,140 @@
+.chat-prompt-shell[data-composer-presentation="prompt-bar"] {
+  --composer-spark-color: oklch(from var(--color-brand) clamp(0.42, l, 0.56) max(c, 0.12) h);
+  border-color: transparent;
+  background: var(--color-input-focused);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-foreground) 4%, transparent);
+}
+
+.dark .chat-prompt-shell[data-composer-presentation="prompt-bar"] {
+  --composer-spark-color: oklch(from var(--color-brand) max(l, 0.76) max(c, 0.12) h);
+}
+
+.chat-prompt-shell[data-composer-presentation="prompt-bar"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    140% 120% at 0% 100%,
+    color-mix(in srgb, var(--composer-spark-color) 26%, transparent),
+    transparent 62%
+  );
+  transition: opacity 220ms ease;
+}
+
+.chat-prompt-shell[data-composer-presentation="prompt-bar"][data-composer-model-emphasis="true"]::before {
+  opacity: var(--composer-model-strength);
+}
+
+.chat-prompt-shell[data-composer-presentation="prompt-bar"][data-composer-drop-active="true"] {
+  border-color: var(--color-brand);
+}
+
+.chat-prompt-shell[data-composer-presentation="prompt-bar"] [data-prompt-editor-body] {
+  line-height: max(22px, 1.5em);
+  min-height: 1lh;
+}
+
+.chat-prompt-shell[data-composer-presentation="prompt-bar"] [data-prompt-editor-placeholder] {
+  line-height: max(22px, 1.5em);
+  /* 占位层绝对定位不撑高编辑区；窄屏折行会盖住工具条，故保留全文 aria 并单行省略。 */
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-prompt-shell[data-composer-presentation="prompt-bar"]
+  [data-composer-toolbar]
+  :is(button, [data-thought-level-fixed]) {
+  font-size: var(--text-ui-caption);
+  font-weight: 500;
+  border-radius: var(--radius-lg);
+  min-height: 1.75rem;
+  padding-block: 0;
+}
+
+.chat-prompt-shell[data-composer-presentation="prompt-bar"]
+  [data-composer-toolbar]
+  :is(
+    .composer-model-trigger,
+    .composer-speed-trigger,
+    [data-composer-control="thought"],
+    [data-composer-control="add"],
+    [data-composer-control="mode"]:not([data-composer-warning="true"])
+  ) {
+  color: var(--color-foreground-subtle);
+}
+
+.chat-prompt-shell[data-composer-presentation="prompt-bar"]
+  [data-composer-toolbar]
+  :is(
+    .composer-model-trigger,
+    .composer-speed-trigger,
+    [data-composer-control="thought"],
+    [data-composer-control="add"],
+    [data-composer-control="mode"]:not([data-composer-warning="true"])
+  ):is(:hover, [aria-expanded="true"]) {
+  color: var(--color-foreground);
+  background: color-mix(in srgb, var(--color-foreground) 8%, transparent);
+}
+
+.chat-prompt-shell[data-composer-presentation="prompt-bar"]
+  [data-composer-toolbar]
+  [data-composer-control="thought"][data-thought-peak="true"] {
+  color: var(--composer-spark-color);
+}
+
+.chat-prompt-shell[data-composer-presentation="prompt-bar"]
+  [data-composer-toolbar]
+  [data-composer-control="thought"][data-thought-peak="true"]:is(:hover, [aria-expanded="true"]) {
+  color: var(--composer-spark-color);
+}
+
+.chat-prompt-shell[data-composer-presentation="prompt-bar"] .composer-speed-trigger {
+  margin-inline-start: auto;
+}
+
+.chat-prompt-shell[data-composer-presentation="prompt-bar"] .composer-submit-primary {
+  background: var(--color-foreground);
+  color: var(--color-input-focused);
+  opacity: 1;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    transform 140ms ease;
+}
+
+.chat-prompt-shell[data-composer-presentation="prompt-bar"]
+  .composer-submit-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-foreground) 88%, var(--color-input-focused));
+}
+
+.chat-prompt-shell[data-composer-presentation="prompt-bar"]
+  .composer-submit-primary:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.chat-prompt-shell[data-composer-presentation="prompt-bar"] .composer-submit-primary:disabled {
+  background: color-mix(in srgb, var(--color-foreground) 12%, transparent);
+  color: color-mix(in srgb, var(--color-foreground) 55%, var(--color-input-focused));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-prompt-shell[data-composer-presentation="prompt-bar"]::before,
+  .chat-prompt-shell[data-composer-presentation="prompt-bar"] .composer-submit-primary {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .chat-prompt-shell[data-composer-presentation="prompt-bar"] {
+    border-color: CanvasText;
+  }
+  .chat-prompt-shell[data-composer-presentation="prompt-bar"]::before {
+    display: none;
+  }
+}

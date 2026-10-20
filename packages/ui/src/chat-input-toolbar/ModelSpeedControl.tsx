@@ -46,7 +46,7 @@ export function ModelSpeedControl({
         <SelectTrigger
           variant="ghost"
           size="default"
-          className="gap-1 rounded-md px-1.5 text-ui-base"
+          className="composer-speed-trigger gap-1 rounded-md px-1.5 text-ui-base"
           aria-label={`${title}: ${value ? label(value) : title}`}
           data-chat-toolbar-popover-trigger="true"
           data-testid="chat-model-speed-trigger"

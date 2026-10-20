@@ -1465,6 +1465,7 @@ export function LexicalChatInput({
           "aria-placeholder": placeholder,
           placeholder: (
             <div
+              data-prompt-editor-placeholder
               className={`pointer-events-none absolute left-0 top-0 ${compactPlaceholder ? "line-clamp-2" : ""} text-ui-base leading-5 text-foreground-subtlest`}
             >
               {placeholder}
@@ -1482,6 +1483,7 @@ export function LexicalChatInput({
       // 兼容下限必须落在真实 editable；粗指针横屏仍需 16px，不能仅按 md 宽度判断。
       className="min-h-10 max-h-40 overflow-y-auto text-ui-base [@media(hover:none)_and_(pointer:coarse)]:text-mobile-input-safe leading-5 text-foreground outline-none"
       data-testid={inputTestId}
+      data-prompt-editor-body
       onFocus={onFocus}
       {...contentEditableProps}
     />

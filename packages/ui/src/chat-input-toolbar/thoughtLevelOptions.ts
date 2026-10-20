@@ -3,30 +3,12 @@ import type { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { getConfigOptionEntryLabel } from "@/chat-input-toolbar/display.js";
 import { thoughtLevelLabelId } from "@/chat-input-toolbar/thoughtLevelLabels.js";
 export { thoughtLevelLabelId } from "@/chat-input-toolbar/thoughtLevelLabels.js";
+export { isNoThoughtLevel } from "./thoughtLevelValues.js";
 
 type ThoughtLevelEntry = NonNullable<LCodeConfigOption["options"]>[number];
 
-const NO_THOUGHT_LEVEL_VALUES = new Set([
-  "disabled",
-  "false",
-  "no",
-  "none",
-  "nothink",
-  "no-think",
-  "no_think",
-  "off",
-]);
-
 function normalizeThoughtLevelText(value: string): string {
   return value.trim().toLowerCase();
-}
-
-/**
- * 档位值 → 词条 id；表里没有的值返回 undefined（调用方原样显示 provider 自己的档位名）。
- * 工具条之外也有人要说这个词（工作流的子代理模型），两处必须查同一张表。
- */
-export function isNoThoughtLevel(entry: ThoughtLevelEntry): boolean {
-  return NO_THOUGHT_LEVEL_VALUES.has(normalizeThoughtLevelText(entry.value));
 }
 
 export function getNextThoughtLevelValue(
@@ -45,6 +27,7 @@ export function getNextThoughtLevelValue(
   return entries[nextIndex]?.value ?? null;
 }
 
+/** 未知词条原样显示供应商档位名称，其他入口复用同一张本地化表。 */
 export function getThoughtLevelLabel(
   intl: ReturnType<typeof useLCodeIntl>["intl"],
   provider: LCodeProvider | undefined,

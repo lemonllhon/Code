@@ -1,0 +1,79 @@
+.chat-prompt-shell {
+  isolation: isolate;
+}
+
+.composer-model-sparks {
+  --composer-spark-boost: 0;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: calc(0.35 + var(--composer-model-strength) * 0.65);
+  filter: brightness(calc(1 + var(--composer-spark-boost) * 0.9));
+  mask-image: linear-gradient(to top, #000 0% 38%, rgb(0 0 0 / 75%) 66%, transparent 92%);
+}
+
+.composer-model-spark {
+  position: absolute;
+  bottom: 0;
+  border-radius: 50%;
+  background: var(--composer-spark-color, var(--color-brand));
+  scale: calc(0.65 + var(--composer-model-strength) * 0.35 + var(--composer-spark-boost) * 0.7);
+  box-shadow: 0 0 calc(6px + var(--composer-spark-boost) * 5px)
+    color-mix(in srgb, var(--composer-spark-color, var(--color-brand)) 75%, transparent);
+  animation: composer-spark-rise linear infinite;
+}
+
+.composer-model-spark[data-active="false"] {
+  display: none;
+}
+
+@keyframes composer-spark-rise {
+  0% {
+    opacity: 0;
+    transform: translate(0, 6px) scale(0.45);
+  }
+  16% {
+    opacity: 0.85;
+    transform: translate(calc(var(--composer-spark-drift) * 0.3), -12px) scale(0.85);
+  }
+  30% {
+    opacity: 0.45;
+  }
+  44% {
+    opacity: 1;
+    transform: translate(calc(var(--composer-spark-drift) * -0.2), -36px) scale(1);
+  }
+  62% {
+    opacity: 0.55;
+  }
+  76% {
+    opacity: 0.75;
+    transform: translate(calc(var(--composer-spark-drift) * 0.7), -65px) scale(0.7);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--composer-spark-drift), -96px) scale(0.3);
+  }
+}
+
+@container composer (width < 24rem) {
+  .composer-model-spark:nth-child(n + 17) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-model-spark {
+    display: none;
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .composer-model-sparks {
+    display: none;
+  }
+}

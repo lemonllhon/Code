@@ -6,10 +6,16 @@ export async function verifyCompactFooter(bar) {
     return {
       height: element.getBoundingClientRect().height,
       bottomGap: shell.getBoundingClientRect().bottom - element.getBoundingClientRect().bottom,
+      border: getComputedStyle(element).borderTopWidth,
+      background: getComputedStyle(element).backgroundColor,
+      shadow: getComputedStyle(element).boxShadow,
     };
   });
   assert.ok(geometry.height <= 28, JSON.stringify(geometry));
   assert.ok(geometry.bottomGap <= 9, JSON.stringify(geometry));
+  assert.equal(geometry.border, "0px");
+  assert.equal(geometry.background, "rgba(0, 0, 0, 0)");
+  assert.equal(geometry.shadow, "none");
 }
 
 export async function verifyStatusBarPlacement(composer, position) {
