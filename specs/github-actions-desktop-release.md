@@ -2,6 +2,15 @@
 
 ## 产品规则
 
+### v3.19.7 Composer 模型强调发行（2026-10-20）
+
+- 根 `package.json` 的桌面版本由 `3.19.6` 更新为 `3.19.7`，库存只同步该 manifest 的输入摘要；依赖图、锁文件和许可证材料不变。
+- 发行包含 `9d527383` 的 Composer 旗舰/最高思考强调线、提示栏表面样式与整合用量状态栏，以及 `210cc217` 完成轮记忆修复及其之前的提交。`a209fa51` 已作为 v3.19.6 发布，新版本必须包含其之后的源码，不能用同一 commit 或仅改版本号复用旧包。
+- 新建附注 tag `v3.19.7`，只推送至 `code` remote 对应的 `lemonllhon/Code`；不移动或覆盖既有 tag。`L-GO` 正在该 tag 之前以快进方式推送到 `code/L-GO`。
+- 发行输入以提交对象为准：`node scripts/verify-release-inputs.mjs --source=HEAD` 必须覆盖全部库存输入，本地工作区哈希不作为依据（Windows `core.autocrlf` 会改变工作区字节）。
+- cfworker-remote 在桌面构建开始后，以 `LCODE_ENV=production pnpm build:mobile-web` 重新装配 `public`，提交信息记录源码提交 SHA；`public/site` 的发行目录由 Worker 实时代理 GitHub Release，不固化版本号。
+- 验收远端 tag 解引用后的 SHA 等于 `L-GO` 远端 SHA，Actions 在 `lemon-casino/LemonCode` 完成六平台构建与公开 Release，cfworker-remote 的 `public` 与主仓库构建产物一致。
+
 ### v3.19.6 完成轮记忆修复发行（2026-10-19）
 
 - 根 `package.json` 的桌面版本由 `3.19.5` 更新为 `3.19.6`，库存同步该 manifest 的输入摘要。版本元数据是本次发行提交的变更；依赖图与许可证材料沿用已验证源码提交。
