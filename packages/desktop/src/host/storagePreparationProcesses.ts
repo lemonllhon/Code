@@ -11,7 +11,10 @@ import {
   lcodeStoragePreparationFrameSchema,
   type DatabaseStartupState,
 } from "@lcode/shared";
-import { resolveDefaultLCodeAgentCommand } from "@lcode/services/storage-startup";
+import {
+  planLegacySessionRecovery,
+  resolveDefaultLCodeAgentCommand,
+} from "@lcode/services/storage-startup";
 
 type Phase = NonNullable<DatabaseStartupState["databasePhase"]>;
 const workerMessageSchema = z.discriminatedUnion("type", [
@@ -178,8 +181,14 @@ export async function prepareSessionStorage(options: {
             if (settled || failure || options.signal.aborted) return;
             const reuse = options.preparedPaths?.has(preparedPath) ?? false;
             if (!reuse) await options.observePath(frame.params.path);
+            // 原 CLI 将会话留在 homedir，而 tasks-index 已跟随应用数据根；先补迁再允许业务启动。
+            const legacyRecovery = reuse
+              ? undefined
+              : await planLegacySessionRecovery({ targetDatabasePath: frame.params.path });
             if (!settled && !failure && !options.signal.aborted)
-              input.write(`${JSON.stringify({ method: "startup/storagePathReady", reuse })}\n`);
+              input.write(
+                `${JSON.stringify({ method: "startup/storagePathReady", reuse, ...(legacyRecovery ? { legacyRecovery } : {}) })}\n`,
+              );
           })().catch((error) => {
             failure ??= error;
             terminate();

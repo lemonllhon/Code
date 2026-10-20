@@ -6,12 +6,16 @@ import {
   lcodeProtocolNotifications,
   lcodeStorageStartupStateSchema,
   type LCodeStorageStartupState,
+  type LegacySessionRecoveryPlan,
 } from "@lcode/shared";
+
+const MAX_STORAGE_ACK_BYTES = 16 * 1024 * 1024;
 
 export async function openProtocolStartupStorage(options: {
   dbPath: string;
   output: NodeJS.WritableStream;
   onProgress?: (progress: LCodeStorageStartupState) => void;
+  legacyRecovery?: LegacySessionRecoveryPlan;
 }): Promise<SqliteSessionStore> {
   const attemptId = randomUUID();
   const databaseId = createHash("sha256").update(options.dbPath).digest("hex");
@@ -38,7 +42,31 @@ export async function openProtocolStartupStorage(options: {
   };
   try {
     await report({ phase: "checking", elapsedMs: 0 });
-    return await SqliteSessionStore.openStartup({ dbPath: options.dbPath }, { onProgress: report });
+    let ready: SqliteMigrationProgress | undefined;
+    const store = await SqliteSessionStore.openStartup(
+      { dbPath: options.dbPath },
+      {
+        onProgress: async (progress) => {
+          if (options.legacyRecovery && progress.phase === "ready") ready = progress;
+          else await report(progress);
+        },
+      },
+    );
+    try {
+      if (options.legacyRecovery) {
+        await report({ phase: "maintaining", elapsedMs: 0 });
+        await store.recoverLegacySessions(options.legacyRecovery);
+        if (ready) await report(ready);
+      }
+      return store;
+    } catch (error) {
+      try {
+        store.close();
+      } catch {
+        /* 恢复失败是主因，不被连接清理错误覆盖。 */
+      }
+      throw error;
+    }
   } catch (error) {
     if (!failedReported) {
       try {
@@ -67,7 +95,10 @@ export async function prepareProtocolStartupStorage(options: {
     await import("@lcode/shared");
   const lines = createInterface({ input: options.input });
   let timer: ReturnType<typeof setTimeout>;
-  const acknowledgement = new Promise<boolean>((resolve, reject) => {
+  const acknowledgement = new Promise<{
+    reuse?: boolean;
+    legacyRecovery?: LegacySessionRecoveryPlan;
+  }>((resolve, reject) => {
     timer = setTimeout(
       () =>
         reject(
@@ -79,9 +110,11 @@ export async function prepareProtocolStartupStorage(options: {
     );
     lines.once("line", (line) => {
       try {
-        if (line.length > 1024) throw new Error("Invalid storage acknowledgement");
+        // 控制帧包含已有任务候选，不携带消息正文；限制总字节而不截断候选，避免静默漏迁。
+        if (Buffer.byteLength(line, "utf8") > MAX_STORAGE_ACK_BYTES)
+          throw new Error("Invalid storage acknowledgement");
         const ack = lcodeStoragePathReadySchema.parse(JSON.parse(line));
-        resolve(ack.reuse ?? false);
+        resolve(ack);
       } catch (error) {
         reject(error);
       }
@@ -105,12 +138,12 @@ export async function prepareProtocolStartupStorage(options: {
     });
   try {
     await write({ method: "startup/storagePath", params: { path: options.dbPath } });
-    const reuse = await acknowledgement;
+    const { reuse, legacyRecovery } = await acknowledgement;
     clearTimeout(timer!);
     lines.close();
     // reuse 仅由同一次 Host 准备的成功路径集合授予；不打开连接，也不写永久跳过标记。
     if (!reuse) {
-      store = await openProtocolStartupStorage(options);
+      store = await openProtocolStartupStorage({ ...options, legacyRecovery });
       store.close();
       store = undefined;
     }

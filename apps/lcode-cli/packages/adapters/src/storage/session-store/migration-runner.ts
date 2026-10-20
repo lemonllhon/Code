@@ -22,6 +22,7 @@ export type SqliteMigrationPhase =
   | "waiting_for_lock"
   | "migrating"
   | "committing"
+  | "maintaining"
   | "ready"
   | "failed";
 

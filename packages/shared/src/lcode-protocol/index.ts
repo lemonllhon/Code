@@ -1,3 +1,4 @@
+import { legacySessionRecoveryPlanSchema } from "../legacy-session-recovery.js";
 import {
   COMPOSER_PREDICTION_QUERY_SOURCE,
   composerPredictionRequestSchema,
@@ -440,7 +441,15 @@ export const lcodeStorageStartupStateSchema = z
     sequence: z.number().int().positive(),
     databaseId: z.string().min(1).max(128),
     databaseKind: z.enum(["session", "tasks-index"]),
-    phase: z.enum(["checking", "waiting_for_lock", "migrating", "committing", "ready", "failed"]),
+    phase: z.enum([
+      "checking",
+      "waiting_for_lock",
+      "migrating",
+      "committing",
+      "maintaining",
+      "ready",
+      "failed",
+    ]),
     // 包含锁内、版本 SQL 之前的可选 lastAppliedMigrationId；旧通知仍可解析。
     migration: databaseMigrationFactsSchema.optional(),
     elapsedMs: z.number().nonnegative().finite(),
@@ -4033,7 +4042,11 @@ export const lcodeStoragePreparationFrameSchema = z.discriminatedUnion("method",
     .strict(),
 ]);
 export const lcodeStoragePathReadySchema = z
-  .object({ method: z.literal("startup/storagePathReady"), reuse: z.boolean().optional() })
+  .object({
+    method: z.literal("startup/storagePathReady"),
+    reuse: z.boolean().optional(),
+    legacyRecovery: legacySessionRecoveryPlanSchema.optional(),
+  })
   .strict();
 export * from "../localTtft.js";
 

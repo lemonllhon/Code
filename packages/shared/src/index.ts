@@ -341,3 +341,4 @@ export * from "./model-catalog.js";
 export * from "./provider-account-checkin.js";
 export * from "./sidebarOrganization.js";
 export * from "./provider-routing.js";
+export * from "./legacy-session-recovery.js";

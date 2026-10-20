@@ -1,5 +1,6 @@
 import { sessionInputMethods } from "./store-inputs.js";
-
+import type { LegacySessionRecoveryPlan } from "@lcode/shared";
+import { recoverLegacySessions } from "./legacy-recovery.js";
 import {
   beginGoalEvidenceExecution,
   saveSessionEntryWithGoalEvidence,
@@ -48,12 +49,10 @@ import { maybeThrowStorageFsFault } from "../fs-fault-injection.js";
 import * as debugRepository from "./repositories/debug.js";
 import * as messageRepository from "./repositories/messages.js";
 import * as sessionEntryRepository from "./repositories/session-entries.js";
-
 import * as sessionRepository from "./repositories/sessions.js";
 import * as transcriptSnapshotRepository from "./repositories/transcript-snapshot.js";
 import { historyDiscoveryMethods } from "./store-history-discovery.js";
 import { messagePartMethods } from "./store-message-parts.js";
-
 import { sessionForkMethods } from "./store-fork.js";
 import { sharedContextMethods } from "./store-shared-context.js";
 import { contextCapsuleMethods } from "./store-context-capsule.js";
@@ -62,13 +61,11 @@ import { auxiliaryStoreMethods } from "./store-auxiliary.js";
 import { worktreeCleanupMethods } from "./store-worktree-cleanup.js";
 import { worktreeRebindMethods } from "./store-worktree-rebind.js";
 import type { StoreMethods } from "./store-access.js";
-
 type ForkMethods = StoreMethods<typeof sessionForkMethods>;
 type SharedContextMethods = StoreMethods<typeof sharedContextMethods>;
 type ContextCapsuleMethods = StoreMethods<typeof contextCapsuleMethods>;
 type TargetMethods = StoreMethods<typeof sessionTargetMethods>;
 type AuxiliaryMethods = StoreMethods<typeof auxiliaryStoreMethods>;
-
 const deferredStartup = Symbol("deferredSqliteStartup");
 
 export class SqliteSessionStore
@@ -195,6 +192,10 @@ export class SqliteSessionStore
 
   getDatabasePath(): string {
     return this.dbPath;
+  }
+
+  async recoverLegacySessions(plan: LegacySessionRecoveryPlan): Promise<void> {
+    await recoverLegacySessions(this.db, this.dbPath, plan);
   }
 
   close(): void {

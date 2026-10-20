@@ -1,10 +1,20 @@
 import assert from "node:assert/strict";
 import { PassThrough, Writable } from "node:stream";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import type { LegacySessionRecoveryPlan } from "@lcode/shared";
 import test from "node:test";
 import { SqliteSessionStore } from "@lcode/adapters/storage";
 import { prepareProtocolStartupStorage } from "./storage-startup.js";
 
-function createTransport(options: { reuse?: boolean; failFailureNotification?: boolean } = {}) {
+function createTransport(
+  options: {
+    reuse?: boolean;
+    failFailureNotification?: boolean;
+    legacyRecovery?: LegacySessionRecoveryPlan;
+  } = {},
+) {
   const input = new PassThrough();
   const frames: Array<{ method: string; params: Record<string, unknown> }> = [];
   const output = new Writable({
@@ -14,7 +24,7 @@ function createTransport(options: { reuse?: boolean; failFailureNotification?: b
       if (frame.method === "startup/storagePath") {
         queueMicrotask(() =>
           input.write(
-            `${JSON.stringify({ method: "startup/storagePathReady", reuse: options.reuse ?? false })}\n`,
+            `${JSON.stringify({ method: "startup/storagePathReady", reuse: options.reuse ?? false, ...(options.legacyRecovery ? { legacyRecovery: options.legacyRecovery } : {}) })}\n`,
           ),
         );
       }
@@ -105,4 +115,43 @@ test("failure reporting cannot replace a storage failure", async (t) => {
   );
   transport.input.destroy();
   transport.output.destroy();
+});
+
+test("真实启动握手在旧库补迁和关闭后才报告 ready/prepared，可冷恢复旧会话", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "lcode-storage-recovery-handshake-"));
+  const sourceDatabasePath = join(root, "old", "cli", "db", "db.sqlite");
+  const targetDb = join(root, "current", "cli", "db", "db.sqlite");
+  const workspacePath = join(root, "workspace");
+  const source = await SqliteSessionStore.openStartup({ dbPath: sourceDatabasePath });
+  await source.createSession({
+    id: "old-session" as never,
+    projectID: "fixture" as never,
+    directory: workspacePath,
+    title: "old",
+    slug: "old-session",
+    version: "1",
+  });
+  const transport = createTransport({
+    legacyRecovery: { sourceDatabasePath, sessions: [{ sessionId: "old-session", workspacePath }] },
+  });
+  t.after(async () => {
+    source.close();
+    transport.input.destroy();
+    transport.output.destroy();
+    assert.equal(dirname(resolve(root)), resolve(tmpdir()));
+    await rm(root, { recursive: true, force: true });
+  });
+  await prepareProtocolStartupStorage({ dbPath: targetDb, ...transport });
+  const reopened = await SqliteSessionStore.openStartup({ dbPath: targetDb });
+  try {
+    assert.ok(await reopened.getSession("old-session" as never));
+  } finally {
+    reopened.close();
+  }
+  assert.equal(transport.frames.at(-1)?.method, "startup/storagePrepared");
+  assert.equal(transport.frames.filter((frame) => frame.params.phase === "ready").length, 1);
+  const maintaining = transport.frames.findLastIndex(
+    (frame) => frame.params.phase === "maintaining",
+  );
+  assert.ok(maintaining < transport.frames.findIndex((frame) => frame.params.phase === "ready"));
 });
