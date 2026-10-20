@@ -2562,6 +2562,8 @@ The original import revisions of copied components are not recorded in the curre
 
 - Magpie community fixed provider plugins (MIT): packages/provider-node/src/provider-auth/vendor, packages/provider-node/src/provider-auth/plugins/zcode-local.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/LICENSE. Original import revision: 5d5d86e2251169e0f5c0fd7a884957ac2dbe184a.
 
+- Magpie provider compatibility backports (MIT): packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-devin-images-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-zed-organization-patch.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/5b68df0057501d67b3eda711800ad57254634a58/LICENSE. Original import revision: 5b68df0057501d67b3eda711800ad57254634a58.
+
 - CLIProxyAPI portions retained by Magpie Qoder plugin (MIT): packages/provider-node/src/provider-auth/vendor/qoder. License reference: https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/packages/qoder/LICENSE-CLIProxyAPI. Original import revision: 5d5d86e2251169e0f5c0fd7a884957ac2dbe184a.
 
 - Magpie Zen Free plugin original notice (MIT): packages/provider-node/src/provider-auth/vendor/zen-free. License reference: https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/packages/zen-free/LICENSE. Original import revision: 5d5d86e2251169e0f5c0fd7a884957ac2dbe184a.
@@ -40745,6 +40747,8 @@ SOFTWARE.
 ### Notice bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679
 
 - Magpie community fixed provider plugins: https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/LICENSE
+
+- Magpie provider compatibility backports: https://raw.githubusercontent.com/magpie-community/plugins/5b68df0057501d67b3eda711800ad57254634a58/LICENSE
 
 
 

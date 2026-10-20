@@ -196,6 +196,7 @@ nodes:
         OAuth模型智能配置,
         授权阶段诊断,
         凭据保存后告警,
+        供应商兼容回移,
       ]
     codeSeeds:
       - file: packages/ui/src/settings/model-provider-section/ProviderAccountsDialog.tsx
@@ -216,6 +217,8 @@ nodes:
         symbol: createProviderAccountsSource
       - file: packages/provider-node/src/provider-auth/model-options.ts
         symbol: createAuthModelOptionSpecs
+      - file: packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs
+        symbol: applyProviderCompatibility
       - file: packages/services/src/model-provider/providerAccountAuthorizationStart.ts
         symbol: startProviderAccountAuthorization
       - file: packages/ui/src/settings/model-provider-section/ProviderAuthorizationDiagnostic.tsx
@@ -224,6 +227,7 @@ nodes:
       - "ProviderAccounts owns attempts and encrypted connections; import and local methods share the existing authorization lifecycle."
       - "A credential commit remains completed despite post-login catalog/cleanup failure; safe phase diagnostics and followupPending preserve final warnings through the existing poll owner."
       - "OAuth model edits use the API model editor and existing personal overlay owner; upstream refresh preserves manual overrides."
+      - "Fixed vendor bytes stay pinned; bounded protocol backports run only in the verified worker build and preserve Host CAS, single inference admission, original history and memory owners."
       - "The selected Host reads local credentials only after explicit action; client files supply content, never filesystem paths."
       - "Adding OAuth opens a dialog; existing custom OAuth providers edit in the right pane and continuously add accounts to the same pool."
       - "Account revision delivers providers and exact model rules together; Agent accepts safe OAuth metadata without credentials or personal overrides."

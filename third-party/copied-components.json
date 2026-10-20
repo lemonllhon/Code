@@ -308,6 +308,23 @@
     "license": "MIT"
   },
   {
+    "id": "Magpie provider compatibility backports",
+    "referenceRevision": "5b68df0057501d67b3eda711800ad57254634a58",
+    "source": "https://raw.githubusercontent.com/magpie-community/plugins/5b68df0057501d67b3eda711800ad57254634a58/LICENSE",
+    "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
+    "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
+    "importRevision": "5b68df0057501d67b3eda711800ad57254634a58",
+    "provenance": "Bounded build-time adaptations of Qoder busy/catalog/stream handling, Zen Free nullable deltas, Factory OpenAI sampling, Devin tool-result images, Zed organization selection and WorkBuddy credit units. Exact upstream paths and local integration differences are recorded in provider-auth/plugins/README.md. The immutable vendor snapshot retains its own revision.",
+    "roots": [
+      "packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs",
+      "packages/provider-node/src/provider-auth/plugins/vendor-devin-images-patch.mjs",
+      "packages/provider-node/src/provider-auth/plugins/vendor-zed-organization-patch.mjs",
+      "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
+    ],
+    "scope": "Upstream-derived protocol behavior in the six bounded backports and their generated worker portions; Host CAS integration and dispatch protection are local work.",
+    "license": "MIT"
+  },
+  {
     "id": "CLIProxyAPI portions retained by Magpie Qoder plugin",
     "referenceRevision": "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a",
     "source": "https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/packages/qoder/LICENSE-CLIProxyAPI",

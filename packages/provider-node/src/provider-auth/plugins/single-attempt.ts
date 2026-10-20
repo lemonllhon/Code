@@ -23,7 +23,13 @@ export class PluginSingleAttempt {
       this.firstFailure = { status, headers: new Headers(headers) };
   }
   preserve(response: Response): Response {
-    if (!this.firstFailure || response.status < 400) return response;
+    // 仅放行固定 Qoder 对 10605 的 busy 归一化；其他渠道仍保留首个物理失败，避免 Cursor 丢状态/Retry-After。
+    const qoderBusy =
+      (this.channel === "qoder" || this.channel === "qoder-cn") &&
+      !this.violated &&
+      response.status === 503 &&
+      response.headers.has("retry-after");
+    if (qoderBusy || !this.firstFailure || response.status < 400) return response;
     const headers = new Headers(response.headers);
     for (const key of ["retry-after", "x-ratelimit-scope", "ratelimit-scope"]) {
       const value = this.firstFailure.headers.get(key);

@@ -15,7 +15,7 @@ import { createSqliteSessionStore } from "../apps/lcode-cli/packages/adapters/sr
 const SAMPLES = 30;
 const WARMUP = 3;
 const PAGE_CHARACTERS = 8192;
-const artifact = resolve(".artifacts/memory-evidence-performance-20261019");
+const artifact = resolve(process.argv[2] ?? ".artifacts/memory-evidence-performance-20261019");
 const directory = await mkdtemp(join(tmpdir(), "memory-evidence-benchmark-"));
 const results: unknown[] = [];
 try {

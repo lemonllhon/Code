@@ -8,6 +8,7 @@ import {
   preserveQoderCacheUsage,
   preserveTraeCacheUsage,
 } from "../packages/provider-node/src/provider-auth/plugins/vendor-cache-usage-patch.mjs";
+import { applyProviderCompatibility } from "../packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const folder = resolve(root, "packages/provider-node/src/provider-auth/plugins");
@@ -51,7 +52,12 @@ export async function generateAuthPluginWorkerSource() {
             namespace: "vendor",
           }));
           api.onLoad({ filter: /.*/, namespace: "vendor" }, async (args) => {
-            const source = await readFile(args.path, "utf8");
+            // 先验证过原字节，再对构建副本应用有界修复；已有缓存计数补丁继续生效。
+            const path = args.path
+              .slice(vendor.length + 1)
+              .replaceAll("\\", "/")
+              .replace(/\.source$/, "");
+            const source = applyProviderCompatibility(path, await readFile(args.path, "utf8"));
             return {
               contents:
                 args.path === resolve(vendor, "qoder/index.mjs.source")

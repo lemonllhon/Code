@@ -29,3 +29,25 @@ to the copied component inventory. Regenerate the bundle with
 `node scripts/build-auth-plugin-worker.mjs`, then regenerate and verify notices.
 
 Account check-in protocol rules in `checkin.mjs` follow Magpie `707fbb249df755423d3b2b77c6f001dd376d75c4`, MIT (recorded in `third-party/copied-components.json`). Billing and promotion facts remain operation-scoped read-only projections. The fixed plugins are updated to `5d5d86e2251169e0f5c0fd7a884957ac2dbe184a`; the earlier revision cited for `zcode-local.mjs` above records that separate adaptation's source.
+
+## Bounded compatibility backports (2026-10-20)
+
+The immutable vendor snapshot remains at `5d5d86e`. After verifying its hashes,
+the worker generator applies `vendor-compatibility-patch.mjs` and the Devin/Zed
+patch helpers to its in-memory copy. Exact source matches fail closed on drift.
+The adapted protocol behavior comes from community plugins
+`5b68df0057501d67b3eda711800ad57254634a58` (MIT, retained `../vendor/LICENSE`):
+
+- `packages/qoder/index.mjs`: wrapped 10605 busy, whitespace in stream bodies,
+  and model-list errors; `packages/zen-free/tool-response.mjs`: nullable deltas.
+- `packages/factory/index.mjs`: unsupported OpenAI Responses sampling fields.
+- `packages/devin/index.mjs`: tool-result images and their exact source markers.
+- `packages/zed/index.mjs`: usable organization selection, per-organization
+  model-token identity and accurate organization plans. Local integration awaits
+  the existing Host credential CAS on catalog/quota refresh and does not replay
+  inference when an organization is refused.
+- `packages/workbuddy/index.mjs`: explicit credit-unit suffixes.
+
+The original cache-usage patches still apply afterward. Cursor continuity,
+check-in hooks, SDK parsing, tool execution, history and memory are unchanged.
+The separate backport provenance is registered in `third-party/copied-components.json`.

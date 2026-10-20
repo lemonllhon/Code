@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "inputHashEncoding": "UTF-8 with CRLF normalized to LF; notice and source snapshot hashes remain byte-exact",
   "scope": "Production dependency union across current workspace projects, copied source/assets, native search tools and the bundled mise backend; not a per-installer SBOM or a certification of all licensing obligations.",
-  "noticesSha256": "214c67f975c23dc34f1f00f3ccf404d3318d5d88673e57d13c7a621f750b8f13",
+  "noticesSha256": "2ec90712bc3ed9ec676361bf709f84a1f1fc2db9cb3f567cc414c8345d677300",
   "inputs": {
     ".agents/skills/agent-browser/references/authentication.md": "03776b640f377e030c419aa5ad53ec4de5babe69dc37b495d432cd318727ca03",
     ".agents/skills/agent-browser/references/commands.md": "532584b4c03bdbd47acde121edadbffd83a8f3a020f7750f923c6dd789302604",
@@ -1477,7 +1477,10 @@
     "packages/provider-node/src/provider-auth/plugins/checkin.mjs": "760a2319160ac8a17a6b1b6d16cb5f02711f6e9a6b04f4f2b232fc5d822b8436",
     "packages/provider-node/src/provider-auth/plugins/factory-import.mjs": "5c9ed1cce9ab4e3538b21996e7d17df002964e3bacc64ba868f01153f564652d",
     "packages/provider-node/src/provider-auth/plugins/method-details.mjs": "81af1536b6f35061208824323f09956dd3409ca9d850b3f3c7e30b1bfdcd31e5",
-    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "d8b9d3e412f1c40ce45cc6bb5a71419e3c8907b805d3dc29ca1b97138a152205",
+    "packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs": "f990e34cdae5e0031e09127002d2a3072c2f4ee1cc3c92cbd246858356f521d1",
+    "packages/provider-node/src/provider-auth/plugins/vendor-devin-images-patch.mjs": "785df4afc54a923a7fece9ef3d5ece8de3b4743a60fe3bb94a0147c6c7c21e1a",
+    "packages/provider-node/src/provider-auth/plugins/vendor-zed-organization-patch.mjs": "4d1a276d9b59fe872a20cc1fe9cd9446f842819252b5063df0d3b9a28b755af4",
+    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "d4bf681dd388c992aeba53145c9cfccc6661ac5c6d1ef9df4431bdab9f773cc8",
     "packages/provider-node/src/provider-auth/plugins/zcode-local.mjs": "c8b91d4414eed9c9edd0e227a06141d0c75bb1601abc5cef177be01ca21952e4",
     "packages/provider-node/src/provider-auth/vendor/cline/index.mjs.source": "17d11f1c35c4201152478a183961d03431ac795c7bc4be44189825f2d3e84272",
     "packages/provider-node/src/provider-auth/vendor/commandcode/index.mjs.source": "54b6112ce2a93d645fa9f87327109bdffd42c8088b010b9194fa5fefb56fb549",
@@ -2799,7 +2802,7 @@
     "scripts/license-texts/Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     "scripts/native-search-tools-config.mjs": "51483e7c154b76d431703e22b28c6b4687245bf15662e5246ed976d561d086ae",
     "scripts/remote-native-search-tools-config.mjs": "472322a66f84c7452f96aa9e16e9c4e0600f7c2588a03dc6bc869229161b1cb2",
-    "third-party/copied-components.json": "cbe427365427e0df32124ba2dce84a8e48320d78dc134e2dab9c032e36b80b2c",
+    "third-party/copied-components.json": "a02e1d5a4f959ad9dd67888aa672ea969fcc99869394573a89a3f3a90f9ab11a",
     "third-party/embedded-components.json": "9586ccca15897f56d4ca1d703dffe9e02880fedd766c1dff93f7ac1f52ea891a",
     "third-party/mise/LICENSE.txt": "4d22d6f9222adef0a45ef895bfdd6f71d6394b1784b1001a4bebb4298b8ddc69",
     "third-party/mise/sources.json": "813e101f64ef00dfd0a2b6813513849ea6be8acb84a8b8d6ce2d20ac49aed1ea",
@@ -31206,7 +31209,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "d8b9d3e412f1c40ce45cc6bb5a71419e3c8907b805d3dc29ca1b97138a152205"
+          "sha256": "d4bf681dd388c992aeba53145c9cfccc6661ac5c6d1ef9df4431bdab9f773cc8"
         }
       ]
     },
@@ -31336,7 +31339,42 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "d8b9d3e412f1c40ce45cc6bb5a71419e3c8907b805d3dc29ca1b97138a152205"
+          "sha256": "d4bf681dd388c992aeba53145c9cfccc6661ac5c6d1ef9df4431bdab9f773cc8"
+        }
+      ]
+    },
+    {
+      "id": "Magpie provider compatibility backports",
+      "referenceRevision": "5b68df0057501d67b3eda711800ad57254634a58",
+      "source": "https://raw.githubusercontent.com/magpie-community/plugins/5b68df0057501d67b3eda711800ad57254634a58/LICENSE",
+      "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
+      "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
+      "importRevision": "5b68df0057501d67b3eda711800ad57254634a58",
+      "provenance": "Bounded build-time adaptations of Qoder busy/catalog/stream handling, Zen Free nullable deltas, Factory OpenAI sampling, Devin tool-result images, Zed organization selection and WorkBuddy credit units. Exact upstream paths and local integration differences are recorded in provider-auth/plugins/README.md. The immutable vendor snapshot retains its own revision.",
+      "roots": [
+        "packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs",
+        "packages/provider-node/src/provider-auth/plugins/vendor-devin-images-patch.mjs",
+        "packages/provider-node/src/provider-auth/plugins/vendor-zed-organization-patch.mjs",
+        "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
+      ],
+      "scope": "Upstream-derived protocol behavior in the six bounded backports and their generated worker portions; Host CAS integration and dispatch protection are local work.",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs",
+          "sha256": "f990e34cdae5e0031e09127002d2a3072c2f4ee1cc3c92cbd246858356f521d1"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/plugins/vendor-devin-images-patch.mjs",
+          "sha256": "785df4afc54a923a7fece9ef3d5ece8de3b4743a60fe3bb94a0147c6c7c21e1a"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/plugins/vendor-zed-organization-patch.mjs",
+          "sha256": "4d1a276d9b59fe872a20cc1fe9cd9446f842819252b5063df0d3b9a28b755af4"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
+          "sha256": "d4bf681dd388c992aeba53145c9cfccc6661ac5c6d1ef9df4431bdab9f773cc8"
         }
       ]
     },

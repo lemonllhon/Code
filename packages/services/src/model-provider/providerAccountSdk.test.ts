@@ -65,14 +65,18 @@ for (const protocol of [
                 },
               ],
             }),
-            fetch: async (): Promise<Response> => {
+            fetch: async (request: Request): Promise<Response> => {
               posts++;
               assert.equal(
                 service.readRoutingDiagnostics("fixture")!.owner.resources[0]!.reserved +
                   service.readRoutingDiagnostics("fixture")!.owner.resources[0]!.dispatched,
                 60,
               );
-              return sdkResponse(protocol, mode === "stream");
+              // Runner 已统一用 SSE 收集 generate 结果；fixture 应按实际 wire 请求响应，不能按最终结果接口返回 JSON。
+              const body = await request.json();
+              assert.ok(body && typeof body === "object" && "stream" in body);
+              assert.equal(body.stream, true);
+              return sdkResponse(protocol, body.stream === true);
             },
           }),
         });
