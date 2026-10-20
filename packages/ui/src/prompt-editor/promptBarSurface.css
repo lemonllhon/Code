@@ -1,12 +1,33 @@
 .chat-prompt-shell[data-composer-presentation="prompt-bar"] {
-  --composer-spark-color: oklch(from var(--color-brand) clamp(0.42, l, 0.56) max(c, 0.12) h);
-  border-color: transparent;
+  /* 浅色品牌可能接近中性；强制提高色度会在白底制造蓝晕，故保留原色相并限制饱和度。 */
+  --composer-spark-color: oklch(from var(--color-brand) clamp(0.42, l, 0.54) min(c, 0.09) h);
+  --composer-spark-input-brightness: -0.25;
+  --composer-spark-glow-radius: 2px;
+  --composer-spark-glow-boost: 2px;
+  --composer-spark-glow-opacity: 30%;
+  --composer-edge-color: color-mix(in srgb, var(--color-foreground) 7%, transparent);
+  --composer-ambient-light: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--color-foreground) 3.5%, transparent),
+    transparent 2.5rem
+  );
+  border-color: var(--composer-edge-color);
   background: var(--color-input-focused);
   box-shadow: 0 2px 6px color-mix(in srgb, var(--color-foreground) 4%, transparent);
 }
 
 .dark .chat-prompt-shell[data-composer-presentation="prompt-bar"] {
   --composer-spark-color: oklch(from var(--color-brand) max(l, 0.76) max(c, 0.12) h);
+  --composer-spark-input-brightness: 0.9;
+  --composer-spark-glow-radius: 6px;
+  --composer-spark-glow-boost: 5px;
+  --composer-spark-glow-opacity: 75%;
+  --composer-edge-color: transparent;
+  --composer-ambient-light: radial-gradient(
+    140% 120% at 0% 100%,
+    color-mix(in srgb, var(--composer-spark-color) 26%, transparent),
+    transparent 62%
+  );
 }
 
 .chat-prompt-shell[data-composer-presentation="prompt-bar"]::before {
@@ -17,11 +38,7 @@
   border-radius: inherit;
   pointer-events: none;
   opacity: 0;
-  background: radial-gradient(
-    140% 120% at 0% 100%,
-    color-mix(in srgb, var(--composer-spark-color) 26%, transparent),
-    transparent 62%
-  );
+  background: var(--composer-ambient-light);
   transition: opacity 220ms ease;
 }
 

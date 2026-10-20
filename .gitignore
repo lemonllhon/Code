@@ -101,6 +101,7 @@ nul
 !/packages/web/test/composer-prediction.test.mjs
 !/packages/web/test/composer-model-emphasis.test.mjs
 !/packages/web/test/composer-model-emphasis-cases.mjs
+!/packages/web/test/token-usage-queue.test.mjs
 !/packages/web/test/worktree-discard-pending-cases.mjs
 !/packages/web/test/git-review-redesign-cases.mjs
 /artifacts/git-review-redesign/

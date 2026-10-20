@@ -11,7 +11,10 @@
   border-radius: inherit;
   pointer-events: none;
   opacity: calc(0.35 + var(--composer-model-strength) * 0.65);
-  filter: brightness(calc(1 + var(--composer-spark-boost) * 0.9));
+  /* 白底上增亮会冲淡粒子；主题表面决定加深/增亮，瞬态激发仍由同一输入事件拥有。 */
+  filter: brightness(
+    calc(1 + var(--composer-spark-boost) * var(--composer-spark-input-brightness, 0.9))
+  );
   mask-image: linear-gradient(to top, #000 0% 38%, rgb(0 0 0 / 75%) 66%, transparent 92%);
 }
 
@@ -21,8 +24,16 @@
   border-radius: 50%;
   background: var(--composer-spark-color, var(--color-brand));
   scale: calc(0.65 + var(--composer-model-strength) * 0.35 + var(--composer-spark-boost) * 0.7);
-  box-shadow: 0 0 calc(6px + var(--composer-spark-boost) * 5px)
-    color-mix(in srgb, var(--composer-spark-color, var(--color-brand)) 75%, transparent);
+  box-shadow: 0 0
+    calc(
+      var(--composer-spark-glow-radius, 6px) + var(--composer-spark-boost) *
+        var(--composer-spark-glow-boost, 5px)
+    )
+    color-mix(
+      in srgb,
+      var(--composer-spark-color, var(--color-brand)) var(--composer-spark-glow-opacity, 75%),
+      transparent
+    );
   animation: composer-spark-rise linear infinite;
 }
 

@@ -395,6 +395,8 @@ interface ConversationComposerProps {
   skillCatalogSessionId?: string | null;
   /** draft 态无 snapshot，但仍可 createSession 首发。 */
   draftMode?: boolean;
+  /** undefined 沿用设置；null 等待队列前插槽挂载，禁止回退到旧位置。 */
+  queueStatusBarContainer?: HTMLDivElement | null;
   /** renderer 当前草稿配置意图；只在 draftMode 下覆盖迟到的 prewarm projection。 */
   draftConfig?: Partial<SessionConfigState>;
   /** SessionPane 注入的完整 Draft owner；生产路径不再由编辑器直接覆盖持久记录。 */
@@ -533,6 +535,7 @@ function ConversationComposerImpl({
   sessionId = null,
   skillCatalogSessionId = sessionId,
   draftMode = false,
+  queueStatusBarContainer,
   draftConfig,
   composerDraft,
   updateComposerContent,
@@ -2513,6 +2516,10 @@ function ConversationComposerImpl({
   const composerUsage = snapshot?.usage ?? null;
   const { preferences: statusBarPreferences } = useTokenUsageStatusBarSettings();
   const [statusBarContainer, setStatusBarContainer] = useState<HTMLDivElement | null>(null);
+  // 队列在输入框外，原 above 插槽会把用量栏夹在两者之间；只迁移同一 portal，不写位置设置。
+  const activeStatusBarContainer =
+    queueStatusBarContainer === undefined ? statusBarContainer : queueStatusBarContainer;
+  const statusBarPositionOverride = queueStatusBarContainer === undefined ? undefined : "above";
   const handleSelectModelTrace = useCallback(
     (nextProvider: string, nextModel: string, sourceModel: ModelSelectionSource | null) =>
       runUserAction({
@@ -2536,7 +2543,8 @@ function ConversationComposerImpl({
   const modelControlsNode = useMemo(
     () => (
       <V4ComposerModelControls
-        statusBarContainer={statusBarContainer}
+        statusBarContainer={activeStatusBarContainer}
+        statusBarPosition={statusBarPositionOverride}
         workspacePath={workspacePath}
         workspaceIdentity={workspaceIdentity}
         modelSelectionView={modelSelectionView}
@@ -2560,7 +2568,8 @@ function ConversationComposerImpl({
       />
     ),
     [
-      statusBarContainer,
+      activeStatusBarContainer,
+      statusBarPositionOverride,
       workspacePath,
       workspaceIdentity,
       modelSelectionView,
@@ -2841,7 +2850,9 @@ function ConversationComposerImpl({
           enableMentionPanel
           leadingActions={leadingActionsNode}
           trailingActions={modelControlsNode}
-          onStatusBarContainerChange={setStatusBarContainer}
+          onStatusBarContainerChange={
+            queueStatusBarContainer === undefined ? setStatusBarContainer : undefined
+          }
           statusBarPosition={statusBarPreferences.position}
           submitControl={submitControlNode}
           className="p-0"

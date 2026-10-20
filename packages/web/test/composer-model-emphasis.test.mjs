@@ -3,7 +3,12 @@ import { mkdir } from "node:fs/promises";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { startWorkflowProgressBrowser } from "./workflow-execution-progress-browser.mjs";
-import { verifyComposerLevels, waitForComposerStrength } from "./composer-model-emphasis-cases.mjs";
+import {
+  verifyComposerLevels,
+  verifyLightComposerInput,
+  verifyLightComposerTheme,
+  waitForComposerStrength,
+} from "./composer-model-emphasis-cases.mjs";
 
 test(
   "Composer 每档特效：default、所有模型逐级增强、主题、手机和冻结提交",
@@ -53,7 +58,6 @@ test(
           const normalSurface = await surface();
           assert.equal(normalSurface.gap, "8px");
           assert.equal(normalSurface.padding, "12px");
-          assert.equal(normalSurface.border, "rgba(0, 0, 0, 0)");
           const editorMetrics = await page.getByTestId("v4-composer-input").evaluate((element) => ({
             min: getComputedStyle(element).minHeight,
             line: getComputedStyle(element).lineHeight,
@@ -154,22 +158,22 @@ test(
             );
             const box = await shell.boundingBox();
             assert.ok(box.x >= 0 && box.x + box.width <= width);
-            if (["zai-dark", "zai-light", "inkpurple"].includes(theme))
-              await shell.evaluate((element) =>
-                Promise.all(
-                  element
-                    .getAnimations({ subtree: true })
-                    .filter(
-                      (animation) => animation.effect.getComputedTiming().iterations !== Infinity,
-                    )
-                    .map((animation) => animation.finished),
-                ),
-              );
-            if (["zai-dark", "zai-light", "inkpurple"].includes(theme))
-              await shell.screenshot({
-                path: `${artifacts}/${width}-${theme}.png`,
-                animations: "allow",
-              });
+            if (!["zai-dark", "inkpurple"].includes(theme))
+              await verifyLightComposerTheme(shell, theme);
+            await shell.evaluate((element) =>
+              Promise.all(
+                element
+                  .getAnimations({ subtree: true })
+                  .filter(
+                    (animation) => animation.effect.getComputedTiming().iterations !== Infinity,
+                  )
+                  .map((animation) => animation.finished),
+              ),
+            );
+            await shell.screenshot({
+              path: `${artifacts}/${width}-${theme}.png`,
+              animations: "allow",
+            });
           }
           const particleFrame = () =>
             sparks.locator(".composer-model-spark").evaluateAll((elements) =>
@@ -273,6 +277,7 @@ test(
           assert.ok((await sparkPresentation()).boost > 0.8);
           await editor.press("Backspace");
           assert.ok((await sparkPresentation()).boost > 0.8);
+          await verifyLightComposerInput(page, editor, sparkPresentation);
           // 媒体协议返回早于浏览器派发 change；等同一原生事件，不能把未派发误判为未取消动画。
           await page.evaluate(() => {
             globalThis.__sparkReducedObserved = false;

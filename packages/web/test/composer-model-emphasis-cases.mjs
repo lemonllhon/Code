@@ -1,5 +1,80 @@
 import assert from "node:assert/strict";
 
+export async function verifyLightComposerTheme(shell, theme) {
+  const presentation = await shell.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const particle = element.querySelector(".composer-model-spark");
+    const color = getComputedStyle(particle).backgroundColor;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    const pixels = (value) => {
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = value;
+      context.fillRect(0, 0, 1, 1);
+      return [...context.getImageData(0, 0, 1, 1).data];
+    };
+    const luminance = (value) => {
+      const [r, g, b] = pixels(value).map((channel) => {
+        const srgb = channel / 255;
+        return srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
+      });
+      return r * 0.2126 + g * 0.7152 + b * 0.0722;
+    };
+    const foreground = luminance(color);
+    const surface = luminance(style.backgroundColor);
+    return {
+      contrast: (Math.max(foreground, surface) + 0.05) / (Math.min(foreground, surface) + 0.05),
+      chroma: Number(color.match(/^oklch\([\d.]+ ([\d.]+)/)?.[1]),
+      borderAlpha: pixels(style.borderTopColor)[3] / 255,
+      // 浏览器解析后的底光 alpha 能区分轻薄层次与大面积彩色填充，不依赖主题名称。
+      washAlpha: [
+        ...getComputedStyle(element, "::before").backgroundImage.matchAll(/\/ ([\d.]+)\)/g),
+      ].map((match) => Number(match[1])),
+    };
+  });
+  const diagnostic = JSON.stringify({ theme, ...presentation });
+  assert.ok(presentation.contrast >= 4.5, diagnostic);
+  assert.ok(presentation.chroma <= 0.09, diagnostic);
+  assert.ok(presentation.borderAlpha <= 0.1, diagnostic);
+  assert.ok(
+    presentation.washAlpha.length > 0 && Math.max(...presentation.washAlpha) <= 0.05,
+    diagnostic,
+  );
+}
+
+export async function verifyLightComposerInput(page, editor, sparkPresentation) {
+  await page.evaluate(() => {
+    document.documentElement.className = "theme-zai-light";
+  });
+  await page.waitForFunction(
+    () =>
+      Number(
+        getComputedStyle(document.querySelector(".composer-model-sparks")).getPropertyValue(
+          "--composer-spark-boost",
+        ),
+      ) === 0,
+  );
+  const idle = await sparkPresentation();
+  await editor.press("L");
+  const typing = await sparkPresentation();
+  // 白底上增亮会冲淡火花；真实键入必须加深粒子，同时保留加速、放大及自然复位。
+  assert.ok(Number(typing.filter.match(/brightness\(([^)]+)\)/)?.[1]) < 0.85);
+  assert.ok(typing.boost > 0.8 && typing.rate > idle.rate * 2 && typing.scale > idle.scale * 1.4);
+  await page.waitForFunction(
+    () =>
+      Number(
+        getComputedStyle(document.querySelector(".composer-model-sparks")).getPropertyValue(
+          "--composer-spark-boost",
+        ),
+      ) === 0,
+  );
+  assert.deepEqual(await sparkPresentation(), idle);
+  await page.evaluate(() => {
+    document.documentElement.className = "dark theme-inkpurple";
+  });
+}
+
 export function waitForComposerStrength(page, strength) {
   return page.waitForFunction((expected) => {
     const shell = document.querySelector(".chat-prompt-shell");

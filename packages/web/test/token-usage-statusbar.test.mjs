@@ -91,6 +91,8 @@ test(
     });
     page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     page.setDefaultTimeout(10_000);
+    // 并行回归的 Vite 冷启动需编译真实组件；仅为导航保留启动预算，交互仍用 10 秒。
+    page.setDefaultNavigationTimeout(60_000);
     const errors = [];
     page.on("pageerror", (error) => {
       errors.push(error.message);

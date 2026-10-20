@@ -31,6 +31,8 @@ import { queueSendNowFailureMessageId } from "./queueSendNowFailure.js";
 
 interface ConversationQueuePanelProps {
   queue: QueueState;
+  /** 布局插槽由 SessionPane 持有，只供同一用量栏临时停靠。 */
+  onStatusBarContainerChange?: (container: HTMLDivElement | null) => void;
   /** 删除队列项（deleteQueueItem command）。 */
   onDeleteItem?: (queueItemId: string) => void;
   /** 撤回队列项到发起端 composer；权威删除成功后才恢复草稿。 */
@@ -297,12 +299,10 @@ const QueueRow = memo(function QueueRow({
   );
 });
 
-/**
- * 竖切 queue 面板：渲染 projection.queue.items + 单项删除入口。
- * queue 在运行中的 turn 期间存在（sendText 排队），是 CLI 投影权威态（非 renderer-local）。
- */
+// 队列只呈现 CLI 权威投影；行内交互不维护第二份 accepted input。
 function ConversationQueuePanelImpl({
   queue,
+  onStatusBarContainerChange,
   onDeleteItem,
   onEditItem,
   pendingEditQueueItemId = null,
@@ -350,71 +350,77 @@ function ConversationQueuePanelImpl({
   if (queue.items.length === 0) return null;
   // 补回 v4 视觉迁移时漏掉的旧队列面板 blur 层，让列表保持贴合 composer 的磨砂背景。
   return (
-    <div
-      data-testid={TID_V4_QUEUE}
-      data-queue-count={queue.items.length}
-      data-queue-auto-drain={queue.autoDrain ? "true" : "false"}
-      className={cn(
-        "relative z-0 w-full overflow-hidden rounded-t-2xl border border-border bg-surface p-1 backdrop-blur-md",
-        "-mb-7 pb-7",
-      )}
-    >
-      {!queue.autoDrain ? (
+    <>
+      {onStatusBarContainerChange ? (
         <div
-          data-testid={TID_V4_QUEUE_PAUSED_BANNER}
-          className="mb-1 flex min-h-10 items-center gap-3 rounded-xl border border-border/70 bg-surface-raised px-3 py-2 text-ui-base text-foreground"
-        >
-          <span className="min-w-0 flex-1">
-            {intl.formatMessage({
-              id:
-                queue.pauseReason === "stopped"
-                  ? "chat.queue.paused.stopped"
-                  : queue.pauseReason === "error"
-                    ? "chat.queue.paused.error"
-                    : "chat.queue.paused.generic",
-            })}
-          </span>
-          {onResume ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              data-testid={TID_V4_QUEUE_RESUME}
-              aria-label={intl.formatMessage({ id: "chat.queue.resume.description" })}
-              disabled={resumePending}
-              className="shrink-0 text-foreground-subtle hover:text-foreground"
-              onClick={() => void handleResume()}
-            >
-              {intl.formatMessage({ id: "chat.queue.resume" })}
-            </Button>
-          ) : null}
-        </div>
+          ref={onStatusBarContainerChange}
+          className="mb-1 min-w-0 empty:hidden"
+          data-composer-statusbar-slot="queue-above"
+        />
       ) : null}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        modifiers={[restrictQueueDragToPanel]}
-        onDragEnd={handleDragEnd}
+      <div
+        data-testid={TID_V4_QUEUE}
+        data-queue-count={queue.items.length}
+        data-queue-auto-drain={queue.autoDrain ? "true" : "false"}
+        className="relative z-0 w-full overflow-hidden rounded-t-2xl border border-border bg-surface p-1 backdrop-blur-md -mb-7 pb-7"
       >
-        <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-          <ul className="space-y-0.5">
-            {queue.items.map((item, index) => (
-              <QueueRow
-                key={item.queueItemId}
-                item={item}
-                index={index}
-                intl={intl}
-                sortable={Boolean(onMoveItem)}
-                onDeleteItem={onDeleteItem}
-                onEditItem={onEditItem}
-                onSendNow={onSendNow}
-                editPending={pendingEditQueueItemId === item.queueItemId}
-              />
-            ))}
-          </ul>
-        </SortableContext>
-      </DndContext>
-    </div>
+        {!queue.autoDrain ? (
+          <div
+            data-testid={TID_V4_QUEUE_PAUSED_BANNER}
+            className="mb-1 flex min-h-10 items-center gap-3 rounded-xl border border-border/70 bg-surface-raised px-3 py-2 text-ui-base text-foreground"
+          >
+            <span className="min-w-0 flex-1">
+              {intl.formatMessage({
+                id:
+                  queue.pauseReason === "stopped"
+                    ? "chat.queue.paused.stopped"
+                    : queue.pauseReason === "error"
+                      ? "chat.queue.paused.error"
+                      : "chat.queue.paused.generic",
+              })}
+            </span>
+            {onResume ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                data-testid={TID_V4_QUEUE_RESUME}
+                aria-label={intl.formatMessage({ id: "chat.queue.resume.description" })}
+                disabled={resumePending}
+                className="shrink-0 text-foreground-subtle hover:text-foreground"
+                onClick={() => void handleResume()}
+              >
+                {intl.formatMessage({ id: "chat.queue.resume" })}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictQueueDragToPanel]}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+            <ul className="space-y-0.5">
+              {queue.items.map((item, index) => (
+                <QueueRow
+                  key={item.queueItemId}
+                  item={item}
+                  index={index}
+                  intl={intl}
+                  sortable={Boolean(onMoveItem)}
+                  onDeleteItem={onDeleteItem}
+                  onEditItem={onEditItem}
+                  onSendNow={onSendNow}
+                  editPending={pendingEditQueueItemId === item.queueItemId}
+                />
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
+      </div>
+    </>
   );
 }
 

@@ -1,8 +1,8 @@
 /// <reference types="vite/client" />
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { AppSettings } from "@lcode/shared";
-import type { ConversationSnapshot } from "@lcode/shared/lcode-protocol-v4";
+import type { ConversationSnapshot, QueueState } from "@lcode/shared/lcode-protocol-v4";
 import { PlatformProvider } from "@/hooks/usePlatform.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { LCodeIntlProvider, useLCodeIntl } from "@/i18n/IntlProvider.js";
@@ -10,7 +10,9 @@ import { StoreProvider } from "@/store/StoreProvider.js";
 import { TabStoreProvider } from "@/store/TabStoreProvider.js";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 import { Button } from "@/components/ui/button.js";
-import { ConversationComposer } from "@/v4/ConversationComposer.js";
+import { ConversationComposer, type ComposerRestoreRequest } from "@/v4/ConversationComposer.js";
+import { ConversationQueuePanel } from "@/v4/ConversationQueuePanel.js";
+import { projectPendingGuideQueue } from "@/v4/pendingGuideProjection.js";
 import { V4ConversationContext } from "@/v4/V4ConversationContext.js";
 import { TokenUsageStatusBarSection } from "@/settings/TokenUsageStatusBarSection.js";
 import { TokenUsageStatusBar } from "@/v4/composer/TokenUsageStatusBar.js";
@@ -45,6 +47,22 @@ services.settingService.update = async (patch: Partial<AppSettings>) => {
 const providerConnection = connectProviderSettingsSnapshot(services.providerSettingsService);
 void providerConnection.ready;
 type Scenario = "average" | "pending" | "live" | "other" | "empty" | "draft" | "first-request";
+function queueItems(count: number, guide = false): QueueState["items"] {
+  return Array.from({ length: count }, (_, index) => ({
+    queueItemId: `queue-${index}`,
+    sourceCommandId: `command-${index}`,
+    clientId: "fixture",
+    kind: "sendText",
+    text: `继续处理 ${index + 1}`,
+    attachments: [],
+    modelSelection: selection,
+    admittedAt: index + 1,
+    order: { admissionSeq: index + 1, queuePosition: index },
+    delivery: { requested: guide ? "guide" : "queue", admitted: guide ? "guide" : "queue" },
+    steer: { state: "notRequested" },
+    dispatch: { state: "queued" },
+  }));
+}
 function makeSnapshot(scenario: Scenario, count = 13): ConversationSnapshot {
   const turnId = conversation.rows.window.at(-1)!.turnId;
   if (scenario === "empty" || scenario === "first-request") {
@@ -114,13 +132,43 @@ function makeSnapshot(scenario: Scenario, count = 13): ConversationSnapshot {
 function App() {
   const [screen, setScreen] = useState("conversation");
   const { setLocale } = useLCodeIntl();
-  const [snapshot, setSnapshot] = useState(() => makeSnapshot("average"));
+  const [snapshot, setSnapshot] = useState(() => {
+    const initial = makeSnapshot("average");
+    return new URLSearchParams(location.search).has("queue")
+      ? { ...initial, queue: { items: queueItems(1), autoDrain: true } }
+      : initial;
+  });
+  const [queueStatusBarContainer, setQueueStatusBarContainer] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const visibleQueue = projectPendingGuideQueue(snapshot.queue).visibleQueue;
+  const [restoreRequest, setRestoreRequest] = useState<ComposerRestoreRequest | null>(null);
+  const restoreSequence = useRef(0);
+  const removeQueueItem = (queueItemId: string) =>
+    setSnapshot((current) => ({
+      ...current,
+      queue: {
+        ...current.queue,
+        items: current.queue.items.filter((item) => item.queueItemId !== queueItemId),
+      },
+    }));
   const [draft, setDraft] = useState<V4ComposerDraft>({
     text: "",
     mode: "build",
     modelSelection: selection,
     updatedAt: 1,
   });
+  // 与生产草稿 owner 一样保持回调身份稳定；内联回调会反复触发 scope 恢复，覆盖键盘清空和撤回测试。
+  const updateComposerContent = useCallback(
+    (patch: Pick<V4ComposerDraft, "text" | "editorStateJson" | "mention">) =>
+      setDraft((current) => ({ ...current, ...patch })),
+    [],
+  );
+  const replaceComposerDraft = useCallback(
+    (next: Omit<V4ComposerDraft, "updatedAt">) => setDraft({ ...next, updatedAt: 1 }),
+    [],
+  );
+  const handleRestoreApplied = useCallback(() => setRestoreRequest(null), []);
   Object.assign(globalThis, {
     __tokenFixture: {
       locale: setLocale,
@@ -131,6 +179,11 @@ function App() {
         layer.liveOutputRates.observe(next, 1600);
         setSnapshot(next);
       },
+      queue: (count: number, guide = false, paused = false) =>
+        setSnapshot((current) => ({
+          ...current,
+          queue: { items: queueItems(count, guide), autoDrain: !paused },
+        })),
       nav: createSettingsPageConfig().settingsSectionGroups.map((group) => ({
         id: group.id,
         sections: group.sections.map((section) => section.id),
@@ -148,15 +201,45 @@ function App() {
         hidden={screen !== "conversation"}
         className="shrink-0"
       >
+        <ConversationQueuePanel
+          queue={visibleQueue}
+          onStatusBarContainerChange={setQueueStatusBarContainer}
+          onDeleteItem={removeQueueItem}
+          onSendNow={removeQueueItem}
+          onEditItem={(id) => {
+            const item = snapshot.queue.items.find((entry) => entry.queueItemId === id);
+            if (item)
+              setRestoreRequest({
+                requestId: ++restoreSequence.current,
+                sessionId: snapshot.sessionId,
+                workspaceKey: workspacePath,
+                inputKind: "sendText",
+                text: item.text,
+                attachments: item.attachments,
+                config: { mode: "build", modelSelection: item.modelSelection },
+              });
+            removeQueueItem(id);
+          }}
+          onResume={() =>
+            setSnapshot((current) => ({ ...current, queue: { ...current.queue, autoDrain: true } }))
+          }
+        />
         <ConversationComposer
+          composerRestoreRequest={restoreRequest}
+          onComposerRestoreApplied={handleRestoreApplied}
+          queueStatusBarContainer={visibleQueue.items.length ? queueStatusBarContainer : undefined}
           snapshot={snapshot}
           sessionId={snapshot.sessionId}
           draftMode={snapshot.sessionId === "draft-composer"}
-          contextHeader={<span className="px-2 py-1 text-ui-base">Workspace · Branch</span>}
+          contextHeader={
+            visibleQueue.items.length ? undefined : (
+              <span className="px-2 py-1 text-ui-base">Workspace · Branch</span>
+            )
+          }
           composerDraft={draft}
           draftConfig={{ ...snapshot.config, modelSelection: draft.modelSelection }}
-          updateComposerContent={(patch) => setDraft((current) => ({ ...current, ...patch }))}
-          replaceComposerDraft={(next) => setDraft({ ...next, updatedAt: 1 })}
+          updateComposerContent={updateComposerContent}
+          replaceComposerDraft={replaceComposerDraft}
           disabled={false}
           autoFocusEnabled={false}
           workspacePath={workspacePath}

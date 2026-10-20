@@ -32,6 +32,7 @@ import {
   type LCodeProviderAccountAccess,
   type LCodeConfigOption,
   type LCodeProvider,
+  type TokenUsageStatusBarSettings,
 } from "@lcode/shared";
 import type {
   ConversationSnapshot,
@@ -328,6 +329,7 @@ function resolveContextCodingPlanUsageSource(params: {
 
 export interface V4ComposerToolbarProps {
   statusBarContainer?: HTMLDivElement | null;
+  statusBarPosition?: TokenUsageStatusBarSettings["position"];
   workspacePath: string;
   workspaceIdentity?: string;
   modelSelectionView?: ModelSelectionView | null;
@@ -372,6 +374,7 @@ export interface V4ComposerToolbarProps {
 /** 模型 / 思考深度 / context usage 簇（渲染在发送键左侧，与旧 UI 同位）。 */
 function V4ComposerModelControlsImpl({
   statusBarContainer,
+  statusBarPosition,
   workspacePath,
   workspaceIdentity,
   sessionId,
@@ -1066,7 +1069,11 @@ function V4ComposerModelControlsImpl({
                 childCount={childStats.childCount}
                 childCurrentOutputTokens={childStats.currentOutputTokens}
                 childOutputSpeed={childStats.outputSpeed}
-                preferences={statusBarPreferences}
+                preferences={
+                  statusBarPosition
+                    ? { ...statusBarPreferences, position: statusBarPosition }
+                    : statusBarPreferences
+                }
                 contextControl={
                   statusBarPreferences.context && hasContextControl ? contextControl : null
                 }

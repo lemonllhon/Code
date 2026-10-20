@@ -647,6 +647,9 @@ export function SessionPane({
   const [repairLease, setRepairLease] = useState<SessionLease | null>(null);
   const state = useConversationProjection(lease);
   const snapshot = state.snapshot;
+  const [queueStatusBarContainer, setQueueStatusBarContainer] = useState<HTMLDivElement | null>(
+    null,
+  );
   const executionWorkspacePath = snapshot?.executionWorkspace?.workspacePath ?? workspacePath;
   const executionWorkspaceIdentity =
     snapshot?.executionWorkspace?.workspaceIdentity ?? workspaceIdentity;
@@ -5327,6 +5330,8 @@ export function SessionPane({
 
   // subagent 右侧 child tab 是观察视图；复用普通 SessionPane 时
   // 若仍创建 composer，会让用户误以为可以直接向 child session 继续输入。
+  const pendingGuideProjection = snapshot ? projectPendingGuideQueue(snapshot.queue) : null;
+  const hasVisibleQueue = Boolean(sessionId && pendingGuideProjection?.visibleQueue.items.length);
   const composerNode = readOnly ? null : (
     <ConversationComposer
       key="conversation-composer"
@@ -5339,6 +5344,7 @@ export function SessionPane({
       }
       // Snapshot 仍服务用量、路由与运行态；工具栏的 mode/model 只读下方 Composer Draft。
       snapshot={snapshot}
+      queueStatusBarContainer={hasVisibleQueue ? queueStatusBarContainer : undefined}
       predictionLiveUpdate={
         state.status === "live" && state.lastUpdateIsOnlineDelta === true && state.syncing !== true
       }
@@ -5439,7 +5445,6 @@ export function SessionPane({
       onDropTargetControllerChange={handleDropTargetControllerChange}
     />
   );
-  const pendingGuideProjection = snapshot ? projectPendingGuideQueue(snapshot.queue) : null;
   const conversationBottomDockContent = readOnly ? null : shareActive && sessionId ? (
     shareInSelectionStage ? (
       <ConversationShareSelectionDock
@@ -5526,6 +5531,7 @@ export function SessionPane({
       {sessionId && snapshot ? (
         <ConversationQueuePanel
           key={`conversation-queue:${workspaceKey}:${sessionId}`}
+          onStatusBarContainerChange={setQueueStatusBarContainer}
           queue={pendingGuideProjection?.visibleQueue ?? snapshot.queue}
           onDeleteItem={handleDeleteQueueItem}
           onEditItem={handleEditQueueItem}
