@@ -21,6 +21,7 @@ import semver from "semver";
 import { logger } from "./logger.js";
 import { getElectronReleasePlatform, ManifestUpdateProvider } from "./manifestUpdateProvider.js";
 import { openMacUpdateDmgAfterExit } from "./macUpdateInstall.js";
+import { cleanupInstalledUpdateCache } from "./updateCacheCleanup.js";
 import {
   downloadVerifiedUpdateArtifact,
   selectVerifiedUpdateArtifact,
@@ -1671,6 +1672,16 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
   applyDevAutoUpdateRuntimeOverrides();
 
   logger.info(`[auto-update] initializing, current version: ${getCurrentAppVersionForUpdate()}`);
+
+  // 必须在旧安装器完成、新版已启动后回收；先等清理结束再允许本进程下载，避免删到新包。
+  try {
+    await cleanupInstalledUpdateCache(
+      join(app.getPath("userData"), "updates"),
+      getCurrentAppVersionForUpdate(),
+    );
+  } catch (error) {
+    logger.warn("[auto-update] installed update cache cleanup failed:", error);
+  }
 
   // 已下载旧版本后，feed 继续推进到更高版本时，主进程必须先比较远端版本和 ready 版本，
   // 再决定是否下载。若继续让 electron-updater 自动下载，它只会按当前 app 版本判断，
