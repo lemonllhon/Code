@@ -12,7 +12,7 @@ export interface ISettingService {
       "providerFamilyDomain" | "providerFamilyConnectionSelections"
     >,
   ): Promise<void>;
-  /** Change the data base directory: copy data from old → new location, then persist the setting. */
+  /** Snapshot the full .lcode root (including SQLite/WAL data and artifacts) to an unused target, then persist for restart. */
   updateDataBaseDir(newDir: string | undefined): Promise<void>;
   ensureDefaultProject(homedir: string): Promise<{ path: string; created: boolean }>;
 }
