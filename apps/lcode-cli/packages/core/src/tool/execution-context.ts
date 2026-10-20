@@ -68,6 +68,13 @@ export interface BackgroundTaskControlPort {
 }
 
 export interface ToolExecutionContext {
+  /** 仅记录无正文的用量偏差；不是审批、消费或重试入口。 */
+  observeMemoryReviewDiagnostic?: (diagnostic: {
+    phase: "generation" | "verification";
+    reason: "output-token-usage";
+    actual: number;
+    limit: number;
+  }) => void;
   /** 仅可信运行时观测阶段，不参与权限、工具输入或消费状态判断。 */
   observeMemoryReviewPhase?: (
     phase: "admission" | "generation" | "verification" | "commit" | "finish",

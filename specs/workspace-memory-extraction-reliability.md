@@ -1,5 +1,48 @@
 # 自动工作区记忆提取的预算与回退窗口修复
 
+## 2026-10-20：完成响应的预算判断与发布流程学习
+
+只读历史证据确认两次自动提取均已取得 `stop` 响应，正文分别为 4712、3699 字符，随后在 generation 阶段报 `budget_exceeded`，没有核验或提交。两次正文均低于 80000 字符限制；请求已经完成，排除请求预检。辅助响应按既有 `skipTranscript` 不落盘，用量日志已脱敏，因此无法恢复当时是 output usage 还是 item count 分支，不能将推测写成历史定论。
+
+源码可复现的缺陷：生成系统提示同时给出全量 10 项与增量 3 项；已完整返回且结构合法的候选，会因为供应商 usage 高于请求的输出上限而全部丢弃。usage 是事后计量（可能包含推理），不能代替响应完整性和内容预算判据。失败统一报码也使二者不可区分。
+
+规则与所有者：
+
+- 继续由原 Runtime 成功轮 scheduler 触发、SessionStore 提供固定完成边界证据、learning/root lock 管理消费与租约、ProjectMemory 负责核验后的 CAS/journal 提交，不增加状态库、UI 队列或供应商特判。
+- 请求仍带原有有界 maxOutputTokens，受模型能力和 context 预检约束。`length`、工具调用、非法 JSON、响应字符超限、候选超限仍拒绝；完整 `stop` 响应仅 usage 超过请求值时记录脱敏告警，继续独立核验，绝不因此跳过核验或增加模型重试。
+- 生成提示只使用当前 profile 的一个候选上限。候选超过上限仍整批失败，不静默截掉尾项或消费未审内容。
+- 自动候选明确包含用户已采用的项目发布/部署流程、约束、纠正和可复用排障经验，不要求出现“记住”。优先更新已读取的相关记忆，保留原有有用内容，省略单次版本号/构建状态；来源只是背景材料，不赋予执行发布或修改权限的授权。
+- 请求字符、请求 token、context、响应字符和候选数量超限分别提供稳定 reason、实际值和限制值；usage 告警包含阶段和数字。继续不记录正文、文件名、路径、凭据或原始异常，不启用辅助 model-io 落盘。
+- 不自动追补历史计费请求，不改远程 workspace 禁用规则。Desktop continuous 和手机 replayable 沿用同一 Runtime/Host owner 与事件顺序。
+
+```mermaid
+sequenceDiagram
+  participant R as Runtime scheduler
+  participant S as SessionStore
+  participant M as Model
+  participant P as ProjectMemory / learning lock
+  R->>S: 固定成功轮边界，读取并冻结证据
+  R->>P: claim 同一证据键
+  R->>M: 生成（唯一候选上限，原输出预算）
+  M-->>R: stop / JSON / usage
+  R->>R: 校验正文；usage 偏差仅脱敏告警
+  R->>S: 重验同一来源
+  R->>M: 独立核验（同样校验完整性）
+  R->>P: 原 CAS + journal；成功后 finish 消费
+```
+
+验收先补回归：生成与核验 usage 超额但完整合法时可保存；截断、过多候选、非法来源、核验拒绝、CAS 冲突仍不可写。真实 Runtime + 临时 SQLite + 文件 adapter 中，普通发布请求（没有记忆指令）能自动更新已有发布流程、保留旧约束，重复恢复不重复模型请求；模型为可控夹具，不以此宣称真实模型质量已验证。对预算分支及日志脱敏分别断言，执行根与 CLI typecheck/lint、记忆回归和架构门禁。
+
+### 本次验证
+
+- 新增完成响应回归先在旧实现执行，4 项失败；修复后通过。真实 Runtime/SQLite/CAS 发布流程测试验证自动更新、独立核验拒绝保留原文、消费去重及两阶段数字告警。既有核验安全用例由“仅 usage 超额即拒绝”改为“截断即拒绝”，完整响应超额场景由新增回归验证。
+- `node scripts/verify-agent-memory-and-composer-predictions.mjs` 最终全部通过：414 项 Agent/SQLite/Runtime/CAS、20 项 UI/协议、18 项桌面键盘/IME/恢复与手机视口浏览器回归，共 452 项，零失败、零跳过。
+- 根 `pnpm typecheck`、`pnpm lint` 通过；CLI typecheck 27 个任务成功（19 个缓存），lint 14 个任务成功（12 个缓存）。Turbo 保留既有 workspace 不在 lockfile 的警告；旧 Node 版本警告来自缓存日志，当前 shell 与根/CLI `pnpm exec node --version` 均为 24.21.0。
+- 变更属于既有 `lcode-cli` 模块；`pnpm architecture:check --changed` 为 0 violations / 0 baseline / 0 new。所有修改文件格式及 `git diff --check` 通过。
+- 只使用合成项目和可控模型；没有付费重放历史、改写个人记忆或替换安装版。历史两次失败的具体预算分支仍因缺少原始辅助响应而不可恢复；新增诊断防止未来继续出现同样的不可区分状态。修复需随新构建启动后生效，未声称已在真实供应商、macOS/Linux 或手机实机验证生成质量。
+
+## 2026-10-11：原始修复
+
 日期：2026-10-11。用户已要求修复调查发现的自动保存阻塞。本规格补充首版实施契约，不修改个人记忆、不触发历史会话付费补提取、不替换安装包。
 
 ## 已确认的问题

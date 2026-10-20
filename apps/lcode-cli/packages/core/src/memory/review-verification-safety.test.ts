@@ -140,13 +140,17 @@ test("oversized combined candidate plus evidence fails before verification reque
 });
 
 test("verifier output limits and provider errors fail closed without retry or raw errors", async () => {
-  for (const failure of ["oversized", "tokens", "provider", "reason"] as const) {
+  for (const failure of ["oversized", "length", "provider", "reason"] as const) {
     const { h, draft } = await proposed();
     h.state.reply = () => {
       if (failure === "provider") throw new Error("PRIVATE_PROVIDER_ERROR");
       if (failure === "oversized") return { text: "x".repeat(100_000) };
-      if (failure === "tokens")
-        return { ...reviewDecisionResponse(draft), usage: { inputTokens: 1, outputTokens: 2049 } };
+      if (failure === "length")
+        return {
+          ...reviewDecisionResponse(draft),
+          finishReason: "length",
+          usage: { outputTokens: 2049 },
+        };
       return {
         text: JSON.stringify({
           decisions: [{ itemId: draft.items[0]!.id, accept: true, reason: "x".repeat(2001) }],

@@ -253,6 +253,13 @@ async function executeProjectMemoryExtraction(
           observeMemoryReviewPhase: (phase) => {
             reviewPhase = phase;
           },
+          observeMemoryReviewDiagnostic: (diagnostic) =>
+            runtime.logger?.warn("Project memory output usage exceeded requested limit", {
+              ...traceContextToLogContext(snapshot.traceContext),
+              event: "memory.extraction.budget_warning",
+              module: "core.runtime",
+              ...diagnostic,
+            }),
           fileSystemPort: runtime.fileSystemPort,
           sessionStore: runtime.sessionStore,
           sessionId: snapshot.sessionId,
@@ -346,6 +353,8 @@ async function executeProjectMemoryExtraction(
             : "internal",
         phase: error instanceof MemoryReviewError ? (error.phase ?? reviewPhase) : reviewPhase,
         reason: error instanceof MemoryReviewError ? error.reason : undefined,
+        budgetActual: error instanceof MemoryReviewError ? error.budget?.actual : undefined,
+        budgetLimit: error instanceof MemoryReviewError ? error.budget?.limit : undefined,
         modelRequestCount,
         durationMs: Date.now() - startedAt,
       });

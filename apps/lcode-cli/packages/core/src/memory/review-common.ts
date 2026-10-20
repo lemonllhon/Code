@@ -61,6 +61,7 @@ export class MemoryReviewError extends Error {
     readonly code: MemoryReviewErrorCode,
     readonly phase?: "admission" | "generation" | "verification" | "commit" | "finish",
     readonly reason?: string,
+    readonly budget?: { actual: number; limit: number },
   ) {
     super(ERROR_MESSAGES[code]);
     this.name = code === "cancelled" ? "AbortError" : "MemoryReviewError";

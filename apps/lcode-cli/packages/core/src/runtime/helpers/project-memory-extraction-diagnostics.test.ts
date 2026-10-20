@@ -47,3 +47,31 @@ test("window admission failure is observable without logging raw transcript mate
   assert.equal((logs[0] as { event: string }).event, "memory.extraction.window_unavailable");
   assert.doesNotMatch(JSON.stringify(logs), /deterministic fixture/u);
 });
+
+test("budget failures record the precise dimension and counts without raw evidence", async () => {
+  const h = harness();
+  const logs: unknown[] = [];
+  h.runtime.logger = { warn: (_message, data) => logs.push(data) } as NonNullable<
+    typeof h.runtime.logger
+  >;
+  h.onModel(() => {
+    throw new MemoryReviewError("budget_exceeded", "generation", "item-count", {
+      actual: 4,
+      limit: 3,
+    });
+  });
+  h.schedule();
+  await h.drain();
+  const diagnostic = logs.find(
+    (x) => (x as { event?: string }).event === "memory.extraction.failed",
+  ) as Record<string, unknown>;
+  assert.equal(diagnostic.code, "budget_exceeded");
+  assert.equal(diagnostic.phase, "generation");
+  assert.equal(diagnostic.reason, "item-count");
+  assert.equal(diagnostic.budgetActual, 4);
+  assert.equal(diagnostic.budgetLimit, 3);
+  assert.doesNotMatch(JSON.stringify(logs), /deterministic fixture|testing\.md/u);
+  assert.equal(h.applied.length, 0);
+  assert.equal(h.saved.length, 0);
+  assert.equal(h.runtime.memoryExtractionScheduler!.getCursor(), undefined);
+});
