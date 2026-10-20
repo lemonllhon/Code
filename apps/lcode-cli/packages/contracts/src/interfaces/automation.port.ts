@@ -33,7 +33,13 @@ export function isAutomationCreateLimitError(error: unknown): error is Automatio
   );
 }
 
-export interface AutomationCreateContext {
+/** 执行器注入的单次调用归因；不属于模型输入或跨进程协议参数。 */
+export interface AutomationExecutionContext {
+  automationTurn: boolean;
+  automationId?: string;
+}
+
+export interface AutomationCreateContext extends Partial<AutomationExecutionContext> {
   /** 当前工具调用所在 runtime 的模型，由执行器注入，不来自模型输入。 */
   model?: string;
   /** 当前工具调用所在 session；会话内 cron 后续触发复用该 session。 */
@@ -42,7 +48,8 @@ export interface AutomationCreateContext {
 
 export interface AutomationPort {
   create(input: CronCreateInput, context?: AutomationCreateContext): Promise<CronAutomation>;
-  update(input: CronUpdateInput): Promise<CronAutomation>;
+  update(input: CronUpdateInput, context?: AutomationExecutionContext): Promise<CronAutomation>;
   list(): Promise<CronAutomation[]>;
-  delete(input: CronDeleteInput): Promise<boolean>;
+  /** 执行轮只允许删除其可信 automationId；普通用户轮沿用 workspace 管理权限。重复删除返回 false。 */
+  delete(input: CronDeleteInput, context?: AutomationExecutionContext): Promise<boolean>;
 }

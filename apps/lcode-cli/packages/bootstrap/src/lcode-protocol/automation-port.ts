@@ -3,6 +3,7 @@ import {
   hasRelativeDelayMinutes,
   isAutomationCreateLimitError,
   type AutomationPort,
+  type AutomationExecutionContext,
   type CronAutomation,
 } from "@lcode/contracts";
 import {
@@ -31,6 +32,21 @@ const AUTOMATION_CREATE_IN_BOUND_SESSION_ERROR =
 const AUTOMATION_CREATE_BOUND_SESSION_CHECK_ERROR =
   "Cannot verify whether this session belongs to a scheduled task. Try again later.";
 
+function resolveAutomationExecutionContext(
+  execution: Partial<AutomationExecutionContext> | undefined,
+  legacyAutomationId: string | undefined,
+): AutomationExecutionContext {
+  // session 标记可能在另一输入 admission 时暂变；不能覆盖执行器随调用冻结的归因。
+  // 仅兼容未提供调用上下文的旧入口，已知受限但 ID 缺失时不能从 session 借用身份。
+  const hasExecution =
+    execution?.automationTurn !== undefined || execution?.automationId !== undefined;
+  const automationId = (hasExecution ? execution?.automationId : legacyAutomationId)?.trim();
+  return {
+    automationTurn: Boolean(automationId || (hasExecution && execution?.automationTurn)),
+    automationId,
+  };
+}
+
 export function createProtocolAutomationPort(
   context: LCodeProtocolAgentServerContext,
   // 归属会话解析器：automation-port 是按 session 构造的，直接绑定「自己所服务的 session
@@ -44,7 +60,10 @@ export function createProtocolAutomationPort(
       const activeSession =
         resolveOwnSession?.() ??
         (createContext?.sessionId ? context.sessions.get(createContext.sessionId) : undefined);
-      if (activeSession?.activeAutomationId?.trim()) {
+      if (
+        resolveAutomationExecutionContext(createContext, activeSession?.activeAutomationId)
+          .automationTurn
+      ) {
         // 当前 turn 已经由 automationId 派发；继续 CronCreate 会形成递归定时任务链。
         // 这个判断发生在 automation-port 内，命中时不会调用 protocol automation/create。
         throw new Error(AUTOMATION_CREATE_FROM_AUTOMATION_RUN_ERROR);
@@ -173,7 +192,13 @@ export function createProtocolAutomationPort(
       }
       return automation;
     },
-    async update(input) {
+    async update(input, execution) {
+      if (
+        resolveAutomationExecutionContext(execution, resolveOwnSession?.()?.activeAutomationId)
+          .automationTurn
+      ) {
+        throw new Error("Cannot update a scheduled task while running a scheduled task.");
+      }
       const hasIntervalCarrier = input.intervalUnit !== undefined && input.interval !== undefined;
       const result = await context.requestClient(
         lcodeProtocolMethods.automationUpdate,
@@ -208,7 +233,15 @@ export function createProtocolAutomationPort(
       );
       return result.automations.map(toCronAutomation);
     },
-    async delete(input) {
+    async delete(input, execution) {
+      const { automationId, automationTurn } = resolveAutomationExecutionContext(
+        execution,
+        resolveOwnSession?.()?.activeAutomationId,
+      );
+      // 删除自身后也保留本轮身份，直到 turn 真正结束；不能借第一次删除去操作其他任务。
+      if (automationTurn && (!automationId || input.id !== automationId)) {
+        throw new Error("A scheduled automation can only delete itself.");
+      }
       const result = await context.requestClient(
         lcodeProtocolMethods.automationDelete,
         { automationId: input.id },

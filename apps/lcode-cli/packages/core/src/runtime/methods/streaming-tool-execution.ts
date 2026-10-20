@@ -95,6 +95,7 @@ export async function executeDuringStream(
     subagentModelOverride: state.subagentModelOverride,
     model: state.model,
     automationTurn: isAutomationMutationRestrictedTurn(state),
+    automationId: state.automationId,
     offPeakTurn: isOffPeakCreateRestrictedTurn(state),
     signal: options.abortSignal,
     traceContext: options.traceContext,

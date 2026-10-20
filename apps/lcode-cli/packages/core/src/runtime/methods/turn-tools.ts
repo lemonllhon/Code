@@ -168,6 +168,7 @@ export async function executeToolCallsForModelStep(
     });
     const execution = await this.executeTools(pendingToolCalls, pendingSchedule, {
       automationTurn: isAutomationMutationRestrictedTurn(state),
+      automationId: state.automationId,
       offPeakTurn: isOffPeakCreateRestrictedTurn(state),
       signal: state.turnAbortSignal,
       traceContext: options.modelTraceContext,

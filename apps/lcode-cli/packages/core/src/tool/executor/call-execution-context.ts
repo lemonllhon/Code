@@ -39,6 +39,7 @@ export function createToolExecutionContext(input: {
     toolCallId: canonicalToolCall.id,
     telemetry,
     automationTurn: options?.automationTurn,
+    automationId: options?.automationId,
     offPeakTurn: options?.offPeakTurn,
     traceContext,
     traceId,

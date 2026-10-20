@@ -1,4 +1,5 @@
-export const AUTOMATION_MUTATION_TOOL_NAMES = ["CronCreate", "CronUpdate", "CronDelete"] as const;
+// 原来把删除也整体隐藏，自动化无法在完成后停止自身；删除范围由可信本轮身份校验。
+export const AUTOMATION_MUTATION_TOOL_NAMES = ["CronCreate", "CronUpdate"] as const;
 
 export function mergeAutomationMutationToolDenylist(
   current: readonly string[] | undefined,

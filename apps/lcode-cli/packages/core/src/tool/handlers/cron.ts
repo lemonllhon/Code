@@ -32,30 +32,14 @@ import {
   type ToolPermissionSpec,
 } from "@lcode/contracts";
 import type { ToolEntry, ToolExecutionContext, ToolHandler } from "../types.js";
+import {
+  assertAutomationDeleteAllowed,
+  assertNotAutomationTurn,
+  automationExecutionContext,
+} from "./cron-permissions.js";
 
 const CRON_TOOL_TIMEOUT_MS = 30_000;
 const CRON_MODEL_BYTES = 32_000;
-
-function assertNotAutomationTurn(
-  context: ToolExecutionContext,
-  toolName: "CronCreate" | "CronUpdate" | "CronDelete",
-): void {
-  if (!context.automationTurn) return;
-  // provider tool denylist 只是可见性约束，旧入口或异常 provider 仍可能直接提交
-  // automation 写工具。handler 必须以 executor 传入的本轮事实做最终拒绝，且不能调用端口。
-  throw createCoreError(
-    CoreErrorType.PermissionDenied,
-    `${toolName} is not allowed while running a scheduled automation.`,
-    {
-      context: {
-        toolCallId: context.toolCallId,
-        toolName,
-      },
-      recoverable: false,
-      retryable: false,
-    },
-  );
-}
 
 function assertAutomationPort(
   context: ToolExecutionContext,
@@ -102,6 +86,7 @@ const cronCreateHandler: ToolHandler = async (input, context) => {
   assertAutomationPort(context, "CronCreate");
 
   const automation = await context.automationPort.create(parsed, {
+    ...automationExecutionContext(context),
     // 会话内创建定时任务时模型来自当前 runtime，而不是模型可控的工具入参。
     ...(context.model ? { model: `${context.model.providerId}/${context.model.modelId}` } : {}),
     // 会话内创建的 cron 固定复用当前 session，后续触发不再新建 session。
@@ -128,7 +113,10 @@ const cronUpdateHandler: ToolHandler = async (input, context) => {
   const parsed = CronUpdateInputSchema.parse(input) as CronUpdateInput;
   assertAutomationPort(context, "CronUpdate");
 
-  const automation = await context.automationPort.update(parsed);
+  const automation = await context.automationPort.update(
+    parsed,
+    automationExecutionContext(context),
+  );
   return {
     automation: toModelAutomation(automation),
     message: `Updated automation ${automation.automationId}.`,
@@ -136,11 +124,11 @@ const cronUpdateHandler: ToolHandler = async (input, context) => {
 };
 
 const cronDeleteHandler: ToolHandler = async (input, context) => {
-  assertNotAutomationTurn(context, "CronDelete");
   const parsed = CronDeleteInputSchema.parse(input) as CronDeleteInput;
+  assertAutomationDeleteAllowed(context, parsed.id);
   assertAutomationPort(context, "CronDelete");
 
-  const deleted = await context.automationPort.delete(parsed);
+  const deleted = await context.automationPort.delete(parsed, automationExecutionContext(context));
   return {
     deleted,
     id: parsed.id,
@@ -348,6 +336,9 @@ export const cronDeleteToolEntry: ToolEntry = {
   metadata: {
     name: "CronDelete",
     description: "Delete a scheduled automation from the current workspace by automation id.",
+    modelInstructions: [
+      "During a scheduled automation run, you may only delete that same automation. Use CronList to find its id if needed; never delete another automation. Creation and updates remain unavailable during the run.",
+    ],
     readOnly: false,
     destructive: true,
     concurrentSafe: false,

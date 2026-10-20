@@ -174,6 +174,7 @@ export interface ToolExecuteOptions {
   maxConcurrency?: number;
   onToolStart?: (toolCallId: string) => Promise<void>;
   automationTurn?: boolean;
+  automationId?: string;
   offPeakTurn?: boolean;
   signal?: AbortSignal;
   traceContext?: TraceContext;

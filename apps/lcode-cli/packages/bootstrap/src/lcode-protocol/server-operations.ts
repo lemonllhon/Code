@@ -2601,17 +2601,17 @@ async function runPromptTurnInBackground(
         browserAmbientContext: params.browserAmbientContext,
         inputId: params.inputId,
         queryId: params.queryId,
-        ...(params.automationId
-          ? { automationId: params.automationId }
+        // 兼容入口从 runId 恢复的身份也必须传入 Core，否则 handler 无可信 ID 而拒绝自删除。
+        ...(activeAutomationId
+          ? { automationId: activeAutomationId }
           : params.offPeakTaskId
             ? {
                 offPeakTaskId: params.offPeakTaskId,
                 ...(params.offPeakRunType ? { offPeakRunType: params.offPeakRunType } : {}),
               }
             : {}),
-        // legacy session/send 同样可能复用 active runtime；只做 port 拒绝时模型仍看得到
-        // CronCreate，并可能在失败后改调 CronDelete。automation turn 与 cron task 会话后续输入
-        // 都直接从本轮 provider 工具面移除。
+        // legacy session/send 复用同一运行时；仅自动派发轮隐藏创建/修改，
+        // 自删除继续由 Core 与 session port 校验本轮身份。
         ...(turnToolDisallowlist ? { toolDisallowlist: turnToolDisallowlist } : {}),
       },
     );
@@ -2667,7 +2667,9 @@ function buildPromptTurnToolDisallowlist(
   activeOffPeakTaskId = params.offPeakTaskId,
 ): readonly string[] | undefined {
   const tools = new Set(params.toolDenylist ?? []);
-  if (activeAutomationId) tools.add("CronCreate");
+  if (activeAutomationId) {
+    for (const toolName of ["CronCreate", "CronUpdate"]) tools.add(toolName);
+  }
   // 闲时派发轮隐藏 OffPeakCreate（防递归自我派生）；OffPeakList 只读保留。
   // 注意 automation 轮不加 OffPeakCreate——cron 轮放行（定时派生闲时任务）。
   // SendMessage / Workflow 同样隐藏，与 V4 prompt-turn 及 core turn-loop-state 同值。

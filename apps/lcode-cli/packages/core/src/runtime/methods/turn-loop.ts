@@ -25,13 +25,10 @@ import {
 import type { AgentRuntimeInternal } from "../internal.js";
 import { runModelBackedTurnStep } from "./turn-model-step.js";
 import {
-  AUTOMATION_MUTATION_TOOL_NAMES,
+  buildTurnDisallowedTools,
   evaluateRapidRefill,
   filterTurnRecallOverlayEntries,
-  isAutomationMutationRestrictedTurn,
-  isOffPeakCreateRestrictedTurn,
   MAX_CONSECUTIVE_RAPID_REFILLS,
-  OFF_PEAK_MUTATION_TOOL_NAMES,
   RAPID_REFILL_TOOL_TURN_THRESHOLD,
   recordCompactHistoryRound,
   recordCompactSuccess,
@@ -120,7 +117,7 @@ export async function runRegularTurnLoop(
     const turnDisallowedTools = buildTurnDisallowedTools(state);
     // automation 派发到已 active 会话或重试恢复时，入口 metadata 可能没有带到
     // loop state；但 queryId 仍是 automation-*。provider 请求边界必须按 queryId 再硬过滤
-    // automation 写工具，否则模型会先看到并创建、修改或删除任务定义。
+    // 创建/修改工具；删除自身的权限由 handler 根据本轮可信身份校验。
     const tools = state.automationCreateLimitReached
       ? []
       : turnDisallowedTools
@@ -382,23 +379,4 @@ export async function appendProjectMemoryRecallForTurn(
       module: "core.runtime",
     });
   }
-}
-
-function buildTurnDisallowedTools(state: RegularTurnLoopState): Set<string> | null {
-  const tools = new Set(state.toolDisallowlist ?? []);
-  if (isAutomationMutationRestrictedTurn(state)) {
-    // 定时任务执行轮只应运行任务 prompt，不能反过来管理自己的定义。
-    // 保留 CronList 供只读查询；所有 mutation 在 provider 请求边界统一隐藏。
-    for (const toolName of AUTOMATION_MUTATION_TOOL_NAMES) {
-      tools.add(toolName);
-    }
-  }
-  if (isOffPeakCreateRestrictedTurn(state)) {
-    // 闲时执行轮禁止再创建闲时任务（防递归自我派生）；OffPeakList 只读保留。
-    // 注意 automation 执行轮不进此分支——cron turn 放行 OffPeakCreate。
-    for (const toolName of OFF_PEAK_MUTATION_TOOL_NAMES) {
-      tools.add(toolName);
-    }
-  }
-  return tools.size > 0 ? tools : null;
 }

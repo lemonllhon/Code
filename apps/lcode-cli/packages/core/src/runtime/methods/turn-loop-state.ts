@@ -21,7 +21,7 @@ export type PendingStreamRecoveryRequest = ModelStreamRecoveryStatus;
 
 export const RAPID_REFILL_TOOL_TURN_THRESHOLD = 3;
 export const MAX_CONSECUTIVE_RAPID_REFILLS = 3;
-export const AUTOMATION_MUTATION_TOOL_NAMES = ["CronCreate", "CronUpdate", "CronDelete"] as const;
+export const AUTOMATION_MUTATION_TOOL_NAMES = ["CronCreate", "CronUpdate"] as const;
 const AUTOMATION_QUERY_ID_PREFIX = "automation-";
 /**
  * 闲时派发轮隐藏的工具；OffPeakList 只读保留。
@@ -213,6 +213,19 @@ export function isAutomationMutationRestrictedTurn(state: RegularTurnLoopState):
   // active/busy automation 输入会把 turn-scoped denylist 合并进当前 loop；即使原始
   // automationId 不再是 loop 首输入，也必须把同一事实继续传到 handler 执行边界。
   return AUTOMATION_MUTATION_TOOL_NAMES.every((toolName) => disallowedTools.has(toolName));
+}
+
+export function buildTurnDisallowedTools(state: RegularTurnLoopState): Set<string> | null {
+  const tools = new Set(state.toolDisallowlist ?? []);
+  if (isAutomationMutationRestrictedTurn(state)) {
+    // 旧策略隐藏所有写工具，导致任务完成后无法删除自身。只隐藏创建/修改，
+    // 删除在 handler 用本轮可信 automationId 做精确校验；不能推断或放宽目标。
+    for (const toolName of AUTOMATION_MUTATION_TOOL_NAMES) tools.add(toolName);
+  }
+  if (isOffPeakCreateRestrictedTurn(state)) {
+    for (const toolName of OFF_PEAK_MUTATION_TOOL_NAMES) tools.add(toolName);
+  }
+  return tools.size > 0 ? tools : null;
 }
 
 /**

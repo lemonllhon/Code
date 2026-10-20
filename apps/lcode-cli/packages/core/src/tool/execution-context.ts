@@ -79,6 +79,8 @@ export interface ToolExecutionContext {
   telemetry?: ToolExecutionSpanWriter;
   /** 当前工具调用是否属于 automation 派发轮；写工具 handler 用它做最终权限校验。 */
   automationTurn?: boolean;
+  /** 本轮可信 admission 身份；不得从工具输入或持久化会话绑定推断，用于仅删除自身。 */
+  automationId?: string;
   /** 当前工具调用是否属于闲时任务派发轮；OffPeakCreate handler 用它做最终拒绝。 */
   offPeakTurn?: boolean;
   traceContext?: TraceContext;

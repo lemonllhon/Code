@@ -6,7 +6,7 @@ import type { ExecuteToolsOptions } from "../types.js";
 import { ToolRegistryImpl } from "../../tool/registry.js";
 import { ToolScheduler, type ToolSchedule } from "../../tool/scheduler.js";
 import { createToolExecutor } from "../../tool/executor/impl.js";
-import type { ToolEntry } from "../../tool/types.js";
+import type { ToolEntry, ToolExecutionContext } from "../../tool/types.js";
 import { createStreamingToolCoordinator } from "./streaming-tool-coordinator.js";
 import type { RegularTurnLoopState } from "./turn-loop-state.js";
 
@@ -16,6 +16,7 @@ function fixture(block = false) {
     scheduler = new ToolScheduler();
   const started: string[] = [],
     parts: MessagePart[] = [];
+  const contexts: ToolExecutionContext[] = [];
   let release!: () => void;
   const pending = new Promise<void>((done) => {
     release = done;
@@ -35,6 +36,7 @@ function fixture(block = false) {
       outputSchema: { type: "object" },
       handler: async (_input, context) => {
         started.push(context.toolCallId);
+        contexts.push(context);
         if (block) await pending;
         return {};
       },
@@ -88,8 +90,19 @@ function fixture(block = false) {
     model: { providerId: "fixture", modelId: "fixture", options: {} } as Model,
     traceContext: {},
   });
-  return { coordinator, started, parts, release };
+  return { coordinator, started, parts, release, contexts, state };
 }
+
+test("during-stream execution carries the trusted automation identity into the handler", async () => {
+  const f = fixture();
+  f.state.automationId = "automation-self";
+  const call = { id: "streamed-call", name: "Read", input: {} };
+  f.coordinator.accept(call);
+  const results = await f.coordinator.drain([call]);
+  assert.equal(results.length, 1);
+  assert.equal(f.contexts[0]?.automationTurn, true);
+  assert.equal(f.contexts[0]?.automationId, "automation-self");
+});
 
 for (const names of [
   ["Write", "Read"],
