@@ -44,12 +44,37 @@ const platform = {
   getBuiltinWallpaperUrl,
   getStartupAnimationPresets,
 } as IPlatformService;
+// 市场网络由 E2E 路由控制；生产 UI、hook、解码及 IndexedDB 提交路径保持真实。
+platform.searchWallpaperMarket = async (request) => {
+  const url = new URL("https://wallpaper-market.test/search");
+  url.search = new URLSearchParams({
+    query: request.query ?? "",
+    category: request.category ?? "all",
+    color: request.color ?? "",
+    page: String(request.page ?? 1),
+  }).toString();
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Market fixture unavailable");
+  return response.json();
+};
+platform.loadWallpaperMarketImage = async (request) => {
+  const response = await fetch(
+    `https://wallpaper-market.test/image?url=${encodeURIComponent(request.url)}&thumbnail=${Boolean(request.thumbnail)}`,
+  );
+  if (!response.ok) throw new Error("Market image fixture unavailable");
+  return {
+    mime: response.headers.get("content-type") as "image/png",
+    bytes: new Uint8Array(await response.arrayBuffer()),
+  };
+};
 if (new URLSearchParams(location.search).get("web") === "1") {
   delete platform.getBuiltinWallpaperUrl;
   delete platform.mountStartupScenePreview;
   delete platform.mountAemeathWallpaper;
   delete platform.validateStartupSceneMedia;
   delete platform.saveStartupSceneImage;
+  delete platform.searchWallpaperMarket;
+  delete platform.loadWallpaperMarketImage;
 }
 
 function AppearanceFixture() {
@@ -70,7 +95,17 @@ function AppearanceFixture() {
         data-testid="wallpaper-project"
       >
         <WorkspaceShellSurface isNativeDesktop isNarrowWebLayout={false} wallpaperVisible={project}>
-          <section data-workspace-conversation-frame="true" className="h-full w-full bg-background">
+          <aside
+            data-workspace-sidebar-panel="true"
+            data-testid="wallpaper-panel-probe"
+            className="w-24 shrink-0 bg-sidebar"
+          >
+            Sidebar
+          </aside>
+          <section
+            data-workspace-conversation-frame="true"
+            className="h-full min-w-0 flex-1 bg-background"
+          >
             <div className="h-full bg-background">
               <main className="h-full bg-background p-6">
                 <p>Project</p>

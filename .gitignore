@@ -292,6 +292,8 @@ nul
 !/packages/ui/src/lib/sidebarOrganization.ts
 !/packages/ui/src/lib/sidebarOrganization.test.ts
 !/packages/ui/src/lib/sshProxyMode.test.ts
+!/packages/ui/src/lib/wallpaperMarketColors.ts
+!/packages/ui/src/lib/wallpaperMarketColors.test.ts
 # RPC 订阅失败隔离属于永久回归，覆盖维护者全局 test/ 忽略。
 !/packages/rpc/test/
 !/packages/rpc/test/channelServer.test.ts

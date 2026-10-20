@@ -25,6 +25,8 @@ export function createDesktopPlatform(options: {
     canSelectFilePath: true,
     previewStartupAnimation,
     getBuiltinWallpaperUrl,
+    searchWallpaperMarket: (request) => window.lcode.searchWallpaperMarket(request),
+    loadWallpaperMarketImage: (request) => window.lcode.loadWallpaperMarketImage(request),
     getStartupAnimationPresets,
     mountStartupScenePreview,
     mountAemeathWallpaper,

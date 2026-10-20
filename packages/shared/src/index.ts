@@ -1,4 +1,5 @@
 export * from "./composer-predictions.js";
+export * from "./wallpaperMarket.js";
 export type {
   FileBinaryPreview,
   FileEntry,

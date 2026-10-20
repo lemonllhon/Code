@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { runWallpaperMarketTests } from "./wallpaper-market.e2e.mjs";
 import { resolve } from "node:path";
 import { writeFile } from "node:fs/promises";
 
@@ -85,6 +86,50 @@ export async function runWallpaperTests({ t, page, hasMedia, artifacts }) {
         `Wallpaper must be visible through nested surfaces: ${colored} vs ${plain}`,
       );
       await openSettings();
+    },
+  );
+  await t.test(
+    "animated GIF plays in the project and after reload; corrupt GIF preserves it",
+    async () => {
+      // 两帧红/蓝 GIF89a，150ms 帧间隔、无限循环；实际截取合成像素，防止只显示首帧。
+      const gif = Buffer.from(
+        "47494638396101000100800000ff00000000ff" +
+          "21ff0b4e45545343415045322e300301000000" +
+          "21f904040f0000002c0000000001000100000202440100" +
+          "21f904040f0000002c00000000010001000002024c01003b",
+        "hex",
+      );
+      const input = page.locator("[data-testid=wallpaper-settings] input[type=file]");
+      assert.match(await input.getAttribute("accept"), /image\/gif/);
+      await input.setInputFiles({ name: "animated.gif", mimeType: "image/gif", buffer: gif });
+      const assertAnimation = async () => {
+        await openProject();
+        await project.getByTestId("wallpaper-image").waitFor();
+        await page.waitForFunction(() =>
+          Boolean(document.querySelector("[data-wallpaper-active=true]")),
+        );
+        const first = await backgroundPixel(page, project);
+        let moved = false;
+        for (let frame = 0; frame < 60 && !moved; frame++) {
+          const next = await backgroundPixel(page, project);
+          moved = first.reduce((sum, value, i) => sum + Math.abs(value - next[i]), 0) > 40;
+        }
+        assert.equal(moved, true, "GIF 必须播放不同颜色的真实帧");
+        await openSettings();
+      };
+      await assertAnimation();
+      await page.reload();
+      await page.getByRole("combobox", { name: "壁纸选择" }).waitFor();
+      assert.match(await page.getByRole("combobox", { name: "壁纸选择" }).innerText(), /自选图片/);
+      await assertAnimation();
+      await input.setInputFiles({
+        name: "corrupt.gif",
+        mimeType: "image/gif",
+        buffer: Buffer.from("broken GIF"),
+      });
+      await page.getByRole("alert").waitFor();
+      await assertAnimation();
+      await choose("关闭");
     },
   );
   await t.test(
@@ -222,10 +267,12 @@ export async function runWallpaperTests({ t, page, hasMedia, artifacts }) {
       await choose("关闭");
     },
   );
+  await runWallpaperMarketTests({ t, page, artifacts });
   await t.test("Web restoration does not open wallpaper storage or request media", async () => {
     const requests = [];
     const track = (request) => {
-      if (request.url().includes("/startup-media/")) requests.push(request.url());
+      if (request.url().includes("/startup-media/") || request.url().includes("wallpaper-market"))
+        requests.push(request.url());
     };
     page.on("request", track);
     await page.addInitScript(() => {

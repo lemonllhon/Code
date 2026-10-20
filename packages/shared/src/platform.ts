@@ -13,6 +13,12 @@ import type {
   SaveCliMcpToUserDirectoryRequest,
 } from "./mcp.js";
 import type { OAuthStateRegistration } from "./oauth.js";
+import type {
+  WallpaperMarketSearch,
+  WallpaperMarketPage,
+  WallpaperMarketImageRequest,
+  WallpaperMarketImage,
+} from "./wallpaperMarket.js";
 import type { AppSettings, Locale } from "./protocol.js";
 import type { ArmsCustomEventPayload, RendererTelemetryEventPayload } from "./telemetry.js";
 import type {
@@ -782,6 +788,9 @@ export interface IPlatformService {
   validateStartupSceneMedia?(media: Blob): Promise<void>;
   /** 仅返回本平台允许的内置壁纸相对资源；Web/手机不提供该能力。 */
   getBuiltinWallpaperUrl?(preset: "baili" | "aemeath"): string | undefined;
+  /** 本机壁纸市场网络适配；Web/手机不实现，不经过 Host 或 Agent。 */
+  searchWallpaperMarket?(request: WallpaperMarketSearch): Promise<WallpaperMarketPage>;
+  loadWallpaperMarketImage?(request: WallpaperMarketImageRequest): Promise<WallpaperMarketImage>;
   /** 本机动态壁纸展示；pause 保留睁眼静帧，dispose 丢弃晚到解码。 */
   mountAemeathWallpaper?(
     container: { readonly nodeType: number },

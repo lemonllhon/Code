@@ -1,4 +1,8 @@
 import type {
+  WallpaperMarketSearch,
+  WallpaperMarketPage,
+  WallpaperMarketImageRequest,
+  WallpaperMarketImage,
   DesktopCommandId,
   DesktopZoomState,
   DesktopWindowChromeState,
@@ -115,6 +119,8 @@ declare global {
       selectDirectories?(): Promise<string[]>;
       /** 打开系统文件选择框，返回选中文件路径或 null */
       selectFile(): Promise<string | null>;
+      searchWallpaperMarket(request: WallpaperMarketSearch): Promise<WallpaperMarketPage>;
+      loadWallpaperMarketImage(request: WallpaperMarketImageRequest): Promise<WallpaperMarketImage>;
       /** 打开系统多文件选择框，返回选中文件路径；取消时返回空数组 */
       selectFiles?(): Promise<string[]>;
       /** 通过系统原生另存为对话框保存文件 */

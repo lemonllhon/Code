@@ -54,6 +54,7 @@ import {
 } from "./mcpUserDirectory/index.js";
 import { createTempTextAttachment } from "./tempTextAttachment.js";
 import { registerDesktopSaveFileIpcHandler } from "./desktopSaveFile.js";
+import { registerWallpaperMarketIpc } from "./wallpaperMarketIpc.js";
 import { registerDesktopPrintToPdfIpcHandler } from "./desktopPrintToPdf.js";
 import { registerCuaPipActiveSessionIpc } from "./desktopCuaPipIpc.js";
 import { registerDesktopAppSettingsSyncIpcHandler } from "./desktopImmediateAppSettings.js";
@@ -142,6 +143,7 @@ export function registerPlatformIpcHandlers(options: {
   });
 
   registerDesktopSaveFileIpcHandler(options.logger);
+  registerWallpaperMarketIpc();
   registerDesktopPrintToPdfIpcHandler(options.logger);
 
   ipcMain.handle(

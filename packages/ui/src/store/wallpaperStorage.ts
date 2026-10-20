@@ -1,19 +1,22 @@
+import type { WallpaperAppearance } from "./wallpaperAppearance.js";
+
 export const WALLPAPER_SOURCES = ["none", "baili", "aemeath", "custom"] as const;
 export type WallpaperSource = (typeof WALLPAPER_SOURCES)[number];
 export interface WallpaperRecord {
   source: WallpaperSource;
   image?: Blob;
+  marketId?: string;
+  appearance?: WallpaperAppearance;
 }
 export interface WallpaperStorage {
   read(): Promise<WallpaperRecord | undefined>;
   write(record: WallpaperRecord): Promise<void>;
 }
-export const MAX_WALLPAPER_BYTES = 10 * 1024 * 1024;
+// 壁纸不设产品级体积/像素上限，仍以格式与浏览器实际解码结果为准。
 export function isWallpaperImage(image: Blob): boolean {
   return (
     image.size > 0 &&
-    image.size <= MAX_WALLPAPER_BYTES &&
-    ["image/png", "image/jpeg", "image/webp", "image/avif"].includes(image.type)
+    ["image/png", "image/jpeg", "image/webp", "image/avif", "image/gif"].includes(image.type)
   );
 }
 
@@ -23,8 +26,7 @@ export async function decodeWallpaperImage(blob: Blob): Promise<void> {
     const image = new Image();
     image.src = url;
     await image.decode();
-    if (!image.naturalWidth || image.naturalWidth * image.naturalHeight > 40_000_000)
-      throw new Error("Image dimensions exceed limit");
+    if (!image.naturalWidth || !image.naturalHeight) throw new Error("Invalid image dimensions");
   } finally {
     URL.revokeObjectURL(url);
   }

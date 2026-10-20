@@ -3,6 +3,7 @@ import { useWallpaper } from "@/hooks/useWallpaper.js";
 import { useWallpaperMedia } from "@/hooks/useWallpaperMedia.js";
 import { useAemeathWallpaper } from "@/hooks/useAemeathWallpaper.js";
 import type { WallpaperRecord } from "@/store/wallpaperStorage.js";
+import type { WallpaperAppearance } from "@/store/wallpaperAppearance.js";
 
 function AemeathWallpaper({
   reduced,
@@ -20,8 +21,10 @@ function WallpaperMedia({
   url,
   reduced,
   onReady,
+  fill,
 }: {
   record: WallpaperRecord;
+  fill: WallpaperAppearance["fill"];
   url?: string;
   reduced: boolean;
   onReady(value: boolean): void;
@@ -59,25 +62,37 @@ function WallpaperMedia({
         playsInline
         preload="auto"
         className="h-full w-full object-cover"
+        style={{ objectFit: fill === "cover" || fill === "contain" ? fill : "none" }}
         data-testid="wallpaper-video"
         onLoadedData={() => onReady(true)}
         onError={() => onReady(false)}
       />
     );
   return still ? (
-    <img
-      src={still}
-      alt=""
-      className="h-full w-full object-cover"
-      data-testid="wallpaper-image"
-      onLoad={() => onReady(true)}
-      onError={() => onReady(false)}
-    />
+    <div
+      className="h-full w-full"
+      data-testid="wallpaper-static"
+      style={{
+        backgroundImage: `url("${still}")`,
+        backgroundPosition: "center",
+        backgroundSize: fill === "cover" || fill === "contain" ? fill : "auto",
+        backgroundRepeat: fill === "tile" ? "repeat" : "no-repeat",
+      }}
+    >
+      <img
+        src={still}
+        alt=""
+        className="h-full w-full opacity-0"
+        data-testid="wallpaper-image"
+        onLoad={() => onReady(true)}
+        onError={() => onReady(false)}
+      />
+    </div>
   ) : null;
 }
 
 export function WorkspaceWallpaper({ active = true }: { active?: boolean }) {
-  const { record, supported, builtinUrl } = useWallpaper();
+  const { record, appearance, supported, builtinUrl } = useWallpaper();
   const layer = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [foreground, setForeground] = useState(
@@ -125,8 +140,16 @@ export function WorkspaceWallpaper({ active = true }: { active?: boolean }) {
     return () => shell?.removeAttribute("data-wallpaper-active");
   }, [enabled, ready]);
   useEffect(() => {
+    const shell = layer.current?.parentElement;
+    if (!shell || !supported) return;
+    shell.style.setProperty("--wallpaper-panel-opacity", `${appearance.panelOpacity * 100}%`);
+    return () => {
+      shell.style.removeProperty("--wallpaper-panel-opacity");
+    };
+  }, [supported, appearance.panelOpacity]);
+  useEffect(() => {
     setReady(false);
-  }, [record, enabled]);
+  }, [record.source, record.image, enabled]);
   if (!supported) return null;
   const url =
     record.source === "baili" || record.source === "aemeath"
@@ -140,9 +163,25 @@ export function WorkspaceWallpaper({ active = true }: { active?: boolean }) {
       data-testid="workspace-wallpaper"
     >
       {enabled ? (
-        <WallpaperMedia record={record} url={url} reduced={reduced} onReady={setReady} />
+        <div
+          className="absolute inset-0"
+          data-testid="wallpaper-media"
+          style={{ filter: appearance.blur ? `blur(${appearance.blur}px)` : undefined }}
+        >
+          <WallpaperMedia
+            record={record}
+            fill={appearance.fill}
+            url={url}
+            reduced={reduced}
+            onReady={setReady}
+          />
+        </div>
       ) : null}
-      <div className="absolute inset-0" data-wallpaper-tint="true" />
+      <div
+        className="absolute inset-0"
+        data-wallpaper-tint="true"
+        style={{ opacity: appearance.maskOpacity }}
+      />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { runWallpaperTests } from "./startup-wallpaper.e2e.mjs";
+import { openWallpaperFixture } from "./startup-wallpaper-runtime.mjs";
 import { runStartupSceneColdTest, runStartupSceneEditorTest } from "./startup-scene.e2e.mjs";
 import { runStartupSceneResourceTests } from "./startup-scene-resources.e2e.mjs";
 import { runStartupWelcomeTests, runCustomStartupEditorTest } from "./startup-welcome.e2e.mjs";
@@ -125,6 +126,12 @@ test(
       await page.goto(`${origin}?${query}`);
       await page.waitForFunction(() => Boolean(window.startupFixture));
     };
+    if (process.env.LCODE_WALLPAPER_ONLY === "1") {
+      await openWallpaperFixture({ page, electron, userData, desktopRoot, common, t });
+      await runWallpaperTests({ t, page, hasMedia, artifacts });
+      assert.deepEqual(errors, []);
+      return;
+    }
     await t.test(
       "Esc reveals pending project without admitting input",
       { skip: !hasMedia },

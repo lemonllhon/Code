@@ -8,6 +8,12 @@ import type {
   SaveCliMcpToUserDirectoryRequest,
 } from "./index.js";
 import type { OAuthStateRegistration } from "./oauth.js";
+import type {
+  WallpaperMarketSearch,
+  WallpaperMarketPage,
+  WallpaperMarketImageRequest,
+  WallpaperMarketImage,
+} from "./wallpaperMarket.js";
 import type { AppSettings, Locale } from "./protocol.js";
 import type { StorageCleanRequest, StorageCleanResult, StorageUsageSnapshot } from "./storage.js";
 import type {
@@ -179,6 +185,8 @@ export const PlatformChannels = {
   SelectDirectories: "lcode:select-directories",
   /** 打开系统文件选择框 */
   SelectFile: "lcode:select-file",
+  SearchWallpaperMarket: "lcode:wallpaper-market-search",
+  LoadWallpaperMarketImage: "lcode:wallpaper-market-image",
   /** 打开系统多文件选择框 */
   SelectFiles: "lcode:select-files",
   /** Renderer → Main：写入宿主 ~/.lcode 临时文本附件 */
@@ -703,6 +711,14 @@ export interface PlatformChannelMap {
   [PlatformChannels.SelectFile]: {
     request: void;
     response: string | null;
+  };
+  [PlatformChannels.SearchWallpaperMarket]: {
+    request: WallpaperMarketSearch;
+    response: WallpaperMarketPage;
+  };
+  [PlatformChannels.LoadWallpaperMarketImage]: {
+    request: WallpaperMarketImageRequest;
+    response: WallpaperMarketImage;
   };
   [PlatformChannels.SelectFiles]: {
     request: void;

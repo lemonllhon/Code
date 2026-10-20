@@ -14,6 +14,21 @@
   ) {
   background-color: transparent;
 }
+.lcode-wallpaper-scope[data-wallpaper-active="true"]
+  :is([data-workspace-conversation-frame="true"], [data-workspace-side-pane-panel="true"]) {
+  background-color: color-mix(
+    in srgb,
+    var(--color-panel) var(--wallpaper-panel-opacity, 0%),
+    transparent
+  );
+}
+.lcode-wallpaper-scope[data-wallpaper-active="true"] [data-workspace-sidebar-panel="true"] {
+  background-color: color-mix(
+    in srgb,
+    var(--color-sidebar) var(--wallpaper-panel-opacity, 0%),
+    transparent
+  );
+}
 .lcode-wallpaper-scope [data-wallpaper-tint="true"] {
-  background-color: color-mix(in srgb, var(--color-background) 80%, transparent);
+  background-color: var(--color-background);
 }

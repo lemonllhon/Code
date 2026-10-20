@@ -320,6 +320,10 @@ contextBridge.exposeInMainWorld("lcode", {
     ipcRenderer.invoke(PlatformChannels.SelectDirectories),
   /** 打开系统文件选择框，返回选中文件路径或 null */
   selectFile: (): Promise<string | null> => ipcRenderer.invoke(PlatformChannels.SelectFile),
+  searchWallpaperMarket: (request: import("@lcode/shared").WallpaperMarketSearch) =>
+    ipcRenderer.invoke(PlatformChannels.SearchWallpaperMarket, request),
+  loadWallpaperMarketImage: (request: import("@lcode/shared").WallpaperMarketImageRequest) =>
+    ipcRenderer.invoke(PlatformChannels.LoadWallpaperMarketImage, request),
   /** 打开系统多文件选择框，返回选中文件路径；取消时返回空数组 */
   selectFiles: (): Promise<string[]> => ipcRenderer.invoke(PlatformChannels.SelectFiles),
   /** 通过 main process 的原生另存为对话框明确落盘 */
