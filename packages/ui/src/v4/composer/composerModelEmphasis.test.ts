@@ -22,20 +22,20 @@ function selection(modelId = "custom-model", reasoningLevel = "low", providerId 
   return { providerId, modelId, options: { reasoningLevel, speed: "fast" } };
 }
 
-test("最高思考档位来自当前模型目录，未知名称仍可触发且不修改选择", () => {
+test("未知模型的每档均有特效，目录末档最强且不修改选择", () => {
   const view = catalog(["custom-model"], ["off", "economy", "deep"]);
   const chosen = selection("custom-model", "deep");
   const before = JSON.stringify({ view, chosen });
   assert.equal(resolveComposerModelEmphasis(chosen, view), 1);
-  assert.equal(resolveComposerModelEmphasis(selection("custom-model", "economy"), view), 0);
+  assert.equal(resolveComposerModelEmphasis(selection("custom-model", "economy"), view), 0.28);
   assert.equal(JSON.stringify({ view, chosen }), before);
 });
 
-test("空、非法、关闭和单一开启档位不构成最高思考", () => {
+test("空、非法、关闭和单一开启档位保留基础效果", () => {
   for (const value of ["", "missing", "disabled"]) {
     assert.equal(
       resolveComposerModelEmphasis(selection("custom-model", value), catalog(["custom-model"])),
-      0,
+      0.28,
     );
   }
   for (const levels of [["enabled"], ["off", "enabled"], ["low", "off"]]) {
@@ -44,7 +44,7 @@ test("空、非法、关闭和单一开启档位不构成最高思考", () => {
         selection("custom-model", levels.at(-1)),
         catalog(["custom-model"], levels),
       ),
-      0,
+      0.28,
     );
   }
 });
@@ -79,7 +79,7 @@ test("目录、模型或供应商不匹配时不强调，禁用模型也不触�
   assert.equal(resolveComposerModelEmphasis(chosen, disabled), 0);
 });
 
-test("已知高端系列比较版本与同版等级，不使用展示顺序或轻量模型", () => {
+test("不同版本、系列与轻量模型全部显示特效，不再猜测旗舰准入", () => {
   const cases = [
     ["gpt-6.1-sol", ["gpt-6-luna", "gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-mini"]],
     ["gpt-6-astra", ["gpt-6-sol", "gpt-6-astra", "gpt-5.6-pro"]],
@@ -97,19 +97,15 @@ test("已知高端系列比较版本与同版等级，不使用展示顺序或�
     ["mimo-v2.5-pro", ["mimo-v2.5", "mimo-v2.5-pro"]],
     ["grok-4.7", ["grok-4.6", "grok-4.7", "grok-4.7-fast"]],
   ] as const;
-  for (const [flagship, ids] of cases) {
+  for (const [, ids] of cases) {
     const view = catalog([...ids]);
     for (const modelId of ids) {
-      assert.equal(
-        resolveComposerModelEmphasis(selection(modelId), view) > 0,
-        modelId === flagship,
-        modelId,
-      );
+      assert.equal(resolveComposerModelEmphasis(selection(modelId), view) > 0, true, modelId);
     }
   }
 });
 
-test("网关中各厂商独立比较，日期别名等价，其他供应商不影响当前旗舰", () => {
+test("网关中各模型均有特效，日期别名与其他供应商不影响当前强度", () => {
   const view = catalog(["anthropic/claude-opus-5", "claude-opus-5-20261001", "openai/gpt-6-astra"]);
   for (const model of view.providers[0]!.models) {
     assert.ok(resolveComposerModelEmphasis(selection(model.modelId), view) > 0);
@@ -128,11 +124,11 @@ test("网关中各厂商独立比较，日期别名等价，其他供应商不�
   assert.ok(resolveComposerModelEmphasis(selection("openai/gpt-6-astra"), isolated) > 0);
 });
 
-test("同一旗舰的关闭、低、高、最高档逐级增强，任意目录长度均按相对进度投影", () => {
-  const ids = ["gpt-6.1-sol"];
+test("普通模型从 default、低、高到最高档逐级增强，任意目录长度按相对进度投影", () => {
+  const ids = ["custom-model"];
   for (const levels of [
-    ["disabled", "low", "high", "ultra"],
-    ["off", "economy", "balanced", "deep", "maximum"],
+    ["default", "low", "high", "ultra"],
+    ["economy", "balanced", "deep", "maximum"],
   ]) {
     const view = catalog(ids, levels);
     const before = JSON.stringify(view);
@@ -146,5 +142,15 @@ test("同一旗舰的关闭、低、高、最高档逐级增强，任意目录�
     }
     assert.equal(resolveComposerModelEmphasis(selection(ids[0], "invalid"), view), 0.28);
     assert.equal(JSON.stringify(view), before);
+  }
+});
+
+test("显式和未指定 default、无思考配置均保留基础效果", () => {
+  const ids = ["custom-model", "gpt-6-luna", "gpt-6.1-sol"];
+  const view = catalog(ids, ["default", "low", "high"]);
+  for (const modelId of ids) {
+    assert.equal(resolveComposerModelEmphasis(selection(modelId, "default"), view), 0.28);
+    assert.equal(resolveComposerModelEmphasis({ providerId: "fixture", modelId }, view), 0.28);
+    assert.equal(resolveComposerModelEmphasis(selection(modelId), catalog(ids, [])), 0.28);
   }
 });

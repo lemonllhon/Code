@@ -3,9 +3,10 @@ import { mkdir } from "node:fs/promises";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { startWorkflowProgressBrowser } from "./workflow-execution-progress-browser.mjs";
+import { verifyComposerLevels, waitForComposerStrength } from "./composer-model-emphasis-cases.mjs";
 
 test(
-  "Composer 旗舰与最高思考特效：真实改选、主题、手机、减少动态效果和冻结提交",
+  "Composer 每档特效：default、所有模型逐级增强、主题、手机和冻结提交",
   { timeout: 180_000 },
   async (t) => {
     const { browser, port } = await startWorkflowProgressBrowser(t);
@@ -27,8 +28,8 @@ test(
         try {
           const query = new URLSearchParams({
             modelEmphasis: "",
-            initialThought: "low",
-            thoughtLevels: "disabled,low,high,ultra",
+            initialThought: "default",
+            thoughtLevels: "default,low,high,ultra",
           });
           if (width === 390) query.set("existing", "");
           if (width === 320) query.set("english", "");
@@ -69,16 +70,23 @@ test(
             }),
             true,
           );
-          assert.equal(await shell.getAttribute("data-composer-model-emphasis"), "false");
+          assert.equal(await shell.getAttribute("data-composer-model-emphasis"), "true");
+          await waitForComposerStrength(page, 0.28);
+          await page.getByTestId("v4-composer-input").press("D");
+          assert.ok(
+            (await shell
+              .locator(".composer-model-sparks")
+              .evaluate((element) =>
+                Number(getComputedStyle(element).getPropertyValue("--composer-spark-boost")),
+              )) > 0.8,
+            "default 输入也应激发火花",
+          );
+          await page.getByTestId("v4-composer-input").fill("");
           const bounds = await shell.boundingBox();
           await page.getByTestId("chat-thought-level-select-trigger").click();
           const slider = page.getByRole("slider");
           await slider.press("End");
-          await page.waitForFunction(
-            () =>
-              document.querySelector(".chat-prompt-shell")?.dataset.composerModelEmphasis ===
-              "true",
-          );
+          await waitForComposerStrength(page, 1);
           assert.deepEqual(await shell.boundingBox(), bounds);
           assert.deepEqual(await surface(), normalSurface);
           const thoughtTrigger = page.getByTestId("chat-thought-level-select-trigger");
@@ -105,11 +113,7 @@ test(
             "none",
           );
           await slider.press("ArrowLeft");
-          await page.waitForFunction(
-            () =>
-              document.querySelector(".chat-prompt-shell")?.dataset.composerModelEmphasis ===
-              "false",
-          );
+          await waitForComposerStrength(page, 0.76);
           await page.keyboard.press("Escape");
           await page.getByTestId("chat-thought-level-slider-panel").waitFor({ state: "detached" });
           const choose = async (name) => {
@@ -124,56 +128,10 @@ test(
               .locator('[data-slot="dropdown-menu-content"]')
               .waitFor({ state: "detached" });
           };
+          // 未知模型、旗舰、轻量模型全部从 default 逐级增强，不能只检查最高档。
+          await verifyComposerLevels(page, shell, choose, artifacts, width);
           await choose("gpt-6.1-sol");
-          await page.waitForFunction(
-            () =>
-              document.querySelector(".chat-prompt-shell")?.dataset.composerModelEmphasis ===
-              "true",
-          );
-          // 同一旗舰从关到最高档必须改变实际画面，不能只断言特效仍然开启。
-          await thoughtTrigger.click();
-          const levels = [];
-          for (const key of ["Home", "ArrowRight", "ArrowRight", "End"]) {
-            await slider.press(key);
-            await shell.evaluate((element) => {
-              element.getBoundingClientRect();
-              return Promise.all(element.getAnimations().map((animation) => animation.finished));
-            });
-            levels.push(
-              await sparks.evaluate((element) => {
-                const particle = element.querySelector(".composer-model-spark");
-                return {
-                  glow: Number(getComputedStyle(element.parentElement, "::before").opacity),
-                  scale: Number(getComputedStyle(particle).scale),
-                  rate: particle.getAnimations()[0].playbackRate,
-                  visible: [...element.children].filter(
-                    (child) => getComputedStyle(child).display !== "none",
-                  ).length,
-                };
-              }),
-            );
-          }
-          for (let index = 1; index < levels.length; index++) {
-            assert.ok(levels[index].glow > levels[index - 1].glow, "升档底光应增强");
-            assert.ok(levels[index].rate > levels[index - 1].rate, "升档粒子应加速");
-            assert.ok(levels[index].scale > levels[index - 1].scale, "升档粒子应增大");
-            assert.ok(levels[index].visible >= levels[index - 1].visible);
-          }
-          await slider.press("ArrowLeft");
-          await page.keyboard.press("Escape");
-          await page.getByTestId("chat-thought-level-slider-panel").waitFor({ state: "detached" });
-          await choose("gpt-6-luna");
-          await page.waitForFunction(
-            () =>
-              document.querySelector(".chat-prompt-shell")?.dataset.composerModelEmphasis ===
-              "false",
-          );
-          await choose("gpt-6.1-sol");
-          await page.waitForFunction(
-            () =>
-              document.querySelector(".chat-prompt-shell")?.dataset.composerModelEmphasis ===
-              "true",
-          );
+          await waitForComposerStrength(page, 0.76);
           if (width === 320)
             await page.evaluate(() =>
               document.documentElement.style.setProperty("--ui-font-size", "20px"),
