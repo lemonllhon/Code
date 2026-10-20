@@ -2,6 +2,16 @@
 
 ## 产品规则
 
+### v3.19.9 供应商插件兼容回填与浅色 Composer 精修发行（2026-10-20）
+
+- 根 `package.json` 的桌面版本由 `3.19.8` 更新为 `3.19.9`。
+- 发行包含 `f5ec3418` 的六个上游供应商插件兼容回填，`4a9561f7` 的浅色 Composer 效果与队列用量位置精修，以及 `11cf55d6` v3.19.8 之后的全部提交。v3.19.8 已发布，新版本必须包含其后的源码，不能复用同一提交或仅改版本号。
+- 本轮 `third-party/copied-components.json` 新增 “Magpie provider compatibility backports” 条目（上游修订 `5b68df00`），库存因此不止同步根 manifest 摘要：必须执行 `node scripts/licenses.mjs notices` 重新生成 `THIRD-PARTY-NOTICES.md` 与 `third-party/inventory.json`，使新增归因组件及其根文件进入发行输入。
+- 新建附注 tag `v3.19.9`，只推送至 `code` remote 对应的 `lemonllhon/Code`；不移动或覆盖既有 tag。`L-GO` 以快进方式推送到 `code/L-GO`。
+- 发行输入以提交对象为准：`node scripts/verify-release-inputs.mjs --source=HEAD` 必须覆盖全部库存输入，本地工作区哈希不作为依据（Windows `core.autocrlf` 会改变工作区字节）。
+- cfworker-remote 在桌面构建开始后，以 `LCODE_ENV=production pnpm build:mobile-web` 重新装配 `public`，提交信息记录源码提交 SHA；`public/site` 的发行目录由 Worker 实时代理 GitHub Release，不固化版本号。
+- 验收远端 tag 解引用后的 SHA 等于 `L-GO` 远端 SHA，Actions 在 `lemon-casino/LemonCode` 完成六平台构建与公开 Release，cfworker-remote 的 `public` 与主仓库构建产物一致。
+
 ### v3.19.8 数据目录迁移与全档位火花发行（2026-10-20）
 
 - 根 `package.json` 的桌面版本由 `3.19.7` 更新为 `3.19.8`，库存只同步该 manifest 的输入摘要；依赖图、锁文件与许可证材料不变。
