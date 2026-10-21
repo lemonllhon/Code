@@ -74,6 +74,49 @@ test("Detected accounts can be selected and atomically bound without a separate 
     view.remotes.find((r) => r.name === "origin")!.urls[0]!.selection?.startsWith("saved:"),
   );
 });
+
+test("Read-only Agent context follows changed bindings without resolving credentials or refreshing OAuth", async () => {
+  const f = await fixture(),
+    scope = { workspacePath: f.repo },
+    url = "https://github.com/fixture/original.git";
+  f.owner.authentication = async () => {
+    assert.fail("Metadata reads cannot resolve credentials");
+  };
+  let view = await f.owner.getRepositoryAuthentication!(scope);
+  assert.equal(
+    (await f.owner.readRepositoryContext(scope)).remotes.find((r) => r.name === "origin")!
+      .authentication.status,
+    "selection-required",
+  );
+  for (const username of ["alice", "bob"]) {
+    view = await f.owner.bindRepositoryAuthentication!({
+      ...scope,
+      url,
+      selection: view.choices.find((c) => c.username === username)!.key,
+      expectedRevision: view.revision,
+    });
+    const context = await f.owner.readRepositoryContext(scope);
+    assert.equal(
+      context.remotes.find((r) => r.name === "origin")!.authentication.account?.username,
+      username,
+    );
+    assert.ok(!JSON.stringify(context).includes("saved:"));
+  }
+  const profile = await f.owner.getSnapshot();
+  const bob = profile.accounts.find((a) => a.username === "bob")!;
+  await f.owner.mutate({ type: "delete", id: bob.id, expectedRevision: profile.revision });
+  assert.equal(
+    (await f.owner.readRepositoryContext(scope)).remotes.find((r) => r.name === "origin")!
+      .authentication.status,
+    "stale",
+  );
+  await f.git(f.repo, ["remote", "set-url", "origin", "https://other.example.invalid/repo.git"]);
+  const changed = await f.owner.readRepositoryContext(scope);
+  assert.equal(
+    changed.remotes.find((r) => r.name === "origin")!.authentication.status,
+    "system-default",
+  );
+});
 test("URL bindings isolate remotes, identities and repositories; changed URLs cannot borrow a binding", async () => {
   const f = await fixture(),
     request = { workspacePath: f.repo };

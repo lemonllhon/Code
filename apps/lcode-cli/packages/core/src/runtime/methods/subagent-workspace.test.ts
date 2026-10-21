@@ -60,6 +60,11 @@ for (const kind of ["local", "remote", "memory-identity", "worktree"] as const) 
       properties: { contextWindow: 200_000 },
     } as Model;
     let sequence = 0;
+    const resolveGitContext = async () => ({
+      status: "available" as const,
+      partial: false,
+      repositories: [],
+    });
     const parent = new AgentRuntime(
       parentId,
       {
@@ -88,12 +93,18 @@ for (const kind of ["local", "remote", "memory-identity", "worktree"] as const) 
           load: async () => [],
         } as never,
         modelFactory: () => model,
+        resolveGitContext,
       },
     );
     let childConfig: AgentRuntimeConfig | undefined;
     const original = AgentRuntime.prototype.executeTurn;
     AgentRuntime.prototype.executeTurn = async function () {
       const child = this as unknown as AgentRuntimeInternal;
+      assert.equal(
+        child.resolveGitContext,
+        resolveGitContext,
+        "Child metadata stays bound to the parent's authorized provider",
+      );
       childConfig = child.config;
       await child.ensureSessionPersisted("workspace regression", child.rootTraceContext);
       return { response: "verified", events: [], traceId: child.rootTraceContext.traceId } as never;

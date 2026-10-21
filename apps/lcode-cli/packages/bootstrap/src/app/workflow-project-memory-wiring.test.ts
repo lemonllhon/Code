@@ -30,6 +30,7 @@ function harness() {
   const deps = {
     agentTelemetry: { captureCausation: () => undefined },
     appOptions: {
+      resolveGitContext: async () => ({ status: "available", partial: false, repositories: [] }),
       executionPort: {},
       fileSystemPort: optionPort,
       contextSourcePort: {},
@@ -78,6 +79,10 @@ for (const withOptionPort of [true, false]) {
     });
     assert.equal(childPort(child), h.sharedPort);
     assert.equal(childPort(child)?.projectMemory, h.sharedPort.projectMemory);
+    assert.equal(
+      (child as unknown as { resolveGitContext: unknown }).resolveGitContext,
+      h.deps.appOptions.resolveGitContext,
+    );
   });
 }
 
@@ -85,6 +90,7 @@ function interceptLegacyChild(t: TestContext) {
   const ports: Array<FileSystemPort | undefined> = [];
   const signals: Array<AbortSignal | undefined> = [];
   const closed: AgentRuntime[] = [];
+  const gitContexts: unknown[] = [];
   t.mock.method(
     AgentRuntime.prototype,
     "executeTurn",
@@ -95,6 +101,7 @@ function interceptLegacyChild(t: TestContext) {
       options: { abortSignal?: AbortSignal },
     ) {
       ports.push(childPort(this));
+      gitContexts.push((this as unknown as { resolveGitContext: unknown }).resolveGitContext);
       signals.push(options.abortSignal);
       return { response: "fixture", traceId: "trace-fixture", turnId: "turn-fixture" };
     },
@@ -118,7 +125,7 @@ function interceptLegacyChild(t: TestContext) {
       } as Parameters<WorkflowAgentRunner["run"]>[0]);
     },
   );
-  return { ports, signals, closed };
+  return { ports, signals, closed, gitContexts };
 }
 
 test("legacy workflow prefers the assembled port and keeps cancellation/cleanup wiring", async (t) => {
@@ -130,6 +137,7 @@ test("legacy workflow prefers the assembled port and keeps cancellation/cleanup 
   assert.deepEqual(observed.ports, [h.sharedPort]);
   assert.deepEqual(observed.signals, [controller.signal]);
   assert.equal(observed.closed.length, 1);
+  assert.deepEqual(observed.gitContexts, [h.deps.appOptions.resolveGitContext]);
 });
 
 test("legacy workflow keeps appOptions and default adapter fallback for old callers", async (t) => {

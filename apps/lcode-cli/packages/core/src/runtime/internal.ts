@@ -105,6 +105,7 @@ export interface AgentRuntimeInternal
   providerRuntimeHeadersPort?: ProviderRuntimeHeadersPort;
   browserControlPort?: AgentRuntimeDeps["browserControlPort"];
   checkoutExecutionPort?: AgentRuntimeDeps["checkoutExecutionPort"];
+  resolveGitContext?: AgentRuntimeDeps["resolveGitContext"];
   resolveSessionShellSelection?: AgentRuntimeDeps["resolveSessionShellSelection"];
   sessionShellPreparationRevision: number;
   modelRequestAdmission?: AgentRuntimeDeps["modelRequestAdmission"];

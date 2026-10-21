@@ -351,3 +351,4 @@ export * from "./provider-routing.js";
 export * from "./legacy-session-recovery.js";
 export * from "./gitManagement.js";
 export * from "./gitAuthentication.js";
+export * from "./gitAgentContext.js";

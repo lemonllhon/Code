@@ -3806,6 +3806,7 @@ export const lcodeProtocolMethods = {
   checkoutAcquireWriter: "checkout/acquireWriter",
   checkoutReleaseWriter: "checkout/releaseWriter",
   gitCredential: "git/credential",
+  gitContext: "git/context",
   sessionResume: "session/resume",
   sessionList: "session/list",
   sessionSubagents: "session/subagents",

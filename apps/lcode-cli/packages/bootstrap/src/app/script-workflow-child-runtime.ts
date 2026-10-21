@@ -205,6 +205,7 @@ function createRuntimeDeps(
     // Script workflow child 具有独立生命周期；用 Link 保留发起关系。
     agentTelemetryCausationMode: "linked_root",
     appVersion: deps.appVersion,
+    resolveGitContext: deps.appOptions.resolveGitContext,
     artifactStore: deps.artifactStore,
     contextSourcePort:
       deps.contextSourcePort ??

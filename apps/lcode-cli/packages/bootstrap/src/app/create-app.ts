@@ -259,6 +259,7 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
         isRemoteWorkspaceIdentity(runtimeConfig.memory?.workspaceIdentity ?? ""),
       permissionBroker: options.permissionBroker,
       checkoutExecutionPort: options.checkoutExecutionPort,
+      resolveGitContext: options.resolveGitContext,
       resolveSessionShellSelection,
       permissionService,
       workflowPort: scriptWorkflowFacade.workflowPort,

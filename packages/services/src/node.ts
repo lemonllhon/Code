@@ -38,6 +38,7 @@ import { createGitManagementService } from "./git-management/gitManagementServic
 import { createManagedGitCommand } from "./git-management/managedGitCommand.js";
 import { withGitAuthenticationScope } from "./git-management/gitAuthenticationScope.js";
 import { createHostGitCredentialResolver } from "./git-management/gitCredentialHost.js";
+import { createHostGitContextProvider } from "./git-management/gitContextHost.js";
 import { IGitManagementService } from "./git-management/contract.js";
 export { createWorktreeService, createCheckoutCoordinator } from "./worktree/node.js";
 import {
@@ -2336,28 +2337,27 @@ export function createLocalServices(options: {
       return { stopped: true, sessionIds };
     },
   });
+  const gitSourceDirectories: Parameters<typeof createHostGitCredentialResolver>[1] = async (
+    scope,
+    sessionId,
+  ) => {
+    if (scope.executionSetRef) {
+      const context = await projectExecutionSetService.resolveContext({
+        ...scope.executionSetRef.origin,
+        executionSetId: scope.executionSetRef.executionSetId,
+        sessionId,
+      });
+      return context.context.members.map((member) => member.workspacePath);
+    }
+    if (scope.executionBindingId || scope.workspaceIdentity?.trim()) return [scope.workspacePath];
+    return (
+      findLocalProjectForWorkspace((await settingService.get()).localProjects, scope.workspacePath)
+        ?.sourceFolderPaths ?? [scope.workspacePath]
+    );
+  };
   const lcodeAgentService = createLCodeAgentService({
-    resolveGitCredential: createHostGitCredentialResolver(
-      gitManagementOwner,
-      async (scope, sessionId) => {
-        if (scope.executionSetRef) {
-          const context = await projectExecutionSetService.resolveContext({
-            ...scope.executionSetRef.origin,
-            executionSetId: scope.executionSetRef.executionSetId,
-            sessionId,
-          });
-          return context.context.members.map((member) => member.workspacePath);
-        }
-        if (scope.executionBindingId || scope.workspaceIdentity?.trim())
-          return [scope.workspacePath];
-        return (
-          findLocalProjectForWorkspace(
-            (await settingService.get()).localProjects,
-            scope.workspacePath,
-          )?.sourceFolderPaths ?? [scope.workspacePath]
-        );
-      },
-    ),
+    resolveGitCredential: createHostGitCredentialResolver(gitManagementOwner, gitSourceDirectories),
+    resolveGitContext: createHostGitContextProvider(gitManagementOwner, gitSourceDirectories),
     resolveOAuthRequestAuth: async ({
       channelId,
       providerId,

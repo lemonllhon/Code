@@ -46,6 +46,7 @@ export const SYSTEM_REMINDER_PER_REQUEST_SOURCES = [
   "date_change",
   "referenced_session_context",
   "memory_recall",
+  "git_context",
   "session_recall",
   "model_anomaly",
   "prompt_attachment",
@@ -165,6 +166,7 @@ const SYSTEM_REMINDER_DESCRIPTORS: Record<SystemReminderSource, DescriptorShape>
     "sr.shell_environment_change",
   ),
   diagnostics: descriptor("mid_turn_event", "mid_turn_event", true, "sr.diagnostics"),
+  git_context: descriptor("current_turn", "per_current_turn", true, "sr.git_context"),
 };
 
 export const SYSTEM_REMINDER_SOURCES = Object.freeze([

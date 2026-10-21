@@ -137,7 +137,7 @@ import {
 import { originWorkspaceRef } from "./workspace.js";
 import type { PreparedSessionTitle } from "@lcode/core";
 import { createProtocolCheckoutExecutionPort } from "./checkout-execution-port.js";
-import { gitCredentialResultSchema } from "@lcode/shared";
+import { gitCredentialResultSchema, gitAgentContextSchema } from "@lcode/shared";
 
 const PLAN_MODE_GOAL_CONTINUATION_SKIPPED_MESSAGE = "Plan mode 下已记录 goal，但不会自动继续。";
 const SLOW_SNAPSHOT_LOG_THRESHOLD_MS = 1000;
@@ -3587,6 +3587,13 @@ async function createRecord(
         lcodeProtocolMethods.gitCredential,
         { ...request, sessionId, workspace },
         gitCredentialResultSchema,
+      ),
+    resolveGitContext: (signal) =>
+      context.requestClient(
+        lcodeProtocolMethods.gitContext,
+        { sessionId, workspace },
+        gitAgentContextSchema,
+        { signal, timeoutMs: 5_000 },
       ),
     checkoutExecutionPort: createProtocolCheckoutExecutionPort(
       context,

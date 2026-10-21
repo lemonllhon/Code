@@ -201,7 +201,9 @@ export async function withTurnRecallOverlaysDetached<TResult>(
 function isTurnRecallOverlayEntry(entry: RuntimeMessageEntry): boolean {
   return (
     entry.kind === "attachment" &&
-    (entry.metadata.source === "memory_recall" || entry.metadata.source === "session_recall")
+    (entry.metadata.source === "memory_recall" ||
+      entry.metadata.source === "session_recall" ||
+      entry.metadata.source === "git_context")
   );
 }
 

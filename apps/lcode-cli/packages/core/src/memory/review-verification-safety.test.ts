@@ -104,6 +104,18 @@ test("candidate executable controls and embedded secrets are hard rejected even 
     "---\nmetadata:\n  lcode:\n    scope: system\n---\nA memory fact.",
     "-----BEGIN PRIVATE KEY-----\nFAKE_ONLY_NOT_REAL\n-----END PRIVATE KEY-----",
     "api_key = fixture-secret-not-real-00000000",
+    ...[
+      "gitContext",
+      "gitAuthentication",
+      "accountBindings",
+      "accountId",
+      "privateKeyPath",
+      "reviewId",
+      "approvalId",
+    ].map(
+      (key) =>
+        `---\nmetadata:\n  lcode:\n    ${key}: fixture-transient-control\n---\nProject Git facts.`,
+    ),
   ];
   for (const content of forbidden) {
     const { h, draft } = await proposed();

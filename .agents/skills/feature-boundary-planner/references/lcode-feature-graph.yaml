@@ -563,6 +563,7 @@ nodes:
         Git OAuth PKCE,
         Agent Git 认证,
         仓库远端账号绑定,
+        Git 项目记忆,
       ]
     codeSeeds:
       - file: packages/ui/src/settings/GitManagementSection.tsx
@@ -605,6 +606,12 @@ nodes:
         symbol: main
       - file: packages/ui/src/git-network/GitRemoteAuthentication.tsx
         symbol: GitRemoteAuthentication
+      - file: packages/services/src/git-management/gitRepositoryContext.ts
+        symbol: projectGitRepositoryContext
+      - file: packages/services/src/lcode-agent/gitContextRequest.ts
+        symbol: handleGitContextRequest
+      - file: apps/lcode-cli/packages/core/src/runtime/methods/turn-git-context.ts
+        symbol: appendGitContextForModelStep
     invariants:
       - "One Host owns encrypted configuration; CAS updates never expose stored tokens through snapshots, normal settings, URLs or command arguments."
       - "The repository wizard passes account ID/revision only; Host validates protocol, server and path before acquisition and preserves existing write coordination and recovery."
@@ -614,6 +621,7 @@ nodes:
       - "Git OAuth owns a scoped public network transport using its Host's proxy and default/system/custom CA trust. TLS remains verified; Windows/macOS/Linux and remote Hosts never borrow browser trust or disable validation."
       - "Fetch and Push resolve profile bindings per canonical Git common-dir, normalized workspace identity and actual remote URL. Linked worktrees share repository choices while independent clones and remote authorities stay isolated. Multiple push URLs resolve separately; stale accounts never silently switch identities. Explicit automatic selection suppresses the legacy clone binding."
       - "UI Git and Agent execution reuse one Host credential resolver and provider-node private helper. Agent requests retain current runtime/worktree authorization; helpers expose no credentials to model events, argv, persistent config or logs, and never replay Git writes. Standalone external terminals remain separately owned."
+      - "Private git/context projects current effective metadata without resolving credentials. Each model step replaces its request-only overlay; memory stores adopted Git conventions and verified lessons, never live bindings or approval state. Child runtimes reuse the parent's scoped provider."
   - id: capability.git-network-operations
     kind: capability
     label: Remote configuration, branch tracking, explicit Fetch and reviewed fast-forward updates
@@ -1814,6 +1822,11 @@ nodes:
       - "Menus append editable drafts through the scoped existing receiver; only an explicit send admits context."
       - "Capsule IDs are independent typed references and never share URLs; the target store validates source history again."
 edges:
+  - from: capability.git-management
+    to: capability.project-memory-recall
+    type: supplies-live-facts-alongside-durable-workflow-memory
+    rank: must-inspect
+    condition: Git/Memory integration keeps live account bindings in the Host owner and Git context out of persisted history, compact and memory learning.
   - from: capability.git-management
     to: capability.git-import-and-stash
     type: supplies-host-scoped-authentication

@@ -326,6 +326,8 @@ export interface MemoryRuntimeConfig {
 }
 
 export interface AgentRuntimeDeps {
+  /** Host 提供当前仓库无秘密摘要；只供本次请求，不构成认证或审批。 */
+  resolveGitContext?: (signal: AbortSignal) => Promise<import("@lcode/shared").GitAgentContext>;
   /** 由宿主解析当前 Shell；Runtime 只在独立任务执行边界读取，任务内保持固定。 */
   resolveSessionShellSelection?: (traceContext: TraceContext) => Promise<ExecutionShellSelection>;
   /** 原 CommandInbox 接受后、真实执行前申请；直到本轮工具收尾才释放。 */

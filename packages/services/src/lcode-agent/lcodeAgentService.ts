@@ -1,6 +1,8 @@
 import { requestPluginReferenceCatalog } from "#src/lcode-agent/pluginReferenceCatalogRequest.js";
 import { type GitCredentialRequest, type GitCredentialResult } from "@lcode/shared";
 import { handleGitCredentialRequest } from "./gitCredentialRequest.js";
+import { handleGitContextRequest } from "./gitContextRequest.js";
+import type { GitAgentContext } from "@lcode/shared";
 import { providerUsageRequestSchema, providerUsageSnapshotSchema } from "@lcode/shared";
 import { handleWorktreeRequest, isWorktreeRequest } from "./worktreeRequests.js";
 import {
@@ -898,6 +900,7 @@ interface CreateLCodeAgentServiceOptions extends Omit<
     workspace: LCodeWorkspaceRef,
     request: GitCredentialRequest,
   ) => Promise<GitCredentialResult>;
+  resolveGitContext?: (workspace: LCodeWorkspaceRef, sessionId: string) => Promise<GitAgentContext>;
   resolveOAuthRequestAuth?: (input: {
     routingInvocation?: import("@lcode/shared").RoutingInvocation;
     channelId: string;
@@ -2223,6 +2226,18 @@ export function createLCodeAgentService(
         }
       }),
       client.onRequest((request) => {
+        if (request.method === lcodeProtocolMethods.gitContext) {
+          void handleGitContextRequest(request.params, workspace, {
+            isActive: () =>
+              lane === "chat" && !exitedWorktreeClients.has(client) && !client.isDisposed,
+            resolve: options?.resolveGitContext,
+            worktrees: options?.worktreeService,
+            executionSets: options?.projectExecutionSetService,
+          })
+            .then((result) => client.respond(request.id, result))
+            .catch(() => logger.debug(undefined, "Git 上下文响应通道已关闭"));
+          return;
+        }
         if (request.method === lcodeProtocolMethods.gitCredential) {
           void handleGitCredentialRequest(request.params, workspace, {
             isActive: () =>

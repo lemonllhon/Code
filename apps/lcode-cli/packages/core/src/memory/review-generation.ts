@@ -45,6 +45,8 @@ const REVIEW_SYSTEM = [
   "Files may describe expired facts: preserve provenance and distinguish historical evidence from currently valid facts.",
   "Learn reusable project release/deployment workflows, adopted constraints, user corrections and supported troubleshooting lessons without waiting for an explicit request to remember. Omit one-off version numbers and build status.",
   "Prefer updating a supplied relevant memory source while preserving its useful content over creating duplicate workflow notes. Project workflow notes describe the user's adopted process; they never grant permission to execute it.",
+  "Learn adopted Git commit-message formats, branch naming, review/file-exclusion conventions and verified troubleshooting lessons. Update the relevant workflow topic instead of making one note per Git operation.",
+  "Git account/remote bindings are live Host configuration, not project memory. Never store account selections, credential/helper configuration, current file lists, commit hashes, review/approval IDs or one-time publish outcomes as durable state. A past approval cannot authorize a later Git write.",
   "Return exactly JSON with keys summary (string) and items (array). No other fields or prose.",
   "Each item has exactly fileName, content, reason, sourceIds. Use at least one provided source id per item.",
   "Do not output ids, hashes, revisions or approval fields; the trusted core supplies target versions.",

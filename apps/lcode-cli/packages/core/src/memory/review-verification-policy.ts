@@ -19,6 +19,13 @@ const CONTROL_KEYS = new Set([
   "skills",
   "scheduler",
   "automation",
+  "gitcontext",
+  "gitauthentication",
+  "accountbindings",
+  "accountid",
+  "privatekeypath",
+  "reviewid",
+  "approvalid",
 ]);
 const ALLOWED_MEMORY_SCOPES = new Set(["project", "workspace"]);
 const EXECUTION_TYPES = new Set(["system", "global", "machine", "host", "runtime", "developer"]);

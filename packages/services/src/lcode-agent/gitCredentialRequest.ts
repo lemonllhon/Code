@@ -5,7 +5,7 @@ import {
   type GitCredentialResult,
   type LCodeWorkspaceRef,
 } from "@lcode/shared";
-import { authorizeProjectContextRequest } from "./projectContextScope.js";
+import { authorizeGitRequestScope } from "./gitRequestScope.js";
 import type { IWorktreeService } from "../worktree/contract.js";
 import type { ProjectExecutionSetHostService } from "../project-execution-set/contract.js";
 
@@ -27,21 +27,7 @@ export async function handleGitCredentialRequest(
     return { kind: "error", error: "git-account-scope-unavailable" };
   try {
     const request = parsed.data;
-    await authorizeProjectContextRequest(
-      request.workspace,
-      request.sessionId,
-      attached,
-      options.worktrees,
-      options.executionSets,
-    );
-    if (request.workspace.executionBindingId) {
-      const binding = await options.worktrees?.getBinding({
-        ...attached,
-        taskId: request.sessionId,
-      });
-      if (binding?.status !== "ready") throw new Error("git-account-scope-unavailable");
-    }
-    if (!options.isActive()) throw new Error("git-account-scope-unavailable");
+    await authorizeGitRequestScope(request.workspace, request.sessionId, attached, options);
     const result = gitCredentialResultSchema.parse(
       await options.resolve(request.workspace, request),
     );

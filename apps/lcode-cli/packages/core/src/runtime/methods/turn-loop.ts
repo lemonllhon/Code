@@ -42,6 +42,7 @@ import {
 } from "./turn-output-token-continuation.js";
 import { activateExecutionFailoverAtSafeBoundary } from "./model-failover-router.js";
 import { ProjectMemoryRecallIndex } from "../../memory/recall/index.js";
+import { appendGitContextForModelStep } from "./turn-git-context.js";
 import {
   freezeMemoryInjection,
   memoryEffectWorkspaceKey,
@@ -107,6 +108,9 @@ export async function runRegularTurnLoop(
     throwIfTurnAborted(state.turnAbortSignal);
 
     await appendSessionHistoryRecallForTurn(this, state);
+    throwIfTurnAborted(state.turnAbortSignal);
+
+    await appendGitContextForModelStep(this, state);
     throwIfTurnAborted(state.turnAbortSignal);
 
     const finishMcp = beginLocalTurnPreparation(state.turnTraceContext, "mcp");

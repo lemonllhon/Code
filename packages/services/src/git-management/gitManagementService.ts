@@ -32,6 +32,7 @@ import {
 } from "./gitCredentialMetadataProcess.js";
 import { createGitAccountAuthorization } from "./gitAccountAuthorization.js";
 import { createGitAccountRouting, gitStoredAccountBindingSchema } from "./gitAccountRouting.js";
+import { projectGitRepositoryContext } from "./gitRepositoryContext.js";
 import {
   gitOAuthGrantSchema,
   refreshGitOAuthGrant,
@@ -63,6 +64,9 @@ export type GitManagementOwner = IGitManagementService & {
   configuration(): Promise<Store["configuration"]>;
   resolveRepositoryAuthentication: ReturnType<typeof createGitAccountRouting>["resolve"];
   repositoryCredential: ReturnType<typeof createGitAccountRouting>["credential"];
+  readRepositoryContext(
+    request: import("@lcode/shared").GitRepositoryAuthenticationRequest,
+  ): Promise<import("@lcode/shared").GitAgentRepositoryContext>;
 };
 export function createGitManagementService(options: {
   credentials: ICredentialService;
@@ -162,6 +166,11 @@ export function createGitManagementService(options: {
     bindRepositoryAuthentication: routing.bindRepositoryAuthentication,
     resolveRepositoryAuthentication: routing.resolve,
     repositoryCredential: routing.credential,
+    readRepositoryContext: async (request) =>
+      projectGitRepositoryContext(
+        request.workspacePath,
+        await routing.getRepositoryAuthentication(request),
+      ),
     dispose: () => {
       authorization.dispose();
       oauthNetwork?.dispose();

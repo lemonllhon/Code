@@ -18,6 +18,8 @@
 
 ## 唯一所有者和接口
 
+Git 与项目记忆的联动遵循 [Git 实时上下文与项目记忆联动](git-project-memory-integration.md)：无秘密摘要是只读派生信息，账号绑定、凭据、审批与恢复的 owner 不变。
+
 `GitManagementService` 是账号/绑定唯一持久 owner；新增有严格类型和运行时校验的 `getRepositoryAuthentication`、`bindRepositoryAuthentication`。返回无秘密候选、绑定状态和 CAS revision。Host routing adapter 通过真实 Git 只读发现根/远端，UI managed Git 和 Agent 共用它。
 
 Agent 使用私有 stdio `git/credential` 请求，携带 session、cwd、URL；Host 使用当前进程的 workspace/identity，复核 cwd/真实远端。结果仅给内部 helper，不进 Renderer、会话事件、模型上下文、普通 service RPC 或日志。

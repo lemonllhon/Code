@@ -131,6 +131,7 @@ export class AgentRuntime {
   private providerRuntimeHeadersPort?: AgentRuntimeDeps["providerRuntimeHeadersPort"];
   private browserControlPort?: AgentRuntimeDeps["browserControlPort"];
   private checkoutExecutionPort?: AgentRuntimeDeps["checkoutExecutionPort"];
+  private resolveGitContext?: AgentRuntimeDeps["resolveGitContext"];
   private resolveSessionShellSelection?: AgentRuntimeDeps["resolveSessionShellSelection"];
   private sessionShellPreparationRevision = 0;
   /** 模型请求准入端口；随每次模型请求进调用上下文。 */
@@ -277,6 +278,7 @@ export class AgentRuntime {
     this.providerRuntimeHeadersPort = deps.providerRuntimeHeadersPort;
     this.browserControlPort = deps.browserControlPort;
     this.checkoutExecutionPort = deps.checkoutExecutionPort;
+    this.resolveGitContext = deps.resolveGitContext;
     this.resolveSessionShellSelection = deps.resolveSessionShellSelection;
     this.modelRequestAdmission = deps.modelRequestAdmission;
     // 旧会话的选择缺失不能阻断历史恢复；不在这里制造默认模型。
