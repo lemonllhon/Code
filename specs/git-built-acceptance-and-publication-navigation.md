@@ -20,7 +20,7 @@
 - 发布页切换或收起不销毁在途发布 owner；返回保留选项、冻结计划和逐项结果，重试不重复成功步骤。快捷键 Ctrl/Cmd+Enter 只执行当前可执行本地提交，不升级为发布。
 - 需要本地提交但尚未审核文件/消息时，远端页提供返回“提交审核”的明确入口；工作树目标发布的返回提交/合并按钮也激活审核页，不停留在来源发布表单。
 - 最后一个审核组提交成功时，由同一 Host review workspace admission 清理旧范围、sourceReview 和 browsePosition，重置下一次审核默认包含未暂存文件。普通隐藏或关闭不清理未提交草稿。读取旧自动审核时用 Host getCommitReview 的完成位置判定已完成，不以 UI 可见/隐藏代替提交事实；旧响应仍受 attempt/revision/scope 门禁。
-- 提交返回 warning 时保留原范围与审核关联，并维持 requiresRegeneration 门禁；不能按无警告最终成功清理，也不能在随后读取已提交游标时自动清理该恢复上下文。
+- 提交返回 warning 时保留原文本、范围与审核关联，并维持 requiresRegeneration 门禁；不能按无警告最终成功清理，也不能在随后读取已提交游标时自动清理该恢复上下文。完成补丁和迟到读取规则见 [审核输入稳定性与提交完成状态](git-review-editing-and-completion.md)。
 
 ```mermaid
 sequenceDiagram

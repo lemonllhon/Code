@@ -89,7 +89,10 @@ export function useGitManagement({
       }
     }
   }, [service]);
-  const mutate = async (request: GitManagementMutation) => {
+  const mutate = async (
+    request: GitManagementMutation,
+    applied?: (next: GitManagementSnapshot) => void,
+  ) => {
     if (!service || busy.current) return false;
     const current = epoch.current;
     busy.current = true;
@@ -99,6 +102,7 @@ export function useGitManagement({
       const next = gitManagementSnapshotSchema.parse(await service.mutate(request));
       if (epoch.current !== current) return false;
       setSnapshot(next);
+      applied?.(next);
       return true;
     } catch (failure) {
       if (epoch.current === current) {
@@ -134,5 +138,21 @@ export function useGitManagement({
     mutate,
     detect,
     reload,
+    async selectDetected(candidateId: string) {
+      const candidate = detection?.accounts.find((a) => a.candidateId === candidateId);
+      if (!candidate || !snapshot) return null;
+      let reference: { id: string; revision: string } | null = null;
+      await mutate({ type: "import", expectedRevision: snapshot.revision, candidateId }, (next) => {
+        const account = next.accounts.find(
+          (a) =>
+            a.serverUrl === candidate.serverUrl &&
+            a.username === candidate.username &&
+            a.auth === candidate.auth &&
+            a.privateKeyPath === candidate.privateKeyPath,
+        );
+        if (account) reference = { id: account.id, revision: account.revision };
+      });
+      return reference;
+    },
   };
 }

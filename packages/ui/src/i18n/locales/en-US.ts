@@ -166,8 +166,20 @@ const enUS: Record<string, string> = {
     "Enter a token. Changing server or username requires a new token.",
   "settings.gitManagement.reload": "Reload",
   "settings.gitManagement.repositoryAccount": "Repository account",
+  "settings.gitManagement.detectedDirect": "Detected, ready to use",
+  "git.authentication.title": "Remote authentication",
+  "git.authentication.hint":
+    "Select detected accounts directly. Choices are saved per repository and remote URL, and shared by review publishing and Agent Git. Identical URLs share a choice.",
+  "git.authentication.account": "Authentication account",
+  "git.authentication.automatic": "Automatic (choose when multiple accounts match)",
+  "git.authentication.detected": "Detected",
+  "git.authentication.stale": "The account is unavailable. Select it again.",
+  "git.authentication.refresh": "Reload",
+  "git.authentication.loadFailed": "Could not load remote accounts. Reload to retry.",
+  "git.authentication.saveFailed":
+    "The account or remote changed. Reload and select again. The Git operation will not retry automatically.",
   "settings.gitManagement.repositoryAccountHint":
-    "Only accounts matching the repository URL are listed. Manage them in Settings → Coding → Git management.",
+    "Choose a matching detected or saved account directly. After cloning, manage URL choices in Git → Remotes.",
   "settings.gitManagement.accountUnavailable":
     "The account changed or no longer matches. Select it again.",
   "settings.gitManagement.reloadAccounts": "Reload accounts",
@@ -2047,7 +2059,7 @@ const enUS: Record<string, string> = {
   "sidePane.tools": "Side pane tools",
   "sidePane.noToolResources": "No {tool} resources. Open one from the add menu.",
   "git.review.regenerationRequired":
-    "The file scope or saved review changed. Your text is retained; regenerate the review before committing.",
+    "The current changes need a new review. Your commit message has been retained.",
   "git.publish.options": "Remote and Tag publishing",
   "git.publish.safeDefault":
     "Branches are not pushed and Tags are not created by default. Preview and confirm the publishing plan before running it.",
@@ -8905,7 +8917,8 @@ const enUS: Record<string, string> = {
   "git.review.scopeCounts": "{selected} selected / {total} files, {excluded} excluded",
   "git.review.excludePage": "Exclude files on this page",
   "git.review.restoreAll": "Restore all excluded files",
-  "git.review.liveDiff": "Live diff; generate a frozen review before committing.",
+  "git.review.liveDiff":
+    "Live diff. Commit the selected files manually, or generate a frozen review.",
   "git.review.loadingDiff": "Loading this file’s diff…",
   "git.review.noFiles": "No matching files",
   "git.review.openFileWorkspace": "Review frozen diffs for {count} files",

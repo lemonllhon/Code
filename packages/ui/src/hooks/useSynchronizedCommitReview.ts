@@ -37,10 +37,15 @@ export function useSynchronizedCommitReview(
       if (revision > 0 && current.current.review) current.current.clear();
       return;
     }
+    // 旧读取可能晚于提交清理或另端替换返回；再次核对 Host 引用版本，不能复活过期提示。
+    const isCurrent = () =>
+      !disposed &&
+      workspace.read().data.sourceReview?.id === id &&
+      workspace.read().snapshot.fieldRevisions.sourceReview === revision;
     void gitService
       .getCommitReview({ workspacePath, workspaceIdentity, reviewId: id })
       .then((snapshot) => {
-        if (disposed) return;
+        if (!isCurrent()) return;
         if (!snapshot) {
           current.current.adopt(undefined, undefined, "");
           workspace.patch({
@@ -55,7 +60,7 @@ export function useSynchronizedCommitReview(
         }
       })
       .catch(() => {
-        if (!disposed)
+        if (isCurrent())
           current.current.adopt(
             undefined,
             undefined,

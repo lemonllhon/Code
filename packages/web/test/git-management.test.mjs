@@ -107,7 +107,9 @@ test("Git 管理、账号及向导共享认证", { timeout: 180000 }, async (t) 
     await picker
       .getByRole("option", { name: "GitHub 工作 已修改 · fixture", exact: true })
       .waitFor({ state: "attached" });
-    assert.equal(await picker.getByRole("option").count(), 2);
+    // 新规则：默认项、已保存 GitHub 和两个本机检测 GitHub；SSH/其他服务器不得混入。
+    assert.equal(await picker.getByRole("option").count(), 4);
+    assert.equal(await picker.locator('option[value^="detected:"]').count(), 2);
     await picker.selectOption({ label: "GitHub 工作 已修改 · fixture" });
     await page.getByTestId("git-repository-next").click();
     await page.getByTestId("git-import-confirm").click();

@@ -1,4 +1,5 @@
 import { homedir } from "node:os";
+import { LCODE_GIT_CREDENTIAL_HELPER_COMMAND } from "@lcode/shared";
 import { migrateHomeBrandDataRootSync, migrateWorkspaceBrandDirsSync } from "@lcode/shared/node";
 import { interceptTuiStderr, isTuiInvocation } from "./tui-stderr.js";
 import { interceptKnownRuntimeWarnings } from "./runtime-warnings.js";
@@ -16,11 +17,21 @@ import { isProtocolServerInvocation } from "./arguments.js";
 void main();
 
 async function main(): Promise<void> {
+  const argv = process.argv.slice(2);
+  if (argv[0] === LCODE_GIT_CREDENTIAL_HELPER_COMMAND) {
+    try {
+      const { runGitCredentialHelper } = await import("@lcode/provider-node/git");
+      await runGitCredentialHelper(argv.slice(1));
+    } catch {
+      process.stderr.write("git-account-helper-unavailable\n");
+      process.exitCode = 1;
+    }
+    return;
+  }
   // 品牌迁移（复制式、幂等）先于任何配置/会话库访问：~/.zcode → ~/.lcode，
   // 工作区 .zcode/.zcode-plugin → .lcode/.lcode-plugin（specs/brand-migration-lcode.md）。
   migrateHomeBrandDataRootSync(homedir());
   migrateWorkspaceBrandDirsSync(process.cwd());
-  const argv = process.argv.slice(2);
   // 存储模式也可运行在 Host Worker 中，不能修改整个 Host 的进程名称。
   if (!argv.includes("--prepare-storage")) setCliProcessTitle();
   // 真实 lcode CLI 进程里仍可能有少量路径直接读取 process.env。

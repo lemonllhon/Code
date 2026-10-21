@@ -6,6 +6,7 @@ import { GitReviewSidePane } from "@/app-shell/GitReviewSidePane.js";
 import { ChatEmptyCreateProjectDialog } from "@/ChatEmptyCreateProjectDialog.js";
 import { ChatEmptyWorkspacePreviewMenu } from "@/ChatEmptyState.js";
 import { GitManagementSection } from "@/settings/GitManagementSection.js";
+import { GitRemoteAuthentication } from "@/git-network/GitRemoteAuthentication.js";
 import { gitManagementService, gitManagementControls } from "./git-management-service.js";
 import { services as defaults } from "./sidebar-file-tree-service.js";
 import {
@@ -254,6 +255,7 @@ function Fixture() {
     theme(new URLSearchParams(location.search).has("dark") ? "zai-dark" : "zai-light");
   }, [theme]);
   const [identity, setIdentity] = useState<string>(),
+    [authenticationPath, setAuthenticationPath] = useState(root),
     [view, setView] = useState<GitWorkbenchView>("changes"),
     [project, setProject] = useState(false),
     [created, setCreated] = useState("");
@@ -271,6 +273,7 @@ function Fixture() {
     __gitWorkspace: {
       calls,
       management: gitManagementControls,
+      authenticationPath: setAuthenticationPath,
       selectProjectFolders: (paths: string[]) => {
         selectedProjectFolders = paths;
       },
@@ -332,7 +335,13 @@ function Fixture() {
       <button data-testid="git-settings-toggle" onClick={() => setManagementOpen(!managementOpen)}>
         Git settings
       </button>
-      {managementOpen ? (
+      {new URLSearchParams(location.search).has("authentication") ? (
+        <GitRemoteAuthentication
+          workspacePath={authenticationPath}
+          workspaceIdentity={identity}
+          workspaceRemoteSessionId={identity ? "fixture-remote" : undefined}
+        />
+      ) : managementOpen ? (
         <div className="min-h-0 flex-1 overflow-auto p-4">
           <GitManagementSection />
         </div>

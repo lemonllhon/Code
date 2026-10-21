@@ -7,7 +7,9 @@ import {
 } from "@lcode/shared";
 
 /** 确定性 Host 边界桩；sharedHost 场景连接测试进程的实际持久 owner。 */
-export function createReviewWorkspaceFixture() {
+export function createReviewWorkspaceFixture(options?: {
+  beforeUpdate?: (command: GitReviewWorkspaceUpdate) => Promise<void>;
+}) {
   const snapshots = new Map<string, GitReviewWorkspaceSnapshot>();
   const receipts = new Map<string, number>();
   const listeners = new Set<(snapshot: GitReviewWorkspaceSnapshot) => void>();
@@ -27,6 +29,7 @@ export function createReviewWorkspaceFixture() {
     getReviewWorkspace: async (scope: GitReviewWorkspaceScope) =>
       sharedHost ? rpc("read", scope) : structuredClone(read(scope)),
     updateReviewWorkspace: async (command: GitReviewWorkspaceUpdate) => {
+      await options?.beforeUpdate?.(command);
       if (sharedHost) return rpc("update", command);
       const snapshot = read(command.scope);
       if (receipts.has(command.commandId))

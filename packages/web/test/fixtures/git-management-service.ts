@@ -13,6 +13,10 @@ let snapshot: GitManagementSnapshot = {
   accounts: [],
 };
 const tokens = new Map<string, string>();
+const routingBindings = new Map<string, string>();
+let heldAuthentication: Promise<void> | null = null,
+  releaseAuthentication: (() => void) | null = null;
+const routingCalls: unknown[] = [];
 const authorizations = new Map<
   string,
   { input: Extract<GitAuthorizationCommand, { type: "start" }>; status: GitAuthorizationStatus }
@@ -89,6 +93,16 @@ if (new URLSearchParams(location.search).has("systems")) {
 }
 let systemUnavailable = false;
 export const gitManagementControls = {
+  routingCalls: () => structuredClone(routingCalls),
+  holdNextAuthentication: () => {
+    heldAuthentication = new Promise<void>((done) => {
+      releaseAuthentication = done;
+    });
+  },
+  releaseAuthentication: () => {
+    releaseAuthentication?.();
+    releaseAuthentication = null;
+  },
   failAuthorization: (error: GitAuthorizationStatus["error"]) => {
     for (const attempt of authorizations.values())
       if (attempt.status.status === "pending")
@@ -145,6 +159,79 @@ export const gitManagementService: IGitManagementService = {
   },
   async getSnapshot() {
     return structuredClone(snapshot);
+  },
+  async getRepositoryAuthentication(request) {
+    routingCalls.push({ type: "get", ...request });
+    const scope = request.workspaceIdentity || request.workspacePath;
+    const choices = [
+      ...snapshot.accounts.map((account) => ({
+        key: `saved:${account.id}:${account.revision}`,
+        ...account,
+      })),
+      ...detected
+        .filter(
+          (candidate) =>
+            !snapshot.accounts.some(
+              (account) =>
+                account.serverUrl === candidate.serverUrl &&
+                account.username === candidate.username &&
+                account.auth === candidate.auth,
+            ),
+        )
+        .map((account) => ({ key: `detected:${account.candidateId}`, ...account })),
+    ].map(({ key, name, username, serverUrl, auth, provider }) => ({
+      key,
+      name,
+      username,
+      serverUrl,
+      auth,
+      provider,
+    }));
+    const remotes = [
+      {
+        name: "origin",
+        urls: ["https://github.com/fixture/repo.git", "https://github.com/fixture/publish.git"],
+      },
+      { name: "fork", urls: ["https://github.com/fixture/fork.git"] },
+    ].map((remote) => ({
+      ...remote,
+      urls: remote.urls.map((url) => {
+        const selection = routingBindings.get(scope + "|" + url) ?? null;
+        return {
+          url,
+          selection,
+          stale: Boolean(selection && !choices.some((c) => c.key === selection)),
+        };
+      }),
+    }));
+    const result = { revision: snapshot.revision, choices, remotes };
+    const gate = heldAuthentication;
+    heldAuthentication = null;
+    await gate;
+    return structuredClone(result);
+  },
+  async bindRepositoryAuthentication(request) {
+    routingCalls.push({ type: "bind", ...request });
+    if (request.expectedRevision !== snapshot.revision)
+      throw new Error("git-account-binding-conflict");
+    let selection = request.selection;
+    if (selection?.startsWith("detected:")) {
+      const candidate = detected.find((c) => c.candidateId === selection!.slice(9))!;
+      await gitManagementService.mutate({
+        type: "import",
+        candidateId: candidate.candidateId,
+        expectedRevision: snapshot.revision,
+      });
+      const account = snapshot.accounts.find(
+        (a) => a.username === candidate.username && a.serverUrl === candidate.serverUrl,
+      )!;
+      selection = `saved:${account.id}:${account.revision}`;
+    }
+    const key = (request.workspaceIdentity || request.workspacePath) + "|" + request.url;
+    if (selection) routingBindings.set(key, selection);
+    else routingBindings.delete(key);
+    snapshot = { ...snapshot, revision: crypto.randomUUID() };
+    return gitManagementService.getRepositoryAuthentication!(request);
   },
   async mutate(input) {
     const request = gitManagementMutationSchema.parse(input);

@@ -561,6 +561,8 @@ nodes:
         Bitbucket 自动识别,
         Git 浏览器授权,
         Git OAuth PKCE,
+        Agent Git 认证,
+        仓库远端账号绑定,
       ]
     codeSeeds:
       - file: packages/ui/src/settings/GitManagementSection.tsx
@@ -591,15 +593,27 @@ nodes:
         symbol: createGitAccountAuthorization
       - file: packages/ui/src/settings/GitAccountAuthorization.tsx
         symbol: GitAccountAuthorization
+      - file: packages/services/src/git-management/gitAccountRouting.ts
+        symbol: createGitAccountRouting
+      - file: packages/services/src/lcode-agent/gitCredentialRequest.ts
+        symbol: handleGitCredentialRequest
+      - file: packages/provider-node/src/git-credential-helper.ts
+        symbol: createGitCredentialHelper
+      - file: apps/lcode-cli/packages/bootstrap/src/app/git-credential-execution.ts
+        symbol: createGitCredentialExecutionPort
+      - file: apps/lcode-cli/packages/cli/src/main.ts
+        symbol: main
+      - file: packages/ui/src/git-network/GitRemoteAuthentication.tsx
+        symbol: GitRemoteAuthentication
     invariants:
       - "One Host owns encrypted configuration; CAS updates never expose stored tokens through snapshots, normal settings, URLs or command arguments."
       - "The repository wizard passes account ID/revision only; Host validates protocol, server and path before acquisition and preserves existing write coordination and recovery."
-      - "Static SSH/CLI detection and noninteractive GCM account listing never execute config commands or read private key bytes. Public key details come only from .pub files. Import is explicit; account changes invalidate old acquisition previews."
+      - "Static SSH/CLI detection and noninteractive GCM account listing never execute config commands or read private key bytes. Public key details come only from .pub files. A detected account can be selected directly; explicit selection saves through profile CAS and invalidates stale acquisition previews."
       - "WinCred/Keychain/Secret Service discovery reads metadata only, preserves separate usernames and reports source availability; it never unlocks stores or extracts secrets."
       - "Explicit browser authorization is Host-owned and request-idempotent, uses device flow or PKCE, and saves verified identities through the existing CAS/encrypted profile. UI and Main never own OAuth tokens."
       - "Git OAuth owns a scoped public network transport using its Host's proxy and default/system/custom CA trust. TLS remains verified; Windows/macOS/Linux and remote Hosts never borrow browser trust or disable validation."
-      - "Fetch and Push use a nonsecret local account binding; deleted or mismatched accounts do not silently fall back to another credential."
-      - "Review, worktrees, checkpoints and Git backup validation receive the same configured Git provider; external shell environments remain separately owned."
+      - "Fetch and Push resolve profile bindings per canonical Git common-dir, normalized workspace identity and actual remote URL. Linked worktrees share repository choices while independent clones and remote authorities stay isolated. Multiple push URLs resolve separately; stale accounts never silently switch identities. Explicit automatic selection suppresses the legacy clone binding."
+      - "UI Git and Agent execution reuse one Host credential resolver and provider-node private helper. Agent requests retain current runtime/worktree authorization; helpers expose no credentials to model events, argv, persistent config or logs, and never replay Git writes. Standalone external terminals remain separately owned."
   - id: capability.git-network-operations
     kind: capability
     label: Remote configuration, branch tracking, explicit Fetch and reviewed fast-forward updates
@@ -653,10 +667,18 @@ nodes:
         自动打开审核,
         远端与 Tag 发布,
         发布停止自动刷新,
+        提交输入抖动,
+        审核范围误阻断,
       ]
     codeSeeds:
       - file: packages/ui/src/git-action-menu/GitCommitReviewPane.tsx
         symbol: GitCommitReviewPane
+      - file: packages/ui/src/git-action-menu/ReviewWorkspaceSyncStatus.tsx
+        symbol: ReviewWorkspaceSyncStatus
+      - file: packages/ui/src/hooks/useSynchronizedCommitReview.ts
+        symbol: useSynchronizedCommitReview
+      - file: packages/ui/src/git-action-menu/commitReviewCompletion.ts
+        symbol: commitReviewCompletionPatch
       - file: packages/ui/src/git-action-menu/GitPublicationPortal.tsx
         symbol: GitPublicationHost
       - file: packages/ui/src/git-action-menu/GitSourcePublication.tsx
@@ -675,6 +697,7 @@ nodes:
       - "Publication browsing is a versioned Host projection; confirmation and publishing runs remain device-local, and navigation never replays commands."
       - "Review and publication share their existing scoped controllers; publication is projected into the Remote tab without copying plans or execution state. Final commit receipts retire the submitted scope before the next manual review."
       - "Stopped source and target publication runs automatically reload read models once; results and edits remain, old approval is revoked, and reads never resume or replay writes."
+      - "Normal draft saving never shifts the editor layout. Plain manual range edits require no model; completion retires draft and range atomically, and late frozen reads recheck the Host reference version."
   - id: boundary.checkout-writer
     kind: service
     label: Canonical checkout execution permit

@@ -198,7 +198,12 @@ export async function runGitReviewPaneCases(t, { page, url }) {
     assert.equal(await include.isChecked(), false);
     await page.getByTestId("review-workspace-files").getByRole("button", { name: /a.ts/ }).click();
     assert.equal(await include.isChecked(), false);
-    assert.equal(await page.getByTestId("git-commit-action-item-commit").isDisabled(), true);
+    // 普通手动范围只同步所选文件，不能因为排除一项就要求先调用模型。
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[data-testid="git-commit-action-item-commit"]')?.disabled === false,
+    );
+    assert.equal(await page.getByTestId("git-commit-action-item-commit").isDisabled(), false);
     assert.deepEqual(await page.evaluate(() => globalThis.__gitCommitFixture.publish.calls), []);
     await page.getByTestId("git-view-changes").click();
     await pane.waitFor({ state: "hidden" });

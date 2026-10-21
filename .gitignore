@@ -102,6 +102,7 @@ nul
 !/packages/web/test/
 /packages/web/test/*
 !/packages/web/test/git-management.test.mjs
+!/packages/web/test/git-account-routing.test.mjs
 !/packages/web/test/git-project-registration.test.mjs
 !/packages/web/test/git-repository-wizard.test.mjs
 !/packages/web/test/git-publish-refresh-cases.mjs
@@ -422,6 +423,7 @@ nul
 
 # 右侧提交审核入口、布局与范围交互的永久浏览器回归。
 !/packages/web/test/git-review-pane-cases.mjs
+!/packages/web/test/git-review-editing.test.mjs
 !/packages/web/test/git-review-passive-entry-cases.mjs
 !/packages/web/test/git-review-pane-helpers.mjs
 !/packages/web/test/git-file-operations-cases.mjs

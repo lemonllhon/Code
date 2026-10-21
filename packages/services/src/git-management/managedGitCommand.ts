@@ -7,6 +7,8 @@ import type {
 import { createGitCommandProvider } from "../git/providers/gitCommandProvider.js";
 import { createGitEnvironmentProvider } from "../git/providers/gitEnvironmentProvider.js";
 import type { GitManagementOwner } from "./gitManagementService.js";
+import { currentGitAuthenticationScope } from "./gitAuthenticationScope.js";
+import { createGitCredentialHelper } from "@lcode/provider-node/git";
 
 function commandIndex(args: string[]) {
   let index = 0;
@@ -48,17 +50,47 @@ export function createManagedGitCommand(
         verb = input.args[index];
       let url: string | undefined,
         reference: Parameters<typeof owner.authentication>[1] = input.authentication;
+      let useHelper = false;
       if (verb === "clone") {
         const separator = input.args.indexOf("--", index + 1);
         url = separator >= 0 ? input.args[separator + 1] : undefined;
+        // 未选账号的克隆也必须进入统一非交互解析，避免直接落到系统多账号弹窗。
+        useHelper = !reference && typeof owner.repositoryCredential === "function";
       } else if (verb === "fetch" || verb === "push") {
+        if (typeof owner.resolveRepositoryAuthentication === "function" && !reference) {
+          const separator = input.args.indexOf("--", index + 1);
+          const remote = separator >= 0 ? input.args[separator + 1] : undefined;
+          if (remote) {
+            const result = await raw.run({
+              cwd: input.cwd,
+              args: [
+                "remote",
+                "get-url",
+                ...(verb === "push" ? ["--push"] : []),
+                "--all",
+                "--",
+                remote,
+              ],
+            });
+            const urls = result.stdout.trim().split(/\r?\n/).filter(Boolean);
+            // 中文依据：每个实际目标都经同一 URL owner 核对，不能把仓库旧全局 ID 套给所有远端。
+            for (const value of urls) {
+              await owner.resolveRepositoryAuthentication(
+                { ...currentGitAuthenticationScope(), workspacePath: input.cwd },
+                value,
+              );
+            }
+            useHelper = urls.length > 0;
+          }
+        }
         const binding = await raw.run({
           cwd: input.cwd,
           args: ["config", "--local", "--get", "lcode.accountId"],
         });
         if (binding.exitCode !== 0 && binding.exitCode !== 1)
           throw new Error("git-account-binding-unavailable");
-        if (binding.stdout.trim()) reference = { id: binding.stdout.trim() };
+        if (!useHelper && !reference && binding.stdout.trim())
+          reference = { id: binding.stdout.trim() };
         if (reference) {
           const separator = input.args.indexOf("--", index + 1),
             remote = separator >= 0 ? input.args[separator + 1] : undefined;
@@ -150,7 +182,28 @@ export function createManagedGitCommand(
               ...input.args.slice(index + 1),
             ]
           : input.args;
-      const result = await raw.run({ ...input, args, env });
+      const authenticationScope = currentGitAuthenticationScope();
+      const helper = useHelper
+        ? createGitCredentialHelper((request) =>
+            owner.repositoryCredential(
+              { ...authenticationScope, workspacePath: request.cwd },
+              request.url,
+            ),
+          )
+        : null;
+      let result;
+      try {
+        const overlay = helper
+          ? await helper.environment({
+              ...process.env,
+              ...env,
+              LCODE_GIT_BINARY: (await raw.resolveGitBinary()) ?? undefined,
+            })
+          : {};
+        result = await raw.run({ ...input, args, env: { ...env, ...overlay } });
+      } finally {
+        await helper?.close();
+      }
       const redact = (value: string) =>
         [secret, encoded]
           .filter((v): v is string => Boolean(v))

@@ -56,6 +56,35 @@ async function fixture() {
   };
   return { directory, owner, command, calls, git };
 }
+test("An unselected clone uses the private noninteractive helper instead of the system account picker", async () => {
+  const f = await fixture();
+  const args = ["clone", "--", "https://example.invalid/repo.git", "new"];
+  const command = createManagedGitCommand(f.owner, {
+    resolveGitBinary: async () => "git",
+    run: async (input) => {
+      assert.deepEqual(input.args, args);
+      assert.equal(input.env?.GCM_INTERACTIVE, "Never");
+      assert.equal(input.env?.GIT_TERMINAL_PROMPT, "0");
+      assert.equal(input.env?.GIT_CONFIG_KEY_0, "credential.helper");
+      assert.equal(input.env?.GIT_CONFIG_VALUE_0, "");
+      assert.ok(input.env?.GIT_CONFIG_VALUE_1?.includes("helper.cjs"));
+      return {
+        binaryPath: "git",
+        cwd: input.cwd,
+        args: input.args,
+        stdout: "",
+        stderr: "",
+        exitCode: 0,
+        signal: null,
+        durationMs: 0,
+        timedOut: false,
+        outputTruncated: false,
+      };
+    },
+  });
+  await command.run({ cwd: f.directory, args });
+});
+
 test("Real authenticated clone binds an account and reuses it for fetch and branch/Tag pushes", async (t) => {
   const f = await fixture(),
     raw = createGitCommandProvider();
@@ -156,11 +185,14 @@ test("Real authenticated clone binds an account and reuses it for fetch and bran
   );
   assert.ok(server.requests.length >= 6);
   assert.ok(
-    server.requests.every(
-      (request) =>
-        request.authorization ===
-        `Basic ${Buffer.from("fixture:fixture-live-secret").toString("base64")}`,
-    ),
+    // URL helper 按 HTTP challenge 索取凭据；匿名探测可存在，所有已认证请求必须保持选定身份。
+    server.requests
+      .filter((request) => request.authorization)
+      .every(
+        (request) =>
+          request.authorization ===
+          `Basic ${Buffer.from("fixture:fixture-live-secret").toString("base64")}`,
+      ),
   );
   let backupCommands = 0;
   const backup = await captureGitSnapshot(cloned, {

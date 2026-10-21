@@ -31,6 +31,7 @@ import {
   type GitCredentialMetadataRunner,
 } from "./gitCredentialMetadataProcess.js";
 import { createGitAccountAuthorization } from "./gitAccountAuthorization.js";
+import { createGitAccountRouting, gitStoredAccountBindingSchema } from "./gitAccountRouting.js";
 import {
   gitOAuthGrantSchema,
   refreshGitOAuthGrant,
@@ -48,6 +49,7 @@ const storeSchema = z
     revision: z.string(),
     configuration: gitConfigurationSchema,
     accounts: z.array(storedAccount).max(200),
+    bindings: z.array(gitStoredAccountBindingSchema).max(2000).default([]),
   })
   .strict();
 type Store = z.infer<typeof storeSchema>;
@@ -59,6 +61,8 @@ export type GitManagementOwner = IGitManagementService & {
       Partial<Pick<GitAuthenticationReference, "revision">>,
   ): Promise<{ account: Store["accounts"][number] | null; secret?: string }>;
   configuration(): Promise<Store["configuration"]>;
+  resolveRepositoryAuthentication: ReturnType<typeof createGitAccountRouting>["resolve"];
+  repositoryCredential: ReturnType<typeof createGitAccountRouting>["credential"];
 };
 export function createGitManagementService(options: {
   credentials: ICredentialService;
@@ -91,6 +95,7 @@ export function createGitManagementService(options: {
         revision: "empty",
         configuration: { binaryPath: "", userName: "", userEmail: "", initialBranch: "main" },
         accounts: [],
+        bindings: [],
       };
     // 损坏或未知版本不能当空配置覆盖，否则会丢失其他窗口保存的账号。
     try {
@@ -134,7 +139,29 @@ export function createGitManagementService(options: {
         })),
       },
     );
-  return {
+  const routing = createGitAccountRouting({
+    read,
+    detect,
+    command: createGitCommandProvider({
+      environmentProvider: createGitEnvironmentProvider({
+        configuredBinary: async () => (await read()).configuration.binaryPath,
+      }),
+    }),
+    authenticate: (url, reference) => owner.authentication(url, reference),
+    update: (expected, edit) =>
+      withFileLock(lockPath, async () => {
+        const data = await read();
+        if (data.revision !== expected) throw new Error("git-account-binding-conflict");
+        edit(data);
+        data.revision = randomUUID();
+        await options.credentials.save(key, JSON.stringify(storeSchema.parse(data)));
+      }),
+  });
+  const owner: GitManagementOwner = {
+    getRepositoryAuthentication: routing.getRepositoryAuthentication,
+    bindRepositoryAuthentication: routing.bindRepositoryAuthentication,
+    resolveRepositoryAuthentication: routing.resolve,
+    repositoryCredential: routing.credential,
     dispose: () => {
       authorization.dispose();
       oauthNetwork?.dispose();
@@ -207,10 +234,12 @@ export function createGitManagementService(options: {
           );
           if (
             request.type === "import" &&
+            // 中文依据：同名令牌账号不能吞掉直接选用的系统账号；幂等身份必须包含认证方式。
             data.accounts.some(
               (a) =>
                 a.serverUrl === account.serverUrl &&
                 a.username === account.username &&
+                a.auth === account.auth &&
                 a.privateKeyPath === account.privateKeyPath,
             )
           )
@@ -282,7 +311,6 @@ export function createGitManagementService(options: {
         target.search ||
         target.hash ||
         !(target.pathname === prefix || target.pathname.startsWith(prefix + "/")) ||
-        (account.auth !== "ssh" && Boolean(target.username)) ||
         (target.username && decodeURIComponent(target.username) !== account.username)
       )
         throw new Error("account-server-mismatch");
@@ -307,4 +335,5 @@ export function createGitManagementService(options: {
       return { account, secret: account.auth === "token" ? account.token : undefined };
     },
   };
+  return owner;
 }

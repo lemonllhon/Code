@@ -5,6 +5,9 @@ import {
   type GitManagementDetection,
   type GitAuthorizationCommand,
   type GitAuthorizationStatus,
+  type GitRepositoryAuthenticationRequest,
+  type GitRepositoryAccountBinding,
+  type GitRepositoryAuthentication,
 } from "@lcode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 
@@ -14,6 +17,12 @@ export interface IGitManagementService {
   mutate(request: GitManagementMutation): Promise<GitManagementSnapshot>;
   detect(): Promise<GitManagementDetection>;
   authorize(request: GitAuthorizationCommand): Promise<GitAuthorizationStatus>;
+  getRepositoryAuthentication?(
+    request: GitRepositoryAuthenticationRequest,
+  ): Promise<GitRepositoryAuthentication>;
+  bindRepositoryAuthentication?(
+    request: GitRepositoryAccountBinding,
+  ): Promise<GitRepositoryAuthentication>;
 }
 export const IGitManagementService = createServiceDescriptor<IGitManagementService>(
   ServiceChannels.GitManagement,

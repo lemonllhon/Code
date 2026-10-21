@@ -1405,7 +1405,7 @@
     "packages/lcode-cua/package.json": "71c133dbc92de8416208114f48adc7ce005ddfd2704ff2a23b9e03e0d234acbb",
     "packages/lcode-server-cli/package.json": "9d824802017245a14e355315d5e659a572e7a94fcd540ca9437c189df8614b85",
     "packages/model-option-map/package.json": "a9f720efdb353f556d01ea866bb15ac0201c155fb305a4246e6a323384770aba",
-    "packages/provider-node/package.json": "21628ef367aad9acbe092cf7454037de1628d4358670ab6a40718297efdd9e5f",
+    "packages/provider-node/package.json": "16445de5c44c5578a511e89a9f4284e20aa8e1045d1621500825295d6049edd2",
     "packages/provider-node/src/provider-auth/native.ts": "f3cc90c02acc138f06bc55da3560e3b95fe5e5d19a29c8e0bf057bf263d194db",
     "packages/provider-node/src/provider-auth/native/account-refresh.test.ts": "2f77ffc4c332802cff0b7dbb762c52fd0fdd95e8ff053f72cf23612ca72db67d",
     "packages/provider-node/src/provider-auth/native/account-refresh.ts": "891962c85ce0002ffa8d73c8dbe3b5b1bd1a65f157c0b949bc93af8adae9bc30",
@@ -1480,7 +1480,7 @@
     "packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs": "f990e34cdae5e0031e09127002d2a3072c2f4ee1cc3c92cbd246858356f521d1",
     "packages/provider-node/src/provider-auth/plugins/vendor-devin-images-patch.mjs": "785df4afc54a923a7fece9ef3d5ece8de3b4743a60fe3bb94a0147c6c7c21e1a",
     "packages/provider-node/src/provider-auth/plugins/vendor-zed-organization-patch.mjs": "4d1a276d9b59fe872a20cc1fe9cd9446f842819252b5063df0d3b9a28b755af4",
-    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "ea54b57d98f00531ec9dc6097204c698a72e957bb5bce3bf7325c54b27a30885",
+    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "3a57221bbfe86820b5885999ce19fb11f156f3eca18f60d053e21239f8c7ea4d",
     "packages/provider-node/src/provider-auth/plugins/zcode-local.mjs": "c8b91d4414eed9c9edd0e227a06141d0c75bb1601abc5cef177be01ca21952e4",
     "packages/provider-node/src/provider-auth/vendor/cline/index.mjs.source": "17d11f1c35c4201152478a183961d03431ac795c7bc4be44189825f2d3e84272",
     "packages/provider-node/src/provider-auth/vendor/commandcode/index.mjs.source": "54b6112ce2a93d645fa9f87327109bdffd42c8088b010b9194fa5fefb56fb549",
@@ -31209,7 +31209,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "ea54b57d98f00531ec9dc6097204c698a72e957bb5bce3bf7325c54b27a30885"
+          "sha256": "3a57221bbfe86820b5885999ce19fb11f156f3eca18f60d053e21239f8c7ea4d"
         }
       ]
     },
@@ -31339,7 +31339,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "ea54b57d98f00531ec9dc6097204c698a72e957bb5bce3bf7325c54b27a30885"
+          "sha256": "3a57221bbfe86820b5885999ce19fb11f156f3eca18f60d053e21239f8c7ea4d"
         }
       ]
     },
@@ -31374,7 +31374,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "ea54b57d98f00531ec9dc6097204c698a72e957bb5bce3bf7325c54b27a30885"
+          "sha256": "3a57221bbfe86820b5885999ce19fb11f156f3eca18f60d053e21239f8c7ea4d"
         }
       ]
     },

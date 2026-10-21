@@ -15,6 +15,7 @@ import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { GitRemoteEditor } from "./GitRemoteEditor.js";
 import { GitRepositoryImportForm } from "@/git-workspace/GitRepositoryImportForm.js";
 import { GitPublicationHost } from "@/git-action-menu/GitPublicationPortal.js";
+import { GitRemoteAuthentication } from "./GitRemoteAuthentication.js";
 
 export function GitNetworkPane(props: {
   workspacePath: string;
@@ -65,6 +66,7 @@ export function GitNetworkPane(props: {
         </Button>
       </header>
       <div className="min-h-0 flex-1 overflow-auto">
+        <GitRemoteAuthentication {...props} revision={snapshot?.revision} />
         {network.error ? (
           <p
             role="alert"

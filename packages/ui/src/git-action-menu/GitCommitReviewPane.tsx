@@ -227,9 +227,35 @@ export function GitCommitReviewPane(props: GitCommitReviewPaneProps) {
                         onRestore={props.onRestoreMessage}
                       />
                       {props.requiresRegeneration ? (
-                        <p role="alert" className="px-4 py-2 text-ui-sm text-warning">
-                          {intl.formatMessage({ id: "git.review.regenerationRequired" })}
-                        </p>
+                        <div role="alert" className="space-y-2 px-4 py-2 text-ui-sm text-warning">
+                          <p>{intl.formatMessage({ id: "git.review.regenerationRequired" })}</p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              data-testid="git-review-regenerate"
+                              disabled={
+                                locked || props.syncBlocked || !stagePaths.length || !hasIdentity
+                              }
+                              onClick={props.onGenerateMessage}
+                            >
+                              {intl.formatMessage({ id: "git.actionMenu.commitDialog.regenerate" })}
+                            </Button>
+                            {!review && !props.reviewError ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                data-testid="git-review-manual-current-range"
+                                disabled={locked || props.syncBlocked}
+                                onClick={props.onManualFallback}
+                              >
+                                {intl.formatMessage({ id: "git.review.manual" })}
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
                       ) : null}
                       {props.reviewError ? (
                         <div className="space-y-2 px-4 py-2 text-ui-sm" role="alert">

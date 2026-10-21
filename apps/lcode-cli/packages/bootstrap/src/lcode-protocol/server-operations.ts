@@ -137,6 +137,7 @@ import {
 import { originWorkspaceRef } from "./workspace.js";
 import type { PreparedSessionTitle } from "@lcode/core";
 import { createProtocolCheckoutExecutionPort } from "./checkout-execution-port.js";
+import { gitCredentialResultSchema } from "@lcode/shared";
 
 const PLAN_MODE_GOAL_CONTINUATION_SKIPPED_MESSAGE = "Plan mode 下已记录 goal，但不会自动继续。";
 const SLOW_SNAPSHOT_LOG_THRESHOLD_MS = 1000;
@@ -3581,6 +3582,12 @@ async function createRecord(
     // core 遇到 permission / AskUserQuestion 只能走默认拒绝，UI 永远收不到阻塞请求。
     // 这里把阻塞交互转换成 server-to-client JSON-RPC request，由 app 通过 response 释放 runtime。
     permissionBroker: createProtocolInteractionBroker(context),
+    resolveGitCredential: (request) =>
+      context.requestClient(
+        lcodeProtocolMethods.gitCredential,
+        { ...request, sessionId, workspace },
+        gitCredentialResultSchema,
+      ),
     checkoutExecutionPort: createProtocolCheckoutExecutionPort(
       context,
       workspace,

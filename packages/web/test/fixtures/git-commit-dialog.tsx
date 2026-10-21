@@ -85,6 +85,11 @@ let loadFailure: Error | null = null;
 let holdNextReviewLoad = false;
 let reviewLoadCount = 0;
 let releaseReviewLoad: (() => void) | null = null;
+let holdDraftSave = false;
+let releaseDraftSave: (() => void) | null = null;
+let holdFrozenRead = false;
+let releaseFrozenRead: (() => void) | null = null;
+const reviewWorkspaceCommands: import("@lcode/shared").GitReviewWorkspaceUpdate[] = [];
 let holdGenerate = false;
 let failGenerate = false;
 let reviewUnavailable = false;
@@ -185,7 +190,17 @@ let settings: AppSettings = {
 };
 const gitService = {
   ...publishFixture.service,
-  ...createReviewWorkspaceFixture(),
+  ...createReviewWorkspaceFixture({
+    beforeUpdate: async (command) => {
+      reviewWorkspaceCommands.push(structuredClone(command));
+      if (holdDraftSave && command.patch.draft) {
+        holdDraftSave = false;
+        await new Promise<void>((resolve) => {
+          releaseDraftSave = resolve;
+        });
+      }
+    },
+  }),
   async getCommitGraph(params) {
     graphQueries.push(params);
     return { commits: [], hasMore: false };
@@ -195,6 +210,13 @@ const gitService = {
     return { revision: "a".repeat(64), commits: [], hasMore: false };
   },
   async getCommitReview({ reviewId }: { reviewId: string }) {
+    if (holdFrozenRead) {
+      holdFrozenRead = false;
+      await new Promise<void>((resolve) => {
+        releaseFrozenRead = resolve;
+      });
+      return null;
+    }
     const review = fixtureReviews.get(reviewId);
     if (!review) return null;
     const committed = new Set(
@@ -520,6 +542,44 @@ function FixtureApp() {
     diffQueries,
     graphQueries,
     publish: publishFixture.controls,
+    reviewWorkspaceCommands,
+    patchReviewWorkspace: async (
+      patch: import("@lcode/shared").GitReviewWorkspaceUpdate["patch"],
+    ) => {
+      const scope = {
+        workspacePath,
+        workspaceIdentity,
+        scopeId: JSON.stringify([sessionId, logEpoch]),
+      };
+      const snapshot = await gitService.getReviewWorkspace(scope);
+      return gitService.updateReviewWorkspace({
+        scope,
+        commandId: crypto.randomUUID(),
+        patch,
+        expectedFieldRevisions: Object.fromEntries(
+          Object.keys(patch).map((field) => [
+            field,
+            snapshot.fieldRevisions[field as keyof typeof snapshot.fieldRevisions],
+          ]),
+        ),
+      });
+    },
+    holdFrozenRead: () => {
+      holdFrozenRead = true;
+    },
+    frozenReadPending: () => Boolean(releaseFrozenRead),
+    releaseFrozenRead: () => {
+      releaseFrozenRead?.();
+      releaseFrozenRead = null;
+    },
+    holdDraftSave: () => {
+      holdDraftSave = true;
+    },
+    draftSavePending: () => Boolean(releaseDraftSave),
+    releaseDraftSave: () => {
+      releaseDraftSave?.();
+      releaseDraftSave = null;
+    },
     readReviewWorkspace: () =>
       gitService.getReviewWorkspace({
         workspacePath,

@@ -3805,6 +3805,7 @@ export const lcodeProtocolMethods = {
   worktreeGetBinding: "worktree/getBinding",
   checkoutAcquireWriter: "checkout/acquireWriter",
   checkoutReleaseWriter: "checkout/releaseWriter",
+  gitCredential: "git/credential",
   sessionResume: "session/resume",
   sessionList: "session/list",
   sessionSubagents: "session/subagents",

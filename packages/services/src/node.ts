@@ -36,6 +36,8 @@ export { createPublicRuntimeEnvironmentService } from "./runtime-environment/nod
 import { coordinateGitCheckoutWrites } from "./git/gitCheckoutCoordination.js";
 import { createGitManagementService } from "./git-management/gitManagementService.js";
 import { createManagedGitCommand } from "./git-management/managedGitCommand.js";
+import { withGitAuthenticationScope } from "./git-management/gitAuthenticationScope.js";
+import { createHostGitCredentialResolver } from "./git-management/gitCredentialHost.js";
 import { IGitManagementService } from "./git-management/contract.js";
 export { createWorktreeService, createCheckoutCoordinator } from "./worktree/node.js";
 import {
@@ -2335,6 +2337,27 @@ export function createLocalServices(options: {
     },
   });
   const lcodeAgentService = createLCodeAgentService({
+    resolveGitCredential: createHostGitCredentialResolver(
+      gitManagementOwner,
+      async (scope, sessionId) => {
+        if (scope.executionSetRef) {
+          const context = await projectExecutionSetService.resolveContext({
+            ...scope.executionSetRef.origin,
+            executionSetId: scope.executionSetRef.executionSetId,
+            sessionId,
+          });
+          return context.context.members.map((member) => member.workspacePath);
+        }
+        if (scope.executionBindingId || scope.workspaceIdentity?.trim())
+          return [scope.workspacePath];
+        return (
+          findLocalProjectForWorkspace(
+            (await settingService.get()).localProjects,
+            scope.workspacePath,
+          )?.sourceFolderPaths ?? [scope.workspacePath]
+        );
+      },
+    ),
     resolveOAuthRequestAuth: async ({
       channelId,
       providerId,
@@ -2604,7 +2627,9 @@ export function createLocalServices(options: {
     commitMessageGenerator: gitCommitMessageGenerator,
     mutationJournalReader: (params) => lcodeAgentService.getWorkspaceFileMutationJournal(params),
   });
-  const gitService = coordinateGitCheckoutWrites(rawGitService, checkoutCoordinator);
+  const gitService = withGitAuthenticationScope(
+    coordinateGitCheckoutWrites(rawGitService, checkoutCoordinator),
+  );
   // task wrapper 由 LCode task service adapter 提供；核心 session 状态由 LCode agent server 维护。
   const lcodeTaskService = createLCodeTaskServiceAdapter({
     lcodeAgentService,
@@ -2718,6 +2743,10 @@ export function createLocalServices(options: {
       mutate: (request) => gitManagementOwner.mutate(request),
       detect: () => gitManagementOwner.detect(),
       authorize: (request) => gitManagementOwner.authorize(request),
+      getRepositoryAuthentication: (request) =>
+        gitManagementOwner.getRepositoryAuthentication!(request),
+      bindRepositoryAuthentication: (request) =>
+        gitManagementOwner.bindRepositoryAuthentication!(request),
     })
     .register(IWorktreeService, createPublicWorktreeService(worktreeService))
     .register(

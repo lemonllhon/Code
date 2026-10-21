@@ -2,6 +2,7 @@ import type { useGitManagement } from "@/hooks/useGitManagement.js";
 import type { useGitRepositoryAcquisition } from "@/hooks/useGitRepositoryAcquisition.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
+import { useEffect, useRef } from "react";
 
 export function GitRepositoryAccountPicker({
   git,
@@ -14,28 +15,48 @@ export function GitRepositoryAccountPicker({
 }) {
   const { intl } = useLCodeIntl();
   const t = (key: string) => intl.formatMessage({ id: `settings.gitManagement.${key}` });
+  const selectionEpoch = useRef(0);
+  useEffect(() => {
+    selectionEpoch.current++;
+    return () => {
+      selectionEpoch.current++;
+    };
+  }, [git.url, management.available]);
   if (git.mode !== "clone") return null;
   const reference = git.authentication ? JSON.stringify(git.authentication) : "";
-  const accounts =
-    management.snapshot?.accounts.filter((account) => {
-      try {
-        const scp = git.url.match(/^(?:([^@/:]+)@)?([^/:]+):(.+)$/);
-        const target = new URL(
-            git.url.includes("://")
-              ? git.url
-              : `ssh://${scp?.[1] ? scp[1] + "@" : ""}${scp?.[2]}/${scp?.[3]}`,
-          ),
-          server = new URL(account.serverUrl),
-          prefix = server.pathname.replace(/\/$/, "");
-        return (
-          target.protocol === server.protocol &&
-          target.host.toLowerCase() === server.host.toLowerCase() &&
-          (target.pathname === prefix || target.pathname.startsWith(prefix + "/"))
-        );
-      } catch {
-        return false;
-      }
-    }) ?? [];
+  const matches = (account: { serverUrl: string; username: string }) => {
+    try {
+      const scp = git.url.match(/^(?:([^@/:]+)@)?([^/:]+):(.+)$/);
+      const target = new URL(
+          git.url.includes("://")
+            ? git.url
+            : `ssh://${scp?.[1] ? scp[1] + "@" : ""}${scp?.[2]}/${scp?.[3]}`,
+        ),
+        server = new URL(account.serverUrl),
+        prefix = server.pathname.replace(/\/$/, "");
+      return (
+        target.protocol === server.protocol &&
+        target.host.toLowerCase() === server.host.toLowerCase() &&
+        (!target.username || decodeURIComponent(target.username) === account.username) &&
+        (target.pathname === prefix || target.pathname.startsWith(prefix + "/"))
+      );
+    } catch {
+      return false;
+    }
+  };
+  const accounts = management.snapshot?.accounts.filter(matches) ?? [];
+  const detected =
+    management.detection?.accounts.filter(
+      (a) =>
+        a.canImport &&
+        matches(a) &&
+        !accounts.some(
+          (saved) =>
+            saved.serverUrl === a.serverUrl &&
+            saved.username === a.username &&
+            saved.auth === a.auth,
+        ),
+    ) ?? [];
   return (
     <div className="space-y-2">
       <label className="block space-y-2 text-ui-base">
@@ -44,11 +65,17 @@ export function GitRepositoryAccountPicker({
           aria-label={t("repositoryAccount")}
           data-testid="git-repository-account"
           value={reference}
-          disabled={disabled}
+          disabled={disabled || management.pending || management.detecting}
           className="h-9 w-full min-w-0 rounded-md border border-input-border bg-input px-2 text-ui-base"
-          onChange={(e) =>
-            git.setAuthentication(e.target.value ? JSON.parse(e.target.value) : undefined)
-          }
+          onChange={(e) => {
+            const value = e.target.value;
+            const epoch = ++selectionEpoch.current;
+            if (value.startsWith("detected:"))
+              void management.selectDetected(value.slice(9)).then((reference) => {
+                if (reference && epoch === selectionEpoch.current) git.setAuthentication(reference);
+              });
+            else git.setAuthentication(value ? JSON.parse(value) : undefined);
+          }}
         >
           <option value="">{t("system")}</option>
           {accounts.map((account) => (
@@ -57,6 +84,11 @@ export function GitRepositoryAccountPicker({
               value={JSON.stringify({ id: account.id, revision: account.revision })}
             >
               {account.name} · {account.username}
+            </option>
+          ))}
+          {detected.map((account) => (
+            <option key={account.candidateId} value={`detected:${account.candidateId}`}>
+              {account.name} · {account.username} ({t("detectedDirect")})
             </option>
           ))}
           {reference &&

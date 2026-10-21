@@ -16,7 +16,10 @@ export function ReviewWorkspaceSyncStatus({
   const text = (key: string) => intl.formatMessage({ id: `git.review.sync.${key}` });
   return (
     <div
-      className="space-y-2 px-4 py-2 text-ui-sm text-foreground-subtle"
+      // 逐字保存是正常状态；原先反复插入状态条会改变分区高度并使编辑框抖动。
+      className={
+        status === "saving" ? "sr-only" : "space-y-2 px-4 py-2 text-ui-sm text-foreground-subtle"
+      }
       role={status === "conflict" || status === "error" ? "alert" : "status"}
       data-testid="review-sync-status"
     >

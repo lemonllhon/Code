@@ -31,7 +31,7 @@ export function GitRepositoryWizard({
   const { intl } = useLCodeIntl();
   const w = (key: string) => intl.formatMessage({ id: `git.repositoryWizard.${key}` });
   const git = useGitRepositoryAcquisition({ ...scope, initialDirectory });
-  const management = useGitManagement({ services: git.session.services });
+  const management = useGitManagement({ autoDetect: true, services: git.session.services });
   const defaultsApplied = useRef(false);
   useEffect(() => {
     if (management.snapshot && !defaultsApplied.current) {

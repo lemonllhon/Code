@@ -12,6 +12,7 @@ import { createMcpAdapter } from "@lcode/adapters/mcp";
 import { PermissionService } from "@lcode/core";
 import { isMessageEnabled } from "./app-config-options.js";
 import { createProjectScopedExecutionPort } from "./project-environment-execution.js";
+import { createGitCredentialExecutionPort } from "./git-credential-execution.js";
 import {
   createProjectEnvironmentCloseBarrier,
   createProjectScopedMcpPort,
@@ -105,7 +106,7 @@ export function createAppAdapters(
             options.projectEnvironmentRef ?? runtimeConfig.workspaceBinding?.environmentRef,
         })
       : rawMcpPort;
-  const rawExecutionPort =
+  const nodeExecutionPort =
     options.executionPort ??
     createNodeExecutionAdapter({
       onToolExecResource: options.onToolExecResource,
@@ -117,6 +118,14 @@ export function createAppAdapters(
       outputRootDir: join(storageRoot, "cli", "exec"),
       processEnv: options.env ?? process.env,
     });
+  const rawExecutionPort =
+    options.resolveGitCredential && ownsExecutionPort
+      ? createGitCredentialExecutionPort(
+          nodeExecutionPort,
+          options.resolveGitCredential,
+          options.env ?? process.env,
+        )
+      : nodeExecutionPort;
   const executionPort =
     environmentOwners && ownsExecutionPort
       ? createProjectScopedExecutionPort(rawExecutionPort, environmentOwners.execution)

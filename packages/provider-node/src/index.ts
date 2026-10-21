@@ -14,3 +14,6 @@ export * from "./model-selection-facade.js";
 export * from "./runtime-paths.js";
 export * from "./provider-auth/index.js";
 export * from "./provider-network.js";
+
+export { createGitCredentialHelper, type GitCredentialResolver } from "./git-credential-helper.js";
+export { runGitCredentialHelper } from "./git-credential-helper-runner.js";

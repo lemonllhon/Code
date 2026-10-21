@@ -4,7 +4,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./network": "./src/network.ts"
+    "./network": "./src/network.ts",
+    "./git": "./src/git.ts"
   },
   "scripts": {
     "build": "tsc",

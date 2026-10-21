@@ -79,6 +79,7 @@ import { useReviewDiffNavigation } from "@/hooks/useReviewDiffNavigation.js";
 import { useReviewWorkspaceState } from "@/hooks/useReviewWorkspaceState.js";
 import { ReviewWorkspaceSyncStatus } from "@/git-action-menu/ReviewWorkspaceSyncStatus.js";
 import { useSynchronizedCommitReview } from "@/hooks/useSynchronizedCommitReview.js";
+import { commitReviewCompletionPatch } from "@/git-action-menu/commitReviewCompletion.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { getErrorMessage } from "@/lib/errorMessage.js";
 import { getCheckoutOperationErrorMessage } from "@/lib/checkoutOperationError.js";
@@ -312,13 +313,32 @@ export function GitActionMenu({
   );
 
   const invalidateFrozenReview = useCallback(() => {
+    const shared = workspaceReview.read().data;
+    // 手动范围不持有冻结审核，按当前所选文件提交即可，不能因此强制重新调用模型。
+    if (
+      !reviewUI.review &&
+      !reviewUI.error &&
+      !shared.sourceReview &&
+      !shared.draft.requiresRegeneration
+    ) {
+      reviewUI.acknowledge(false);
+      return;
+    }
     reviewUI.clear();
     workspaceReview.patch({
       sourceReview: null,
       browsePosition: 0,
       draft: { ...draftUI.read(), requiresRegeneration: true },
     });
-  }, [reviewUI.clear, draftUI.read, workspaceReview.patch]);
+  }, [
+    reviewUI.clear,
+    reviewUI.review,
+    reviewUI.error,
+    reviewUI.acknowledge,
+    draftUI.read,
+    workspaceReview.patch,
+    workspaceReview.read,
+  ]);
 
   const invalidateReview = useCallback(() => {
     viewRevisionRef.current++;
@@ -960,30 +980,22 @@ export function GitActionMenu({
       const nextGroup = reviewUI.review?.groups[reviewUI.position + 1];
       if (reviewUI.review && reviewUI.group)
         reviewUI.advance(reviewUI.review.id, reviewUI.group.id);
-      draftUI.committed(nextGroup?.message ?? "");
-      // warning 可能表示提交后的工作树恢复不完整；保留原范围及关联，等待显式重新审核。
+      // 完成状态须一次 admission；warning 还要保留人工消息，不能先清空再标记失效。
       workspaceReview.patch(
-        nextGroup || result.warning
-          ? { sourceReview: reviewUI.review ? { id: reviewUI.review.id } : null }
-          : {
-              sourceReview: null,
-              selectedPaths: null,
-              excludedFiles: [],
-              browsePosition: 0,
-              includeUnstaged: true,
-            },
+        commitReviewCompletionPatch(
+          workspaceReview.read().data,
+          reviewUI.review,
+          reviewUI.position + 1,
+          result.warning,
+        ),
       );
       if (!nextGroup && !result.warning) openedManualRequestRef.current = null;
-      if (nextGroup) {
-        setBrowsePosition(reviewUI.position + 1);
-      }
       setCommitDialogState((previous) =>
         previous ? { ...previous, summary: result.summary } : previous,
       );
       if (result.warning) {
         setCommitError(result.warning);
         reviewUI.adopt(undefined, undefined, result.warning);
-        draftUI.invalidate();
       }
     },
     [
@@ -992,8 +1004,8 @@ export function GitActionMenu({
       reviewUI.position,
       reviewUI.advance,
       reviewUI.adopt,
-      draftUI.committed,
-      draftUI.invalidate,
+      workspaceReview.patch,
+      workspaceReview.read,
     ],
   );
 
@@ -1533,10 +1545,31 @@ export function GitActionMenu({
           onReviewAcknowledge={reviewUI.acknowledge}
           onBrowse={setBrowsePosition}
           onManualFallback={() => {
-            if (!draftUI.draft.requiresRegeneration) {
+            const attemptId = lifecycle.current?.id;
+            if (attemptId === undefined || busyRef.current || publishPlan || publishRun) return;
+            // 旧范围失效可以显式改为整文件手动提交，但恢复 warning 及仍存在的冻结引用不能被绕过。
+            const shared = workspaceReview.read().data;
+            if (shared.draft.requiresRegeneration && (shared.sourceReview || reviewUI.error))
+              return;
+            const versions = () => {
+              const fields = workspaceReview.read().snapshot.fieldRevisions;
+              return JSON.stringify([
+                fields.sourceReview,
+                fields.selectedPaths,
+                fields.excludedFiles,
+                fields.includeUnstaged,
+              ]);
+            };
+            const expected = versions();
+            void loadCommitDialogState({ attemptId, preferSharedScope: true }).then((state) => {
+              if (!state || !isCurrent(attemptId) || versions() !== expected) return;
               reviewUI.clear();
-              workspaceReview.patch({ sourceReview: null });
-            }
+              workspaceReview.patch({
+                sourceReview: null,
+                browsePosition: 0,
+                draft: { ...draftUI.read(), requiresRegeneration: false },
+              });
+            });
           }}
           onIncludeUnstagedChange={(value) => {
             invalidateReview();
@@ -1705,9 +1738,6 @@ export function GitActionMenu({
               mergeView: null,
               worktreeView: null,
             });
-            workspaceReview.patch({
-              sourceReview: reviewUI.review ? { id: reviewUI.review.id } : null,
-            });
             let nextPosition = reviewUI.position;
             for (const receipt of operation.sourceReceipts ?? []) {
               nextPosition = advanceCommitReviewPosition(reviewUI.review, nextPosition, {
@@ -1717,8 +1747,13 @@ export function GitActionMenu({
               reviewUI.advance(receipt.reviewId, receipt.groupId);
             }
             // 重试返回全部持久收据，只有与当前组匹配的收据才能推进草稿位置。
-            const remainingGroup = reviewUI.review?.groups[nextPosition];
-            draftUI.committed(remainingGroup?.message ?? "");
+            workspaceReview.patch(
+              commitReviewCompletionPatch(
+                workspaceReview.read().data,
+                reviewUI.review,
+                nextPosition,
+              ),
+            );
             onRefreshGit();
             void loadCommitDialogState();
           }}

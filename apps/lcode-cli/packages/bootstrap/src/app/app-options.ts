@@ -122,6 +122,8 @@ export interface LCodeAppOptions {
   officialPluginRoots?: string[];
   pluginStorageRoot?: string;
   executionPort?: ExecutionPort;
+  /** Host 私有认证解析，不进入模型工具参数或会话事件。 */
+  resolveGitCredential?: import("./git-credential-execution.js").GitCredentialResolver;
   /**
    * P2-03：执行前按 cwd 解析所属托管环境的冻结 overlay；缺省 = 非托管（旧行为）。
    * 由协议入口在创建 session app 时注入；纯本地 CLI / 测试不传。

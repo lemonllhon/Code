@@ -15,7 +15,12 @@ modules:
     roots: [packages/provider-node/src]
     managed: false
     requires: [provider, shared]
-    publicEntrypoints: [packages/provider-node/src/index.ts, packages/provider-node/src/network.ts]
+    publicEntrypoints:
+      [
+        packages/provider-node/src/index.ts,
+        packages/provider-node/src/network.ts,
+        packages/provider-node/src/git.ts,
+      ]
   - id: services
     roots: [packages/services/src]
     managed: false
@@ -46,7 +51,10 @@ modules:
     managed: true
     requires: [shared, services, worktree, rpc]
     publicEntrypoints:
-      [packages/services/src/project-execution-set/contract.ts, packages/services/src/project-execution-set/node.ts]
+      [
+        packages/services/src/project-execution-set/contract.ts,
+        packages/services/src/project-execution-set/node.ts,
+      ]
     layers: { domain: domain, app: app, adapters: adapters }
     layerOrder: [domain, app, adapters]
     owner: workspace-execution
