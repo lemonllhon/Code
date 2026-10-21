@@ -35,6 +35,9 @@ openclaw/
 .run-logs/
 # 本机诊断、浏览器缓存、抓包和回归截图，不属于可提交的产品源码。
 .artifacts/
+# Git 回归测试、界面截图与本地验收记录，仅保留在工作区。
+/artifacts/
+/packages/web/artifacts/
 .worktrees/
 packages/stream-animate/dist-server/
 packages/stream-animate/.stream-animate-data/
@@ -108,7 +111,6 @@ nul
 !/packages/web/test/token-usage-queue.test.mjs
 !/packages/web/test/worktree-discard-pending-cases.mjs
 !/packages/web/test/git-review-redesign-cases.mjs
-/artifacts/git-review-redesign/
 !/packages/web/test/multi-session-send-cases.mjs
 !/packages/web/test/task-handoff-cases.mjs
 !/packages/web/test/context-capsule-composer.test.mjs
@@ -426,8 +428,6 @@ nul
 !/packages/web/test/fixtures/git-file-operations.html
 !/packages/web/test/fixtures/git-file-operations.tsx
 
-# 格式化工具写入故障时保留的本轮备份，不纳入源码提交。
-/artifacts/git-review-pane/format-backup/
 !/packages/web/test/git-network-cases.mjs
 !/packages/web/test/fixtures/git-network.html
 !/packages/web/test/fixtures/git-network.tsx
