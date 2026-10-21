@@ -110,6 +110,7 @@ export function SidebarProjectEntry({
           showTaskList={showChats}
           taskListLoading={false}
           taskListHasMore={children.length > limit}
+          taskListHasUnread={children.some((task) => typeof task.unreadAt === "number")}
           onShowMoreTasks={() => setLimits((current) => ({ ...current, [key]: limit + 20 }))}
           reconnectingRemoteWorkspaceKeys={props.reconnectingRemoteWorkspaceKeys}
           remoteWorkspaceErrorByWorkspaceKey={props.remoteWorkspaceErrorByWorkspaceKey}

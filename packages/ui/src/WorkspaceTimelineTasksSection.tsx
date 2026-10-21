@@ -1,18 +1,16 @@
-/* eslint-disable max-lines -- timeline 同时承载本地 scoped 查询、远端主动缓存和任务操作分发，先集中保持链路清晰。 */
+/* eslint-disable max-lines -- timeline 同时承载 Controller 列表查询与 scoped 任务操作分发，先集中保持链路清晰。 */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import type { LCodeTaskMeta } from "@lcode/shared";
 import { toast } from "@/components/ui/toast.js";
 import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu.js";
 import { useGlobalTaskList } from "@/hooks/useGlobalTaskList.js";
-import { useLocalWorkspaceScopes } from "@/hooks/useLocalWorkspaceScopes.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { getTaskTimelineGroupMessage, groupTaskTimelineItems } from "@/lib/taskTimelineGroups.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import { compareLCodeTaskListItems } from "@/lib/taskListOrdering.js";
 import { buildWorkspaceServiceLookup } from "@/lib/workspaceServiceResolver.js";
-import { logger } from "@/logger.js";
 import { MemoTaskItem, TaskListItemContextMenuContent } from "@/TaskListItem.js";
 import { TaskListLoadingHint } from "@/TaskListLoadingHint.js";
 import { TaskListRemoteSyncHint } from "@/TaskListRemoteSyncHint.js";
@@ -84,9 +82,6 @@ export function WorkspaceTimelineTasksSection({
 }) {
   const { intl, locale } = useLCodeIntl();
   const baseServices = useBaseWorkspaceServices();
-  const scopedWorkspaceTabs = useLocalWorkspaceScopes({
-    workspaceTabs,
-  });
   const sessionsById = useRemoteWorkspaceSessionStore((state) => state.sessionsById);
   const sessionIdByWorkspaceIdentity = useRemoteWorkspaceSessionStore(
     (state) => state.sessionIdByWorkspaceIdentity,
@@ -151,50 +146,26 @@ export function WorkspaceTimelineTasksSection({
     [workspaceTabs],
   );
   const {
-    items: localItems,
-    total: localTotal,
-    hasMore: localHasMore,
-    loading: localLoading,
+    items: queriedItems,
+    total: queriedTotal,
+    hasMore: queriedHasMore,
+    loading,
+    syncingRemoteWorkspaces,
   } = useGlobalTaskList({
     kind: "timeline",
-    workspaceTabs: scopedWorkspaceTabs,
+    // Controller 已按 source 隔离本地和远端；旧 remote store 只读历史 meta，
+    // 绕过 sessions-index activity，导致 SSH/WSL/Docker 任务没有实时运行和待确认状态。
+    workspaceTabs,
     sortBy: taskSortBy,
     searchQuery: "",
     expanded: Boolean(taskFilter || buildGroups),
     collapsedLimit: visibleTaskLimit,
   });
-  const remoteTimelineItemsByWorkspaceKey = useRemoteTimelineTaskStore(
-    (state) => state.itemsByWorkspaceKey,
-  );
-  const remoteTimelineLoadingByWorkspaceKey = useRemoteTimelineTaskStore(
-    (state) => state.loadingByWorkspaceKey,
-  );
-  const remoteTimelineTotalByWorkspaceKey = useRemoteTimelineTaskStore(
-    (state) => state.totalByWorkspaceKey,
-  );
-  const remoteTimelineHasMoreByWorkspaceKey = useRemoteTimelineTaskStore(
-    (state) => state.hasMoreByWorkspaceKey,
-  );
-  const remoteWorkspaceKeys = useMemo(
-    () => [
-      ...new Set(
-        workspaceTabs
-          .filter((tab) => tab.workspaceIdentity || tab.remoteTarget || tab.remoteSessionId)
-          .map((tab) => buildTaskWorkspaceKey(tab.workspacePath, tab.workspaceIdentity)),
-      ),
-    ],
-    [workspaceTabs],
-  );
-  const remoteItems = useMemo(() => {
-    return remoteWorkspaceKeys.flatMap(
-      (workspaceKey) => remoteTimelineItemsByWorkspaceKey[workspaceKey] ?? [],
-    );
-  }, [remoteTimelineItemsByWorkspaceKey, remoteWorkspaceKeys]);
   const sortedItems = useMemo(() => {
-    return [...localItems, ...remoteItems]
+    return queriedItems
       .filter((task) => !taskFilter || taskFilter(task))
       .sort((left, right) => compareLCodeTaskListItems(left, right, taskSortBy));
-  }, [localItems, remoteItems, taskSortBy, taskFilter]);
+  }, [queriedItems, taskSortBy, taskFilter]);
   const items = buildGroups ? sortedItems : sortedItems.slice(0, visibleTaskLimit);
   useEffect(() => {
     onItemsChange?.(sortedItems);
@@ -236,30 +207,8 @@ export function WorkspaceTimelineTasksSection({
       }))
       .filter((group) => group.items.length > 0);
   }, [buildGroups, groupByDate, items, locale, taskSortBy, workspaceServiceLookup]);
-  const remoteTotal = remoteWorkspaceKeys.reduce(
-    (sum, workspaceKey) =>
-      sum +
-      (remoteTimelineTotalByWorkspaceKey[workspaceKey] ??
-        remoteTimelineItemsByWorkspaceKey[workspaceKey]?.length ??
-        0),
-    0,
-  );
-  const total = taskFilter ? sortedItems.length : localTotal + remoteTotal;
-  const remoteHasMore = remoteWorkspaceKeys.some(
-    (workspaceKey) => remoteTimelineHasMoreByWorkspaceKey[workspaceKey],
-  );
-  const syncingRemoteWorkspaces = workspaceTabs.some((tab) => {
-    if (!tab.workspaceIdentity && !tab.remoteTarget && !tab.remoteSessionId) {
-      return false;
-    }
-    return Boolean(
-      remoteTimelineLoadingByWorkspaceKey[
-        buildTaskWorkspaceKey(tab.workspacePath, tab.workspaceIdentity)
-      ],
-    );
-  });
-  const loading = localLoading || syncingRemoteWorkspaces;
-  const hasKnownMore = localHasMore || remoteHasMore || total > items.length;
+  const total = taskFilter ? sortedItems.length : queriedTotal;
+  const hasKnownMore = queriedHasMore || total > items.length;
   const currentLimitFilled = sortedItems.length >= visibleTaskLimit;
   // 远端/本地 hasMore 偶尔会在下一轮请求完成前保持旧值。
   // 如果当前已加载数量没有填满 limit，说明这轮已经到底了，不能继续显示 show more。
@@ -268,53 +217,6 @@ export function WorkspaceTimelineTasksSection({
   useEffect(() => {
     setVisibleTaskLimit(collapsedLimit);
   }, [taskSortBy, workspaceTabsSignature]);
-
-  useEffect(() => {
-    // 这条日志会随着远端 timeline 同步和 tab 恢复多次触发。
-    // 生产环境只需要保留生命周期和异常，列表同步细节降为 debug，避免任务多时持续落盘。
-    logger.debug("[WorkspaceTimelineTasksSection] scopedWorkspaceTabs", {
-      workspaceTabs: workspaceTabs.map((tab) => ({
-        workspacePath: tab.workspacePath,
-        workspaceIdentity: tab.workspaceIdentity,
-        remoteSessionId: tab.remoteSessionId,
-        hasRemoteTarget: Boolean(tab.remoteTarget),
-      })),
-      scopedWorkspaceTabs: scopedWorkspaceTabs.map((tab) => ({
-        workspacePath: tab.workspacePath,
-        workspaceIdentity: tab.workspaceIdentity,
-        remoteSessionId: tab.remoteSessionId,
-        hasRemoteTarget: Boolean(tab.remoteTarget),
-      })),
-      remoteItemCount: remoteItems.length,
-    });
-  }, [remoteItems.length, scopedWorkspaceTabs, workspaceTabs]);
-
-  useEffect(() => {
-    const remoteTabs = workspaceTabs.filter(
-      (tab) => tab.workspaceIdentity || tab.remoteTarget || tab.remoteSessionId,
-    );
-    if (remoteTabs.length === 0) {
-      return;
-    }
-
-    for (const tab of remoteTabs) {
-      const workspaceServices = workspaceServiceLookup.get(
-        buildTaskWorkspaceKey(tab.workspacePath, tab.workspaceIdentity),
-      );
-      if (!workspaceServices?.isRemoteWorkspace) {
-        continue;
-      }
-      // timeline 不能复用 useGlobalTaskList 的远端混合查询，否则 active services 切到远端时会影响本地缓存。
-      // 远端数据跟 pinned 一样走独立 store，show more 时只把 limit 按 20 条阶梯增加，避免一次性拉全量。
-      void useRemoteTimelineTaskStore.getState().refreshWorkspace({
-        workspacePath: tab.workspacePath,
-        ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
-        lcodeTaskService: workspaceServices.services.lcodeTaskService,
-        sortBy: taskSortBy,
-        limit: visibleTaskLimit,
-      });
-    }
-  }, [taskSortBy, visibleTaskLimit, workspaceServiceLookup, workspaceTabs]);
 
   const handleCancelArchiveConfirm = useCallback(() => {
     setPendingArchiveItemKey(null);

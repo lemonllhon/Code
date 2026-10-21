@@ -34,7 +34,6 @@ import {
   GitBranchIcon,
   House,
   ListTree,
-  LoaderCircle,
   RefreshCwIcon,
   MessageCirclePlus,
   XIcon,
@@ -71,7 +70,7 @@ import { TaskList } from "@/TaskList.js";
 import { selectWorkspaceLCodeState, useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
 import type { RemoteConnectionLogEntry } from "@/hooks/useRemoteConnectionLogs.js";
-import { ReconnectingRemoteWorkspaceLogTooltip } from "@/WorkspaceSidebar/ReconnectingRemoteWorkspaceLogTooltip.js";
+import { RemoteWorkspaceConnectionStatus } from "@/WorkspaceSidebar/RemoteWorkspaceConnectionStatus.js";
 import { cn } from "@/components/lib/utils.js";
 import {
   TID_WORKSPACE_CLOSE,
@@ -1171,12 +1170,16 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
                         workspaceLabelContent
                       )}
 
+                      {isRemoteWorkspace ? (
+                        <RemoteWorkspaceConnectionStatus
+                          target={tab.remoteTarget}
+                          connected={resolution.rpcReady}
+                          connecting={isReconnectPending}
+                          failed={showRemoteConnectionErrorNotice}
+                          logs={reconnectRuntimeLogs}
+                        />
+                      ) : null}
                       <div className="flex shrink-0 items-center gap-2">
-                        {/* {isRemoteWorkspace && isReconnectPending ? (
-                    <ReconnectingRemoteWorkspaceLogTooltip
-                      logs={reconnectRuntimeLogs}
-                    />
-                  ) : null} */}
                         <div className="flex shrink-0 items-center gap-1">
                           {shouldMountWorkspaceRowActions ? (
                             <DropdownMenu
@@ -1300,26 +1303,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
                             )
                           ) : null}
                           {showReconnectAction ? (
-                            isReconnectPending ? (
-                              <ReconnectingRemoteWorkspaceLogTooltip logs={reconnectRuntimeLogs}>
-                                {/* SSH workspace 重连中时，右侧原本只有 spinning 图标，
-                              用户无法在聊天页任务列表里确认连接卡在哪一步。这里复用 SSH dialog 的连接日志 tooltip，
-                              保持行内布局稳定，同时把诊断信息放到 hover 浮层里。 */}
-                                <div
-                                  role="status"
-                                  className={cn(
-                                    buttonVariants({ variant: "ghost", size: "icon-sm" }),
-                                    "shrink-0 text-foreground opacity-100 hover:bg-surface-hover hover:text-foreground",
-                                  )}
-                                  onMouseDown={handleActionMouseDown}
-                                  aria-label={intl.formatMessage({
-                                    id: "workspaceSidebar.connecting",
-                                  })}
-                                >
-                                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                                </div>
-                              </ReconnectingRemoteWorkspaceLogTooltip>
-                            ) : (
+                            isReconnectPending ? null : (
                               <ControlHintTooltip
                                 title={intl.formatMessage({
                                   id: "workspaceSidebar.reconnect",

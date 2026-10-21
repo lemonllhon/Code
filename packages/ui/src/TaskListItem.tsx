@@ -64,6 +64,8 @@ import { runUserAction } from "@/lib/userActionTelemetry.js";
 import { TaskRowActionButton } from "@/workspace-grouped-tasks/task-row-action-button.js";
 import { WorktreeBadge } from "@/worktree/WorktreeBadge.js";
 import { TaskWorkflowRunLines } from "@/components/workflow-run-line/TaskWorkflowRunLines.js";
+import { RemoteTaskExecutionStatus } from "@/RemoteTaskExecutionStatus.js";
+import { getTaskListSourceAvailability } from "@/lib/remoteTaskExecutionState.js";
 
 type TaskListItemIntl = {
   formatMessage: (desc: { id: string }, values?: Record<string, string>) => string;
@@ -120,6 +122,7 @@ function areTaskListItemTaskFieldsEqual(left: LCodeTaskMeta, right: LCodeTaskMet
     left.unreadAt === right.unreadAt &&
     getTaskAutomationIdentity(left) === getTaskAutomationIdentity(right) &&
     left.status === right.status &&
+    getTaskListSourceAvailability(left) === getTaskListSourceAvailability(right) &&
     areJsonFieldsEqual(left.pendingInteraction, right.pendingInteraction) &&
     areJsonFieldsEqual(getTaskListRowActivity(left), getTaskListRowActivity(right)) &&
     areJsonFieldsEqual(left.changeSummary, right.changeSummary)
@@ -260,8 +263,10 @@ export const MemoTaskItem = memo(function TaskListItem({
   // V4 runtime/interaction 已由 sessions-index 投影，旧 Zustand map 不再接收
   // 后台会话 delta。row 直接消费随列表条目到达的 activity sidecar，避免 spinner/attention 假静止。
   const taskActivity = getTaskListRowActivity(task);
-  const taskAttention = getTaskListAttention(task);
-  const hasPendingInteraction = Boolean(task.pendingInteraction) || taskAttention !== null;
+  const isOfflineTask = getTaskListSourceAvailability(task) === "offline";
+  const taskAttention = isOfflineTask ? null : getTaskListAttention(task);
+  const hasPendingInteraction =
+    !isOfflineTask && (Boolean(task.pendingInteraction) || taskAttention !== null);
   const taskAttentionLabel = taskAttention
     ? intl.formatMessage({
         id: taskAttention.kind === "userInput" ? "taskList.userInputTag" : "taskList.permissionTag",
@@ -420,8 +425,8 @@ export const MemoTaskItem = memo(function TaskListItem({
   }, []);
 
   const leadingIndicator = useMemo(
-    () => deriveTaskLeadingIndicator(task, taskActivity),
-    [task, taskActivity],
+    () => deriveTaskLeadingIndicator(task, isOfflineTask ? null : taskActivity),
+    [task, taskActivity, isOfflineTask],
   );
   const isTaskCron = isCronTask(task);
   // 月亮身份改为持久 meta 标记判断；off-peak store 反查在任务被删除后会丢失
@@ -747,7 +752,8 @@ export const MemoTaskItem = memo(function TaskListItem({
                       grouped task 已改为右侧渐隐。这里统一 task 列表标题溢出策略，避免同一侧栏里出现两种截断语义。 */}
               {taskTitle}
             </TaskTitleOverflowText>
-            {task.pendingInteraction ? (
+            <RemoteTaskExecutionStatus task={task} formatMessage={intl.formatMessage} />
+            {!isOfflineTask && task.pendingInteraction ? (
               <TaskInteractionBadge
                 interaction={task.pendingInteraction}
                 formatMessage={(id) => intl.formatMessage({ id })}
@@ -853,7 +859,8 @@ export const MemoTaskItem = memo(function TaskListItem({
                   {changeSummaryNode}
                 </span>
               ) : null}
-              {task.pendingInteraction ? (
+              <RemoteTaskExecutionStatus task={task} formatMessage={intl.formatMessage} />
+              {!isOfflineTask && task.pendingInteraction ? (
                 <TaskInteractionBadge
                   interaction={task.pendingInteraction}
                   formatMessage={(id) => intl.formatMessage({ id })}

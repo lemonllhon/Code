@@ -5,7 +5,6 @@ import type { LCodeTaskMeta } from "@lcode/shared";
 import { toast } from "@/components/ui/toast.js";
 import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu.js";
 import { useGlobalTaskList } from "@/hooks/useGlobalTaskList.js";
-import { useLocalWorkspaceScopes } from "@/hooks/useLocalWorkspaceScopes.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
@@ -82,9 +81,6 @@ export function WorkspacePinnedTasksSection({
 }) {
   const { intl } = useLCodeIntl();
   const baseServices = useBaseWorkspaceServices();
-  const scopedWorkspaceTabs = useLocalWorkspaceScopes({
-    workspaceTabs,
-  });
   const remoteSessionIdByWorkspaceIdentity = useRemoteWorkspaceSessionStore(
     (state) => state.sessionIdByWorkspaceIdentity,
   );
@@ -120,47 +116,22 @@ export function WorkspacePinnedTasksSection({
   upsertOptimisticTaskListItemRef.current = upsertOptimisticTaskListItem;
   removeOptimisticTaskListItemRef.current = removeOptimisticTaskListItem;
   setTaskUnreadIndicatorRef.current = setTaskUnreadIndicator;
-  const { items: localItems } = useGlobalTaskList({
+  const { items: queriedItems, syncingRemoteWorkspaces } = useGlobalTaskList({
     kind: "pinned",
-    workspaceTabs: scopedWorkspaceTabs,
+    // 远程置顶也通过 Controller 获取 activity，不能只合并缺少实时 phase 的历史缓存。
+    workspaceTabs,
     sortBy: taskSortBy,
     searchQuery: "",
     expanded: true,
     collapsedLimit,
   });
-  const remotePinnedItemsByWorkspaceKey = useRemotePinnedTaskStore(
-    (state) => state.itemsByWorkspaceKey,
-  );
-  const remotePinnedLoadingByWorkspaceKey = useRemotePinnedTaskStore(
-    (state) => state.loadingByWorkspaceKey,
-  );
-  const remoteItems = useMemo(() => {
-    const remoteWorkspaceKeys = new Set(
-      workspaceTabs
-        .filter((tab) => tab.workspaceIdentity || tab.remoteTarget || tab.remoteSessionId)
-        .map((tab) => buildTaskWorkspaceKey(tab.workspacePath, tab.workspaceIdentity)),
-    );
-    return [...remoteWorkspaceKeys].flatMap(
-      (workspaceKey) => remotePinnedItemsByWorkspaceKey[workspaceKey] ?? [],
-    );
-  }, [remotePinnedItemsByWorkspaceKey, workspaceTabs]);
   const sortedItems = useMemo(() => {
-    return [...localItems, ...remoteItems]
+    return queriedItems
       .filter((task) => !taskFilter || taskFilter(task))
       .sort((left, right) => compareLCodeTaskListItems(left, right, taskSortBy));
-  }, [localItems, remoteItems, taskSortBy, taskFilter]);
+  }, [queriedItems, taskSortBy, taskFilter]);
   const items = showAllTasks ? sortedItems : sortedItems.slice(0, collapsedLimit);
   const total = sortedItems.length;
-  const syncingRemoteWorkspaces = workspaceTabs.some((tab) => {
-    if (!tab.workspaceIdentity && !tab.remoteTarget && !tab.remoteSessionId) {
-      return false;
-    }
-    return Boolean(
-      remotePinnedLoadingByWorkspaceKey[
-        buildTaskWorkspaceKey(tab.workspacePath, tab.workspaceIdentity)
-      ],
-    );
-  });
   const canToggleExpanded = total > collapsedLimit;
   const sectionTitle = intl.formatMessage({ id: "taskList.pinnedSection" });
   const activeWorkspaceKey = buildTaskWorkspaceKey(activeWorkspacePath, activeWorkspaceIdentity);

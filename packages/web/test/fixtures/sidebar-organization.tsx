@@ -8,7 +8,7 @@ import {
   type SidebarOrganization,
   type AppSettings,
 } from "@lcode/shared";
-import type { IServiceAccessor, WorktreeBinding } from "@lcode/services";
+import type { IServiceAccessor, WorktreeBinding, LCodeTaskListQuery } from "@lcode/services";
 import { applySidebarMutations } from "../../../services/src/sidebar-organization/domain/transition.js";
 import { WorkspaceSidebar } from "@/WorkspaceSidebar.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
@@ -24,7 +24,6 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
-import { useRemoteTimelineTaskStore } from "@/store/remoteTimelineTaskStore.js";
 import { useWorktreeLifecycleStore } from "@/store/worktreeLifecycleStore.js";
 import { ConfirmDialogHost } from "@/ConfirmDialog.js";
 import { platform } from "./git-backup-platform.js";
@@ -147,10 +146,14 @@ const services = {
   },
   windowControllerService: {
     ...defaults.windowControllerService,
-    listTaskList: async ({ kind }: { kind: string }) => {
+    listTaskList: async ({ kind, workspaceScopes }: LCodeTaskListQuery) => {
       const items = tasks.filter(
         (task) =>
-          !task.workspaceIdentity &&
+          workspaceScopes.some(
+            (scope) =>
+              (scope.workspaceIdentity || scope.workspacePath) ===
+              (task.workspaceIdentity || task.workspacePath),
+          ) &&
           (kind === "archived"
             ? task.archivedAt
             : !task.archivedAt && (kind === "pinned" ? task.pinnedAt : !task.pinnedAt)),
@@ -260,8 +263,6 @@ function registerRemote() {
   store.bindWorkspaceIdentity(identity, "remote");
 }
 if (!savedHistory) registerRemote();
-for (const task of tasks.filter((task) => task.workspaceIdentity))
-  useRemoteTimelineTaskStore.getState().upsertTask(task);
 Object.assign(globalThis, {
   __sidebarOrganization: {
     facts,
@@ -288,6 +289,12 @@ Object.assign(globalThis, {
     online: registerRemote,
     offline: () => {
       useRemoteWorkspaceSessionStore.getState().unregisterSession("remote");
+    },
+    markRemoteUnread: () => {
+      tasks = tasks.map((task) =>
+        task.taskId === "remote" ? { ...task, unreadAt: Date.now() } : task,
+      );
+      useLCodeSessionStore.getState().bumpTaskListVersion(origin, identity);
     },
     setStatus: (id: string, status: WorktreeBinding["status"]) => {
       bindings = bindings.map((binding) => (binding.id === id ? { ...binding, status } : binding));

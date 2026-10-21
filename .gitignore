@@ -460,3 +460,10 @@ nul
 !/packages/services/src/git/gitHistoryReset.integration.test.ts
 
 !/packages/web/test/git-history-advanced-cases.mjs
+
+# SSH、WSL、Docker 连接与任务状态的永久浏览器回归。
+!/packages/web/test/remote-workspace-status.test.mjs
+!/packages/web/test/fixtures/remote-workspace-status.html
+!/packages/web/test/fixtures/remote-workspace-status.tsx
+!/packages/ui/src/lib/remoteTaskExecutionState.ts
+!/packages/ui/src/lib/remoteTaskExecutionState.test.ts

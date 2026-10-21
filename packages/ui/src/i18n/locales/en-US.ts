@@ -2562,6 +2562,8 @@ const enUS: Record<string, string> = {
   "workspaceSidebar.reconnectTargetUnavailable":
     "This remote project is no longer in the desktop window. Open it there and try again.",
   "workspaceSidebar.connecting": "Connecting",
+  "workspaceSidebar.connected": "Connected",
+  "workspaceSidebar.connectionFailed": "Connection failed",
   "workspaceSidebar.notConnected": "Not connected",
   "workspaceSidebar.empty": "No workspaces yet. Open a workspace to get started.",
   "workspaceSidebar.unavailableLocalDirectory":
@@ -2811,6 +2813,14 @@ const enUS: Record<string, string> = {
   "taskList.status.restoring": "Restoring",
   "taskList.status.ready": "Ready",
   "taskList.status.completed": "Done",
+  "taskList.remoteStatus.preparing": "Preparing",
+  "taskList.remoteStatus.running": "Running",
+  "taskList.remoteStatus.background": "Background work",
+  "taskList.remoteStatus.completed": "Completed",
+  "taskList.remoteStatus.interrupted": "Interrupted",
+  "taskList.remoteStatus.failed": "Failed",
+  "taskList.remoteStatus.offline": "Offline",
+  "taskList.remoteStatus.syncing": "Syncing status",
   "taskList.status.failed": "Failed",
   "taskList.status.notReady": "Not ready",
   "taskList.openSettings": "Settings",

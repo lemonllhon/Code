@@ -2385,6 +2385,8 @@ const zhCN: Record<string, string> = {
   "workspaceSidebar.reconnectTargetUnavailable":
     "该远端项目已不在桌面窗口中，请在桌面端重新打开后再试。",
   "workspaceSidebar.connecting": "连接中",
+  "workspaceSidebar.connected": "已连接",
+  "workspaceSidebar.connectionFailed": "连接失败",
   "workspaceSidebar.notConnected": "未连接",
   "workspaceSidebar.empty": "暂无工作区，请先打开一个工作区。",
   "workspaceSidebar.unavailableLocalDirectory":
@@ -2627,6 +2629,14 @@ const zhCN: Record<string, string> = {
   "taskList.status.restoring": "恢复中",
   "taskList.status.ready": "已就绪",
   "taskList.status.completed": "已完成",
+  "taskList.remoteStatus.preparing": "准备中",
+  "taskList.remoteStatus.running": "运行中",
+  "taskList.remoteStatus.background": "后台运行",
+  "taskList.remoteStatus.completed": "已完成",
+  "taskList.remoteStatus.interrupted": "已中断",
+  "taskList.remoteStatus.failed": "失败",
+  "taskList.remoteStatus.offline": "离线",
+  "taskList.remoteStatus.syncing": "状态待同步",
   "taskList.status.failed": "失败",
   "taskList.status.notReady": "未就绪",
   "taskList.openSettings": "设置",
