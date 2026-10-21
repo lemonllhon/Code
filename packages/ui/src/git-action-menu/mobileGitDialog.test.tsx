@@ -1,27 +1,16 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { DialogContent } from "../components/ui/dialog.js";
 
-const commitDialog = await readFile(new URL("./GitCommitDialog.tsx", import.meta.url), "utf8");
+const commitDialog = await readFile(new URL("./GitCommitReviewPane.tsx", import.meta.url), "utf8");
 const feedback = await readFile(new URL("./GitPublishFeedback.tsx", import.meta.url), "utf8");
 const reviewPanel = await readFile(new URL("./GitCommitReviewPanel.tsx", import.meta.url), "utf8");
 const controller = await readFile(new URL("../GitActionMenu.tsx", import.meta.url), "utf8");
 
-// 接线测试只证明使用同一有界 Dialog primitive；真实视口/滚动由 Web 夹具验证。
-function dialogContentClass(dialogSource: string): string {
-  const className = dialogSource.match(/<DialogContent\b[\s\S]*?className="([^"]+)"/)?.[1];
-  assert.ok(className);
-  const portal = DialogContent({ className, children: null });
-  return portal.props.children[1].props.className;
-}
-
-test("commit and publish share the same bounded scrollable dialog on mobile", () => {
-  const className = dialogContentClass(commitDialog);
-  assert.ok(className.includes("w-[calc(100%-2rem)]"));
-  assert.match(className, /\bmax-w-3xl\b/);
-  assert.match(className, /max-h-\[85dvh\]/);
-  assert.match(className, /\boverflow-clip\b/);
+// 接线回归防止重新引入审核 modal；真实宽度、交互和固定底栏由 Web 套件验证。
+test("commit and publish use the same side pane without a second dialog", () => {
+  assert.doesNotMatch(commitDialog, /<Dialog\b|<DialogContent\b/);
+  assert.match(commitDialog, /<GitReviewFiles/);
   assert.match(commitDialog, /data-testid="git-review-scroll"/);
   assert.match(commitDialog, /<ReviewDialogFooter/);
   assert.match(commitDialog, /<GitCommitReviewPanel/);
@@ -49,12 +38,10 @@ test("keyboard action cannot select publishing or bypass regeneration/review gua
   assert.doesNotMatch(commitDialog, /triggerSelectedAction/);
 });
 
-test("large frozen reviews retain confirmation and navigate to the independent file workspace", () => {
-  // 文件清单已移到独立区域；弹窗只保留确认和导航，万级分页由浏览器场景验证。
+test("large frozen reviews retain confirmation while files render directly in the pane", () => {
   const acknowledge = reviewPanel.indexOf('data-testid="git-review-acknowledge"');
   const manualFallback = reviewPanel.indexOf('data-testid="git-review-manual-fallback"');
-  const files = reviewPanel.indexOf('data-testid="git-review-open-files"');
-  assert.ok(acknowledge >= 0 && acknowledge < files);
-  assert.ok(manualFallback >= 0 && manualFallback < files);
+  assert.ok(acknowledge >= 0 && manualFallback >= 0);
+  assert.doesNotMatch(reviewPanel, /git-review-open-files/);
   assert.doesNotMatch(reviewPanel, /data-testid="git-review-files"|<pre\b/);
 });

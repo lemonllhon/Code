@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 import { GIT_NOT_AVAILABLE_ERROR_CODE } from "@lcode/shared";
+import type { GitAuthenticationReference } from "@lcode/shared";
 import { DEFAULT_GIT_COMMAND_TIMEOUT_MS, DEFAULT_GIT_OUTPUT_BYTES } from "../config.js";
 import {
   createGitEnvironmentProvider,
@@ -14,6 +15,7 @@ export interface GitCommandExecutionOptions {
   timeoutMs?: number;
   maxOutputBytes?: number;
   env?: NodeJS.ProcessEnv;
+  authentication?: GitAuthenticationReference;
 }
 
 export interface GitCommandExecutionResult {
@@ -35,6 +37,7 @@ export interface GitCommandExecutionResult {
 }
 
 export interface GitCommandProvider {
+  validateAuthentication?(url: string, reference: GitAuthenticationReference): Promise<void>;
   resolveGitBinary(): Promise<string | null>;
   run(options: GitCommandExecutionOptions): Promise<GitCommandExecutionResult>;
 }

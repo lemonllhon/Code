@@ -89,6 +89,7 @@ export function GitBranchSwitcher({
   } = useGitBranchSwitcher({
     workspacePath,
     workspaceIdentity,
+    workspaceRemoteSessionId,
     currentBranchName: gitSummary.branchName,
     headRefType: gitSummary.headRefType,
     onRefreshGit,
@@ -313,6 +314,8 @@ export function GitBranchSwitcher({
       <GitGraphDialog
         open={gitGraphDialogOpen}
         workspacePath={workspacePath}
+        workspaceIdentity={workspaceIdentity}
+        workspaceRemoteSessionId={workspaceRemoteSessionId}
         onOpenChange={setGitGraphDialogOpen}
       />
 

@@ -5,6 +5,7 @@ import type { GitPublishState } from "@lcode/shared";
 import type { GitCommandProvider } from "../providers/gitCommandProvider.js";
 import { ensureGitCommandSucceeded, ensureRepositoryAvailable } from "./gitCliHelpers.js";
 import type { GitCliRepo } from "./gitCliTypes.js";
+import { parseGitPublishIndex } from "./gitPublishIndex.js";
 
 const MAX_BYTES = 2 * 1024 ** 3;
 const MAX_LIST_BYTES = 32 * 1024 ** 2;
@@ -13,6 +14,8 @@ const CHANGED = "Git HEAD、分支、暂存区或工作树已变化，请重新�
 
 export function assertPublishState(expected: GitPublishState, actual: GitPublishState): void {
   if (
+    (expected.remoteConfigFingerprint !== undefined &&
+      expected.remoteConfigFingerprint !== actual.remoteConfigFingerprint) ||
     expected.headCommitHash !== actual.headCommitHash ||
     expected.branchName !== actual.branchName ||
     expected.indexFingerprint !== actual.indexFingerprint ||
@@ -90,27 +93,23 @@ export class GitPublishStateReader {
   }
 
   private async metadata(cwd: string) {
-    const [head, entries, indexPathRaw] = await Promise.all([
+    // 失败读取也要收束全部并行 IO；提前拒绝会留下仍在访问仓库的 Git 子进程。
+    const [head, entries, config] = await Promise.allSettled([
       this.head(cwd),
-      this.git(cwd, ["ls-files", "--stage", "-v", "-z"]),
-      this.git(cwd, ["rev-parse", "--git-path", "index"]),
+      this.git(cwd, ["ls-files", "--stage", "-v", "--debug", "-z"]),
+      this.git(cwd, ["config", "--null", "--get-regexp", "^(remote|url)\\."], [0, 1]),
     ]);
-    const paths: string[] = [];
-    for (const entry of entries.split("\0").filter(Boolean)) {
-      const match = /^\S ([0-7]{6}) ([0-9a-f]+) ([0-3])\t([\s\S]+)$/.exec(entry);
-      if (!match || match[3] !== "0")
-        throw new Error("暂存区存在冲突或无法完整读取，不能确认发布。");
-      if (match[1] === "160000") throw new Error("发布快照暂不支持子模块，请使用普通 Git 操作。");
-      paths.push(match[4]!);
-    }
-    const indexPath = resolve(cwd, indexPathRaw.trim());
-    let index = "absent";
-    try {
-      index = await this.hashFile(indexPath, { bytes: 0 });
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    }
-    return { ...head, indexFingerprint: digest(JSON.stringify([entries, index])), paths };
+    if (head.status === "rejected") throw head.reason;
+    if (entries.status === "rejected") throw entries.reason;
+    if (config.status === "rejected") throw config.reason;
+    const index = parseGitPublishIndex(entries.value);
+    return {
+      ...head.value,
+      remoteConfigFingerprint: digest(config.value),
+      // 算法域隔离旧 raw-index 审批；历史计划必须沿既有边界重新确认，不能静默升级。
+      indexFingerprint: digest(JSON.stringify(["git-publish-index-v1", index.entries])),
+      paths: index.paths,
+    };
   }
 
   private async worktree(cwd: string, tracked: string[]): Promise<string> {
@@ -174,6 +173,7 @@ export class GitPublishStateReader {
       branchName: before.branchName,
       indexFingerprint: before.indexFingerprint,
       worktreeFingerprint,
+      remoteConfigFingerprint: before.remoteConfigFingerprint,
     };
   }
 
@@ -187,7 +187,13 @@ export class GitPublishStateReader {
       if (head !== (await this.git(cwd, ["rev-parse", "--verify", ref])).trim())
         throw new Error(CHANGED);
       const fingerprint = digest(JSON.stringify(["local-branch", sourceBranch, head]));
+      const config = await this.git(
+        cwd,
+        ["config", "--null", "--get-regexp", "^(remote|url)\\."],
+        [0, 1],
+      );
       return {
+        remoteConfigFingerprint: digest(config),
         branchName: sourceBranch,
         headCommitHash: head,
         indexFingerprint: fingerprint,

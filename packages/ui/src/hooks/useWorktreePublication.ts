@@ -4,7 +4,11 @@ import type { GitRemoteInfo, GitTagInfo, GitUnsupportedTagInfo } from "@lcode/sh
 import { useServices } from "./useServices.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { getErrorMessage } from "@/lib/errorMessage.js";
-import { createPublishOptions, type PublishPlan } from "@/git-action-menu/publishModel.js";
+import {
+  createPublishOptions,
+  type PublishPlan,
+  type PublicationRefreshStatus,
+} from "@/git-action-menu/publishModel.js";
 import { worktreePublicationPlan } from "@/worktree/worktreePublicationPlan.js";
 import {
   executePublishPlan,
@@ -42,6 +46,7 @@ export function useWorktreePublication(operation: WorktreeIntegration, workspace
   const [error, setError] = useState<string | null>(null);
   const [plan, setPlan] = useState<PublishPlan | null>(null);
   const [run, setRun] = useState<PublishRun | null>(null);
+  const [refreshStatus, setRefreshStatus] = useState<PublicationRefreshStatus>(null);
   const [presets, setPresets] = useState<PublishPreset[]>([]);
   const [presetName, setPresetName] = useState("");
   const [selectedPreset, setSelectedPreset] = useState("");
@@ -75,19 +80,39 @@ export function useWorktreePublication(operation: WorktreeIntegration, workspace
     },
     [scope],
   );
-  const reload = () =>
-    perform(async (isCurrent) => {
-      const [remotes, tags] = await Promise.all([
-        gitService.listRemotes(request),
-        gitService.listTags(request),
-      ]);
-      if (isCurrent())
-        setCatalog({
-          remotes: remotes.remotes,
-          tags: tags.tags,
-          unsupportedTags: tags.unsupportedTags ?? [],
-        });
-    });
+  const readCatalog = async (isCurrent: () => boolean, withState = false) => {
+    const results = await Promise.allSettled([
+      gitService.listRemotes(request),
+      gitService.listTags(request),
+      withState
+        ? gitService.getPublishState({ ...request, sourceBranch: operation.targetBranch })
+        : null,
+    ]);
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure?.status === "rejected") throw failure.reason;
+    const [remotes, tags] = results;
+    if (remotes.status !== "fulfilled" || tags.status !== "fulfilled") return;
+    if (isCurrent())
+      setCatalog({
+        remotes: remotes.value.remotes,
+        tags: tags.value.tags,
+        unsupportedTags: tags.value.unsupportedTags ?? [],
+      });
+  };
+  const reload = () => perform((isCurrent) => readCatalog(isCurrent));
+  const refreshStopped = async (isCurrent: () => boolean) => {
+    // 合并目标只重读原目标 ref；不能把移动后的 HEAD 自动接受为新的发布计划。
+    setRefreshStatus("loading");
+    try {
+      await readCatalog(isCurrent, true);
+      if (isCurrent()) setRefreshStatus("ready");
+    } catch (failure) {
+      if (isCurrent()) {
+        setRefreshStatus("failed");
+        setError(getErrorMessage(failure));
+      }
+    }
+  };
   const preview = () =>
     perform(async (isCurrent) => {
       const [state, remotes, tags] = await Promise.all([
@@ -117,7 +142,10 @@ export function useWorktreePublication(operation: WorktreeIntegration, workspace
         isCurrent,
         onUpdate: setRun,
       });
-      if (isCurrent()) setRun(result);
+      if (isCurrent()) {
+        setRun(result);
+        if (result.stopReason) await refreshStopped(isCurrent);
+      }
     });
   const retry = (id: string) =>
     perform(async (isCurrent) => {
@@ -129,7 +157,10 @@ export function useWorktreePublication(operation: WorktreeIntegration, workspace
         isCurrent,
         onUpdate: setRun,
       });
-      if (isCurrent()) setRun(result);
+      if (isCurrent()) {
+        setRun(result);
+        if (result.stopReason) await refreshStopped(isCurrent);
+      }
     });
   const savePresets = (next: PublishPreset[]) => {
     try {
@@ -147,6 +178,10 @@ export function useWorktreePublication(operation: WorktreeIntegration, workspace
     error,
     plan,
     run,
+    refreshStatus,
+    retryRefresh: () => {
+      if (refreshStatus === "failed") void perform(refreshStopped);
+    },
     presets,
     presetName,
     selectedPreset,
@@ -166,9 +201,11 @@ export function useWorktreePublication(operation: WorktreeIntegration, workspace
     retry,
     cancelPreview: () => setPlan(null),
     reset: () => {
+      if (busy.current || (refreshStatus && refreshStatus !== "ready")) return;
       setPlan(null);
       setRun(null);
-      void reload();
+      setRefreshStatus(null);
+      if (refreshStatus !== "ready") void reload();
     },
     savePreset: () => {
       const name = presetName.trim();

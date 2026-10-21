@@ -15,6 +15,8 @@ export function createPublishFixture(summary: () => GitRepositorySummary) {
     worktreeFingerprint: "d".repeat(64),
   };
   let commitCount = 0;
+  let commitWarning: string | undefined;
+  let pushWarning: string | undefined;
   let holdRemote: string | null = null;
   let releasePush: (() => void) | null = null;
   let mutateAfterPush = false;
@@ -45,6 +47,32 @@ export function createPublishFixture(summary: () => GitRepositorySummary) {
     };
   };
   const service = {
+    async getNetworkSnapshot() {
+      return {
+        revision: "f".repeat(64),
+        branch: state.branchName,
+        head: state.headCommitHash,
+        upstream: summary().trackingBranchName,
+        ahead: 0,
+        behind: 0,
+        remotes: ["origin", "backup"].map((name) => ({
+          name,
+          fetchUrls: [`https://example.invalid/${name === "origin" ? "fixture" : name}.git`],
+          pushUrls: [],
+        })),
+        branches: [
+          {
+            name: state.branchName!,
+            head: state.headCommitHash!,
+            upstream: summary().trackingBranchName,
+          },
+        ],
+        remoteBranches: [],
+      };
+    },
+    async getNetworkOperation() {
+      return null;
+    },
     async getPublishState(params) {
       return readState(params.sourceBranch);
     },
@@ -85,7 +113,7 @@ export function createPublishFixture(summary: () => GitRepositorySummary) {
         headCommitHash: commitHash,
         indexFingerprint: commitHash.padStart(64, "0"),
       };
-      return { commitHash, summary: summary(), publishState: { ...state } };
+      return { commitHash, summary: summary(), publishState: { ...state }, warning: commitWarning };
     },
     async createTag(params) {
       calls.push({ method: "createTag", params });
@@ -123,17 +151,32 @@ export function createPublishFixture(summary: () => GitRepositorySummary) {
         trackingBranchName: null,
         remoteName: params.remote ?? "origin",
         setUpstream: false,
+        warning: pushWarning,
         summary: summary(),
       };
     },
   } satisfies Pick<
     IGitService,
-    "getPublishState" | "listRemotes" | "listTags" | "stagePaths" | "commit" | "createTag" | "push"
+    | "getNetworkSnapshot"
+    | "getNetworkOperation"
+    | "getPublishState"
+    | "listRemotes"
+    | "listTags"
+    | "stagePaths"
+    | "commit"
+    | "createTag"
+    | "push"
   >;
   return {
     service,
     controls: {
       calls,
+      warnCommit: (warning: string) => {
+        commitWarning = warning;
+      },
+      warnPush: (warning: string) => {
+        pushWarning = warning;
+      },
       state: () => ({ ...state }),
       tags: () => [...tags].map(([name, commitHash]) => ({ name, commitHash })),
       failPush: (remote: string, tag = "branch", message?: string) =>

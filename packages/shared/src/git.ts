@@ -116,6 +116,7 @@ export interface GitPublicationRequest extends GitRepositoryRequest {
 }
 
 export interface GitPublishState {
+  remoteConfigFingerprint?: string;
   headCommitHash: string | null;
   branchName: string | null;
   indexFingerprint: string;
@@ -267,10 +268,24 @@ export interface GitBranchMutationResult {
 
 export interface GitPathMutationRequest extends GitRepositoryRequest {
   paths: string[];
+  expectedState?: GitPublishState;
 }
 
 export interface GitDiscardPathsRequest extends GitPathMutationRequest {
   staged?: boolean;
+  expectedState: GitPublishState;
+}
+
+export interface GitCommitAndSwitchRequest extends GitPathMutationRequest {
+  message: string;
+  targetBranchName: string;
+  expectedState: GitPublishState;
+}
+
+export interface GitCommitAndSwitchResult {
+  commit: GitCommitResult;
+  switchResult: GitBranchMutationResult | null;
+  warning?: string;
 }
 
 export interface GitCommitRequest extends GitRepositoryRequest {

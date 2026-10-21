@@ -3,9 +3,55 @@ import { access, mkdir, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { fixture } from "./testFixture.js";
-import { createPublicWorktreeService, createWorktreeService } from "./node.js";
+import {
+  createPublicWorktreeService,
+  createWorktreeService,
+  createCheckoutCoordinator,
+} from "./node.js";
 import { createLCodeAgentService } from "../lcode-agent/lcodeAgentService.js";
 import { setDataBaseDir } from "../paths.js";
+
+test("Git 未完成 reservation 在重启后的 Host admission 阻止 Agent spawn，且不暴露 RPC bypass", async (t) => {
+  const f = await fixture(t);
+  const coordinator = createCheckoutCoordinator(f.options);
+  await coordinator.setReservation!({
+    workspacePath: f.repo,
+    operationKey: "a".repeat(64),
+    kind: "stash-apply",
+  });
+  const restarted = createWorktreeService(f.options);
+  const marker = join(f.root, "unexpected-git-spawn");
+  const agents = createLCodeAgentService({
+    requestTimeoutMs: 200,
+    worktreeService: restarted,
+    assertWorktreeExecutionAdmission: (scope) => restarted.assertExecutionAdmission(scope),
+    commandResolver: () => ({
+      command: process.execPath,
+      args: ["-e", `require('node:fs').writeFileSync(${JSON.stringify(marker)},'spawned')`],
+    }),
+  });
+  t.after(() => agents.disposeAllAndWait());
+  await assert.rejects(
+    agents.listSessions({ workspacePath: f.repo, workspaceIdentity: "other-window" }),
+    { code: "LCODE_CHECKOUT_RESERVED" },
+  );
+  await assert.rejects(access(marker), { code: "ENOENT" });
+  for (const kind of ["conflict-resolution", "integration"] as const) {
+    await coordinator.setReservation!({
+      workspacePath: f.repo,
+      operationKey: "a".repeat(64),
+      kind,
+    });
+    await assert.rejects(
+      agents.listSessions({ workspacePath: f.repo, workspaceIdentity: "manual-window" }),
+      { code: "LCODE_CHECKOUT_RESERVED" },
+    );
+    await assert.rejects(access(marker), { code: "ENOENT" });
+  }
+  assert.equal("clearReservation" in createPublicWorktreeService(restarted), false);
+  await coordinator.clearReservation!({ workspacePath: f.repo, operationKey: "a".repeat(64) });
+  await restarted.assertExecutionAdmission({ workspacePath: f.repo });
+});
 
 test("a fresh Host cannot respawn a failed deletion through background subdirectory reads", async (t) => {
   const f = await fixture(t);

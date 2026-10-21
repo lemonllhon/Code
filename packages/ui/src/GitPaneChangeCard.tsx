@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { GitDiffResult } from "@lcode/shared";
 import { ChevronDownIcon, CopyIcon, FolderOpenIcon, ListTreeIcon } from "lucide-react";
 import { DiffViewer } from "@/components/ui/diff-viewer.js";
@@ -19,6 +19,7 @@ import type { ResolvedTheme } from "@/useTheme.js";
 import { LightweightDiffPreview } from "@/components/ui/lightweight-diff-preview.js";
 
 export function GitPaneChangeCard({
+  actions,
   change,
   contextMenuLabels,
   diffState,
@@ -33,6 +34,7 @@ export function GitPaneChangeCard({
   onRevealInFileManager,
   onRevealInFileTree,
 }: {
+  actions?: ReactNode;
   change: GitPaneFileChange;
   contextMenuLabels: {
     copyAbsolutePath: string;
@@ -85,44 +87,47 @@ export function GitPaneChangeCard({
     <div className="w-full min-w-0">
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <button
-            type="button"
-            aria-expanded={isExpanded}
-            className={cn(
-              "sticky top-0 z-10 flex h-8 w-full items-center gap-3 bg-background px-3 text-left transition-colors hover:bg-surface-hover supports-[backdrop-filter]:backdrop-blur-sm",
-              isExpanded && "bg-surface-hover",
-            )}
-            onClick={() => onOpenChange(change, !isExpanded)}
-          >
-            {/* Review 打开会一次性挂载几十个可视/overscan 行；每行都用 Radix Collapsible
+          <div className="sticky top-0 z-10 flex min-w-0 items-center bg-background pr-2">
+            <button
+              type="button"
+              aria-expanded={isExpanded}
+              className={cn(
+                "flex h-8 min-w-0 flex-1 items-center gap-3 bg-background px-3 text-left transition-colors hover:bg-surface-hover",
+                isExpanded && "bg-surface-hover",
+              )}
+              onClick={() => onOpenChange(change, !isExpanded)}
+            >
+              {/* Review 打开会一次性挂载几十个可视/overscan 行；每行都用 Radix Collapsible
                 会额外创建 provider/presence 和测量链路，CDP CPU profile 里 click 后主线程集中耗在
                 React 提交阶段。这里改成普通按钮 + 仅展开行渲染内容，保留交互同时减少打开成本。 */}
-            <div className="min-w-0 flex-1 overflow-hidden">
-              <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-                <FileDisplayInline
-                  path={change.workspaceRelativePath}
-                  options={{
-                    showFilePath: true,
-                    className: "inline-flex min-w-0 max-w-full items-center gap-2",
-                    fileNameClassName: "truncate text-ui-base text-foreground",
-                    filePathClassName: "truncate text-ui-base text-foreground-subtlest",
-                  }}
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+                  <FileDisplayInline
+                    path={change.workspaceRelativePath}
+                    options={{
+                      showFilePath: true,
+                      className: "inline-flex min-w-0 max-w-full items-center gap-2",
+                      fileNameClassName: "truncate text-ui-base text-foreground",
+                      filePathClassName: "truncate text-ui-base text-foreground-subtlest",
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center justify-end gap-3 pl-3">
+                <div className="shrink-0 whitespace-nowrap text-ui-base">
+                  <span className="text-diff-added">+{change.added}</span>
+                  <span className="ml-2 text-diff-removed">-{change.removed}</span>
+                </div>
+                <ChevronDownIcon
+                  className={cn(
+                    "size-4 shrink-0 text-foreground-subtle transition-transform",
+                    isExpanded && "rotate-180",
+                  )}
                 />
               </div>
-            </div>
-            <div className="flex shrink-0 items-center justify-end gap-3 pl-3">
-              <div className="shrink-0 whitespace-nowrap text-ui-base">
-                <span className="text-diff-added">+{change.added}</span>
-                <span className="ml-2 text-diff-removed">-{change.removed}</span>
-              </div>
-              <ChevronDownIcon
-                className={cn(
-                  "size-4 shrink-0 text-foreground-subtle transition-transform",
-                  isExpanded && "rotate-180",
-                )}
-              />
-            </div>
-          </button>
+            </button>
+            {actions}
+          </div>
         </ContextMenuTrigger>
         <ContextMenuContent className="w-56">
           <ContextMenuItem

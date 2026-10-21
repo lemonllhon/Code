@@ -26,6 +26,7 @@ export function ProjectMemberRow({
   onChange,
   onRemove,
   onMove,
+  onSetPrimary,
 }: {
   member: ProjectMember;
   primary: boolean;
@@ -39,6 +40,7 @@ export function ProjectMemberRow({
   onChange(member: ProjectMember): void;
   onRemove(): void;
   onMove?(delta: number): void;
+  onSetPrimary?(): void;
 }) {
   const text = useProjectEditorText();
   const roleText = useProjectRoleText();
@@ -94,6 +96,17 @@ export function ProjectMemberRow({
           <span className="shrink-0 rounded-md border border-border px-1.5 py-0.5 text-ui-xs text-foreground-subtle">
             {text("primary")}
           </span>
+        ) : null}
+        {!primary && onSetPrimary ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={disabled}
+            aria-label={`${name} · ${text("setPrimary")}`}
+            onClick={onSetPrimary}
+          >
+            {text("setPrimary")}
+          </Button>
         ) : null}
         {error ? (
           <SidebarSourceReadError label={name} workspacePath={member.path} error={error} />

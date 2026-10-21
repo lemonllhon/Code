@@ -68,6 +68,9 @@ export function ProjectCreationControls() {
     setOAuthError: () => {},
     setUser: () => {},
   });
+  Object.assign(globalThis, {
+    __projectCreationActions: { create: actions.handleCreateLocalProject },
+  });
   return (
     <div className="fixed bottom-4 right-4">
       <Button onClick={() => setOpen(true)}>

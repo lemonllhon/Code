@@ -1,12 +1,13 @@
-export type GitCommitDialogSource = "automatic" | "composer" | "toolbar";
+export type GitCommitDialogSource = "automatic" | "composer" | "toolbar" | "network";
 export interface GitCommitDialogAttempt {
   id: number;
   source: GitCommitDialogSource;
   draftKey?: string;
   visible: boolean;
+  engaged: boolean;
 }
 
-/** 弹窗请求不是显示成功；关闭/卸载时递增代次，拒绝迟到的加载与 AI 结果。 */
+/** 审核请求不是显示成功；结束/卸载时递增代次，拒绝迟到的加载与 AI 结果。 */
 export class GitCommitDialogLifecycle {
   private epoch = 0;
   private disposed = false;
@@ -23,13 +24,24 @@ export class GitCommitDialogLifecycle {
   }
 
   canAutoOpen(key: string): boolean {
-    return !this.disposed && !this.current && !this.attemptedDraftKeys.has(key);
+    return !this.disposed && !this.current?.engaged && !this.attemptedDraftKeys.has(key);
+  }
+
+  engage(): void {
+    if (this.current) this.current.engaged = true;
   }
 
   begin(source: GitCommitDialogSource, draftKey?: string): number {
     this.disposed = false;
     if (draftKey) this.attemptedDraftKeys.add(draftKey);
-    this.current = { id: ++this.epoch, source, ...(draftKey ? { draftKey } : {}), visible: false };
+    // 安装版复现：进入远端的只读初始化不能消费自动草稿；人工审核/发布才接管该 attempt。
+    this.current = {
+      id: ++this.epoch,
+      source,
+      ...(draftKey ? { draftKey } : {}),
+      visible: false,
+      engaged: source !== "network",
+    };
     return this.epoch;
   }
 

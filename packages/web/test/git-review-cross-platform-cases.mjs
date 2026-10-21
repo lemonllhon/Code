@@ -1,3 +1,4 @@
+import { showReviewFiles, returnToReview } from "./git-review-pane-helpers.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -15,6 +16,8 @@ export async function runGitReviewCrossPlatformCases(t, { browser, url }) {
     const dir = await mkdtemp(join(tmpdir(), "review-browser-"));
     const host = new GitReviewWorkspaceState(dir);
     let activeScope;
+    const commands = [];
+    const initializers = [];
     const server = createServer(async (request, response) => {
       response.setHeader("Access-Control-Allow-Origin", "*");
       response.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -36,11 +39,24 @@ export async function runGitReviewCrossPlatformCases(t, { browser, url }) {
         let body = "";
         for await (const chunk of request) body += chunk;
         const input = JSON.parse(body);
+        // 将双端同值默认初始化放在同一版本，确定性覆盖旧实现的自造冲突。
+        // 修复后无需发送同值初始化；该屏障不涉及人工编辑或真实业务执行。
+        if (
+          route.pathname === "/update" &&
+          input.patch.includeUnstaged === true &&
+          input.expectedFieldRevisions.includeUnstaged === 0
+        ) {
+          await new Promise((resolve) => {
+            initializers.push(resolve);
+            if (initializers.length === 2) initializers.splice(0).forEach((release) => release());
+          });
+        }
         // 同一页面分别读取 epoch 来源草稿和会话合并状态；不能拿最后一次 read 当作草稿 owner。
         if (route.pathname === "/update" && Object.hasOwn(input.patch, "draft"))
           activeScope = input.scope;
         const result =
           route.pathname === "/read" ? await host.read(input) : await host.update(input);
+        if (route.pathname === "/update") commands.push({ input, result });
         response.setHeader("Content-Type", "application/json");
         response.end(JSON.stringify(result));
       } catch {
@@ -54,12 +70,33 @@ export async function runGitReviewCrossPlatformCases(t, { browser, url }) {
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
     const fixtureUrl = `${url}?sharedHost=${encodeURIComponent(hostUrl)}`;
     const input = (page) => page.getByTestId("git-commit-message-input");
-    const waitMessage = (page, message) =>
-      page.waitForFunction(
-        (message) =>
-          document.querySelector('[data-testid="git-commit-message-input"]')?.value === message,
-        message,
-      );
+    const waitMessage = async (page, message) => {
+      try {
+        await page.waitForFunction(
+          (message) =>
+            document.querySelector('[data-testid="git-commit-message-input"]')?.value === message,
+          message,
+        );
+      } catch (error) {
+        const clients = await Promise.all(
+          [desktop, phone].map((client) =>
+            client.evaluate(() => ({
+              draft: document.querySelector('[data-testid="git-commit-message-input"]')?.value,
+              sync: document.querySelector('[data-testid="review-sync-status"]')?.textContent,
+            })),
+          ),
+        );
+        process.stderr.write(
+          JSON.stringify({
+            sharedHostFailure: message,
+            clients,
+            commands,
+            host: activeScope ? await host.read(activeScope) : null,
+          }) + "\n",
+        );
+        throw error;
+      }
+    };
     try {
       await Promise.all([desktop.goto(fixtureUrl), phone.goto(fixtureUrl + "&english")]);
       await desktop.getByTestId("git-action-trigger").click();
@@ -69,6 +106,11 @@ export async function runGitReviewCrossPlatformCases(t, { browser, url }) {
       await input(phone).fill("fix: shared phone draft");
       await waitMessage(desktop, "fix: shared phone draft");
       const shared = await host.read(activeScope);
+      assert.equal(
+        shared.fieldRevisions.includeUnstaged,
+        0,
+        "opening with the Host default must be read-only",
+      );
       await host.update({
         scope: activeScope,
         commandId: "scope-selection",
@@ -80,20 +122,20 @@ export async function runGitReviewCrossPlatformCases(t, { browser, url }) {
           .querySelector('[data-testid="git-commit-scope-counts"]')
           ?.textContent?.includes("/ 1 files"),
       );
-      await desktop.getByTestId("git-scope-open-files").click();
-      await desktop.getByTestId("git-review-exclude-a.ts").click();
+      await showReviewFiles(desktop, true);
+      await desktop.getByTestId("git-review-include-a.ts").first().uncheck();
       await phone.waitForFunction(() =>
         document
           .querySelector('[data-testid="git-commit-scope-counts"]')
           ?.textContent?.includes("1 excluded"),
       );
-      assert.equal(await desktop.getByTestId("git-commit-dialog").isVisible(), false);
-      await desktop.getByTestId("code-viewer-return-review").click();
+      assert.equal(await desktop.getByTestId("git-commit-review-pane").isVisible(), true);
+      await returnToReview(desktop);
       await phone.reload();
       await phone.getByTestId("git-action-trigger").click();
       await waitMessage(phone, "fix: shared phone draft");
       assert.match(await phone.getByTestId("git-commit-scope-counts").innerText(), /1 excluded/);
-      await phone.getByTestId("git-scope-open-files").click();
+      await showReviewFiles(phone, true);
       await phone.getByTestId("review-restore-all").click();
       await desktop.waitForFunction(() =>
         document

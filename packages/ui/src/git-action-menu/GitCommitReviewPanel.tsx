@@ -22,11 +22,7 @@ export function GitCommitReviewPanel({
   onBrowse,
   onAcknowledge,
   onManualFallback,
-  onOpenFiles,
-  canOpenFiles,
 }: {
-  onOpenFiles: () => void;
-  canOpenFiles: boolean;
   review: GitCommitReview;
   position: number;
   browsePosition: number;
@@ -42,10 +38,17 @@ export function GitCommitReviewPanel({
   const authoritative = browsePosition === position;
   return (
     <section
-      className="min-w-0 space-y-2 border-t border-border px-4 py-3 text-ui-sm"
+      className="min-w-0 space-y-1.5 border-t border-border px-3 py-2 text-ui-sm"
       data-testid="git-commit-review"
     >
-      <p className="font-medium">{intl.formatMessage({ id: `git.review.mode.${review.mode}` })}</p>
+      <div className="flex flex-wrap items-center justify-between gap-1">
+        <p className="font-medium">
+          {group?.label || intl.formatMessage({ id: `git.review.mode.${review.mode}` })}
+        </p>
+        <span className="text-foreground-subtle">
+          {Math.min(position + 1, review.groups.length)} / {review.groups.length}
+        </span>
+      </div>
       {review.warnings.map((warning, index) => (
         <p key={index} className="break-words text-warning">
           {WARNING_IDS[warning] ? intl.formatMessage({ id: WARNING_IDS[warning] }) : warning}
@@ -66,7 +69,8 @@ export function GitCommitReviewPanel({
       <Button
         type="button"
         variant="ghost"
-        size="sm"
+        size="xs"
+        className="px-0 text-ui-sm text-foreground-subtle"
         disabled={disabled}
         data-testid="git-review-manual-fallback"
         onClick={onManualFallback}
@@ -85,7 +89,7 @@ export function GitCommitReviewPanel({
           )}
         </p>
       ) : null}
-      <p className="text-foreground-subtle">
+      <p className="sr-only">
         {position >= review.groups.length
           ? intl.formatMessage({ id: "git.review.complete" })
           : intl.formatMessage(
@@ -125,28 +129,11 @@ export function GitCommitReviewPanel({
       ) : null}
       {group ? (
         <>
-          <p className="break-words font-medium">
-            {group.label || intl.formatMessage({ id: "git.review.mergedLabel" })}
-          </p>
           {!authoritative ? (
             <p className="whitespace-pre-wrap break-words font-mono">{group.message}</p>
           ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            data-testid="git-review-open-files"
-            disabled={!canOpenFiles}
-            onClick={onOpenFiles}
-          >
-            {intl.formatMessage(
-              { id: "git.review.openFileWorkspace" },
-              { count: group.files.length },
-            )}
-          </Button>
         </>
       ) : null}
-      <p className="text-foreground-subtle">{intl.formatMessage({ id: "git.review.frozen" })}</p>
     </section>
   );
 }

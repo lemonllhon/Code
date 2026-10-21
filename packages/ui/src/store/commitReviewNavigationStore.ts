@@ -12,7 +12,37 @@ interface NavigationRequest {
   key: string;
   token: string;
 }
+export type GitWorkbenchView =
+  | "review"
+  | "changes"
+  | "graph"
+  | "network"
+  | "stash"
+  | "conflicts"
+  | "integration";
+interface PaneNavigation {
+  token: string;
+  open: () => void;
+  close: () => void;
+  selectView: (view: GitWorkbenchView) => void;
+}
+interface PaneHost {
+  token: string;
+  element: HTMLElement;
+  visible: boolean;
+}
 interface CommitReviewNavigationState {
+  paneNavigation: Record<string, PaneNavigation>;
+  registerPaneNavigation: (key: string, value: PaneNavigation) => void;
+  removePaneNavigation: (key: string, token: string) => void;
+  revealPane: (key: string) => boolean;
+  paneHosts: Record<string, PaneHost>;
+  registerPaneHost: (key: string, value: PaneHost) => void;
+  setPaneHostVisible: (key: string, token: string, visible: boolean) => void;
+  removePaneHost: (key: string, token: string) => void;
+  publicationHosts: Record<string, PaneHost>;
+  registerPublicationHost: (key: string, value: PaneHost) => void;
+  removePublicationHost: (key: string, token: string) => void;
   draftReceivers: Record<string, { token: string; action: (text: string) => boolean | void }>;
   registerDraftReceiver: (
     key: string,
@@ -34,6 +64,44 @@ interface CommitReviewNavigationState {
 
 // 只保存窗口内尚未消费的“打开界面”意图，不能作为提交、合并或人工审批事实。
 export const useCommitReviewNavigationStore = create<CommitReviewNavigationState>((set, get) => ({
+  paneNavigation: {},
+  registerPaneNavigation: (key, value) =>
+    set((state) => ({ paneNavigation: { ...state.paneNavigation, [key]: value } })),
+  removePaneNavigation: (key, token) => {
+    if (get().paneNavigation[key]?.token !== token) return;
+    const { [key]: removed, ...paneNavigation } = get().paneNavigation;
+    void removed;
+    set({ paneNavigation });
+  },
+  revealPane: (key) => {
+    const navigation = get().paneNavigation[key];
+    if (!navigation) return false;
+    navigation.open();
+    return true;
+  },
+  paneHosts: {},
+  registerPaneHost: (key, value) =>
+    set((state) => ({ paneHosts: { ...state.paneHosts, [key]: value } })),
+  setPaneHostVisible: (key, token, visible) => {
+    const host = get().paneHosts[key];
+    if (!host || host.token !== token || host.visible === visible) return;
+    set((state) => ({ paneHosts: { ...state.paneHosts, [key]: { ...host, visible } } }));
+  },
+  removePaneHost: (key, token) => {
+    if (get().paneHosts[key]?.token !== token) return;
+    const { [key]: removed, ...paneHosts } = get().paneHosts;
+    void removed;
+    set({ paneHosts });
+  },
+  publicationHosts: {},
+  registerPublicationHost: (key, value) =>
+    set((state) => ({ publicationHosts: { ...state.publicationHosts, [key]: value } })),
+  removePublicationHost: (key, token) => {
+    if (get().publicationHosts[key]?.token !== token) return;
+    const { [key]: removed, ...publicationHosts } = get().publicationHosts;
+    void removed;
+    set({ publicationHosts });
+  },
   draftReceivers: {},
   registerDraftReceiver: (key, receiver) =>
     set((state) => ({ draftReceivers: { ...state.draftReceivers, [key]: receiver } })),

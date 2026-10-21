@@ -87,9 +87,11 @@ test("原生 Hook 按序执行，读取冻结 index 而非其它会话，消息 
     await readFile(join(root, ".git", "hook-order"), "utf8"),
     "pre-commit\nprepare-commit-msg\ncommit-msg\npost-commit\n",
   );
-  assert.equal(
+  // 本机 Git 2.56.0.windows.2 的独立 update-ref 探针也有 preparing 前置通知；
+  // 兼容该原生差异，仍严格校验 prepared/committed 的次序与唯一性。
+  assert.match(
     await readFile(join(root, ".git", "reference-order"), "utf8"),
-    "prepared\ncommitted\n",
+    /^(?:preparing\n)?prepared\ncommitted\n$/,
   );
   assert.equal(await git("log", "-1", "--format=%B"), "feat: 第一部分\n\n审核纪要\n\n");
   assert.equal(await git("show", "HEAD:other.txt"), "other\n");

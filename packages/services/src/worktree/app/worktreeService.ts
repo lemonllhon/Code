@@ -48,6 +48,7 @@ export function createWorktreeApplication(
       return settings;
     },
     async assertExecutionAdmission(scope) {
+      await options.coordinator.assertAdmission?.(scope);
       const binding = await context.store.findExecutionBinding(scope);
       // 内存 stop 标记会随 Host 重启丢失；持久删除状态是阻止后台只读请求重新 spawn 的唯一事实。
       if (binding && ["deleting", "deleted", "archived"].includes(binding.status))

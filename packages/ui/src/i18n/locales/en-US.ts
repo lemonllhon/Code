@@ -1,5 +1,670 @@
 /** English translations */
 const enUS: Record<string, string> = {
+  "git.workspace.error.ssh-key-unavailable":
+    "The SSH private key path is unavailable. Check Git management settings.",
+  "settings.gitManagement.title": "Git management",
+  "settings.gitManagement.configuration": "Git configuration",
+  "settings.gitManagement.binaryPath": "Git executable path",
+  "settings.gitManagement.automaticPath": "Leave empty to detect Git automatically",
+  "settings.gitManagement.detect": "Detect Git path",
+  "settings.gitManagement.detectingGit": "Detecting Git automatically…",
+  "settings.gitManagement.selectGitFile": "Choose Git executable",
+  "settings.gitManagement.openGitLocation": "Open Git file location",
+  "settings.gitManagement.nativePathUnavailable":
+    "This device cannot browse Host paths. Enter the path manually.",
+  "settings.gitManagement.selectGitFailed":
+    "Could not choose a Git file. Try again or enter the path manually.",
+  "settings.gitManagement.openGitFailed": "Could not open the Git file location. Check the path.",
+  "settings.gitManagement.useAutomatic": "Use automatic detection",
+  "settings.gitManagement.detectedPath": "Detected path:",
+  "settings.gitManagement.notFound": "Not found",
+  "settings.gitManagement.userName": "Commit author name",
+  "settings.gitManagement.userEmail": "Commit author email",
+  "settings.gitManagement.initialBranch": "Default initial branch",
+  "settings.gitManagement.existingGitValue": "Leave empty to use existing Git configuration",
+  "settings.gitManagement.saveConfiguration": "Save Git configuration",
+  "settings.gitManagement.accounts": "Authentication accounts",
+  "settings.gitManagement.addAccount": "Add account",
+  "settings.gitManagement.editAccount": "Edit account",
+  "settings.gitManagement.github": "GitHub accounts",
+  "settings.gitManagement.gitlab": "GitLab accounts",
+  "settings.gitManagement.gitea": "Gitea / Forgejo accounts",
+  "settings.gitManagement.server": "Git server accounts",
+  "settings.gitManagement.githubDescription":
+    "Manage GitHub authentication accounts. Tokens are encrypted locally.",
+  "settings.gitManagement.gitlabDescription":
+    "Manage GitLab.com and self-hosted GitLab accounts. Tokens are encrypted locally.",
+  "settings.gitManagement.giteaDescription":
+    "Manage Gitea and Forgejo accounts, including self-hosted servers. Tokens are encrypted locally.",
+  "settings.gitManagement.serverDescription":
+    "Manage credentials for other Git servers, including Bitbucket and custom servers.",
+  "settings.gitManagement.token": "Access token",
+  "settings.gitManagement.ssh": "SSH",
+  "settings.gitManagement.system": "System Git credentials",
+  "settings.gitManagement.oauth": "Browser authorization",
+  "settings.gitManagement.oauthHelp": "How do I authorize an account?",
+  "settings.gitManagement.oauthHelpClient":
+    "Create an OAuth application in the selected Git server's application settings and enter its Client ID here. You can name the application LCode.",
+  "settings.gitManagement.oauthHelpGithub":
+    "GitHub: create an OAuth App and enable Device Flow. If registration requires a callback, use the URL below. Start authorization, enter the one-time code and approve repository and user permissions.",
+  "settings.gitManagement.oauthHelpGitlab":
+    "GitLab, including self-hosted instances: create a non-confidential public OAuth application with read_user, read_repository and write_repository scopes. Register the callback below.",
+  "settings.gitManagement.oauthHelpGitea":
+    "Gitea / Forgejo: create a non-confidential public OAuth2 application and register the callback below. LCode uses PKCE automatically. Approve read:user and write:repository permissions.",
+  "settings.gitManagement.oauthHelpCallback":
+    "Register this exact callback URL in the application:",
+  "settings.gitManagement.oauthHelpSave":
+    "Return after approving in the browser, check the verified account and save it. Tokens are encrypted on the current Host and never displayed here.",
+  "settings.gitManagement.oauthCreateApp": "Open OAuth application settings",
+  "settings.gitManagement.oauthRedirect": "Authorization callback URL",
+  "settings.gitManagement.oauthStart": "Start browser authorization",
+  "settings.gitManagement.oauthOpenBrowser": "Open authorization page",
+  "settings.gitManagement.oauthCancel": "Cancel authorization",
+  "settings.gitManagement.oauthUserCode": "One-time code:",
+  "settings.gitManagement.oauthCallbackHint":
+    "If a remote browser cannot return to LCode, paste the final callback URL to validate it on the Host.",
+  "settings.gitManagement.oauthCallbackUrl": "Complete callback URL",
+  "settings.gitManagement.oauthSubmitCallback": "Validate callback",
+  "settings.gitManagement.oauthBrowserFailed":
+    "Could not open the browser. Use Open authorization page to retry.",
+  "settings.gitManagement.oauthStatus.pending": "Waiting for browser approval…",
+  "settings.gitManagement.oauthStatus.ready": "Authorized. Save this account:",
+  "settings.gitManagement.oauthStatus.saving": "Saving authorized account…",
+  "settings.gitManagement.oauthStatus.saved": "Authorized account saved.",
+  "settings.gitManagement.oauthStatus.cancelled": "Authorization cancelled.",
+  "settings.gitManagement.oauthStatus.failed": "Authorization did not complete.",
+  "settings.gitManagement.oauthStatus.expired": "Authorization expired. Start again.",
+  "settings.gitManagement.oauth-unavailable":
+    "This Host does not support this authorization method.",
+  "settings.gitManagement.oauth-invalid":
+    "Authorization changed or the callback is invalid. Start again.",
+  "settings.gitManagement.oauth-failed":
+    "Authorization failed. Check the Client ID, public client, callback URL and permissions, then retry.",
+  "settings.gitManagement.oauth-denied": "You declined or cancelled authorization on the server.",
+  "settings.gitManagement.oauth-tls-untrusted":
+    "This Host does not trust the Git server's certificate chain. Install its root CA in this computer's system trust store or configure a CA file in network settings, then restart the Host before authorizing again.",
+  "settings.gitManagement.oauth-tls-hostname":
+    "The Git server certificate does not match its hostname. Check the server address or renew the certificate.",
+  "settings.gitManagement.oauth-tls-expired":
+    "The Git server certificate has expired or is not yet valid. Check the certificate dates and system clock.",
+  "settings.gitManagement.oauth-network":
+    "This Host cannot reach the authorization server. Check its network, proxy and server address.",
+  "settings.gitManagement.oauth-client-invalid":
+    "The OAuth Client ID is invalid or the client type does not match. Check the app settings; GitLab/Gitea/Forgejo require a non-confidential public client.",
+  "settings.gitManagement.oauth-code-invalid":
+    "The authorization code expired, was already used or does not match the app. Start authorization again and verify the callback URL.",
+  "settings.gitManagement.oauth-permission":
+    "The server rejected authorization or the scopes are insufficient. Check the app's scopes.",
+  "settings.gitManagement.oauth-token-exchange":
+    "The Host could not exchange the authorization code for a token. Check the app configuration and start again.",
+  "settings.gitManagement.oauth-user-verification":
+    "A token was returned but the login identity could not be verified. Check the user-information scope and server API.",
+  "settings.gitManagement.oauth-port-in-use":
+    "The callback port is in use. Cancel another authorization or change the callback port in both places.",
+  "settings.gitManagement.oauth-expired": "Authorization expired. Authorize the account again.",
+  "git.workspace.error.oauth-expired":
+    "Git authorization expired or was revoked. Authorize the account again in Git management.",
+  "settings.gitManagement.source.windows-credentials": "Windows Credential Manager",
+  "settings.gitManagement.source.macos-keychain": "macOS Keychain",
+  "settings.gitManagement.source.linux-secret-service": "Linux Secret Service",
+  "settings.gitManagement.sourceStatus.ok": "Detected",
+  "settings.gitManagement.sourceStatus.partial": "Partially available",
+  "settings.gitManagement.sourceStatus.unavailable": "Currently unavailable",
+  "settings.gitManagement.sourceStatus.unsupported": "Not supported on this system",
+  "settings.gitManagement.tokenStored": "Token stored",
+  "settings.gitManagement.edit": "Edit",
+  "settings.gitManagement.delete": "Delete",
+  "settings.gitManagement.deleteConfirm":
+    "Delete this account and its local token? Repositories using it will need authentication reconfigured.",
+  "settings.gitManagement.cancel": "Cancel",
+  "settings.gitManagement.empty": "No accounts added",
+  "settings.gitManagement.accountName": "Account name",
+  "settings.gitManagement.provider": "Service type",
+  "settings.gitManagement.authentication": "Authentication method",
+  "settings.gitManagement.serverUrl": "Server URL",
+  "settings.gitManagement.username": "Username",
+  "settings.gitManagement.privateKeyPath": "SSH private key path",
+  "settings.gitManagement.keepToken":
+    "Leave empty to retain the stored token. Enter a new token when changing server or username.",
+  "settings.gitManagement.tokenHint":
+    "Tokens are encrypted on the current Host, never stored in repository URLs or ordinary settings.",
+  "settings.gitManagement.sshHint":
+    "References the original key path. Leave empty to use SSH config / agent. Host key verification stays enabled.",
+  "settings.gitManagement.invalid":
+    "Check the account name, server URL, username and authentication method. SSH accounts require an ssh:// URL.",
+  "settings.gitManagement.saveAccount": "Save account",
+  "settings.gitManagement.detectedAccounts": "Local accounts and SSH",
+  "settings.gitManagement.detectionHint":
+    "Automatically detect Git Credential Manager, gh / glab / tea, Git credential files and .ssh. Candidates appear in their provider tab; import them to use in the repository wizard.",
+  "settings.gitManagement.detectAccounts": "Detect local accounts",
+  "settings.gitManagement.detecting": "Detecting local accounts…",
+  "settings.gitManagement.import": "Import",
+  "settings.gitManagement.sshKeys": "Local SSH keys",
+  "settings.gitManagement.sshKeyExplanation":
+    "The private key proves your identity locally; add the public key to your Git server. Expand to view the type, paths, fingerprint and public key.",
+  "settings.gitManagement.viewSshKey": "View key information for {name}",
+  "settings.gitManagement.hideSshKey": "Hide key information for {name}",
+  "settings.gitManagement.keyType": "Key type",
+  "settings.gitManagement.keyTypeUnavailable": "Type unavailable",
+  "settings.gitManagement.publicKeyPath": "Public key path",
+  "settings.gitManagement.fingerprint": "SHA256 fingerprint",
+  "settings.gitManagement.publicKey": "Public key",
+  "settings.gitManagement.publicKeyUnavailable":
+    "No valid matching .pub file was found. Key type, fingerprint and public key are unavailable.",
+  "settings.gitManagement.availableAccounts":
+    "Detected locally; import to select in the repository wizard",
+  "settings.gitManagement.detectionPartial":
+    "Some configuration could not be parsed. You can add accounts manually.",
+  "settings.gitManagement.unavailable": "This Host does not support Git account management yet.",
+  "settings.gitManagement.loadFailed": "Could not read Git configuration. Try again.",
+  "settings.gitManagement.saveFailed": "Could not save. Check the configuration and try again.",
+  "settings.gitManagement.detectFailed":
+    "Detection failed. You can enter a path or account manually.",
+  "settings.gitManagement.conflict":
+    "Another window changed the configuration. Reload before submitting your edits.",
+  "settings.gitManagement.tokenRequired":
+    "Enter a token. Changing server or username requires a new token.",
+  "settings.gitManagement.reload": "Reload",
+  "settings.gitManagement.repositoryAccount": "Repository account",
+  "settings.gitManagement.repositoryAccountHint":
+    "Only accounts matching the repository URL are listed. Manage them in Settings → Coding → Git management.",
+  "settings.gitManagement.accountUnavailable":
+    "The account changed or no longer matches. Select it again.",
+  "settings.gitManagement.reloadAccounts": "Reload accounts",
+  "git.workspace.error.stale-account":
+    "The account changed. Return to configuration, select it again and preview.",
+  "git.workspace.error.missing-account":
+    "The account was deleted. Return to configuration and choose another account.",
+  "git.workspace.error.account-server-mismatch":
+    "The account does not match the repository server.",
+  "git.workspace.error.authentication-unavailable":
+    "This Host does not support repository accounts.",
+  "git.history.advanced": "Advanced filters",
+  "git.history.reset": "Reset filters",
+  "git.history.chooseRef": "Choose branch or tag",
+  "git.history.chooseAuthor": "Choose author",
+  "git.history.candidateSearch": "Search candidates",
+  "git.history.candidateLoading": "Loading candidates…",
+  "git.history.candidateEmpty": "No candidates. Enter a value directly.",
+  "git.history.candidateLimited": "Partial candidates. Enter the full filter directly.",
+  "git.history.candidateRefresh": "Refresh candidates",
+  "git.history.fileTree": "Commit files",
+  "git.history.resizeColumn": "Resize {column} column",
+  "git.history.viewCommit": "View commit",
+  "git.history.commitMenu": "Actions for commit {hash}",
+  "git.history.selectCommit": "Select commit {hash}",
+  "git.history.selectedCount": "{count}/32 selected",
+  "git.history.clearSelection": "Clear selection",
+  "git.history.mainlineChoice": "Operation mainline",
+  "git.history.chooseMainline": "Choose a parent",
+  "git.history.resetMode": "Reset mode",
+  "git.history.resetMode.soft": "Move the current branch. Keep index and working tree.",
+  "git.history.resetMode.mixed": "Move the current branch and reset index. Keep working tree.",
+  "git.history.resetMode.hard": "Move the current branch and reset index and tracked files.",
+  "git.history.resetBackup":
+    "Preserve the old HEAD and tracked changes in recovery refs before execution. No automatic push.",
+  "git.history.resetDiscard": "Discard current staged and unstaged tracked changes",
+  "git.history.restoreReset": "Restore this Reset",
+  "git.history.restoreConfirm": "Restore the files and staged changes from before Reset",
+  "git.history.unchangedLines": "{count} unmodified lines",
+  "git.history.expand.all": "Expand all context",
+  "git.history.expand.up": "Expand context above",
+  "git.history.expand.down": "Expand context below",
+  "git.history.expand.both": "Expand context",
+  "git.history.detail": "Commit details",
+  "git.history.showDetail": "Show commit details",
+  "git.history.closeDetail": "Close commit details",
+  "git.history.closeDiff": "Close diff",
+  "git.history.resizeHistory": "Resize history and details",
+  "git.history.resizeDiff": "Resize files and diff",
+  "git.integration.cherry-pickHint":
+    "Apply the selected commit to this branch and create a new commit. Continue or abort explicitly after conflicts.",
+  "git.integration.revertHint":
+    "Create a new commit that reverses the selected commit, keeping existing history. Continue or abort explicitly after conflicts.",
+  "git.workspace.kind.cherry-pick": "Cherry-pick",
+  "git.workspace.kind.revert": "Revert",
+  "git.workspace.kind.history-reset": "Reset history",
+  "git.workspace.kind.history-reset-restore": "Restore history Reset",
+  "git.workspace.kind.history-tag": "Create history tag",
+  "git.history.title": "History",
+  "git.history.refresh": "Refresh history",
+  "git.history.ref": "Full branch/tag ref or OID (all)",
+  "git.history.author": "Author",
+  "git.history.committer": "Committer",
+  "git.history.search": "Text or hash",
+  "git.history.regex": "Regular expression",
+  "git.history.caseSensitive": "Match case",
+  "git.history.locate": "Go to commit",
+  "git.history.locateTarget": "Commit hash or full ref",
+  "git.history.locateHint": "Clear filters and show this commit with its ancestors.",
+  "git.history.since": "From date (UTC)",
+  "git.history.until": "To date (UTC)",
+  "git.history.visibleOnly": "Visible history only; filtering does not switch branches.",
+  "git.history.filter": "Filter",
+  "git.history.parent": "Compare parent",
+  "git.history.empty": "No matching commits.",
+  "git.history.more": "Load more",
+  "git.history.loadLimit": "History loading limit reached. Narrow the filters.",
+  "git.history.filesTruncated": "Showing the first 500 files. Use native Git for the full range.",
+  "git.history.mainline":
+    "Merge commits require a mainline choice. Cherry-pick and revert are unavailable here.",
+  "git.history.tag": "Create tag",
+  "git.history.tagName": "Tag name",
+  "git.history.tagMessage": "Tag message",
+  "git.history.sign": "Sign with the target Host’s configured native key",
+  "git.history.tagHint":
+    "Create an annotated or signed tag without replacing existing tags or pushing.",
+  "git.history.preview": "Preview",
+  "git.history.confirm": "Confirm",
+  "git.history.annotatedTag": "Annotated tag",
+  "git.history.signedTag": "Signed tag",
+  "git.history.actionHint":
+    "Create a new commit on the current branch; conflicts may require resolution. The source commit stays unchanged. No automatic push.",
+  "git.history.inspectTag": "Inspect actual tag",
+  "git.history.signaturePresent": "Signature present (not verified here)",
+  "git.history.noSignature": "No signature",
+  "git.workspace.error.invalid-history-regex": "Invalid Git extended regular expression.",
+  "git.workspace.error.ambiguous-history-target": "Ambiguous hash prefix. Enter more characters.",
+  "git.workspace.error.missing-history-target": "Commit not found in visible history.",
+  "git.workspace.error.reset-outcome-unknown":
+    "Reset outcome is unknown. Inspect the original receipt and recovery refs before proceeding.",
+  "git.workspace.error.stale-history":
+    "History refs changed. Refresh before filtering or paging again.",
+  "git.workspace.error.history-read-failed":
+    "History could not be read completely. Refresh and try again.",
+  "git.workspace.error.history-object-too-large":
+    "The commit or tag object exceeds 512 KiB. Use native Git.",
+  "git.workspace.error.unsupported-history-object":
+    "This object is not a safely readable UTF-8 commit or tag.",
+  "git.workspace.error.invalid-parent":
+    "The selected parent does not exist. Choose another parent.",
+  "git.workspace.error.missing-history-file":
+    "This file is outside the displayed parent comparison. Refresh its details.",
+  "git.workspace.error.mainline-required":
+    "Merge commits require a mainline choice. Use native Git for this operation.",
+  "git.workspace.error.unreachable-commit":
+    "Revert is limited to commits reachable from the current branch.",
+  "git.workspace.error.tag-exists": "This tag already exists. Choose another name.",
+  "git.workspace.error.signer-not-configured":
+    "Configure user.signingkey on the target Host before signing.",
+  "git.workspace.error.tag-command-failed":
+    "Tag creation failed. Check Host identity and native signing settings.",
+  "git.workspace.error.tag-outcome-unknown":
+    "The tag outcome is unknown. Read the receipt and inspect the actual tag before creating anything else.",
+  "git.integration.title": "Integrate",
+  "git.integration.refresh": "Refresh integration",
+  "git.integration.branch": "Current branch",
+  "git.integration.mode": "Method",
+  "git.integration.target": "Target full ref or commit OID",
+  "git.integration.chooseBranch": "Choose a local or remote branch",
+  "git.integration.mergeHint":
+    "Fast-forward when possible; otherwise create a merge commit. The preview freezes the target commit.",
+  "git.integration.rebaseHint":
+    "Replay this branch’s linear commits onto the target, rewriting history. Coordinate changes to shared branches.",
+  "git.integration.rewrite": "Commits to replay",
+  "git.integration.progress": "Replay progress",
+  "git.integration.pauseHint":
+    "This integration reserves checkout writes. Resolve and mark every conflict before continuing.",
+  "git.integration.reserved":
+    "Another operation reserves this checkout. Return to its original owner.",
+  "git.integration.external":
+    "An external integration is active. Continue or abort using its original tool.",
+  "git.integration.conflicts": "Unresolved conflicts",
+  "git.integration.resolve": "Resolve manually",
+  "git.integration.changes": "Changed files",
+  "git.integration.start": "Confirm integration",
+  "git.integration.continue": "Continue integration",
+  "git.integration.abort": "Abort integration",
+  "git.integration.abortWarning":
+    "I confirm aborting will undo manual edits and staged resolutions from this integration and restore the original branch and commit.",
+  "git.integration.continueHint":
+    "Continue explicitly after marking resolutions. This may commit the current result or pause at another conflict.",
+  "git.integration.preview": "Preview",
+  "git.integration.confirm": "Confirm",
+  "git.workspace.kind.merge": "Merge",
+  "git.workspace.kind.rebase": "Rebase",
+  "git.workspace.kind.integration-continue": "Continue integration",
+  "git.workspace.kind.integration-abort": "Abort integration",
+  "git.workspace.error.detached": "HEAD is detached. Switch to a local branch first.",
+  "git.workspace.error.invalid-target": "Select a valid full branch ref or commit OID.",
+  "git.workspace.error.unsupported-integration":
+    "The native integration cannot be safely verified. Keep its files and inspect it with the original tool.",
+  "git.workspace.error.unsupported-rebase-topology":
+    "Rebase currently supports up to 1024 linear commits. Use native Git for merge topology.",
+  "git.workspace.error.unrelated-histories":
+    "The target and current branch have no common ancestor.",
+  "git.workspace.error.discard-confirmation-required":
+    "Confirm that aborting will undo manual resolutions.",
+  "git.workspace.error.integration-not-ready":
+    "The operation is not ready. Resolve and mark conflicts, handle unstaged or untracked files, or inspect native state.",
+  "git.workspace.error.integration-conflict":
+    "Integration paused at conflicts. Resolve and mark them before continuing, or explicitly abort.",
+  "git.workspace.error.integration-paused":
+    "Native integration is paused. Inspect its state; handle extra decisions such as empty commits in native Git.",
+  "git.workspace.error.integration-outcome-unknown":
+    "The integration outcome is unknown. Read its receipt and inspect native state before taking further action.",
+  "git.conflict.title": "Conflicts",
+  "git.conflict.open": "Resolve manually",
+  "git.conflict.refresh": "Refresh conflict state",
+  "git.conflict.versions": "Three-way versions and result",
+  "git.conflict.base": "Base · Stage 1",
+  "git.conflict.ours": "Ours · Stage 2",
+  "git.conflict.theirs": "Theirs · Stage 3",
+  "git.conflict.result": "Resolution result",
+  "git.conflict.useVersion": "Use in result",
+  "git.conflict.unsaved": "Unsaved",
+  "git.conflict.lineEndings": "Save line endings",
+  "git.conflict.chooseEol": "Choose…",
+  "git.conflict.mixedEol": "The original has mixed line endings. Choose LF or CRLF before saving.",
+  "git.conflict.specialHint":
+    "This conflict needs an external tool. Resolve it there, then review the resulting file.",
+  "git.conflict.blocked":
+    "Another operation or identity reserves this directory. Taking over or writing is blocked.",
+  "git.conflict.staleDraft":
+    "The file changed. Your draft is retained and saving is paused. Copy what you need before reloading, or explicitly use a new version.",
+  "git.conflict.markersRemain":
+    "Conflict markers remain. Resolve and save them before marking the file resolved.",
+  "git.conflict.draftGuard": "You have an unsaved result. Continuing discards this draft.",
+  "git.conflict.keepDraft": "Keep draft",
+  "git.conflict.discardDraft": "Discard draft and continue",
+  "git.conflict.empty": "No unresolved conflicts in the current index.",
+  "git.conflict.begin": "Begin manual resolution",
+  "git.conflict.beginHint":
+    "Confirm the current conflicts and reserve this directory until completion. Background writes are paused; viewing alone does not take ownership.",
+  "git.conflict.save": "Save result",
+  "git.conflict.saveHint":
+    "Save this file and keep its conflict stages. Marking it resolved is a separate confirmation.",
+  "git.conflict.delete": "Delete result file",
+  "git.conflict.deleteHint":
+    "Delete only this result file, keeping the conflict index. Confirm staging the deletion separately.",
+  "git.conflict.mark": "Mark resolved",
+  "git.conflict.markHint":
+    "Stage the current file or confirmed deletion. This does not commit or continue merge/rebase.",
+  "git.conflict.confirm": "Confirm",
+  "git.conflict.nativeCheck":
+    "I checked that the native Git process stopped and reviewed the current file.",
+  "git.conflict.specialCheck":
+    "I resolved and inspected this file externally and confirm staging its current contents.",
+  "git.conflict.operation.stash": "Stash application conflict",
+  "git.conflict.operation.merge": "Merge conflict; finish the native operation separately",
+  "git.conflict.operation.rebase":
+    "Rebase conflict; stage 2 is the target side, stage 3 is the replayed commit",
+  "git.conflict.operation.cherry-pick":
+    "Cherry-pick conflict; finish the native operation separately",
+  "git.conflict.operation.revert": "Revert conflict; finish the native operation separately",
+  "git.conflict.operation.index": "Git index conflict",
+  "git.conflict.kind.both-modified": "Both modified",
+  "git.conflict.kind.both-added": "Both added",
+  "git.conflict.kind.deleted-by-us": "Deleted by ours",
+  "git.conflict.kind.deleted-by-them": "Deleted by theirs",
+  "git.conflict.kind.complex": "Complex / rename",
+  "git.conflict.versionKind.absent": "Version absent",
+  "git.conflict.versionKind.text": "UTF-8 text",
+  "git.conflict.versionKind.binary": "Binary",
+  "git.conflict.versionKind.encoding": "Non-UTF-8 encoding",
+  "git.conflict.versionKind.large": "Above editing limit",
+  "git.conflict.versionKind.symlink": "Symbolic link",
+  "git.conflict.versionKind.submodule": "Submodule",
+  "git.conflict.versionKind.directory": "Directory collision",
+  "git.workspace.kind.conflict-resolution": "Manual conflict resolution",
+  "git.workspace.kind.conflict-save": "Save resolution result",
+  "git.workspace.kind.conflict-mark": "Mark resolved",
+  "git.workspace.error.stale-conflict":
+    "Conflicts, files, branch or index changed. Your draft is retained; review the current state.",
+  "git.workspace.error.unsupported-conflict":
+    "This type or result cannot be processed directly. Check conflict markers or use external Git.",
+  "git.workspace.error.missing-conflict":
+    "This file is no longer unmerged. Refresh to review the current state.",
+  "git.workspace.error.invalid-conflict": "Cannot read the complete conflict object.",
+  "git.workspace.error.native-check-required":
+    "Check the native Git process and actual file result first.",
+  "git.workspace.error.conflict-outcome-unknown":
+    "The file or index result needs checking. Query the original request and refresh; do not replay it.",
+  "git.workspace.stashTitle": "Stash",
+  "git.workspace.useDirectory": "Use this directory",
+  "git.workspace.refresh": "Refresh local state",
+  "git.workspace.sharedStashes": "Stashes are shared by every worktree of this repository.",
+  "git.workspace.stashMessage": "Stash message (optional)",
+  "git.workspace.includeUntracked": "Include untracked files",
+  "git.workspace.keepUntracked": "Keep untracked files",
+  "git.workspace.keepIgnored": "Ignored files always stay",
+  "git.workspace.saveStash": "Save changes…",
+  "git.workspace.applyStash": "Apply and keep…",
+  "git.workspace.dropStash": "Delete this stash…",
+  "git.workspace.previewStash": "Preview stash diff",
+  "git.workspace.restoreIndex": "Restore the index when applying",
+  "git.workspace.emptyStash": "No stashes yet.",
+  "git.workspace.wholeRepository": "Entire repository",
+  "git.workspace.files": "files",
+  "git.workspace.dropHint":
+    "Deletes only this saved entry. Working files stay unchanged. It cannot be restored from this list.",
+  "git.workspace.applyHint":
+    "Apply to the clean checkout and keep the stash. Resolve any conflicts before completing the check.",
+  "git.workspace.applyIndexHint":
+    "Restore files and their original staged state, keeping the stash. Restoring the index can also conflict.",
+  "git.workspace.confirm": "Confirm",
+  "git.workspace.noDiff": "No changes in this section.",
+  "git.workspace.truncated": "The diff exceeds the display limit; some content is omitted.",
+  "git.workspace.source.staged": "Index",
+  "git.workspace.source.unstaged": "Working tree",
+  "git.workspace.source.untracked": "Untracked files",
+  "git.workspace.reserved":
+    "An unresolved Git operation has paused further writes to this checkout.",
+  "git.workspace.resolved": "Checked and completed",
+  "git.workspace.recoveryHint":
+    "Resolve and stage conflicts here or with external Git. Finish any native merge or rebase first, then check and complete here. This does not reset or clean files.",
+  "git.workspace.checkRecovery": "Check the result",
+  "git.workspace.unresolved": "Unresolved conflicts remain",
+  "git.workspace.recoveryReady":
+    "No unmerged index entries remain. Confirm the inspection is complete.",
+  "git.workspace.confirmNativeStopped":
+    "I verified that the native Git process has stopped and inspected the actual directory and files.",
+  "git.workspace.completeRecovery": "Check and complete",
+  "git.workspace.importRepository": "Initialize or clone a Git repository…",
+  "git.repositoryWizard.title": "Git repository",
+  "git.repositoryWizard.steps": "Repository creation steps",
+  "git.repositoryWizard.method": "Repository method",
+  "git.repositoryWizard.location": "Save location",
+  "git.repositoryWizard.configuration": "Repository settings",
+  "git.repositoryWizard.confirmation": "Review and add",
+  "git.repositoryWizard.target": "Repository directory",
+  "git.repositoryWizard.back": "Back",
+  "git.repositoryWizard.next": "Next",
+  "git.repositoryWizard.preview": "Preview and check",
+  "git.repositoryWizard.create": "Create and add source folder",
+  "git.repositoryWizard.attach": "Add the created folder",
+  "git.repositoryWizard.returnToProject": "Return to project",
+  "git.repositoryWizard.projectHint":
+    "The repository is saved at the chosen location and added to this project's source folders. Save the project to apply the association.",
+  "git.repositoryWizard.createdHint":
+    "The repository is on disk. Retrying only adds its folder; it does not run Git again. Cancelling keeps the folder.",
+  "git.repositoryWizard.addFailed":
+    "The repository was created but its folder was not added. Retry adding it or return to the project and add it manually.",
+  "git.repositoryWizard.limit":
+    "A project supports up to 20 source folders. Return to the project to adjust its folders before creating another.",
+  "git.repositoryWizard.groupUnavailable":
+    "The selected group no longer exists. Select another group.",
+  "git.repositoryWizard.groupConflict":
+    "Groups changed. The project is saved; retry to finish grouping it.",
+  "git.workspace.clone": "Clone repository",
+  "git.workspace.init": "Initialize repository",
+  "git.workspace.parentDirectory": "Parent directory on the target computer",
+  "git.workspace.initDirectory": "Directory to initialize on the target computer",
+  "git.workspace.directory": "Directory path",
+  "git.workspace.browse": "Browse…",
+  "git.workspace.cloneUrl": "Repository URL",
+  "git.workspace.targetName": "New directory name",
+  "git.workspace.initialBranch": "Initial branch",
+  "git.workspace.allowNested": "Explicitly allow a nested repository inside an existing repository",
+  "git.workspace.cloneHint":
+    "The new directory must not exist. Failures preserve the result without overwriting or deleting it.",
+  "git.workspace.initHint":
+    "Existing files stay in place. An existing Git repository will not be overwritten.",
+  "git.workspace.queryResult": "Query original result",
+  "git.workspace.previewImport": "Preview import",
+  "git.workspace.parentRepository": "Ancestor repository",
+  "git.workspace.kind.repository-init": "Initialize repository",
+  "git.workspace.kind.repository-clone": "Clone repository",
+  "git.workspace.kind.stash-save": "Save stash",
+  "git.workspace.kind.stash-apply": "Apply stash",
+  "git.workspace.kind.stash-drop": "Delete stash",
+  "git.workspace.kind.reconcile": "Check result",
+  "git.workspace.status.running": "Running",
+  "git.workspace.status.success": "Succeeded",
+  "git.workspace.status.partial": "Partially applied",
+  "git.workspace.status.failed": "Not completed",
+  "git.workspace.status.unknown": "Needs inspection",
+  "git.workspace.status.conflict": "Resolve conflicts",
+  "git.workspace.error.read-failed":
+    "Could not read state. Check the connection and repository, then refresh.",
+  "git.workspace.error.outcome-unknown":
+    "No definitive result received. Query the original request before another action.",
+  "git.workspace.error.checkout-busy":
+    "The directory is busy with a task or Git operation. Nothing was executed.",
+  "git.workspace.error.checkout-reserved":
+    "An unresolved Git operation owns this checkout. Check and complete the original operation.",
+  "git.workspace.error.stale-preview":
+    "The directory, files, index or stash list changed. Create a new preview.",
+  "git.workspace.error.stale-recovery": "Conflicts remain or the result changed. Inspect it again.",
+  "git.workspace.error.invalid-input": "Check the path, URL, directory name and initial branch.",
+  "git.workspace.error.invalid-directory":
+    "Choose an existing ordinary directory on the target computer without symbolic links.",
+  "git.workspace.error.directory-unavailable":
+    "Directory selection failed. Select it again or enter a path.",
+  "git.workspace.error.target-exists":
+    "The target directory already exists and cannot be overwritten.",
+  "git.workspace.error.already-repository": "The selected directory is already a Git repository.",
+  "git.workspace.error.nested-repository":
+    "The directory is inside a repository. Explicitly allow nesting and preview again.",
+  "git.workspace.error.acquisition-incomplete":
+    "Import did not finish completely. The directory was preserved. Inspect the actual result before completing the check.",
+  "git.workspace.error.writer-unsettled":
+    "The native Git process has not settled. Its writer permit is retained. Inspect the process and directory before restarting the Host.",
+  "git.workspace.error.git-command-failed":
+    "The Git command or state check failed. Refresh and preview again.",
+  "git.workspace.error.invalid-index": "Git conflict stages could not be read completely.",
+  "git.workspace.error.operation-in-progress":
+    "Finish the current Git operation or conflict first.",
+  "git.workspace.error.unsupported-checkout":
+    "This checkout has hidden changes, submodules or unsupported state. Use external Git to resolve it.",
+  "git.workspace.error.missing-coordinator":
+    "This Host does not support the operation yet. Update the Host and retry.",
+  "git.workspace.error.missing-operation": "The original operation was not found in this scope.",
+  "git.workspace.error.stash-list-too-large":
+    "Stash history exceeds the read limit. Organize it with external Git first.",
+  "git.workspace.error.invalid-stash": "The selected stash could not be read completely.",
+  "git.workspace.error.missing-stash": "The stash no longer exists. Refresh the list.",
+  "git.workspace.error.unsupported-stash-storage":
+    "This reference storage cannot be deleted safely here. Delete the selected entry using external Git.",
+  "git.workspace.error.git-lock-busy": "A native Git lock is busy. Wait, then preview again.",
+  "git.workspace.error.stash-delete-incomplete":
+    "Deletion may have partially completed. Refresh and inspect it with external Git.",
+  "git.workspace.error.unborn": "The branch has no commits yet. A stash cannot be saved.",
+  "git.workspace.error.no-changes": "There are no changes to save with these options.",
+  "git.workspace.error.stash-outcome-unknown":
+    "The stash operation may have taken effect. Inspect the actual files and query the original request.",
+  "git.workspace.error.dirty-checkout":
+    "Handle current working tree and index changes before applying a stash.",
+  "git.workspace.error.ignored-collision":
+    "Applying would overwrite an ignored file. The operation was rejected and the file preserved.",
+  "git.workspace.error.stash-conflict":
+    "The stash was applied with conflicts and kept. Resolve them with external Git, then check and complete.",
+  "git.network.invalid-input":
+    "Invalid remote name or URL. Check the name and enter one URL per line.",
+  "git.network.title": "Remotes",
+  "git.network.name": "Remote name",
+  "git.network.fetchUrls": "Fetch URLs",
+  "git.network.pushUrls": "Push URLs",
+  "git.network.urlHint": "One URL per line. Empty Push URLs inherit Fetch URLs.",
+  "git.network.reviewChanges": "Review changes",
+  "git.network.detached": "No local branch selected",
+  "git.network.counts": "Commits ahead / behind upstream",
+  "git.network.refresh": "Refresh local state",
+  "git.network.upstream": "Upstream",
+  "git.network.selectUpstream": "Select remote tracking branch",
+  "git.network.unsetTracking": "Unset upstream",
+  "git.network.setTracking": "Set",
+  "git.network.add": "Add remote",
+  "git.network.edit": "Edit remote",
+  "git.network.rename": "Rename remote",
+  "git.network.remove": "Remove remote",
+  "git.network.empty": "No remotes configured.",
+  "git.network.selectRemote": "Select remote",
+  "git.network.inheritFetch": "Inherits Fetch URLs",
+  "git.network.newName": "New remote name",
+  "git.network.update": "Fast-forward only",
+  "git.network.confirmConfig": "Confirm Git configuration changes",
+  "git.network.removeHint":
+    "Removes local remote configuration and tracking refs, not the server repository. Associated branch tracking configuration may also be removed.",
+  "git.network.configHint":
+    "Changes invalidate existing publish and update previews. Verify the target.",
+  "git.network.confirm": "Confirm",
+  "git.network.unknownHint":
+    "The operation may have taken effect. Refresh the original receipt and inspect the repository before another action.",
+  "git.network.localBranches": "Local branch tracking",
+  "git.network.localRefreshHint": "Refresh stays offline",
+  "git.network.read-failed": "Could not read Git state. Check the connection and refresh.",
+  "git.network.checkout-busy":
+    "Git is busy with another operation or task. Nothing was executed. Wait, then create a new preview.",
+  "git.network.outcome-unknown":
+    "No definitive result received. Refresh to query the original receipt.",
+  "git.network.kind.remote": "Remote configuration",
+  "git.network.kind.tracking": "Branch tracking",
+  "git.network.kind.fetch": "Fetch",
+  "git.network.kind.fast-forward": "Fast-forward update",
+  "git.network.status.running": "Running",
+  "git.network.status.success": "Succeeded",
+  "git.network.status.partial": "Partially succeeded",
+  "git.network.status.failed": "Failed",
+  "git.network.status.unknown": "Needs verification",
+  "git.network.reason.ready":
+    "The working tree is clean. Update to the shown commit without fetching or creating a merge commit.",
+  "git.network.reason.up-to-date": "The local branch already contains upstream. No update needed.",
+  "git.network.reason.detached": "HEAD is detached. Switch to a local branch first.",
+  "git.network.reason.unborn": "The current branch has no commits.",
+  "git.network.reason.no-upstream": "No remote tracking branch configured.",
+  "git.network.reason.missing-upstream":
+    "The upstream ref is missing. Check the remote and explicitly Fetch first.",
+  "git.network.reason.dirty":
+    "The working tree or index has changes. Resolve them before a new preview.",
+  "git.network.reason.operation-in-progress":
+    "Finish the current Git merge, rebase or other operation first.",
+  "git.network.reason.diverged":
+    "The branches have diverged. A fast-forward update is unavailable.",
+  "git.network.reason.unsupported":
+    "This repository cannot be fully verified. Use external Git before retrying.",
+  "git.network.error.stale-preview":
+    "Configuration, branch or refs changed. Refresh and confirm again.",
+  "git.network.error.invalid-preview": "Invalid update preview. Create a new preview.",
+  "git.network.error.invalid-head":
+    "Git HEAD could not be read completely. Inspect the repository and refresh.",
+  "git.network.error.git-command-failed":
+    "Git command failed. Inspect the repository and preview again.",
+  "git.network.error.fast-forward-failed":
+    "Fast-forward failed. Refresh to inspect the branch and files.",
+  "git.network.error.config-outcome-unknown":
+    "Configuration may have changed partially. Refresh to inspect it.",
+  "git.network.error.outcome-unknown":
+    "The outcome is unknown. Query the original receipt and inspect the repository.",
+  "git.network.error.writer-unsettled":
+    "The native Git process has not settled. The Host retained its writer permit. Inspect the process and repository, then restart the Host after resolving it.",
+  "git.network.error.missing-upstream": "The selected remote tracking branch is missing.",
+  "git.network.error.missing-branch": "The selected local branch is missing.",
+  "git.network.error.missing-remote": "The selected remote is missing.",
+  "git.network.error.remote-exists": "The remote name already exists.",
+  "git.files.stage": "Stage changes",
+  "git.files.commitCompleted":
+    "Committed {hash}. The branch was not switched. Refresh to inspect the result.",
+  "git.files.unstage": "Unstage changes",
+  "git.files.discard": "Discard changes",
+  "git.files.stageAll": "Stage all changes",
+  "git.files.unstageAll": "Unstage all changes",
+  "git.files.discardAll": "Discard all changes in this source",
+  "git.files.discardTitle": "Discard changes in {count} files?",
+  "git.files.discardDescription":
+    "Tracked files return to their index version. Untracked files are permanently deleted. This cannot be undone.",
+  "git.files.discardStagedDescription":
+    "Both the index and working tree return to HEAD. Unstaged edits are also lost. Newly added files remain untracked. This cannot be undone.",
   "settings.startupAnimation.aemeath": "Aemeath",
   "settings.startupAnimation.custom": "Custom",
   "settings.startupScene.imagePosition": "Artwork position",
@@ -1014,6 +1679,8 @@ const enUS: Record<string, string> = {
   "diff.close": "Close diff panel",
   "sidePane.expand": "Expand side pane",
   "sidePane.collapse": "Collapse side pane",
+  "git.publish.reviewFirst":
+    "Review files and the commit message before committing and publishing.",
   "sidePane.togglePanel": "Toggle panel",
   "sidePane.panelTitle": "Details and tools",
   "sidePane.executionLoading": "Preparing the conversation workspace…",
@@ -1350,6 +2017,14 @@ const enUS: Record<string, string> = {
   "git.message.clipboardUnavailable": "Clipboard is unavailable on this platform.",
   "git.message.restore": "Restore previous text",
   "git.message.types": "Conventional Commit types",
+  "git.review.trackedChanges": "Changes",
+  "git.review.filesLabel": "Files",
+  "git.review.unversioned": "Unversioned files",
+  "git.review.includeDirectoryPage": "Include {directory} (current page)",
+  "git.review.expandTree": "Expand all folders",
+  "git.review.collapseTree": "Collapse all folders",
+  "git.review.includeWorking": "Include unstaged changes",
+  "git.review.executionDetails": "Execution directory and context",
   "git.review.previous": "Previous group",
   "git.review.next": "Next group",
   "git.review.expandAll": "Expand all files",
@@ -1360,6 +2035,17 @@ const enUS: Record<string, string> = {
   "git.review.restoreFile": "Restore file",
   "git.review.excluded": "Excluded from this review",
   "git.review.fileScope": "Files in commit scope",
+  "git.review.changesView": "Changes",
+  "git.review.manageRangeInline": "Adjust file scope (live)",
+  "git.review.showFrozen": "Back to frozen review",
+  "git.review.openHint":
+    "Open this conversation's commit review to inspect files and the commit message.",
+  "git.review.indexVersion": "Index",
+  "git.review.workingVersion": "Working tree",
+  "sidePane.files": "Files",
+  "sidePane.more": "More",
+  "sidePane.tools": "Side pane tools",
+  "sidePane.noToolResources": "No {tool} resources. Open one from the add menu.",
   "git.review.regenerationRequired":
     "The file scope or saved review changed. Your text is retained; regenerate the review before committing.",
   "git.publish.options": "Remote and Tag publishing",
@@ -1415,7 +2101,14 @@ const enUS: Record<string, string> = {
   "git.publish.confirm": "Confirm and execute these steps",
   "git.publish.results": "Execution results",
   "git.publish.retry": "Retry this failed push only",
-  "git.publish.newPlan": "Refresh and prepare a new plan",
+  "git.publish.newPlan": "Prepare a new plan",
+  "git.publish.refresh.loading": "Automatically updating the file scope and publication state…",
+  "git.publish.refresh.ready":
+    "The latest state is loaded. Previous approval is invalid. Review and confirm again.",
+  "git.publish.refresh.failed":
+    "Automatic update failed. Results and edits are preserved. Publishing is blocked until the latest state is loaded.",
+  "git.publish.refresh.retry": "Retry loading the latest state",
+  "git.publish.refresh.replan": "Review and plan again",
   "git.publish.step.commit": "Local commit",
   "git.publish.step.branch": "Push branch",
   "git.publish.step.create-tag": "Create local tag",
@@ -1426,7 +2119,7 @@ const enUS: Record<string, string> = {
   "git.publish.status.failed": "Failed",
   "git.publish.status.skipped": "Not executed",
   "git.publish.stop.stateChanged":
-    "Repository state changed. Remaining steps and retries are stopped. Refresh and confirm a new plan; completed steps are preserved.",
+    "Repository state changed. Remaining steps and retries are stopped. Completed steps are preserved; review and confirm again before continuing.",
   "git.publish.stop.stateUnavailable":
     "Repository state could not be verified. Remaining steps and retries are stopped. Completed steps are preserved.",
   "git.publish.stop.warning":

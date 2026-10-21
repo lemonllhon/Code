@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { rootCertificates } from "node:tls";
+import { getCACertificates, rootCertificates } from "node:tls";
 import { Agent, ProxyAgent, fetch as undiciFetch, type Dispatcher } from "undici";
 import { isNetworkProxyUrl, normalizeNetworkProxyUrl } from "@lcode/shared/network-proxy";
 import { createSocksNetworkDispatcher } from "./socks-network-dispatcher.js";
@@ -14,6 +14,8 @@ export interface HostApiNetworkOptions {
   httpProxy?: string;
   noProxy?: string;
   caCertPath?: string;
+  /** 由明确的 Host owner 启用系统信任，不修改其他 transport 或全局 TLS。 */
+  useSystemCa?: boolean;
   forceDirect?: boolean;
   /** CLI 既有 HTTP 目标走 forward proxy；Host 兼容入口默认保留 CONNECT。 */
   proxyTunnel?: boolean;
@@ -97,6 +99,7 @@ export function resolveHostProxyForUrl(
 }
 
 interface HostApiNetworkTransportDependencies {
+  systemCaCertificates?: () => readonly string[];
   onIdle?: () => void;
   /** 终端 IO 注入仍经过策略解析/验证，不因 direct 而改走真实网络。 */
   fetch?: typeof globalThis.fetch;
@@ -197,7 +200,7 @@ export function createHostApiNetworkTransport(
       }
       // 直连也必须由当前 owner 持有 dispatcher；不能漏回全局 fetch 的连接/关闭路径。
 
-      const dispatcherKey = `${route.kind}:${route.kind === "proxy" ? route.proxyUrl : "direct"}:${options.caCertPath ?? ""}:${options.proxyTunnel !== false}:${options.http2 ?? "disabled"}`;
+      const dispatcherKey = `${route.kind}:${route.kind === "proxy" ? route.proxyUrl : "direct"}:${options.caCertPath ?? ""}:${options.proxyTunnel !== false}:${options.http2 ?? "disabled"}:${Boolean(options.useSystemCa)}`;
       leasedDispatcherKey = dispatcherKey;
       dispatcherRequests.set(dispatcherKey, (dispatcherRequests.get(dispatcherKey) ?? 0) + 1);
       let dispatcherPromise = dispatcherPromises.get(dispatcherKey);
@@ -217,6 +220,9 @@ export function createHostApiNetworkTransport(
           options.proxyTunnel,
           options.http2,
           diagnostics.connection,
+          options.useSystemCa
+            ? (dependencies.systemCaCertificates?.() ?? getCACertificates("system"))
+            : undefined,
         );
         dispatcherPromises.set(dispatcherKey, dispatcherPromise);
         void dispatcherPromise
@@ -355,10 +361,17 @@ async function createDispatcher(
   proxyTunnel?: boolean,
   http2?: "disabled" | "negotiate",
   observe?: NetworkDiagnostics["connection"],
+  systemCa?: readonly string[],
 ): Promise<Dispatcher> {
   const allowH2 = http2 === "negotiate";
   const customCa = caCertPath ? await readFile(caCertPath, "utf8") : undefined;
-  const ca = customCa ? mergeHostApiCaCertificates(customCa) : undefined;
+  // 中文依据：浏览器已信任的企业/开发 CA 不一定在 Node 的 Mozilla 列表内；按 owner 选择合并系统信任。
+  // 显式 ca 会替换默认源，必须同时保留 default（含 NODE_EXTRA_CA_CERTS），且继续验证域名和链。
+  const ca = systemCa
+    ? [...getCACertificates("default"), ...systemCa, ...(customCa ? [customCa] : [])]
+    : customCa
+      ? mergeHostApiCaCertificates(customCa)
+      : undefined;
   if (route.kind === "proxy") {
     const url = new URL(route.proxyUrl);
     if (url.protocol === "socks5:")

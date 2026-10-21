@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button.js";
 import { Checkbox } from "@/components/ui/checkbox.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
@@ -10,8 +9,6 @@ export function GitCommitFileScope({
   totalCount,
   disabled,
   onIncludeUnstagedChange,
-  onOpenFiles,
-  canOpenFiles,
   readOnly = false,
 }: {
   includeUnstaged: boolean;
@@ -21,25 +18,22 @@ export function GitCommitFileScope({
   totalCount: number;
   disabled: boolean;
   onIncludeUnstagedChange: (value: boolean) => void;
-  onOpenFiles: () => void;
-  canOpenFiles: boolean;
   readOnly?: boolean;
 }) {
   const { intl } = useLCodeIntl();
   return (
-    <div className="space-y-2 px-4 py-2 text-ui-sm">
-      <h2 className="font-medium">{intl.formatMessage({ id: "git.review.fileScope" })}</h2>
+    <div className="flex min-h-9 flex-wrap items-center justify-between gap-1 px-2 py-1 text-ui-sm">
       {!readOnly ? (
-        <label className="flex items-start gap-2 leading-6">
+        <label className="flex items-center gap-2">
           <Checkbox
-            className="mt-1"
+            className="size-3.5"
             data-testid="git-commit-include-unstaged"
             checked={includeUnstaged}
             disabled={disabled || !hasUnstaged}
             onCheckedChange={(value) => onIncludeUnstagedChange(value === true)}
           />
           <span className="min-w-0 flex-1">
-            {intl.formatMessage({ id: "git.actionMenu.commitDialog.includeUnstaged" })}
+            {intl.formatMessage({ id: "git.review.includeWorking" })}
           </span>
         </label>
       ) : (
@@ -47,24 +41,15 @@ export function GitCommitFileScope({
           {intl.formatMessage({ id: "git.review.sourceReadOnly" })}
         </p>
       )}
-      <p data-testid="git-commit-scope-counts" className="text-foreground-subtle">
+      <span className="text-foreground-subtle" aria-hidden="true">
+        {fileCount}/{totalCount}
+      </span>
+      <p data-testid="git-commit-scope-counts" className="sr-only">
         {intl.formatMessage(
           { id: "git.review.scopeCounts" },
           { selected: fileCount, excluded: excludedCount, total: totalCount },
         )}
       </p>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        data-testid="git-scope-open-files"
-        disabled={!canOpenFiles}
-        onClick={onOpenFiles}
-      >
-        {intl.formatMessage({
-          id: readOnly ? "git.review.viewSourceFiles" : "git.review.manageFileScope",
-        })}
-      </Button>
     </div>
   );
 }

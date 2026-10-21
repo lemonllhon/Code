@@ -7,16 +7,11 @@ import type { IServiceAccessor, WorktreeBinding, WorktreeIntegration } from "@lc
 import type { AppSettings, GitRepositorySummary } from "@lcode/shared";
 import { DEFAULT_WORKTREE_MANAGEMENT_SETTINGS } from "@lcode/shared";
 import { WorktreeBadge } from "@/worktree/WorktreeBadge.js";
-import { ServiceProvider } from "@/hooks/useServices.js";
-import { PlatformProvider } from "@/hooks/usePlatform.js";
-import { TabStoreProvider } from "@/store/TabStoreProvider.js";
-import { LCodeIntlProvider } from "@/i18n/IntlProvider.js";
-import { TooltipProvider } from "@/components/ui/tooltip.js";
+import { WorktreeFixtureProviders } from "./worktree-fixture-providers.js";
 import { useDraftExecutionStore } from "@/store/draftExecutionStore.js";
 import { useWorktreeLifecycleStore } from "@/store/worktreeLifecycleStore.js";
 import { useActiveExecutionWorkspace } from "@/hooks/useActiveExecutionWorkspace.js";
 import { useFileMentionProvider } from "@/mentions/providers/fileMentionProvider.js";
-import { platform } from "./git-backup-platform.js";
 import { services as sessionServices } from "./git-session-refresh-runtime.js";
 import { services as layoutServices } from "./mobile-layout-data.js";
 import { WorktreeWorkflowScenario } from "./worktree-ui-scenarios.js";
@@ -373,30 +368,22 @@ function Fixture() {
   );
 }
 createRoot(document.getElementById("root")!).render(
-  <PlatformProvider platform={platform}>
-    <ServiceProvider services={services}>
-      <TabStoreProvider>
-        <LCodeIntlProvider initialLocale={location.search.includes("english") ? "en-US" : "zh-CN"}>
-          <TooltipProvider>
-            <FixtureReviewPreview />
-            {new URLSearchParams(location.search).has("scenario") ? (
-              <WorktreeWorkflowScenario
-                mode={new URLSearchParams(location.search).get("scenario")!}
-                onResolve={async (operationId) => {
-                  calls.push({ method: "resolveWithAI", params: { operationId } });
-                  operation!.status = "awaiting-review";
-                  operation!.candidateHead = candidate;
-                  operation!.conflictPaths = [];
-                }}
-              />
-            ) : new URLSearchParams(location.search).has("sidebar") ? (
-              <WorktreeSidebarRows />
-            ) : (
-              <Fixture />
-            )}
-          </TooltipProvider>
-        </LCodeIntlProvider>
-      </TabStoreProvider>
-    </ServiceProvider>
-  </PlatformProvider>,
+  <WorktreeFixtureProviders services={services}>
+    <FixtureReviewPreview />
+    {new URLSearchParams(location.search).has("scenario") ? (
+      <WorktreeWorkflowScenario
+        mode={new URLSearchParams(location.search).get("scenario")!}
+        onResolve={async (operationId) => {
+          calls.push({ method: "resolveWithAI", params: { operationId } });
+          operation!.status = "awaiting-review";
+          operation!.candidateHead = candidate;
+          operation!.conflictPaths = [];
+        }}
+      />
+    ) : new URLSearchParams(location.search).has("sidebar") ? (
+      <WorktreeSidebarRows />
+    ) : (
+      <Fixture />
+    )}
+  </WorktreeFixtureProviders>,
 );

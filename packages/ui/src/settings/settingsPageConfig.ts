@@ -69,6 +69,12 @@ const BASE_SETTINGS_SECTION_GROUPS: Array<{
 ];
 
 const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
+  {
+    id: "gitManagement",
+    icon: GitBranch,
+    titleId: "settings.gitManagement.title",
+    groupId: "coding",
+  },
   { id: "worktrees", icon: GitBranch, titleId: "settings.worktrees.title", groupId: "coding" },
   { id: "environments", icon: Boxes, titleId: "settings.environments.title", groupId: "coding" },
   {

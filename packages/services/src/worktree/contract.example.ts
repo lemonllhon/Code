@@ -1,5 +1,35 @@
 import type { IWorktreeService } from "./contract.js";
 
+/** Git owner 已持 writer 后保留冲突路径；后台 execution admission 读取同一持久记录。 */
+export async function reserveCheckout(
+  coordinator: import("./node.js").CheckoutCoordinator,
+  workspacePath: string,
+  operationKey: string,
+  kind: import("./node.js").CheckoutReservation["kind"] = "stash-apply",
+) {
+  if (!coordinator.setReservation) throw new Error("Host reservations unavailable");
+  await coordinator.setReservation({ workspacePath, operationKey, kind });
+}
+
+/** Host-only：refs/config 独占 common-dir，快进再占 checkout；不能由 RPC 指定资源。 */
+export async function coordinateRepositoryUpdate(
+  coordinator: import("./node.js").CheckoutCoordinator,
+  workspacePath: string,
+  update: () => Promise<void>,
+) {
+  const lease = await coordinator.acquire({
+    workspacePath,
+    ownerId: "git-update-example",
+    resource: "repository-checkout",
+    waitMs: 0,
+  });
+  try {
+    await update();
+  } finally {
+    await coordinator.release(lease);
+  }
+}
+
 export async function executeInSharedCheckout(
   service: IWorktreeService,
   workspacePath: string,

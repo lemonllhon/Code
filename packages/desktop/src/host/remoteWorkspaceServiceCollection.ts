@@ -8,6 +8,7 @@ import {
   IRuntimeEnvironmentService,
   IGitCheckpointService,
   IGitBackupService,
+  IGitManagementService,
   ISystemService,
   ITerminalService,
   ISettingService,
@@ -268,7 +269,13 @@ export function createRemoteWorkspaceServiceCollection(params: {
             status: "resolved",
             preferences: {
               ...(request.scope === "project-admission" && request.projectContext
-                ? { projectContext: buildProjectContextSnapshot(settings, request.projectContext.workspace) } : {}),
+                ? {
+                    projectContext: buildProjectContextSnapshot(
+                      settings,
+                      request.projectContext.workspace,
+                    ),
+                  }
+                : {}),
               askUserQuestionAutoResolutionEnabled:
                 settings.askUserQuestionAutoResolutionEnabled !== false,
               nativeSearchEnhancementsEnabled: settings.nativeSearchEnhancementsEnabled !== false,
@@ -386,6 +393,8 @@ export function createRemoteWorkspaceServiceCollection(params: {
   if (params.connectionServices.gitBackupService) {
     services.register(IGitBackupService, params.connectionServices.gitBackupService);
   }
+  if (params.connectionServices.gitManagementService)
+    services.register(IGitManagementService, params.connectionServices.gitManagementService);
   registerHostApiNetworkTransportForDispose(services, hostApiNetworkTransport);
   registerRemoteProviderProvisioningExecutor(services, remoteProviderProvisioningService);
   const organization = params.sourceServices?.getOptional(ISidebarOrganizationService);

@@ -15,6 +15,16 @@ export const GIT_UNTRACKED_STAT_MAX_BYTES = 1024 * 1024;
 export const GIT_UNTRACKED_STAT_CHUNK_BYTES = 64 * 1024;
 export const GIT_UNTRACKED_STAT_CONCURRENCY = 4;
 
+export function matchesWorkspaceScope(
+  workspaceInRepoPath: string,
+  entry: { path: string; originalPath: string | null },
+): boolean {
+  return (
+    isPathInWorkspaceScope(entry.path, workspaceInRepoPath) ||
+    (entry.originalPath ? isPathInWorkspaceScope(entry.originalPath, workspaceInRepoPath) : false)
+  );
+}
+
 const WINDOWS_GIT_BINARY_CANDIDATES = [
   join(
     process.env.ProgramW6432 ?? process.env.ProgramFiles ?? "C:\\Program Files",

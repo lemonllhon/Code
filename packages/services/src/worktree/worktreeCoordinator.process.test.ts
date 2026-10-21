@@ -11,6 +11,8 @@ async function childPermit(
   path: string,
   mode: "shared" | "exclusive",
   abandon = false,
+  waitMs = 100,
+  resource?: "repository-checkout",
 ) {
   const script = `
     const { createCheckoutCoordinator } = await import(${JSON.stringify(new URL("./adapters/coordinator.ts", import.meta.url).href)});
@@ -18,7 +20,7 @@ async function childPermit(
     const params = JSON.parse(process.argv[1]);
     const coordinator = createCheckoutCoordinator({dataDir: params.dataDir, git: createWorktreeGitPort()});
     try {
-      const permit = await coordinator.acquire({workspacePath:params.path,ownerId:'child',mode:params.mode,waitMs:100});
+      const permit = await coordinator.acquire({workspacePath:params.path,ownerId:'child',mode:params.mode,waitMs:params.waitMs,resource:params.resource});
       if (!params.abandon) await coordinator.release(permit);
       process.stdout.write('granted');
     } catch (error) {process.stdout.write(error.code ?? error.message);}
@@ -33,7 +35,7 @@ async function childPermit(
         "-e",
         script,
         "--",
-        JSON.stringify({ path, dataDir, mode, abandon }),
+        JSON.stringify({ path, dataDir, mode, abandon, waitMs, resource }),
       ],
       { cwd: process.cwd(), windowsHide: true },
     )
@@ -65,6 +67,18 @@ test("different Host sessions share execution but management waits for all live 
   // 退出后的共享 owner 使用原文件锁 PID 对账，不用时间到期伪造 writer 已结束。
   assert.equal(await childPermit(f.options.dataDir, f.repo, "shared", true), "granted");
   assert.equal(await childPermit(f.options.dataDir, f.repo, "exclusive"), "granted");
+});
+
+test("Host 退出后即时恢复 common 与 checkout 许可，不依赖排队或锁年龄", async (t) => {
+  const f = await fixture(t);
+  assert.equal(
+    await childPermit(f.options.dataDir, f.repo, "exclusive", true, 100, "repository-checkout"),
+    "granted",
+  );
+  assert.equal(
+    await childPermit(f.options.dataDir, f.repo, "exclusive", false, 0, "repository-checkout"),
+    "granted",
+  );
 });
 
 test("separate Host processes share canonical checkout permits, while task worktrees run independently", async (t) => {

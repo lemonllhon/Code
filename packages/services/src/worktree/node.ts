@@ -1,6 +1,7 @@
 import type { IWorktreeHostService, IWorktreeService } from "./contract.js";
 import type { WorktreeServiceOptions } from "./nodeTypes.js";
 export type { WorktreeServiceOptions, WorktreeGitPort, CheckoutCoordinator } from "./nodeTypes.js";
+export type { CheckoutReservation } from "./nodeTypes.js";
 export type {
   IWorktreeHostService,
   WorktreeRuntimePorts,

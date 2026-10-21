@@ -19,7 +19,7 @@ export async function runWorktreePublicationCase({
         .getByRole("button", { name: "工作树管理", exact: true })
         .click();
       await page.getByTestId("worktree-open-commit-review").click();
-      const dialog = page.getByTestId("git-commit-dialog");
+      const dialog = page.getByTestId("git-commit-review-pane").filter({ visible: true });
       await dialog.getByTestId("worktree-integrate").click();
       const validate = dialog.getByTestId("worktree-validate");
       await validate.waitFor();
@@ -48,14 +48,14 @@ export async function runWorktreePublicationCase({
       assert.match(await dialog.getByTestId("worktree-publish").innerText(), /核实并重试/);
       await configure({ failPublication: false });
       await dialog.getByTestId("worktree-publish").click();
-      const publish = dialog.getByTestId("worktree-remote-publication");
-      await publish.waitFor();
+      const publish = page.getByTestId("worktree-remote-publication");
       await dialog.getByTestId("worktree-completed-evidence").locator("summary").first().click();
       assert.match(
         await dialog.getByTestId("worktree-integration-status").innerText(),
         /已合并到 L-GO/,
       );
-      await page.getByTestId("git-review-dismiss").click();
+      await page.getByTestId("git-view-review").click();
+      await page.getByTestId("git-commit-close").click();
       await openProjectWorktrees();
       const management = page.getByTestId("project-worktree-management-dialog");
       await management.getByText("已合并到 L-GO", { exact: true }).waitFor();
@@ -66,6 +66,7 @@ export async function runWorktreePublicationCase({
         true,
       );
       await management.getByTestId("worktree-open-commit-review").click();
+      await page.getByTestId("git-view-network").click();
       await publish.waitFor();
       await publish.getByTestId("git-publish-toggle").click();
       assert.match(await publish.innerText(), /发布分支：L-GO/);
@@ -82,10 +83,21 @@ export async function runWorktreePublicationCase({
       assert.match(await publish.getByTestId("git-publish-summary").innerText(), /L-GO/);
       assert.equal((await calls()).filter((call) => call.method === "push").length, 0);
       await publish.getByTestId("git-publish-confirm").click();
-      await publish.getByText("fixture-remote-offline").waitFor();
-      await page.getByTestId("git-review-dismiss").click();
+      await publish
+        .getByText("fixture-remote-offline")
+        .waitFor()
+        .catch(async (error) => {
+          throw new Error(
+            JSON.stringify({ content: await publish.innerText(), calls: await calls() }),
+            { cause: error },
+          );
+        });
+      await page.getByTestId("git-view-review").click();
+      await page.getByTestId("git-commit-close").click();
       await dialog.waitFor({ state: "hidden" });
       await page.getByTestId("git-action-trigger").click();
+      // 手动审核统一先进入审核页；发布结果留在远端页，重新选择页签后核对原结果。
+      await page.getByTestId("git-view-network").click();
       await publish.getByText("fixture-remote-offline").waitFor();
       await publish.getByTestId("git-publish-results-back").click();
       assert.equal(await publish.getByTestId("git-publish-confirm").count(), 0);
@@ -114,9 +126,21 @@ export async function runWorktreePublicationCase({
         (await publish.getByTestId("git-publish-summary").innerText()).includes("d".repeat(40)),
       );
       await configure({ targetHead: "e".repeat(40) });
+      const priorReads = (await calls()).filter((call) => call.method === "remotes").length;
       await publish.getByTestId("git-publish-confirm").click();
       await publish.getByTestId("git-publish-results").waitFor();
       assert.match(await publish.getByTestId("git-publish-results").innerText(), /仓库状态已变化/);
+      await publish
+        .getByTestId("git-publish-refresh-status")
+        .filter({ hasText: "最新状态已更新" })
+        .waitFor();
+      assert.equal(
+        (await calls()).filter((call) => call.method === "remotes").length,
+        priorReads + 1,
+      );
+      const lastStateRead = (await calls()).filter((call) => call.method === "publishState").at(-1);
+      assert.equal(lastStateRead.params.sourceBranch, "L-GO");
+      assert.equal(lastStateRead.params.workspacePath, "/fixture/repo");
       assert.equal((await calls()).filter((call) => call.method === "push").length, 3);
       await page.setViewportSize({ width: 390, height: 844 });
       assert.equal(

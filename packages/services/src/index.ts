@@ -336,3 +336,4 @@ export type {
 export { IClientConfigService } from "./client-config/clientConfig.js";
 export * from "./model-provider/providerAccountService.js";
 export { ISidebarOrganizationService } from "./sidebar-organization/contract.js";
+export { IGitManagementService } from "./git-management/contract.js";

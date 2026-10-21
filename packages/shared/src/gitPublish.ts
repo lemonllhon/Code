@@ -41,10 +41,30 @@ export const gitPublicationRequestSchema = gitRepositoryRequestSchema
   .strict();
 export const gitPublishStateSchema = z
   .object({
+    remoteConfigFingerprint: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .optional(),
     headCommitHash: oid.nullable(),
     branchName: z.string().min(1).nullable(),
     indexFingerprint: z.string().regex(/^[0-9a-f]{64}$/),
     worktreeFingerprint: z.string().regex(/^[0-9a-f]{64}$/),
+  })
+  .strict();
+export const gitPathMutationRequestSchema = gitRepositoryRequestSchema
+  .extend({
+    paths: z.array(path).min(1),
+    expectedState: gitPublishStateSchema.optional(),
+  })
+  .strict();
+export const gitDiscardPathsRequestSchema = gitPathMutationRequestSchema
+  .extend({ staged: z.boolean().optional(), expectedState: gitPublishStateSchema })
+  .strict();
+export const gitCommitAndSwitchRequestSchema = gitPathMutationRequestSchema
+  .extend({
+    message: z.string().trim().min(1),
+    targetBranchName: refName,
+    expectedState: gitPublishStateSchema,
   })
   .strict();
 export const gitDeleteBranchRequestSchema = gitRepositoryRequestSchema

@@ -289,9 +289,7 @@ function StatusSectionHeader({
           data-status-section-trigger={section}
           className="group flex min-w-0 shrink-0 items-center gap-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
         >
-          <span className="shrink-0 text-ui-base text-foreground-subtle">
-            {title}
-          </span>
+          <span className="shrink-0 text-ui-base text-foreground-subtle">{title}</span>
           {isOpen ? (
             <ChevronDownIcon className="size-3.5 shrink-0 text-foreground-subtle opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
           ) : (
@@ -424,14 +422,14 @@ function GitStatusSection({
 }) {
   const { intl } = useLCodeIntl();
   const git = model.git ?? { added: 0, removed: 0, dirtyFileCount: 0 };
-  if (!gitSummary || !onRefreshGit) {
+  if (!onRefreshGit) {
     return null;
   }
   const hasChanges = git.added + git.removed > 0;
-  const canOpenReview = Boolean(onOpenGitReview && gitSummary.isRepository);
+  const canOpenReview = Boolean(onOpenGitReview && gitSummary?.isRepository);
 
   return (
-    <div className={cn(!gitSummary.isRepository && "hidden")}>
+    <div className={cn(!gitSummary?.isRepository && "hidden")}>
       <StatusSection
         section="environment"
         separated={separated}
@@ -474,18 +472,20 @@ function GitStatusSection({
               <span className="text-diff-removed">-{git.removed}</span>
             </span>
           </button>
-          <GitBranchSwitcher
-            workspacePath={workspacePath}
-            gitSummary={gitSummary}
-            dirtyFileCount={git.dirtyFileCount}
-            onRefreshGit={onRefreshGit}
-            className="w-full px-0 pt-0"
-            triggerClassName="flex h-8 w-full min-w-0 justify-start gap-2 rounded-lg px-2 text-left text-ui-base text-foreground hover:bg-hover hover:text-foreground [&>span]:max-w-[calc(100%-3.5rem)] [&_svg:first-child]:text-foreground"
-            popoverClassName="w-72 max-w-[calc(100vw-2rem)]"
-            branchListClassName="max-h-56"
-            popoverSide={useVerticalFloatingPanels ? "bottom" : "left"}
-            showFooterActions
-          />
+          {gitSummary ? (
+            <GitBranchSwitcher
+              workspacePath={workspacePath}
+              gitSummary={gitSummary}
+              dirtyFileCount={git.dirtyFileCount}
+              onRefreshGit={onRefreshGit}
+              className="w-full px-0 pt-0"
+              triggerClassName="flex h-8 w-full min-w-0 justify-start gap-2 rounded-lg px-2 text-left text-ui-base text-foreground hover:bg-hover hover:text-foreground [&>span]:max-w-[calc(100%-3.5rem)] [&_svg:first-child]:text-foreground"
+              popoverClassName="w-72 max-w-[calc(100vw-2rem)]"
+              branchListClassName="max-h-56"
+              popoverSide={useVerticalFloatingPanels ? "bottom" : "left"}
+              showFooterActions
+            />
+          ) : null}
           <GitActionMenu
             key={commitDialogScopeKey}
             dialogScopeKey={commitDialogScopeKey}
@@ -643,27 +643,12 @@ function GoalStatusSection({
 
 function PlanStatusIcon({ status }: { status: PlanState["items"][number]["status"] }) {
   if (status === "completed") {
-    return (
-      <CheckCircle2Icon
-        aria-hidden
-        className="mt-0.5 size-3.5 shrink-0 text-success"
-      />
-    );
+    return <CheckCircle2Icon aria-hidden className="mt-0.5 size-3.5 shrink-0 text-success" />;
   }
   if (status === "inProgress") {
-    return (
-      <ArrowRightIcon
-        aria-hidden
-        className="mt-0.5 size-3.5 shrink-0 text-foreground"
-      />
-    );
+    return <ArrowRightIcon aria-hidden className="mt-0.5 size-3.5 shrink-0 text-foreground" />;
   }
-  return (
-    <CircleIcon
-      aria-hidden
-      className="mt-0.5 size-3.5 shrink-0 text-foreground-subtlest"
-    />
-  );
+  return <CircleIcon aria-hidden className="mt-0.5 size-3.5 shrink-0 text-foreground-subtlest" />;
 }
 
 const COMPACT_TODO_THRESHOLD = 6;
@@ -719,9 +704,7 @@ function PlanStatusItemRows({ items }: { items: PlanState["items"] }) {
         title={item.content}
         className={cn(
           "line-clamp-2 min-w-0 flex-1 break-words leading-5",
-          item.status === "completed"
-            ? "text-foreground-subtlest line-through"
-            : "text-foreground",
+          item.status === "completed" ? "text-foreground-subtlest line-through" : "text-foreground",
         )}
       >
         {item.content}
@@ -956,10 +939,7 @@ function PlanStatusSection({
       title={intl.formatMessage({ id: "chat.statusPanel.todo" })}
       trailing={() => (
         <span
-          className={cn(
-            "tabular-nums",
-            isCompleted ? "text-success" : "text-foreground-subtle",
-          )}
+          className={cn("tabular-nums", isCompleted ? "text-success" : "text-foreground-subtle")}
         >
           {plan.completedCount}/{plan.totalCount}
         </span>
@@ -1074,9 +1054,7 @@ function RunningStatusItem({
       ) : null}
       <SquareTerminalIcon className="pointer-events-none relative z-[1] mt-0.5 size-4 shrink-0 text-foreground-subtle" />
       <div className="pointer-events-none relative z-[1] flex min-w-0 flex-1 flex-col gap-1.5">
-        <p className="line-clamp-2 text-ui-base leading-5 text-foreground">
-          {work.title}
-        </p>
+        <p className="line-clamp-2 text-ui-base leading-5 text-foreground">{work.title}</p>
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-ui-base">
           <span className="shrink-0 tabular-nums text-foreground-subtle">
             {formatBackgroundTaskElapsedLabel(
@@ -1384,9 +1362,7 @@ function WorkflowStatusSection({
           活动列表的位置，但入口必须留着——被打断的那些正是最需要点进去的。 */}
       <EndedDirectoryRow
         count={endedRunCount}
-        icon={
-          <CheckCircle2Icon className="size-4 shrink-0 text-foreground-subtle" />
-        }
+        icon={<CheckCircle2Icon className="size-4 shrink-0 text-foreground-subtle" />}
         label={intl.formatMessage({ id: "chat.statusPanel.endedWorkflows" })}
         separated={runs.length > 0}
         testId="workflow-run-directory-trigger"
@@ -1704,9 +1680,7 @@ function StatusSummaryRow({
           ? SquareTerminalIcon
           : BotIcon;
   const summaryMetric = currentPlanItem ? (
-    <StatusSummaryMetric
-      icon={<ArrowRightIcon className="size-4 text-foreground" />}
-    >
+    <StatusSummaryMetric icon={<ArrowRightIcon className="size-4 text-foreground" />}>
       <span className="min-w-0 truncate">{currentPlanItem.content}</span>
     </StatusSummaryMetric>
   ) : goalTitle && isActiveGoal ? (
@@ -1730,9 +1704,7 @@ function StatusSummaryRow({
       <span className="min-w-0 truncate">{completedPlanItem.content}</span>
     </StatusSummaryMetric>
   ) : model.plan ? (
-    <StatusSummaryMetric
-      icon={<ListChecksIcon className="size-4 text-foreground-subtle" />}
-    >
+    <StatusSummaryMetric icon={<ListChecksIcon className="size-4 text-foreground-subtle" />}>
       <span className="min-w-0 truncate">
         {intl.formatMessage({ id: "chat.statusPanel.todo" })}
       </span>
@@ -1741,17 +1713,13 @@ function StatusSummaryRow({
       </span>
     </StatusSummaryMetric>
   ) : latestSessionPlan ? (
-    <StatusSummaryMetric
-      icon={<ListChecksIcon className="size-4 text-foreground" />}
-    >
+    <StatusSummaryMetric icon={<ListChecksIcon className="size-4 text-foreground" />}>
       <span className="min-w-0 truncate">
         {latestSessionPlan.title ?? intl.formatMessage({ id: "chat.statusPanel.planFallback" })}
       </span>
     </StatusSummaryMetric>
   ) : runningCount > 0 ? (
-    <StatusSummaryMetric
-      icon={<RunningSummaryIcon className="size-4 text-foreground" />}
-    >
+    <StatusSummaryMetric icon={<RunningSummaryIcon className="size-4 text-foreground" />}>
       {/* 产品规则：实时活动只能在没有 Goal/Todo/Git 等主状态时兜底，
           避免胶囊把主状态和输入框已展示的实时计数重复拼接。 */}
       <span className="shrink-0">
@@ -1766,20 +1734,14 @@ function StatusSummaryRow({
     // 整个壳——工作区无 Git 变更时 workflow 一结束，胶囊各分支全 null，只剩一条 2px
     // 空壳线（与 goal notSatisfied 那次是同一个失效形状）。这里补上最低优先级的终态
     // 分支：图标沿用 Workflow 域，文案与 Workflows 分区页脚同 key，点开即展开面板。
-    <StatusSummaryMetric
-      icon={<Workflow className="size-4 text-foreground-subtle" />}
-    >
+    <StatusSummaryMetric icon={<Workflow className="size-4 text-foreground-subtle" />}>
       <span className="min-w-0 truncate">
         {intl.formatMessage({ id: "chat.statusPanel.endedWorkflows" })}
       </span>
-      <span className="shrink-0 text-foreground-subtle">
-        {endedWorkflowRunCount}
-      </span>
+      <span className="shrink-0 text-foreground-subtle">{endedWorkflowRunCount}</span>
     </StatusSummaryMetric>
   ) : endedSubagentCount > 0 ? (
-    <StatusSummaryMetric
-      icon={<BotIcon className="size-4 text-foreground-subtle" />}
-    >
+    <StatusSummaryMetric icon={<BotIcon className="size-4 text-foreground-subtle" />}>
       <span className="min-w-0 truncate">
         {intl.formatMessage({ id: "chat.statusPanel.endedAgents" })}
       </span>
@@ -1787,9 +1749,7 @@ function StatusSummaryRow({
     </StatusSummaryMetric>
   ) : canRenderGit ? (
     // 干净仓库没有统计投影，mini 仍需可点击的最低优先级摘要，不能只剩空壳。
-    <StatusSummaryMetric
-      icon={<FileDiffIcon className="size-4 text-foreground-subtle" />}
-    >
+    <StatusSummaryMetric icon={<FileDiffIcon className="size-4 text-foreground-subtle" />}>
       <span className="min-w-0 truncate">
         {intl.formatMessage({
           id: `git.commitWorkflow.${executionBindingId ? "worktree" : "local"}.title`,
@@ -1920,7 +1880,9 @@ function ConversationStatusPanelImpl({
       }) as CSSProperties,
     [miniWidth],
   );
-  const canMountGit = Boolean(gitSummary && onRefreshGit);
+  // 安装版确认同 scope 下摘要短暂缺席会卸载发布 owner，丢失人工配置并重新放行自动审核。
+  // 保留控制器，缺席只禁用操作；不能用缓存摘要伪造新的 Git 事实。
+  const canMountGit = Boolean(onRefreshGit);
   // 发布 Tag 不要求工作树有改动；干净、已同步仓库仍必须能主动打开同一提交/发布弹框。
   const canRenderGit = Boolean(
     gitSummary?.isGitAvailable && gitSummary.isRepository && canMountGit,

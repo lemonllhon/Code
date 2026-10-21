@@ -1,7 +1,45 @@
-import type { GitCommitRequest, GitCommitResult } from "@lcode/shared";
+import {
+  gitCommitAndSwitchRequestSchema,
+  type GitCommitAndSwitchRequest,
+  type GitCommitAndSwitchResult,
+  type GitCommitRequest,
+  type GitCommitResult,
+} from "@lcode/shared";
 import type { CommitReviewService } from "./commitReviewService.js";
 import type { GitCliRepo } from "./repo/gitCliTypes.js";
 import type { GitPublishStateReader } from "./repo/gitPublishState.js";
+import { resolveMutationSelection } from "./repo/gitFileMutationRepo.js";
+import { resolve } from "node:path";
+
+export async function commitAndSwitchWithPublishState(
+  repo: GitCliRepo,
+  reviews: CommitReviewService | null,
+  state: GitPublishStateReader,
+  input: GitCommitAndSwitchRequest,
+): Promise<GitCommitAndSwitchResult> {
+  const params = gitCommitAndSwitchRequestSchema.parse(input);
+  const snapshot = await repo.getStatus(params.workspacePath);
+  const { paths } = await resolveMutationSelection(snapshot, params.paths);
+  const commit = await commitWithPublishState(repo, reviews, state, {
+    workspacePath: params.workspacePath,
+    workspaceIdentity: params.workspaceIdentity,
+    message: params.message,
+    paths: paths.map((path) => resolve(snapshot.resolution.repoRoot, path)),
+    expectedState: params.expectedState,
+  });
+  // 已完成提交是不可丢失的事实；警告或切换失败都不能诱发 UI 重复提交。
+  if (commit.warning) return { commit, switchResult: null, warning: commit.warning };
+  try {
+    const switchResult = await repo.switchBranch(params.workspacePath, params.targetBranchName);
+    return { commit, switchResult };
+  } catch (error) {
+    return {
+      commit,
+      switchResult: null,
+      warning: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
 
 export async function commitWithPublishState(
   repo: GitCliRepo,

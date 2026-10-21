@@ -1,4 +1,4 @@
-import { FolderPlus, LoaderCircle } from "lucide-react";
+import { FolderPlus, GitBranch, LoaderCircle } from "lucide-react";
 import {
   isSameLocalProjectPath,
   LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT,
@@ -22,6 +22,8 @@ export function ProjectSourceFolders({
   canDrop,
   addTestId,
   onAdd,
+  onGitRepository,
+  onSetPrimary,
   onChange,
   onRemove,
   onMove,
@@ -38,6 +40,8 @@ export function ProjectSourceFolders({
   canDrop?: boolean;
   addTestId?: string;
   onAdd(): void;
+  onGitRepository?(): void;
+  onSetPrimary?(id: string): void;
   onChange(member: ProjectMember): void;
   onRemove(id: string): void;
   onMove?(index: number, delta: number): void;
@@ -45,24 +49,41 @@ export function ProjectSourceFolders({
   const text = useProjectEditorText();
   return (
     <section className="space-y-2">
-      <div className="flex items-center justify-between gap-2 text-ui-sm">
-        <span>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-ui-sm">
+        <span className="shrink-0">
           {text("folders")} · {members.length}
         </span>
-        <Button
-          size="sm"
-          variant="ghost"
-          data-testid={addTestId}
-          disabled={disabled || !ready || members.length >= LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT}
-          onClick={onAdd}
+        <div
+          className="ml-auto flex flex-wrap justify-end gap-1"
+          data-testid="project-folder-actions"
         >
-          {checking ? (
-            <LoaderCircle className="size-4 animate-spin" />
-          ) : (
-            <FolderPlus className="size-4" />
-          )}
-          {text("add")}
-        </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            data-testid={addTestId}
+            disabled={disabled || !ready || members.length >= LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT}
+            onClick={onAdd}
+          >
+            {checking ? (
+              <LoaderCircle className="size-4 animate-spin" />
+            ) : (
+              <FolderPlus className="size-4" />
+            )}
+            {text("add")}
+          </Button>
+          {onGitRepository ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              data-testid="project-git-repository"
+              disabled={disabled || !ready}
+              onClick={onGitRepository}
+            >
+              <GitBranch className="size-4" />
+              {text("gitRepository")}
+            </Button>
+          ) : null}
+        </div>
       </div>
       <div
         data-testid="project-folder-list"
@@ -88,6 +109,7 @@ export function ProjectSourceFolders({
               onChange={onChange}
               onRemove={() => onRemove(member.id)}
               onMove={onMove ? (delta) => onMove(index, delta) : undefined}
+              onSetPrimary={onSetPrimary ? () => onSetPrimary(member.id) : undefined}
             />
           ))
         ) : (
@@ -98,6 +120,9 @@ export function ProjectSourceFolders({
       </div>
       {canDrop && members.length ? (
         <p className="text-ui-xs text-foreground-subtlest">{text("dropHint")}</p>
+      ) : null}
+      {onGitRepository ? (
+        <p className="text-ui-xs text-foreground-subtlest">{text("gitDirectoryHint")}</p>
       ) : null}
     </section>
   );

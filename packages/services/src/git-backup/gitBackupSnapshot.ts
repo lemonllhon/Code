@@ -2,10 +2,11 @@ import { createHash } from "node:crypto";
 import { constants, type Stats } from "node:fs";
 import { lstat, open, readdir, realpath } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
-import { createGitCommandProvider } from "../git/node.js";
+import { createGitCommandProvider, type GitCommandProvider } from "../git/node.js";
 import type { GitBackupManifestEntry } from "./gitBackup.js";
 
 export interface GitBackupSnapshotOptions {
+  commandProvider?: GitCommandProvider;
   maxArchiveBytes?: number;
   maxFiles?: number;
 }
@@ -68,9 +69,12 @@ async function inventory(gitDir: string, maxFiles: number): Promise<FileStamp[]>
 
 const gitCommands = createGitCommandProvider();
 
-async function rejectPartialCloneConfig(gitDir: string): Promise<void> {
+async function rejectPartialCloneConfig(
+  gitDir: string,
+  command: GitCommandProvider,
+): Promise<void> {
   // promisor 即使尚无 pack 标记也可能缺对象；让 Git 解析配置，禁止 include 读取仓库外文件。
-  const result = await gitCommands.run({
+  const result = await command.run({
     cwd: gitDir,
     args: [
       "config",
@@ -122,7 +126,7 @@ export async function captureGitSnapshot(
   const maxFiles = options.maxFiles ?? 100_000;
   const before = await inventory(gitDir, maxFiles);
   if (before.some((file) => file.path === "config" && !file.directory))
-    await rejectPartialCloneConfig(gitDir);
+    await rejectPartialCloneConfig(gitDir, options.commandProvider ?? gitCommands);
   const chunks: Buffer[] = [];
   const entries: GitBackupManifestEntry[] = [];
   let packedSize = 0;

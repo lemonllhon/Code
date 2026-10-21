@@ -45,6 +45,7 @@ import {
 import { resolveWorkbenchNewTaskTarget } from "@/v4/workbenchNewTaskTarget.js";
 import type { WorkbenchNewTaskTarget } from "@/v4/workbenchNewTaskTarget.js";
 import { useWorkbenchGroupStore } from "@/v4/workbenchGroupStore.js";
+import { submitSidebarOrganization } from "@/hooks/sidebarOrganizationCommands.js";
 import {
   readV4ComposerDraft,
   persistV4ComposerDraft,
@@ -561,7 +562,7 @@ export function useRootWorkspaceActions({
       // 中文依据：新建表单的目录用途必须随同一次项目命令保存，不能在创建后再补写而丢失元数据。
       const project = projectDefinitionSchema.parse({
         ...createLocalProject({
-          id: createUuid(),
+          id: request.projectId ?? createUuid(),
           name: request.name,
           sourceFolderPaths: request.sourceFolderPaths,
         }),
@@ -572,21 +573,93 @@ export function useRootWorkspaceActions({
         isSameLocalProjectPath(candidate.primaryFolderPath, project.primaryFolderPath),
       );
       // 已保存但未打开的项目仍有效，不能根据窗口 tab 自动删除并替换它。
-      if (conflictingProject) {
+      if (conflictingProject && conflictingProject.id !== request.projectId) {
         throw new Error(intl.formatMessage({ id: "chat.empty.createProject.duplicatePrimary" }));
       }
 
       // 项目定义必须先成为设置事实，再打开 tab。反过来会在设置写失败时留下一个
       // 看似属于项目、实际无法恢复源文件夹的半创建会话。
-      const result = await mutateProject({
-        type: "save",
-        operationId: createUuid(),
-        projectId: project.id,
-        expectedRevision: null,
-        project,
-      });
-      if (result.status !== "applied")
-        throw new Error(result.reason ?? "Project could not be saved");
+      if (request.sidebarSectionId) {
+        if (!services.sidebarOrganizationService)
+          throw new Error(intl.formatMessage({ id: "git.repositoryWizard.groupUnavailable" }));
+        const snapshot = await services.sidebarOrganizationService.getSnapshot();
+        if (!snapshot.sections.some((section) => section.id === request.sidebarSectionId))
+          throw new Error(intl.formatMessage({ id: "git.repositoryWizard.groupUnavailable" }));
+      }
+      const registered = conflictingProject
+        ? (settings.projectDefinitions?.projects.find(
+            (item) => item.id === conflictingProject.id,
+          ) ?? conflictingProject)
+        : undefined;
+      const revised =
+        registered &&
+        (registered.name !== project.name ||
+          JSON.stringify(registered.sourceFolderPaths) !==
+            JSON.stringify(project.sourceFolderPaths) ||
+          (request.members !== undefined &&
+            JSON.stringify(registered.members) !== JSON.stringify(request.members)) ||
+          (request.description !== undefined && registered.description !== request.description));
+      // 中文依据：保存成功但归组/打开失败后，原 intent 会继续编辑源目录；只跳过登记会静默丢掉新草稿。
+      // 原样重试复用已保存事实，发生编辑时以当前 revision 走原 CAS；不能重复建项目或重新执行 Git。
+      if (!registered || revised) {
+        const members =
+          request.members ??
+          (registered?.members
+            ? project.sourceFolderPaths.map(
+                (path) =>
+                  registered.members!.find((member) =>
+                    isSameLocalProjectPath(member.path, path),
+                  ) ?? {
+                    id: createUuid(),
+                    path,
+                    role: "",
+                    label: "",
+                    description: "",
+                    enabled: true,
+                  },
+              )
+            : undefined);
+        const projectToSave = projectDefinitionSchema.parse({
+          ...registered,
+          ...project,
+          description: request.description ?? registered?.description,
+          members,
+          memberOrder: members?.map((member) => member.id),
+        });
+        const result = await mutateProject({
+          type: "save",
+          operationId: createUuid(),
+          projectId: project.id,
+          expectedRevision: registered ? (registered.revision ?? 0) : null,
+          project: projectToSave,
+        });
+        if (result.status !== "applied")
+          throw new Error(result.reason ?? "Project could not be saved");
+      }
+      if (request.sidebarSectionId) {
+        if (!services.sidebarOrganizationService)
+          throw new Error(intl.formatMessage({ id: "git.repositoryWizard.groupUnavailable" }));
+        const snapshot = await services.sidebarOrganizationService.getSnapshot();
+        const result = await submitSidebarOrganization(services.sidebarOrganizationService, {
+          operationId: createUuid(),
+          expectedRevision: snapshot.revision,
+          mutations: [
+            {
+              type: "move",
+              sectionId: request.sidebarSectionId,
+              entries: [
+                {
+                  kind: "project",
+                  workspacePath: project.primaryFolderPath,
+                  localProjectId: project.id,
+                },
+              ],
+            },
+          ],
+        });
+        if (result.status !== "applied")
+          throw new Error(intl.formatMessage({ id: "git.repositoryWizard.groupConflict" }));
+      }
       await handleSelectProject(project.primaryFolderPath, {
         workspacePurpose: "project",
         localProjectId: project.id,
@@ -597,6 +670,7 @@ export function useRootWorkspaceActions({
       handleSelectProject,
       intl,
       services.settingService,
+      services.sidebarOrganizationService,
       supportsSettings,
       mutateProject,
     ],

@@ -4,6 +4,9 @@ import * as shared from "./index.js";
 import type { GitTagListResult, GitUnsupportedTagInfo } from "./index.js";
 import {
   gitCommitRequestSchema,
+  gitPathMutationRequestSchema,
+  gitDiscardPathsRequestSchema,
+  gitCommitAndSwitchRequestSchema,
   gitCreateTagRequestSchema,
   gitCreateTagResultSchema,
   gitGenerateCommitMessageRequestSchema,
@@ -20,6 +23,41 @@ const state = {
   indexFingerprint: "b".repeat(64),
   worktreeFingerprint: "c".repeat(64),
 };
+
+test("文件写入 schema 约束具体非空路径、确认版本和 identity，拒绝未知字段", () => {
+  const base = {
+    workspacePath: "/repo",
+    workspaceIdentity: "host:repo",
+    paths: ["src/a.ts"],
+    expectedState: state,
+  };
+  assert.deepEqual(gitPathMutationRequestSchema.parse(base), base);
+  assert.deepEqual(gitDiscardPathsRequestSchema.parse({ ...base, staged: true }), {
+    ...base,
+    staged: true,
+  });
+  assert.ok(
+    gitCommitAndSwitchRequestSchema.safeParse({
+      ...base,
+      message: "selected",
+      targetBranchName: "topic",
+    }).success,
+  );
+  for (const schema of [gitPathMutationRequestSchema, gitDiscardPathsRequestSchema]) {
+    for (const invalid of [
+      { ...base, paths: [] },
+      { ...base, paths: [""] },
+      { ...base, paths: ["a\0b"] },
+      { ...base, force: true },
+      { ...base, remoteSessionId: "wrong-layer" },
+    ])
+      assert.equal(schema.safeParse(invalid).success, false);
+  }
+  assert.equal(
+    gitDiscardPathsRequestSchema.safeParse({ workspacePath: "/repo", paths: ["a"] }).success,
+    false,
+  );
+});
 
 test("Git publishing schemas preserve the public frozen contract", () => {
   const base = { workspacePath: "/repo", workspaceIdentity: "remote:fixture" };

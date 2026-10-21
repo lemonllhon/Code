@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import {
   LOCAL_PROJECT_NAME_MAX_LENGTH,
+  LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT,
+  createUuid,
   TID_CREATE_PROJECT_ADD_FOLDER,
   TID_CREATE_PROJECT_DIALOG,
   TID_CREATE_PROJECT_NAME,
@@ -28,6 +30,7 @@ import { mergeLocalProjectFolderPaths } from "@/createProjectFolderDrop.js";
 import { ProjectDialogContent } from "@/WorkspaceSidebar/ProjectDialogContent.js";
 import { ProjectSourceFolders } from "@/WorkspaceSidebar/ProjectSourceFolders.js";
 import { useProjectEditorText } from "@/WorkspaceSidebar/projectEditorText.js";
+import { GitRepositoryWizard } from "@/git-workspace/GitRepositoryWizard.js";
 
 export function ChatEmptyCreateProjectDialog({
   open,
@@ -48,6 +51,8 @@ export function ChatEmptyCreateProjectDialog({
   const [submitting, setSubmitting] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [gitWizard, setGitWizard] = useState(false);
+  const [projectId, setProjectId] = useState(createUuid);
   const generation = useRef(0);
   const sourceFolderPaths = members.map((member) => member.path);
   const reset = () => {
@@ -58,9 +63,15 @@ export function ChatEmptyCreateProjectDialog({
     setSubmitting(false);
     setSelecting(false);
     setError(null);
+    setGitWizard(false);
+    setProjectId(createUuid());
   };
   const handleOpenChange = (nextOpen: boolean) => {
     if (submitting) return;
+    if (!nextOpen && gitWizard) {
+      setGitWizard(false);
+      return;
+    }
     if (!nextOpen) reset();
     onOpenChange(nextOpen);
   };
@@ -82,15 +93,18 @@ export function ChatEmptyCreateProjectDialog({
     if (!nameTouched && !name.trim() && merged.addedPaths.length)
       setName(getPathLeaf(merged.addedPaths[0]!));
     if (merged.discardedForLimitCount) setError(text("limit"));
+    return merged.discardedForLimitCount === 0;
   };
   const drop = useProjectFolderDrop({
-    enabled: open,
+    enabled: open && !gitWizard,
     busy: submitting || selecting,
     services,
-    onFolders: mergeFolders,
+    onFolders: (paths) => {
+      mergeFolders(paths);
+    },
     onError: setError,
   });
-  const busy = submitting || selecting || drop.checking;
+  const busy = submitting || selecting || drop.checking || gitWizard;
   const handleAddFolders = async () => {
     const token = generation.current;
     setSelecting(true);
@@ -113,7 +127,7 @@ export function ChatEmptyCreateProjectDialog({
     setSubmitting(true);
     setError(null);
     try {
-      await onCreate({ name, sourceFolderPaths, members });
+      await onCreate({ projectId, name, sourceFolderPaths, members });
       reset();
       onOpenChange(false);
     } catch (failure) {
@@ -123,82 +137,102 @@ export function ChatEmptyCreateProjectDialog({
   };
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <ProjectDialogContent
-        data-testid={TID_CREATE_PROJECT_DIALOG}
-        onDragOver={drop.onDragOver}
-        onDragLeave={drop.onDragLeave}
-        onDrop={drop.onDrop}
-      >
-        <DialogHeader>
-          <DialogTitle className="pr-8 text-ui-lg font-semibold">
-            {intl.formatMessage({ id: "chat.empty.createProject.title" })}
-          </DialogTitle>
-          <DialogDescription className="sr-only">
-            {intl.formatMessage({ id: "chat.empty.createProject.description" })}
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody className="space-y-4">
-          <label className="block space-y-2 text-ui-sm">
-            <span>{text("name")}</span>
-            <Input
-              autoFocus
-              size="lg"
-              value={name}
-              maxLength={LOCAL_PROJECT_NAME_MAX_LENGTH}
-              data-testid={TID_CREATE_PROJECT_NAME}
+      {gitWizard ? (
+        <GitRepositoryWizard
+          useBaseHost
+          initialDirectory={sourceFolderPaths[0]}
+          onClose={() => setGitWizard(false)}
+          canAddPath={(path) =>
+            sourceFolderPaths.length < LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT ||
+            sourceFolderPaths.some((existing) => isSameLocalProjectPath(existing, path))
+          }
+          onImported={async (path) => mergeFolders([path])}
+        />
+      ) : (
+        <ProjectDialogContent
+          data-testid={TID_CREATE_PROJECT_DIALOG}
+          onDragOver={drop.onDragOver}
+          onDragLeave={drop.onDragLeave}
+          onDrop={drop.onDrop}
+        >
+          <DialogHeader>
+            <DialogTitle className="pr-8 text-ui-lg font-semibold">
+              {intl.formatMessage({ id: "chat.empty.createProject.title" })}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              {intl.formatMessage({ id: "chat.empty.createProject.description" })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-4">
+            <label className="block space-y-2 text-ui-sm">
+              <span>{text("name")}</span>
+              <Input
+                autoFocus
+                size="lg"
+                value={name}
+                maxLength={LOCAL_PROJECT_NAME_MAX_LENGTH}
+                data-testid={TID_CREATE_PROJECT_NAME}
+                disabled={busy}
+                placeholder={text("name")}
+                onChange={(event) => {
+                  setNameTouched(true);
+                  setName(event.target.value);
+                  setError(null);
+                }}
+              />
+            </label>
+            <ProjectSourceFolders
+              members={members}
+              primaryPath={sourceFolderPaths[0]}
+              primaryLocked={false}
               disabled={busy}
-              placeholder={text("name")}
-              onChange={(event) => {
-                setNameTouched(true);
-                setName(event.target.value);
+              checking={selecting || drop.checking}
+              dragging={drop.dragging}
+              canDrop={drop.canDrop}
+              addTestId={TID_CREATE_PROJECT_ADD_FOLDER}
+              onAdd={() => void handleAddFolders()}
+              onGitRepository={() => setGitWizard(true)}
+              onSetPrimary={(id) =>
+                setMembers((current) => [
+                  ...current.filter((member) => member.id === id),
+                  ...current.filter((member) => member.id !== id),
+                ])
+              }
+              onChange={(next) =>
+                setMembers((current) =>
+                  current.map((member) => (member.id === next.id ? next : member)),
+                )
+              }
+              onRemove={(id) => {
+                setMembers(members.filter((member) => member.id !== id));
                 setError(null);
               }}
             />
-          </label>
-          <ProjectSourceFolders
-            members={members}
-            primaryPath={sourceFolderPaths[0]}
-            primaryLocked={false}
-            disabled={busy}
-            checking={selecting || drop.checking}
-            dragging={drop.dragging}
-            canDrop={drop.canDrop}
-            addTestId={TID_CREATE_PROJECT_ADD_FOLDER}
-            onAdd={() => void handleAddFolders()}
-            onChange={(next) =>
-              setMembers((current) =>
-                current.map((member) => (member.id === next.id ? next : member)),
-              )
-            }
-            onRemove={(id) => {
-              setMembers(members.filter((member) => member.id !== id));
-              setError(null);
-            }}
-          />
-          {members.length > 0 && !members.some((member) => member.enabled) ? (
-            <p role="alert" className="text-ui-sm text-destructive">
-              {text("noSelection")}
-            </p>
-          ) : null}
-          {error ? (
-            <p role="alert" className="text-ui-sm text-destructive">
-              {error}
-            </p>
-          ) : null}
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="outline" disabled={submitting} onClick={() => handleOpenChange(false)}>
-            {intl.formatMessage({ id: "common.cancel" })}
-          </Button>
-          <Button
-            data-testid={TID_CREATE_PROJECT_SUBMIT}
-            disabled={!canSubmit}
-            onClick={() => void handleSubmit()}
-          >
-            {intl.formatMessage({ id: "chat.empty.createProject.submit" })}
-          </Button>
-        </DialogFooter>
-      </ProjectDialogContent>
+            {members.length > 0 && !members.some((member) => member.enabled) ? (
+              <p role="alert" className="text-ui-sm text-destructive">
+                {text("noSelection")}
+              </p>
+            ) : null}
+            {error ? (
+              <p role="alert" className="text-ui-sm text-destructive">
+                {error}
+              </p>
+            ) : null}
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" disabled={submitting} onClick={() => handleOpenChange(false)}>
+              {intl.formatMessage({ id: "common.cancel" })}
+            </Button>
+            <Button
+              data-testid={TID_CREATE_PROJECT_SUBMIT}
+              disabled={!canSubmit}
+              onClick={() => void handleSubmit()}
+            >
+              {intl.formatMessage({ id: "chat.empty.createProject.submit" })}
+            </Button>
+          </DialogFooter>
+        </ProjectDialogContent>
+      )}
     </Dialog>
   );
 }

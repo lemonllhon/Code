@@ -11,6 +11,7 @@ import type {
 import type { IGitCheckpointService } from "./gitCheckpoint.js";
 import { createGitCheckpointRepo, type GitCheckpointRepo } from "./repo/gitCheckpointRepo.js";
 import { GitCheckpointStore } from "./repo/gitCheckpointStore.js";
+import type { GitCommandProvider } from "./providers/gitCommandProvider.js";
 
 function ensureCheckpointExists(
   meta: GitCheckpointMeta | null,
@@ -41,11 +42,13 @@ function ensureComparableCheckpoints(left: GitCheckpointMeta, right: GitCheckpoi
 }
 
 export function createGitCheckpointService(options?: {
+  commandProvider?: GitCommandProvider;
   store?: GitCheckpointStore;
   repo?: GitCheckpointRepo;
 }): IGitCheckpointService {
   const store = options?.store ?? new GitCheckpointStore();
-  const repo = options?.repo ?? createGitCheckpointRepo();
+  const repo =
+    options?.repo ?? createGitCheckpointRepo({ commandProvider: options?.commandProvider });
 
   async function loadCheckpoint(
     workspacePath: string,

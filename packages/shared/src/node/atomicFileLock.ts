@@ -212,6 +212,40 @@ async function removeAbandonedLock(
   }
 }
 
+/** 即时 admission 只按已退出 PID 回收，不用目录年龄判断正在创建的新锁。 */
+async function removeExitedOwners(
+  lockFile: string,
+  observeLockInstance: ObserveLockInstance,
+): Promise<LockRemovalAttempt> {
+  try {
+    if (!(await stat(lockFile)).isDirectory())
+      return removeAbandonedLock(lockFile, Infinity, observeLockInstance);
+    const owners = (await readdir(lockFile)).filter(
+      (entry) => entry.startsWith("owner-") && entry.endsWith(".json"),
+    );
+    let removed = false;
+    for (const name of owners) {
+      const ownerFile = join(lockFile, name);
+      try {
+        if (await isOwnerFileReclaimable(ownerFile, Infinity, observeLockInstance)) {
+          // token 文件名唯一；只删除已核对的 owner，新加入的 writer 会让 rmdir 拒绝。
+          await rm(ownerFile);
+          removed = true;
+        }
+      } catch (error) {
+        if (getErrorCode(error) !== "ENOENT") throw error;
+      }
+    }
+    if (!removed) return { removed: false };
+    await rmdir(lockFile);
+    return { removed: true };
+  } catch (error) {
+    if (["ENOENT", "ENOTEMPTY", "EEXIST"].includes(getErrorCode(error) ?? ""))
+      return { removed: false };
+    return { removed: false, error };
+  }
+}
+
 function createFileLockTimeoutError(
   filePath: string,
   lockFile: string,
@@ -233,7 +267,10 @@ export async function acquireFileLock(
   retryDelaysMs: readonly number[],
   ownerlessGraceMs: number,
   maxWaitMs: number,
-  options: { shared?: boolean } = {},
+  options: {
+    shared?: boolean;
+    /** Host 即时 admission 只恢复已退出 PID 的许可，不等待活跃 owner。 */ reclaimDeadOwners?: boolean;
+  } = {},
 ): Promise<() => Promise<void>> {
   const lockFile = `${filePath}.lock`;
   const token = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -294,6 +331,12 @@ export async function acquireFileLock(
       }
 
       if (options.shared && (await tryJoinSharedLock(lockFile, ownerFile, payload))) return release;
+
+      if (options.reclaimDeadOwners && maxWaitMs === 0) {
+        const removal = await removeExitedOwners(lockFile, observeLockInstance);
+        if (removal.removed) continue;
+        if (removal.error) lastRemovalError = removal.error;
+      }
 
       // 等待者自身已等待多久不能证明当前锁 stale，否则旧锁释放后可能误删
       // 后来 writer 的新锁。这里只回收 owner 已退出或无 PID 且超过短 grace 的锁，

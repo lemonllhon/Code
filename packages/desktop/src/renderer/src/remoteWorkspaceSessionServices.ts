@@ -9,6 +9,7 @@ export function buildRemoteWorkspaceSessionServices(
     fileService: remoteServices.fileService,
     mediaPreviewService: remoteServices.mediaPreviewService,
     gitService: remoteServices.gitService,
+    gitManagementService: remoteServices.gitManagementService,
     // 绑定与运行环境都是目标 Host 的事实；旧远端缺服务也不能回落本机同路径。
     worktreeService: remoteServices.worktreeService,
     projectExecutionSetService: remoteServices.projectExecutionSetService,

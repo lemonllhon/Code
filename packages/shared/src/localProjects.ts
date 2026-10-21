@@ -19,6 +19,9 @@ export interface CreateLocalProjectInput {
 }
 
 export interface LocalProjectCreateRequest {
+  /** 同一新建表单重试项目保存时沿用，不用于复用其他项目。 */
+  projectId?: string;
+  sidebarSectionId?: string;
   name: string;
   sourceFolderPaths: string[];
   description?: string;

@@ -2,6 +2,7 @@
 import { logger } from "@/logger.js";
 
 export type SettingsSectionId =
+  | "gitManagement"
   | "tokenUsageStatusBar"
   | "proxy"
   | "general"
@@ -67,6 +68,7 @@ export interface SettingsModelProviderTarget {
 
 function isSettingsSectionId(value: string): value is SettingsSectionId {
   return (
+    value === "gitManagement" ||
     value === "general" ||
     value === "tokenUsageStatusBar" ||
     value === "configuration" ||

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { openRemotePublication, returnToReview } from "./git-review-pane-helpers.mjs";
 
 export async function runGitReviewRedesignCases(t, { page, url }) {
   const fixture = (method, ...args) =>
@@ -15,32 +16,39 @@ export async function runGitReviewRedesignCases(t, { page, url }) {
       await fixture("executionMode", "worktree");
       await fixture("dirty", []);
       await page.getByTestId("git-action-trigger").click();
-      const dialog = page.getByTestId("git-commit-dialog");
+      const dialog = page.getByTestId("git-commit-review-pane").filter({ visible: true });
       const commit = dialog.getByTestId("git-commit-action-item-commit");
       assert.equal(await commit.evaluate((element) => element.tagName), "BUTTON");
       await dialog.getByTestId("git-review-stage-back").click();
-      await dialog.getByTestId("worktree-flow-result").click();
-      const result = dialog.getByTestId("worktree-completion-summary");
+      await openRemotePublication(page);
+      const publication = page.getByTestId("git-network-publication-host");
+      await publication.getByTestId("worktree-flow-result").click();
+      const result = publication.getByTestId("worktree-completion-summary");
       await result.waitFor();
       assert.match(await result.innerText(), /无需合并|已包含/);
       assert.match(await result.innerText(), /未执行|待核实/);
-      assert.equal(await dialog.getByTestId("git-publish-confirm").count(), 0);
-      await dialog.press("Control+Enter");
+      assert.equal(await publication.getByTestId("git-publish-confirm").count(), 0);
+      await publication.press("Control+Enter");
       assert.deepEqual(await page.evaluate(() => globalThis.__gitCommitFixture.publish.calls), []);
-      await dialog.getByTestId("worktree-flow-push").click();
-      await dialog.getByTestId("git-publish-toggle").click();
-      assert.equal(await dialog.getByTestId("git-publish-preview").count(), 1);
-      await dialog.getByTestId("worktree-skip-push").click();
-      assert.equal(await dialog.getByTestId("git-publish-preview").count(), 0);
+      await publication.getByTestId("worktree-flow-push").click();
+      await publication.getByTestId("git-publish-toggle").click();
+      assert.equal(await publication.getByTestId("git-publish-preview").count(), 1);
+      await publication.getByTestId("worktree-skip-push").click();
+      assert.equal(await publication.getByTestId("git-publish-preview").count(), 0);
       assert.equal(await result.isVisible(), true);
       const actions = await page.evaluate(() => globalThis.__gitCommitFixture.mergeCalls);
       assert.equal(actions.length, 0);
-      assert.ok(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth + 1));
+      assert.ok(
+        await publication.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+      );
+      await returnToReview(page);
       const close = await dialog.getByTestId("git-commit-close").boundingBox();
       assert.ok(close && close.y + close.height < 900);
-      await page.getByTestId("git-review-dismiss").click();
+      await page.getByTestId("git-commit-close").click();
       await dialog.waitFor({ state: "hidden" });
       await page.getByTestId("git-action-trigger").click();
+      await openRemotePublication(page);
+      await result.waitFor();
       assert.equal(await result.isVisible(), true);
       const output = new URL("../../../artifacts/git-review-redesign/", import.meta.url);
       await mkdir(output, { recursive: true });
@@ -61,7 +69,7 @@ export async function runGitReviewRedesignCases(t, { page, url }) {
           await fixture("executionMode", "worktree");
           await fixture("dirty", ["a.ts", "b.ts"]);
           await page.getByTestId("git-action-trigger").click();
-          const dialog = page.getByTestId("git-commit-dialog");
+          const dialog = page.getByTestId("git-commit-review-pane").filter({ visible: true });
           await dialog.getByTestId("worktree-preflight").waitFor();
           const merge = dialog.getByTestId("worktree-integrate");
           assert.equal(await merge.isDisabled(), true);
@@ -83,7 +91,7 @@ export async function runGitReviewRedesignCases(t, { page, url }) {
             await dialog.getByTestId("git-review-scroll").evaluate((element) => {
               element.scrollTop = element.scrollHeight;
             });
-            const header = await dialog.getByTestId("git-commit-workflow-title").boundingBox();
+            const header = await page.getByTestId("git-review-side-pane").boundingBox();
             const footer = await dialog.getByTestId("git-review-footer").boundingBox();
             if (!(header.y >= 0 && footer.y + footer.height <= 900)) {
               const output = new URL("../../../artifacts/git-review-redesign/", import.meta.url);
@@ -131,7 +139,7 @@ export async function runGitReviewRedesignCases(t, { page, url }) {
             await page.evaluate(() => globalThis.__gitCommitFixture.publish.calls),
             [],
           );
-          await page.getByTestId("git-review-dismiss").click();
+          await page.getByTestId("git-commit-close").click();
           await dialog.waitFor({ state: "hidden" });
           await page.getByTestId("git-action-trigger").click();
           await page.waitForFunction(
@@ -143,7 +151,7 @@ export async function runGitReviewRedesignCases(t, { page, url }) {
           assert.equal(await merge.isEnabled(), true);
           await fixture("switchSession", "b");
           await dialog.waitFor({ state: "hidden" });
-          await page.getByTestId("git-action-trigger").click();
+          await page.getByTestId("git-review-empty").getByRole("button").click();
           await page.waitForFunction(
             () =>
               document

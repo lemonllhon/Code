@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { AppSettings } from "@lcode/shared";
+import type { AppSettings, SidebarOrganization } from "@lcode/shared";
+import type { ISidebarOrganizationService } from "@lcode/services";
 import { WorkspaceSidebar } from "@/WorkspaceSidebar.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { PlatformProvider } from "@/hooks/usePlatform.js";
@@ -18,6 +19,8 @@ import {
 } from "./project-creation-controls.js";
 import "@/styles.css";
 import { usePromptEditorDragState } from "@/prompt-editor/usePromptEditorDragState.js";
+import { createProjectGitFixture } from "./project-git-service.js";
+import { gitManagementService } from "./git-management-service.js";
 
 const params = new URLSearchParams(location.search);
 const settings: Partial<AppSettings> = JSON.parse(
@@ -38,8 +41,40 @@ document.addEventListener("drop", () => {
   dragCalls.document++;
 });
 const creation = createProjectCreationFixture(createSidebarProjectCommands(settings, calls));
+let grouping: SidebarOrganization = {
+  version: 1,
+  revision: 0,
+  sections: [{ id: "tools", title: "工具", entries: [] }],
+  rootOrders: [],
+  importedSources: [],
+};
+let groupConflict = false;
+let failGitFolderAdd = false;
+const groupingService: ISidebarOrganizationService = {
+  getSnapshot: async () => structuredClone(grouping),
+  onDidChange: () => ({ dispose() {} }),
+  apply: async (request) => {
+    calls.push({ method: "group", params: request });
+    if (groupConflict) {
+      groupConflict = false;
+      return { status: "conflict", snapshot: structuredClone(grouping) };
+    }
+    for (const mutation of request.mutations)
+      if (mutation.type === "move") {
+        const section = grouping.sections.find((s) => s.id === mutation.sectionId);
+        if (section) section.entries = mutation.entries;
+      }
+    grouping = { ...grouping, revision: grouping.revision + 1 };
+    return { status: "applied", snapshot: structuredClone(grouping) };
+  },
+};
 const services = {
   ...defaults,
+  gitService: { ...defaults.gitService, ...createProjectGitFixture(calls) },
+  gitManagementService,
+  sidebarOrganizationService: params.has("registration")
+    ? groupingService
+    : defaults.sidebarOrganizationService,
   settingService: {
     ...defaults.settingService,
     get: async () => ({ ...(await defaults.settingService.get()), ...settings }),
@@ -47,13 +82,31 @@ const services = {
   },
   fileService: {
     ...defaults.fileService,
-    stat: async ({ path }: { path: string }) => ({
-      type: path.endsWith(".txt") ? ("file" as const) : ("directory" as const),
-    }),
+    stat: async ({ path }: { path: string }) => {
+      if (failGitFolderAdd && path.includes("cloned")) {
+        failGitFolderAdd = false;
+        throw new Error("fixture-folder-unavailable");
+      }
+      return {
+        type: path.endsWith(".txt") ? ("file" as const) : ("directory" as const),
+      };
+    },
   },
 };
 Object.assign(globalThis, {
-  __sidebarOrganization: { settings: () => settings, dragCalls, ...creation.controls },
+  __sidebarOrganization: {
+    settings: () => settings,
+    dragCalls,
+    ...creation.controls,
+    calls: () => calls,
+    failNextGitFolderAdd: () => {
+      failGitFolderAdd = true;
+    },
+    grouping: () => grouping,
+    failNextGroup: () => {
+      groupConflict = true;
+    },
+  },
 });
 const theme = params.get("theme") || "zai-dark";
 document.documentElement.classList.toggle("dark", theme === "zai-dark");
@@ -79,6 +132,12 @@ function Fixture() {
     api.setState({ tabs, activeTabId: tabs[0]?.id, activeWorkspacePath: tabs[0]?.workspacePath });
     setReady(true);
   }, [api, setTheme]);
+  if (params.has("registration"))
+    return (
+      <main>
+        <ProjectCreationControls />
+      </main>
+    );
   return (
     <main
       className="flex h-dvh bg-background text-foreground"

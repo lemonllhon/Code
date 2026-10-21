@@ -1,9 +1,10 @@
 /// <reference types="vite/client" />
-import { StrictMode, useState } from "react";
+import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type {
   IServiceAccessor,
   IGitService,
+  IBroadcastService,
   WorktreeBinding,
   WorktreeIntegration,
   WorktreeIntegrateRequest,
@@ -20,6 +21,7 @@ import { useGitFailureDraftReceiver } from "@/hooks/useGitFailureHandoff.js";
 import { appendGitFailureDraft } from "@/git-action-menu/gitFailureDraft.js";
 import { GitActionMenu } from "@/GitActionMenu.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
+import { StoreProvider, useLCodeStore } from "@/store/StoreProvider.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { useProjectExecutionPolicy } from "@/hooks/useProjectExecutionPolicy.js";
 import { PlatformProvider } from "@/hooks/usePlatform.js";
@@ -41,6 +43,10 @@ import {
 } from "@/git-action-menu/autoCommitMessage.js";
 import { buildGitChangesFingerprint } from "@/git-action-menu/currentSessionFileScope.js";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
+import {
+  commitReviewNavigationKey,
+  useCommitReviewNavigationStore,
+} from "@/store/commitReviewNavigationStore.js";
 import { platform } from "./git-backup-platform.js";
 import { createPublishFixture } from "./git-publish-fixture-service.js";
 import { FixtureReviewPreview } from "./review-preview.js";
@@ -48,17 +54,37 @@ import { createReviewWorkspaceFixture } from "./review-workspace-service.js";
 import type { GitCommitReview } from "@lcode/shared";
 import "@lcode/ui/styles.css";
 import { THEME_OPTIONS } from "@/useTheme.js";
+import { DiffsWorkerPoolProvider } from "@/root/DiffsWorkerPoolProvider.js";
 
 const workspacePath = "/fixture/repo";
-const useProductionSidePane = new URLSearchParams(window.location.search).has("shellPreview");
+const useProductionSidePane = true;
+const fixtureBroadcast = {
+  send: async () => {},
+  onMessage: () => ({ dispose() {} }),
+} as IBroadcastService;
 const showStatusPanel = new URLSearchParams(window.location.search).has("panel");
 const workspaceIdentity = new URLSearchParams(window.location.search).has("pathOnly")
   ? undefined
   : (new URLSearchParams(window.location.search).get("identity") ?? "fixture-host/repo");
 const previewRemoteSessionId =
   useProductionSidePane && workspaceIdentity ? "fixture-preview-attachment" : undefined;
-let dirtyPaths = ["a.ts", "b.ts", "workflow.ts"];
+const visualReview = new URLSearchParams(location.search).has("visualReview");
+let dirtyPaths = visualReview
+  ? [
+      "src/components/ReviewPanel.tsx",
+      "src/components/FileTree.tsx",
+      "src/hooks/useReview.ts",
+      "src/styles/review.css",
+      "specs/git-review.md",
+      "tests/review.test.ts",
+    ]
+  : ["a.ts", "b.ts", "workflow.ts"];
+const fixturePatch = (path: string) =>
+  `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}\n@@ -1,5 +1,8 @@\n export function openReview() {\n-  return showDialog();\n+  const pane = activateGitPane();\n+  pane.selectView("review");\n+  return pane.reveal();\n }\n \n-export const files = [];\n+// fixture: preview selection is independent of inclusion.\n+export const files = buildFileTree(changes);\n`;
 let loadFailure: Error | null = null;
+let holdNextReviewLoad = false;
+let reviewLoadCount = 0;
+let releaseReviewLoad: (() => void) | null = null;
 let holdGenerate = false;
 let failGenerate = false;
 let reviewUnavailable = false;
@@ -105,6 +131,7 @@ if (
 const mergeCalls: WorktreeIntegrateRequest[] = [];
 const rowsQueries: string[] = [];
 const diffQueries: Parameters<IGitService["getDiff"]>[0][] = [];
+const graphQueries: Parameters<IGitService["getCommitGraph"]>[0][] = [];
 function summary(): GitRepositorySummary {
   return {
     workspacePath,
@@ -126,12 +153,12 @@ function file(path: string): GitFileChange {
     path,
     repoRelativePath: path,
     workspaceRelativePath: path,
-    kind: "modified",
+    kind: visualReview && path.startsWith("tests/") ? "added" : "modified",
     section: "unstaged",
     added: 1,
     removed: 0,
     isStaged: false,
-    isUntracked: false,
+    isUntracked: visualReview && path.startsWith("tests/"),
     isConflicted: false,
   };
 }
@@ -159,6 +186,14 @@ let settings: AppSettings = {
 const gitService = {
   ...publishFixture.service,
   ...createReviewWorkspaceFixture(),
+  async getCommitGraph(params) {
+    graphQueries.push(params);
+    return { commits: [], hasMore: false };
+  },
+  async getHistory(params) {
+    graphQueries.push(params);
+    return { revision: "a".repeat(64), commits: [], hasMore: false };
+  },
   async getCommitReview({ reviewId }: { reviewId: string }) {
     const review = fixtureReviews.get(reviewId);
     if (!review) return null;
@@ -180,7 +215,9 @@ const gitService = {
     return {
       path,
       availability: "patch",
-      patch: `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}\n@@ -1 +1 @@\n-before\n+after\n`,
+      patch: visualReview
+        ? fixturePatch(path)
+        : `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}\n@@ -1 +1 @@\n-before\n+after\n`,
       beforeContent: "before",
       afterContent: "after",
     };
@@ -199,12 +236,13 @@ const gitService = {
     };
   },
   async refresh(params) {
+    if (params.includeIdentity) reviewLoadCount++;
     if (params.includeIdentity && loadFailure) {
       const error = loadFailure;
       loadFailure = null;
       throw error;
     }
-    return {
+    const result = {
       summary: summary(),
       stagedChanges: [],
       unstagedChanges: dirtyPaths.map(file),
@@ -215,6 +253,13 @@ const gitService = {
         emailSource: "fixture",
       },
     };
+    if (params.includeIdentity && holdNextReviewLoad) {
+      holdNextReviewLoad = false;
+      await new Promise<void>((resolve) => {
+        releaseReviewLoad = resolve;
+      });
+    }
+    return result;
   },
   async generateCommitMessage(params) {
     calls.push(params);
@@ -256,7 +301,9 @@ const gitService = {
           path,
           added: 1,
           removed: 0,
-          patch: `diff --git a/${path} b/${path}\n+fixture change`,
+          patch: visualReview
+            ? fixturePatch(path)
+            : `diff --git a/${path} b/${path}\n+fixture change`,
         })),
       })),
     };
@@ -409,6 +456,11 @@ const conversation = {
 } as unknown as V4ConversationContextValue;
 
 function FixtureApp() {
+  const setTheme = useLCodeStore((state) => state.setTheme);
+  useEffect(() => {
+    if (visualReview)
+      setTheme(new URLSearchParams(location.search).has("light") ? "zai-light" : "zai-dark");
+  }, [setTheme]);
   const { update } = useSettings();
   const reviewPolicy = useProjectExecutionPolicy(workspacePath, workspaceIdentity).policy;
   const [panelVariant, setPanelVariant] = useState<"mini" | "panel" | null>("mini");
@@ -428,6 +480,7 @@ function FixtureApp() {
       : workspaceIdentity;
   const [logEpoch, setLogEpoch] = useState("epoch-a");
   const [enabled, setEnabled] = useState(true);
+  const [gitSummaryAvailable, setGitSummaryAvailable] = useState(true);
   const [revision, setRevision] = useState(0);
   const [request, setRequest] = useState<ManualGitCommitMessageRequest | null>(null);
   const [pending, setPending] = useState<string | null>(null);
@@ -465,7 +518,26 @@ function FixtureApp() {
     mergeCalls,
     rowsQueries,
     diffQueries,
+    graphQueries,
     publish: publishFixture.controls,
+    readReviewWorkspace: () =>
+      gitService.getReviewWorkspace({
+        workspacePath,
+        workspaceIdentity,
+        scopeId: JSON.stringify([sessionId, logEpoch]),
+      }),
+    navigationReady: () =>
+      Boolean(
+        useCommitReviewNavigationStore.getState().paneNavigation[
+          commitReviewNavigationKey(workspacePath, workspaceIdentity, sessionId)
+        ],
+      ),
+    openNetwork: () =>
+      useCommitReviewNavigationStore
+        .getState()
+        .paneNavigation[
+          commitReviewNavigationKey(workspacePath, workspaceIdentity, sessionId)
+        ]?.selectView("network"),
     clipboardCopies,
     groups: (enabled: boolean) => {
       groupedReview = enabled;
@@ -486,6 +558,7 @@ function FixtureApp() {
       setAutomaticDraft(null);
     },
     setting: (value: boolean) => setEnabled(value),
+    gitSummaryAvailable: (value: boolean) => setGitSummaryAvailable(value),
     reviewMode: (mode: GitCommitReviewMode) => update({ gitCommitReviewMode: mode }),
     logEpoch: (value: string) => setLogEpoch(value),
     dirty: (paths: string[]) => {
@@ -494,6 +567,15 @@ function FixtureApp() {
     },
     failLoad: (message = "fixture-load-failure", code?: string) => {
       loadFailure = Object.assign(new Error(message), { code });
+    },
+    holdNextReviewLoad: () => {
+      holdNextReviewLoad = true;
+    },
+    reviewLoadPending: () => Boolean(releaseReviewLoad),
+    reviewLoadCount: () => reviewLoadCount,
+    releaseReviewLoad: () => {
+      releaseReviewLoad?.();
+      releaseReviewLoad = null;
     },
     failGenerate: () => {
       failGenerate = true;
@@ -546,7 +628,7 @@ function FixtureApp() {
     },
   };
   return (
-    <div className="p-4 text-foreground">
+    <div className="p-4 text-foreground md:w-1/4">
       <FixtureReviewPreview
         panel={
           useProductionSidePane
@@ -567,6 +649,7 @@ function FixtureApp() {
       <p data-testid="session">{sessionId}</p>
       <p data-testid="review-mode">{reviewPolicy.gitCommitReviewMode}</p>
       <p data-testid="automatic-ready">{automaticDraft?.key}</p>
+      <output data-testid="git-summary-ready">{String(gitSummaryAvailable)}</output>
       <textarea
         data-testid="composer-draft"
         value={composerDraft}
@@ -606,9 +689,15 @@ function FixtureApp() {
             executionSessionId={sessionId}
             reviewEpoch={logEpoch}
             executionBindingId={executionBindingId}
-            gitSummary={summary()}
+            gitSummary={gitSummaryAvailable ? summary() : undefined}
             onRefreshGit={() => setRevision((value) => value + 1)}
             commitDialogScopeKey={scopeKey}
+            autoGeneratedGitCommitMessageDraft={automaticDraft}
+            manualCommitMessageRequest={request}
+            onManualCommitMessageSettled={(key) => {
+              setPending((prior) => (prior === key ? null : prior));
+              setRequest((prior) => (prior?.key === key ? null : prior));
+            }}
             layoutMode="inline"
             summaryPanelVariantOverride={panelVariant}
             onVariantChange={setPanelVariant}
@@ -650,7 +739,11 @@ createRoot(document.getElementById("root")!).render(
           <TooltipProvider>
             <TabStoreProvider>
               <V4ConversationContext.Provider value={conversation}>
-                <FixtureApp />
+                <StoreProvider broadcastService={fixtureBroadcast}>
+                  <DiffsWorkerPoolProvider>
+                    <FixtureApp />
+                  </DiffsWorkerPoolProvider>
+                </StoreProvider>
               </V4ConversationContext.Provider>
             </TabStoreProvider>
           </TooltipProvider>

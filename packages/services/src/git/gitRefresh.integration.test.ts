@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { publishFixture } from "./gitPublishTestHelpers.js";
@@ -11,7 +11,17 @@ test("只读 Git 刷新和差异读取不会刷新 index 的 stat cache", async 
   const before = await readFile(join(fixture.root, ".git", "index"));
   // 内容不变而文件 stat 已更新时，普通 status/diff 会回写索引并触发自己的刷新监听。
   await writeFile(file, content);
+  // 固定旧 mtime 确定性触发 Git 的 stat 缓存刷新，不再依赖同一时钟粒度内的偶然写入。
+  await utimes(file, new Date(946684800000), new Date(946684800000));
   await fixture.service.refresh({ ...fixture.request, includeBranchComparison: true });
+  await fixture.service.getDiff({ ...fixture.request, path: "a.txt", sourceId: "unstaged" });
+  assert.deepEqual(await readFile(join(fixture.root, ".git", "index")), before);
+});
+
+test("单独读取工作树 Diff 也不会改写 index stat cache", async (t) => {
+  const fixture = await publishFixture(t);
+  const before = await readFile(join(fixture.root, ".git", "index"));
+  await utimes(join(fixture.root, "a.txt"), new Date(946684800000), new Date(946684800000));
   await fixture.service.getDiff({ ...fixture.request, path: "a.txt", sourceId: "unstaged" });
   assert.deepEqual(await readFile(join(fixture.root, ".git", "index")), before);
 });

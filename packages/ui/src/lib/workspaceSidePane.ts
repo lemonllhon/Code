@@ -28,6 +28,7 @@ export const BROWSER_USE_OPERATION_INDICATOR_DURATION_MS = 5_000;
 export interface GitSidePaneTab {
   id: "git";
   type: "git";
+  view?: "review" | "changes" | "graph" | "network" | "stash" | "conflicts" | "integration";
   ownerTaskId?: string | null;
   workspaceKey?: string | null;
   openedAt?: number;
@@ -1562,8 +1563,9 @@ export function openCodeViewerSidePanes(
 
 export function activateGitSidePane(
   current: WorkspaceSidePaneState | null,
+  view: GitSidePaneTab["view"] = "changes",
 ): WorkspaceSidePaneState {
-  return activateSidePaneTab(current, createGitSidePaneTab());
+  return activateSidePaneTab(current, { ...createGitSidePaneTab(), view });
 }
 
 export function openWhiteboardSidePane(

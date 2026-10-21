@@ -1,0 +1,20 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { useGitConflictDraftStore } from "./gitConflictDraftStore.js";
+test("未提交冲突草稿按 Host/身份/文件隔离，替换更新并有窗口内上限", () => {
+  const store = useGitConflictDraftStore;
+  store.setState({ drafts: new Map() });
+  const key = (host: string) => JSON.stringify([host, "/same", "owner", "file"]);
+  const local = { revision: "one", text: "local draft", eol: "lf" as const, mixedAccepted: true };
+  store.getState().put(key("local"), local);
+  store.getState().put(key("remote"), { ...local, text: "remote draft" });
+  assert.equal(store.getState().drafts.get(key("local"))?.text, "local draft");
+  assert.equal(store.getState().drafts.get(key("remote"))?.text, "remote draft");
+  store.getState().put(key("local"), { ...local, text: "kept" });
+  store.getState().put(key("remote"), null);
+  assert.equal(store.getState().drafts.get(key("remote")), undefined);
+  for (let index = 0; index < 20; index++) store.getState().put(String(index), local);
+  assert.equal(store.getState().drafts.size, 20);
+  assert.equal(store.getState().drafts.get(key("local")), undefined);
+  store.setState({ drafts: new Map() });
+});

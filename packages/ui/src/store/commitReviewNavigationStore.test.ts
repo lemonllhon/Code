@@ -61,3 +61,22 @@ test("失败草稿只交给匹配会话接收器，旧卸载不能移除新接�
   navigation.getState().removeDraftReceiver(key, "new");
   assert.equal(navigation.getState().transferDraft(key, "late"), false);
 });
+
+test("发布 host 与审核 host 分离，按会话和 token 清理且不消费审核打开意图", () => {
+  const a = commitReviewNavigationKey("/repo", "owner", "a");
+  const b = commitReviewNavigationKey("/repo", "owner", "b");
+  const element = {} as HTMLElement;
+  const store = navigation.getState();
+  store.registerPublicationHost(a, { token: "old", element, visible: true });
+  store.registerPublicationHost(a, { token: "new", element, visible: false });
+  store.registerPublicationHost(b, { token: "other", element, visible: true });
+  store.open(a);
+  store.removePublicationHost(a, "old");
+  assert.equal(navigation.getState().publicationHosts[a]?.token, "new");
+  assert.equal(navigation.getState().publicationHosts[a]?.visible, false);
+  assert.equal(navigation.getState().consume(a), true);
+  store.removePublicationHost(a, "new");
+  assert.equal(navigation.getState().publicationHosts[a], undefined);
+  assert.equal(navigation.getState().publicationHosts[b]?.token, "other");
+  store.removePublicationHost(b, "other");
+});

@@ -26,6 +26,7 @@ export interface GitBranchCommitPreviewFile {
   repoRelativePath: string;
   workspaceRelativePath: string;
   kind: GitFileChange["kind"];
+  isUntracked?: boolean;
   added: number;
   removed: number;
 }
@@ -147,6 +148,7 @@ export function buildGitBranchCommitPreviewFiles(
         repoRelativePath: change.repoRelativePath,
         workspaceRelativePath: change.workspaceRelativePath,
         kind: change.kind,
+        isUntracked: change.isUntracked,
         added: change.added,
         removed: change.removed,
       });

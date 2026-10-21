@@ -12,6 +12,11 @@ import { createUuid } from "@lcode/shared";
 import type { EmbeddedBrowserOpenUrlRequest, IPlatformService } from "@lcode/shared";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import { useReviewDiffNavigationStore } from "@/store/reviewDiffNavigationStore.js";
+import {
+  commitReviewNavigationKey,
+  useCommitReviewNavigationStore,
+  type GitWorkbenchView,
+} from "@/store/commitReviewNavigationStore.js";
 // 保活：side pane terminal 跨 workspace 会话上移到模块级 registry。
 // 关闭 terminal tab 时必须显式 release，杀掉 PTY，避免常驻 registry 造成孤儿进程。
 import { sidePaneTerminalSessionRegistry } from "@/terminal/sidePaneTerminalSessionRegistry.js";
@@ -787,19 +792,24 @@ export function useAppPanels(options: {
     workspaceAbsPath,
   ]);
 
-  const handleOpenGit = useCallback(() => {
-    commitOpenedSidePaneState((current) => {
-      if (isOfficeMode && !current?.tabs.some((tab) => tab.type === "git")) return current;
-      const next = activateGitSidePane(current);
-      // 文件变更查找只需要“确保 Git 面板打开”，不能复用 toggle。
-      // 如果当前已经在 Git tab 上，toggle 会把它关掉，导致切到文件变更范围反而看不到内容。
-      revealSidePaneForCurrentOwner();
-      logger.info(
-        `[App] 打开右侧面板 mode=git workspace=${workspaceAbsPath} tabs=${next.tabs.length}`,
-      );
-      return next;
-    });
-  }, [isOfficeMode, commitOpenedSidePaneState, revealSidePaneForCurrentOwner, workspaceAbsPath]);
+  const openGitView = useCallback(
+    (view: GitWorkbenchView) => {
+      commitOpenedSidePaneState((current) => {
+        if (isOfficeMode && !current?.tabs.some((tab) => tab.type === "git")) return current;
+        const next = activateGitSidePane(current, view);
+        // 文件变更查找只需要“确保 Git 面板打开”，不能复用 toggle。
+        // 如果当前已经在 Git tab 上，toggle 会把它关掉，导致切到文件变更范围反而看不到内容。
+        revealSidePaneForCurrentOwner();
+        logger.info(
+          `[App] 打开右侧面板 mode=git workspace=${workspaceAbsPath} tabs=${next.tabs.length}`,
+        );
+        return next;
+      });
+    },
+    [isOfficeMode, commitOpenedSidePaneState, revealSidePaneForCurrentOwner, workspaceAbsPath],
+  );
+
+  const handleOpenGit = useCallback(() => openGitView("changes"), [openGitView]);
 
   const handleOpenTreemapping = useCallback(
     (source?: TreemappingSidePaneTab["source"]) => {
@@ -1329,6 +1339,26 @@ export function useAppPanels(options: {
   const handleCloseSidePane = useCallback(() => {
     if (!sidePaneCollapsedRef.current) changeSidePaneCollapsedPreference(true);
   }, [changeSidePaneCollapsedPreference]);
+
+  useEffect(() => {
+    const key = commitReviewNavigationKey(workspaceAbsPath, workspaceIdentity, activeTaskId ?? "");
+    const token = crypto.randomUUID();
+    const store = useCommitReviewNavigationStore.getState();
+    store.registerPaneNavigation(key, {
+      token,
+      open: () => openGitView("review"),
+      close: handleCloseSidePane,
+      selectView: openGitView,
+    });
+    return () => store.removePaneNavigation(key, token);
+  }, [
+    workspaceAbsPath,
+    workspaceIdentity,
+    activeTaskId,
+    sidePaneOwnerId,
+    openGitView,
+    handleCloseSidePane,
+  ]);
   const handleToggleSidePaneCollapse = useCallback(() => {
     changeSidePaneCollapsedPreference(!sidePaneCollapsedRef.current);
   }, [changeSidePaneCollapsedPreference]);

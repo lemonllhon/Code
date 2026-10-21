@@ -9,6 +9,7 @@ import type {
 
 export const TAG_MODES = ["none", "create", "create-and-push", "push-existing"] as const;
 export const TAG_STRATEGIES = ["custom", "patch", "minor", "major"] as const;
+export type PublicationRefreshStatus = "loading" | "ready" | "failed" | null;
 export interface PublishOptions {
   remotes: { name: string; branch: string }[];
   pushBranch: boolean;

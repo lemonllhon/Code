@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
-import type { PublishPlan } from "./publishModel.js";
+import type { PublishPlan, PublicationRefreshStatus } from "./publishModel.js";
 import type { PublishRun } from "./publishExecution.js";
 
 export function GitPublishPreview({
@@ -120,18 +120,22 @@ export function GitPublishResults({
   onRetry,
   onReset,
   onBack,
+  refreshStatus = null,
+  onRefresh,
 }: {
   onBack?: () => void;
   run: PublishRun;
   onRetry: (id: string) => void;
   onReset: () => void;
+  refreshStatus?: PublicationRefreshStatus;
+  onRefresh?: () => void;
 }) {
   const { intl } = useLCodeIntl();
   const text = (key: string) => intl.formatMessage({ id: `git.publish.${key}` });
   return (
     <section
       data-testid="git-publish-results"
-      aria-busy={run.running}
+      aria-busy={run.running || refreshStatus === "loading"}
       aria-live="polite"
       className="min-w-0 space-y-3 border-t border-border px-4 py-3 text-ui-sm [overflow-wrap:anywhere]"
     >
@@ -139,6 +143,15 @@ export function GitPublishResults({
       {run.stopReason ? (
         <p role="alert" className="text-warning">
           {text(`stop.${run.stopReason}`)}
+        </p>
+      ) : null}
+      {refreshStatus ? (
+        <p
+          role="status"
+          data-testid="git-publish-refresh-status"
+          className={refreshStatus === "failed" ? "text-destructive" : "text-foreground-subtle"}
+        >
+          {text(`refresh.${refreshStatus}`)}
         </p>
       ) : null}
       <ul className="space-y-2">
@@ -204,11 +217,19 @@ export function GitPublishResults({
       <Button
         type="button"
         variant="outline"
-        disabled={run.running}
+        disabled={
+          run.running || refreshStatus === "loading" || (refreshStatus === "failed" && !onRefresh)
+        }
         data-testid="git-publish-new-plan"
-        onClick={onReset}
+        onClick={refreshStatus === "failed" ? onRefresh : onReset}
       >
-        {text("newPlan")}
+        {text(
+          refreshStatus === "failed"
+            ? "refresh.retry"
+            : refreshStatus === "ready"
+              ? "refresh.replan"
+              : "newPlan",
+        )}
       </Button>
     </section>
   );

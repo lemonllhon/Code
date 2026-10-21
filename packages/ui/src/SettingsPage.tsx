@@ -58,6 +58,7 @@ import { RemoteControlSettingsSection } from "@/settings/RemoteControlSettingsSe
 import { ShortcutSettingsSection } from "@/settings/ShortcutSettingsSection.js";
 import { MigrationSection } from "@/settings/MigrationSection.js";
 import { GitBackupSection } from "@/settings/GitBackupSection.js";
+import { GitManagementSection } from "@/settings/GitManagementSection.js";
 import { WorktreeSettingsSection } from "@/settings/WorktreeSettingsSection.js";
 import { SessionConfigurationSection } from "@/settings/SessionConfigurationSection.js";
 import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
@@ -1631,6 +1632,8 @@ export function SettingsPage({
                           />
                         ) : activeSection === "remoteControl" ? (
                           <RemoteControlSettingsSection />
+                        ) : activeSection === "gitManagement" ? (
+                          <GitManagementSection />
                         ) : activeSection === "gitBackup" ? (
                           <GitBackupSection
                             workspacePath={activeWorkspacePath}

@@ -24,6 +24,7 @@ import {
   IWorktreeService,
   IRuntimeEnvironmentService,
   IGitBackupService,
+  IGitManagementService,
   ISystemService,
   ITerminalService,
   IProviderProvisioningTargetService,
@@ -419,6 +420,11 @@ export function createHttpServer(
           if (connection.services.gitBackupService) {
             remoteServices.register(IGitBackupService, connection.services.gitBackupService);
           }
+          if (connection.services.gitManagementService)
+            remoteServices.register(
+              IGitManagementService,
+              connection.services.gitManagementService,
+            );
 
           setupChannelServer(ws.raw as WebSocket, remoteServices, "web-remote-replayable");
         },

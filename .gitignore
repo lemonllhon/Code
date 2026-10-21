@@ -98,6 +98,10 @@ nul
 # 永久页面回归测试桩需覆盖用户全局 test/ 忽略，其他测试目录保持原规则。
 !/packages/web/test/
 /packages/web/test/*
+!/packages/web/test/git-management.test.mjs
+!/packages/web/test/git-project-registration.test.mjs
+!/packages/web/test/git-repository-wizard.test.mjs
+!/packages/web/test/git-publish-refresh-cases.mjs
 !/packages/web/test/composer-prediction.test.mjs
 !/packages/web/test/composer-model-emphasis.test.mjs
 !/packages/web/test/composer-model-emphasis-cases.mjs
@@ -110,6 +114,8 @@ nul
 !/packages/web/test/context-capsule-composer.test.mjs
 !/packages/web/test/fixtures/
 /packages/web/test/fixtures/*
+!/packages/web/test/fixtures/git-management-service.ts
+!/packages/web/test/fixtures/worktree-fixture-providers.tsx
 !/packages/web/test/fixtures/composer-prediction.html
 !/packages/web/test/fixtures/composer-prediction.tsx
 !/packages/web/test/fixtures/task-handoff.tsx
@@ -411,3 +417,44 @@ nul
 !/packages/web/test/permission-mode-switch.test.mjs
 !/packages/web/test/fixtures/pipeline-rows.tsx
 !/packages/web/test/fixtures/permission-mode-switch.tsx
+
+# 右侧提交审核入口、布局与范围交互的永久浏览器回归。
+!/packages/web/test/git-review-pane-cases.mjs
+!/packages/web/test/git-review-passive-entry-cases.mjs
+!/packages/web/test/git-review-pane-helpers.mjs
+!/packages/web/test/git-file-operations-cases.mjs
+!/packages/web/test/fixtures/git-file-operations.html
+!/packages/web/test/fixtures/git-file-operations.tsx
+
+# 格式化工具写入故障时保留的本轮备份，不纳入源码提交。
+/artifacts/git-review-pane/format-backup/
+!/packages/web/test/git-network-cases.mjs
+!/packages/web/test/fixtures/git-network.html
+!/packages/web/test/fixtures/git-network.tsx
+!/packages/web/test/git-workspace-cases.mjs
+!/packages/web/test/fixtures/git-workspace.html
+!/packages/web/test/fixtures/git-workspace.tsx
+!/packages/web/test/git-conflict-cases.mjs
+!/packages/web/test/fixtures/git-conflicts.html
+!/packages/web/test/fixtures/git-conflicts.tsx
+!/packages/web/test/fixtures/git-integration.html
+!/packages/web/test/fixtures/git-integration.tsx
+!/packages/web/test/fixtures/git-integration-service.ts
+!/packages/web/test/git-integration-cases.mjs
+!/packages/web/test/fixtures/git-history.html
+!/packages/web/test/fixtures/git-history.tsx
+!/packages/web/test/fixtures/git-history-service.ts
+!/packages/web/test/git-history-cases.mjs
+!/packages/web/test/git-history-layout-cases.mjs
+!/packages/web/test/fixtures/git-conflict-service.ts
+
+!/packages/web/test/git-history-interaction-cases.mjs
+!/packages/ui/src/git-graph/gitHistoryTree.test.ts
+!/packages/services/src/git/gitHistoryCandidates.integration.test.ts
+
+!/packages/services/src/git/gitHistorySearch.integration.test.ts
+
+!/packages/services/src/git/gitHistoryBatch.integration.test.ts
+!/packages/services/src/git/gitHistoryReset.integration.test.ts
+
+!/packages/web/test/git-history-advanced-cases.mjs

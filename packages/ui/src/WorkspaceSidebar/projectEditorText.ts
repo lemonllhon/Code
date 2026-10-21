@@ -9,6 +9,12 @@ const labels = {
   name: ["项目名称", "Project name"],
   folders: ["源文件夹", "Source folders"],
   add: ["添加目录", "Add folder"],
+  gitRepository: ["Git 仓库", "Git repository"],
+  setPrimary: ["设为主文件夹", "Set as primary"],
+  gitDirectoryHint: [
+    "可关联多个仓库和普通目录；移除或取消不会删除磁盘文件。",
+    "Combine repositories and other folders. Removing a folder or cancelling keeps its files on disk.",
+  ],
   dropHint: ["可将多个文件夹拖入此弹框", "Drop multiple folders into this dialog"],
   addHint: ["点击添加目录", "Choose Add folder"],
   chooseFolder: ["选择此目录", "Choose this folder"],

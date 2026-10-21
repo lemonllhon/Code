@@ -1,5 +1,9 @@
 # 模型上游网络增强方案
 
+## Git OAuth 系统 CA 选择（2026-10-21）
+
+公开网络选项新增内部 `useSystemCa?: boolean`，仅由 Git OAuth owner 启用；其他模型/Host API 保留原策略。启用时连接适配器合并 Node default/extra、当前 OS system 及已配置自定义 PEM，Windows/macOS/Linux 均走同一 Node CA API；主机名、有效期和证书链验证保持开启。策略进入 dispatcher key，避免与未启用的连接池混用；没有失败重试、全局 TLS 修改或额外凭据路径。Git owner 动态读取其 Host 代理/noProxy/自定义 CA 设置，管理该 transport 的取消和释放。真实临时 HTTPS fixture 验证系统信任注入、未知 CA/域名拒绝和策略切换，其他网络生命周期回归照常执行。
+
 状态：连接复用与资源生命周期已实施。本轮 HTTP/2 崩溃修复采用 Undici 8.12.1，并补充真实并发乱序、物理关闭、诊断 v2 和运行时交付验证；以 [实施与验证记录](http2-concurrency-crash-implementation-2026-10-15.md) 为准。下文 2026-10-13 的实现和测试数量为历史基线，不能代替本轮验证。
 
 ## 本轮实施范围（2026-10-13）

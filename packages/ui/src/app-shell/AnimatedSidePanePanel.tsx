@@ -27,6 +27,12 @@ import { findScreenshotSurfaceTabForRender } from "@/browser-use/useBrowserScree
 import { HumanBrowserView } from "@/browser-use/HumanBrowserView.js";
 import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
 import { GitPane } from "@/GitPane.js";
+import { GitReviewSidePane } from "@/app-shell/GitReviewSidePane.js";
+import { SidePaneToolNavigation } from "@/app-shell/SidePaneToolNavigation.js";
+import {
+  commitReviewNavigationKey,
+  useCommitReviewNavigationStore,
+} from "@/store/commitReviewNavigationStore.js";
 import { TreemappingPane } from "@/TreemappingPane.js";
 import { WhiteboardPane } from "@/WhiteboardPane.js";
 import { ModelTrajectoryPane } from "@/ModelTrajectoryPane.js";
@@ -1008,6 +1014,32 @@ export function AnimatedSidePanePanel({
                 onValueChange={onActivateTab}
                 className="relative h-full gap-0"
               >
+                <div className="@container/side-pane-tools flex h-9 shrink-0 items-center border-b border-border bg-panel px-1 [&_button]:[app-region:no-drag]">
+                  <SidePaneToolNavigation
+                    tabs={visibleTabs}
+                    activeTabId={visibleActiveTabId}
+                    onActivate={onActivateTab}
+                    onOpenGit={
+                      isOfficeMode
+                        ? undefined
+                        : () =>
+                            useCommitReviewNavigationStore
+                              .getState()
+                              .paneNavigation[
+                                commitReviewNavigationKey(
+                                  workspaceKey,
+                                  undefined,
+                                  activeTaskId ?? "",
+                                )
+                              ]?.selectView("changes")
+                    }
+                  />
+                  <div className="flex shrink-0 items-center">
+                    {sidePaneTabOverview}
+                    {addTabMenu}
+                    {closeSidePaneButton}
+                  </div>
+                </div>
                 <TabsList
                   style={captionControlsStyle}
                   className={cn(
@@ -1015,6 +1047,7 @@ export function AnimatedSidePanePanel({
                     // 独立面板将标签栏移至窗口顶部，需补充窗口拖拽区域；标签和按钮仍处理自身交互。
                     isDesktop &&
                       "[app-region:drag] [&_button]:[app-region:no-drag] [&_[data-side-pane-tab-id]]:[app-region:no-drag]",
+                    visibleActiveTabId === "git" && "hidden",
                   )}
                 >
                   <div className="flex items-center justify-start flex-1 min-w-0">
@@ -1107,7 +1140,6 @@ export function AnimatedSidePanePanel({
 
                     <div className="ml-auto flex h-full shrink-0 items-center gap-1 px-2">
                       {isTabsOverflowing ? addTabMenu : null}
-                      {closeSidePaneButton}
                     </div>
                   </div>
                   {/* Expand Panel 按钮按要求先注释保留，相关逻辑已删除。
@@ -1272,22 +1304,33 @@ export function AnimatedSidePanePanel({
                             })}
                           />
                         ) : tab.type === "git" ? (
-                          <GitPane
+                          <GitReviewSidePane
+                            workspaceKey={workspaceKey}
+                            sessionId={activeTaskId}
                             workspacePath={workspaceAbsPath}
                             workspaceIdentity={workspaceIdentity}
                             workspaceRemoteSessionId={workspaceRemoteSessionId}
-                            gitState={gitState}
-                            isDesktop={isDesktop}
-                            selectedSourceId={activeGitSourceId}
-                            fileChangeFindActiveIndex={fileChangeFindActiveIndex}
-                            fileChangeFindNavigationRequestId={fileChangeFindNavigationRequestId}
-                            fileChangeFindQuery={fileChangeFindQuery}
-                            onFileChangeFindMatchCountChange={onFileChangeFindMatchCountChange}
-                            onSelectSource={onSelectGitSource}
-                            onClose={onCloseGit}
+                            visible={isVisible && tab.id === visibleActiveTabId}
+                            view={tab.view ?? "changes"}
                             onRefresh={onRefreshGit}
-                            onRevealFileInTree={onRevealGitFileInTree}
-                          />
+                          >
+                            <GitPane
+                              workspacePath={workspaceAbsPath}
+                              workspaceIdentity={workspaceIdentity}
+                              workspaceRemoteSessionId={workspaceRemoteSessionId}
+                              gitState={gitState}
+                              isDesktop={isDesktop}
+                              selectedSourceId={activeGitSourceId}
+                              fileChangeFindActiveIndex={fileChangeFindActiveIndex}
+                              fileChangeFindNavigationRequestId={fileChangeFindNavigationRequestId}
+                              fileChangeFindQuery={fileChangeFindQuery}
+                              onFileChangeFindMatchCountChange={onFileChangeFindMatchCountChange}
+                              onSelectSource={onSelectGitSource}
+                              onClose={onCloseGit}
+                              onRefresh={onRefreshGit}
+                              onRevealFileInTree={onRevealGitFileInTree}
+                            />
+                          </GitReviewSidePane>
                         ) : tab.type === "treemapping" ? (
                           <TreemappingPane
                             activeTaskId={activeTaskId}

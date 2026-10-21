@@ -8,12 +8,21 @@ import test from "node:test";
 import { chromium } from "playwright-core";
 import { runGitPublishCases } from "./git-publish-cases.mjs";
 import { runGitPublishEditingCases } from "./git-publish-editing-cases.mjs";
+import { runGitPublishRefreshCases } from "./git-publish-refresh-cases.mjs";
 import { runGitReviewNavigationCases } from "./git-review-navigation-cases.mjs";
 import { runGitReviewCrossPlatformCases } from "./git-review-cross-platform-cases.mjs";
 import { runGitReviewRedesignCases } from "./git-review-redesign-cases.mjs";
+import { runGitReviewPaneCases } from "./git-review-pane-cases.mjs";
+import { runGitFileOperationsCases } from "./git-file-operations-cases.mjs";
+import { runGitNetworkCases } from "./git-network-cases.mjs";
+import { runGitWorkspaceCases } from "./git-workspace-cases.mjs";
+import { runGitConflictCases } from "./git-conflict-cases.mjs";
+import { runGitIntegrationCases } from "./git-integration-cases.mjs";
+import { runGitHistoryCases } from "./git-history-cases.mjs";
 
 // 实际共享组件 + 桩 Host 服务；不读取用户仓库、不调用模型、不提交 Git。
-test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回归", { timeout: 300_000 }, async (t) => {
+// 多个阶段的串行场景共享总预算；各单步限制和同步屏障维持原值。
+test("提交审核侧栏、入口生命周期和确认控件浏览器回归", { timeout: 420_000 }, async (t) => {
   const socket = createServer();
   socket.listen(0, "127.0.0.1");
   await once(socket, "listening");
@@ -84,20 +93,77 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
   const visibleLogs = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
-    if (message.text().includes("提交弹窗已显示")) visibleLogs.push(message.text());
+    if (message.text().includes("右侧提交审核已显示")) visibleLogs.push(message.text());
   });
   const url = `http://127.0.0.1:${port}/test/fixtures/git-commit-dialog.html`;
-  await runGitReviewRedesignCases(t, { page, url });
-  if (process.env.LCODE_GIT_REVIEW_TEST_CASES === "redesign") return;
+  if (process.env.LCODE_GIT_REVIEW_TEST_CASES === "publish-refresh") {
+    await runGitPublishRefreshCases(t, { page, url });
+    assert.deepEqual(errors, []);
+    return;
+  }
+  if (process.env.LCODE_GIT_REVIEW_TEST_CASES === "build-acceptance") {
+    await runGitReviewPaneCases(t, { page, url });
+    assert.deepEqual(errors, []);
+    return;
+  }
+  if (process.env.LCODE_GIT_REVIEW_TEST_CASES === "publish") {
+    await runGitPublishCases(t, { page, url });
+    await runGitPublishEditingCases(t, { page, url });
+    await runGitPublishRefreshCases(t, { page, url });
+    assert.deepEqual(errors, []);
+    return;
+  }
+  if (process.env.LCODE_GIT_REVIEW_TEST_CASES === "navigation") {
+    await runGitReviewNavigationCases(t, { page, url });
+    await runGitReviewRedesignCases(t, { page, url });
+    assert.deepEqual(errors, []);
+    return;
+  }
+  if (process.env.LCODE_GIT_REVIEW_TEST_CASES === "history") {
+    await runGitHistoryCases(t, { page, url });
+    assert.deepEqual(errors, []);
+    return;
+  }
+  if (process.env.LCODE_GIT_REVIEW_TEST_CASES === "integration") {
+    await runGitIntegrationCases(t, { page, url });
+    assert.deepEqual(errors, []);
+    return;
+  }
+  if (process.env.LCODE_GIT_REVIEW_TEST_CASES === "conflicts") {
+    await runGitConflictCases(t, { page, url });
+    assert.deepEqual(errors, []);
+    return;
+  }
+  if (process.env.LCODE_GIT_REVIEW_TEST_CASES === "workspace-operations") {
+    await runGitWorkspaceCases(t, { page, url });
+    assert.deepEqual(errors, []);
+    return;
+  }
+  await runGitNetworkCases(t, { page, url });
+  if (process.env.LCODE_GIT_REVIEW_TEST_CASES === "network") {
+    assert.deepEqual(errors, []);
+    return;
+  }
   if (process.env.LCODE_GIT_REVIEW_TEST_CASES === "shared-host") {
     await runGitReviewCrossPlatformCases(t, { browser, url });
     assert.deepEqual(errors, []);
     return;
   }
-  await runGitReviewNavigationCases(t, { page, url });
-  await runGitReviewCrossPlatformCases(t, { browser, url });
+  await runGitFileOperationsCases(t, { page, url });
+  if (process.env.LCODE_GIT_REVIEW_TEST_CASES === "files") {
+    assert.deepEqual(errors, []);
+    return;
+  }
+  if (process.env.LCODE_GIT_REVIEW_TEST_CASES !== "core") {
+    await runGitReviewPaneCases(t, { page, url });
+    if (process.env.LCODE_GIT_REVIEW_TEST_CASES === "pane") return;
+    await runGitReviewRedesignCases(t, { page, url });
+    if (process.env.LCODE_GIT_REVIEW_TEST_CASES === "redesign") return;
+    await runGitReviewNavigationCases(t, { page, url });
+    await runGitReviewCrossPlatformCases(t, { browser, url });
+  }
   const button = page.getByTestId("v4-composer-commit-summary");
-  const dialog = page.getByTestId("git-commit-dialog");
+  const dialog = page.getByTestId("git-commit-review-pane").filter({ visible: true });
   const input = page.getByTestId("git-commit-message-input");
   const fixture = async (method, ...args) =>
     page.evaluate(
@@ -114,6 +180,10 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
     await page.waitForFunction(
       () => document.querySelector('[data-testid="git-commit-message-input"]')?.value.length > 0,
     );
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[data-testid="git-commit-generate-button"]')?.disabled === false,
+    );
   };
   const calls = () => page.evaluate(() => globalThis.__gitCommitFixture.calls);
 
@@ -128,13 +198,20 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
       );
       const trigger = page.getByTestId("git-action-trigger");
       const title = page.getByTestId("git-commit-workflow-title");
-      const summary = page.getByTestId("git-commit-execution-summary");
+      const summary = page.getByTestId("git-review-context-content");
+      const inspectContext = async () => {
+        await page.getByTestId("git-review-context").click();
+        await summary.waitFor();
+      };
+      const dismissContext = () => page.keyboard.press("Escape");
       await trigger.click();
       assert.equal(await title.innerText(), english ? "Commit review" : "提交审核");
+      await inspectContext();
       assert.match(
         await summary.innerText(),
         english ? /shared project directory/ : /共享项目目录/,
       );
+      await dismissContext();
       assert.equal(await page.getByTestId("commit-and-merge-control").count(), 0);
       assert.match(
         await page.getByTestId("git-commit-action-item-commit").innerText(),
@@ -150,19 +227,26 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
         .waitFor();
       await trigger.click();
       assert.equal(await title.innerText(), english ? "Commit and merge review" : "提交与合并审核");
+      await inspectContext();
       assert.match(await summary.innerText(), /\/fixture\/worktrees\/a/);
+      await dismissContext();
       assert.match(
         await page.getByTestId("git-commit-action-item-commit").innerText(),
         english ? /worktree changes only/ : /仅提交工作树更改/,
       );
       await page.getByTestId("commit-and-merge-control").waitFor();
       assert.match(await dialog.innerText(), english ? /Project target: L-GO/ : /原项目目标：L-GO/);
+      await page.getByTestId("git-view-network").click();
       await page.getByTestId("git-publish-toggle").click();
-      assert.match(await dialog.innerText(), english ? /source worktree branch/ : /来源工作树分支/);
+      assert.match(
+        await page.getByTestId("git-network-publication-host").innerText(),
+        english ? /source worktree branch/ : /来源工作树分支/,
+      );
       assert.equal(
         await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
         true,
       );
+      await page.getByTestId("git-view-review").click();
       await page.getByTestId("git-commit-close").click();
       await fixture("executionMode", "local");
       await page
@@ -170,7 +254,9 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
         .waitFor();
       await trigger.click();
       assert.equal(await title.innerText(), english ? "Commit review" : "提交审核");
+      await inspectContext();
       assert.match(await summary.innerText(), /\/fixture\/repo/);
+      await dismissContext();
       assert.equal(await page.getByTestId("commit-and-merge-control").count(), 0);
       assert.equal((await calls()).length, 0);
     }
@@ -212,7 +298,7 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
     assert.equal(await input.inputValue(), "修复 a 的布局适配");
     assert.equal(await page.getByTestId("composer-draft").inputValue(), "待发送的草稿不能改变");
     assert.equal(await page.getByTestId("git-commit-action-item-commit").isDisabled(), true);
-    await page.keyboard.press("Escape");
+    await page.getByTestId("git-commit-close").click();
     await dialog.waitFor({ state: "hidden" });
     await fixture("rerender");
     assert.equal((await calls()).length, 1);
@@ -240,7 +326,7 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
     await button.click();
     await dialog.waitFor();
     await page.waitForFunction(() => globalThis.__gitCommitFixture.calls.length === 1);
-    await page.keyboard.press("Escape");
+    await page.getByTestId("git-commit-close").click();
     await dialog.waitFor({ state: "hidden" });
     await fixture("switchSession", "b");
     await button.waitFor();
@@ -326,7 +412,7 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
       await input.fill("用户检查后的中文纪要");
       await fixture("automatic");
       assert.equal(await input.inputValue(), "用户检查后的中文纪要");
-      await page.keyboard.press("Escape");
+      await page.getByTestId("git-commit-close").click();
       await dialog.waitFor({ state: "hidden" });
       await fixture("rerender");
       assert.equal(await dialog.count(), 0);
@@ -400,11 +486,11 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
       );
       assert.equal(await dialog.count(), 0);
       assert.equal((await calls()).length, 0);
-      await page.getByTestId("git-action-trigger").click();
+      await page.getByTestId("git-review-empty").getByRole("button").click();
       await input.waitFor();
       assert.equal(await input.inputValue(), "");
       assert.match(await dialog.innerText(), /3\s*个文件/);
-      await page.keyboard.press("Escape");
+      await page.getByTestId("git-commit-close").click();
       await dialog.waitFor({ state: "hidden" });
       await button.click();
       await generated();
@@ -478,6 +564,10 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
       }
     }
   });
+  if (process.env.LCODE_GIT_REVIEW_TEST_CASES === "core") {
+    assert.deepEqual(errors, []);
+    return;
+  }
   await runGitPublishCases(t, { page, url });
   await runGitPublishEditingCases(t, { page, url });
   assert.deepEqual(errors, []);

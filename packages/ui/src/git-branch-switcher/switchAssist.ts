@@ -1,5 +1,10 @@
 import type { IGitService } from "@lcode/services";
-import type { GitBranchMutationIssue, GitBranchMutationResult, GitIdentity } from "@lcode/shared";
+import type {
+  GitBranchMutationIssue,
+  GitBranchMutationResult,
+  GitIdentity,
+  GitPublishState,
+} from "@lcode/shared";
 import {
   buildGitBranchCommitPreviewFiles,
   getPrimaryGitBranchIssue,
@@ -10,6 +15,7 @@ import {
 } from "@/git-branch-switcher/display.js";
 import { getErrorMessage } from "@/lib/errorMessage.js";
 import { logger } from "@/logger.js";
+import { joinFilePath } from "@/lib/path.js";
 
 export type GitBranchSwitchAssistDialogStep = "blocked" | "commit";
 
@@ -24,6 +30,7 @@ export interface GitBranchSwitchAssistState {
   totalAdded: number;
   totalRemoved: number;
   identity: GitIdentity | null;
+  expectedState: GitPublishState;
 }
 
 export function formatGitBranchIssuePathList(locale: string, paths: readonly string[]): string {
@@ -44,23 +51,29 @@ export function hasGitCommitIdentity(identity: GitIdentity | null): boolean {
 export async function buildGitBranchSwitchAssistState(options: {
   gitService: IGitService;
   workspacePath: string;
+  workspaceIdentity?: string;
   result: GitBranchMutationResult;
 }): Promise<GitBranchSwitchAssistState | null> {
   const issue = getPrimaryGitBranchIssue(options.result.issues);
   if (!issue || !isGitBranchCommitAssistIssue(issue.code) || !options.result.branchName) {
     return null;
   }
+  const request = {
+    workspacePath: options.workspacePath,
+    workspaceIdentity: options.workspaceIdentity,
+  };
+  const expectedState = await options.gitService.getPublishState(request);
 
   const [unstagedChangesResult, stagedChangesResult, identityResult] = await Promise.allSettled([
     options.gitService.getChanges({
-      workspacePath: options.workspacePath,
+      ...request,
       sourceId: "unstaged",
     }),
     options.gitService.getChanges({
-      workspacePath: options.workspacePath,
+      ...request,
       sourceId: "staged",
     }),
-    options.gitService.getIdentity({ workspacePath: options.workspacePath }),
+    options.gitService.getIdentity(request),
   ]);
 
   if (unstagedChangesResult.status === "rejected") {
@@ -81,18 +94,33 @@ export async function buildGitBranchSwitchAssistState(options: {
       error: getErrorMessage(identityResult.reason),
     });
   }
+  if (
+    unstagedChangesResult.status === "rejected" ||
+    stagedChangesResult.status === "rejected" ||
+    identityResult.status === "rejected"
+  )
+    return null;
 
   const unstagedChanges =
     unstagedChangesResult.status === "fulfilled" ? unstagedChangesResult.value : [];
   const stagedChanges = stagedChangesResult.status === "fulfilled" ? stagedChangesResult.value : [];
-  const commitFiles = buildGitBranchCommitPreviewFiles([...unstagedChanges, ...stagedChanges]);
+  const allFiles = buildGitBranchCommitPreviewFiles([...unstagedChanges, ...stagedChanges]);
   const affectedFiles = selectGitBranchAffectedFiles({
-    files: commitFiles,
+    files: allFiles,
     issuePaths: issue.paths,
   });
-  const stagePaths = Array.from(
-    new Set([...commitFiles.map((file) => file.stagePath), ...(issue.paths ?? [])]),
-  );
+  // 切换辅助只提交界面列出的阻塞文件，不能把无关已暂存内容混入提交。
+  const commitFiles = affectedFiles;
+  const stagePaths = [
+    ...new Set(
+      commitFiles.map((file) =>
+        joinFilePath(
+          options.result.summary.repoRoot ?? options.workspacePath,
+          file.repoRelativePath,
+        ),
+      ),
+    ),
+  ];
   const { fileCount, totalAdded, totalRemoved } = getGitBranchCommitTotals(commitFiles);
 
   return {
@@ -106,5 +134,6 @@ export async function buildGitBranchSwitchAssistState(options: {
     totalAdded,
     totalRemoved,
     identity: identityResult.status === "fulfilled" ? identityResult.value : null,
+    expectedState,
   };
 }

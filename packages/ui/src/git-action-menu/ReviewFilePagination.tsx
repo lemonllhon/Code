@@ -33,18 +33,23 @@ export function useReviewFilePage<T>(files: readonly T[], path: (file: T) => str
 export function ReviewFilePagination({
   model,
   onNavigate,
+  compact = false,
 }: {
   model: Pick<
     ReturnType<typeof useReviewFilePage>,
     "query" | "page" | "pages" | "total" | "matched" | "setQuery" | "setPage"
   >;
   onNavigate?: () => void;
+  compact?: boolean;
 }) {
   const { intl } = useLCodeIntl();
   return (
-    <div className="space-y-2 text-ui-sm" data-testid="review-file-pagination">
+    <div
+      className={compact ? "space-y-1 px-2 py-1 text-ui-sm" : "space-y-2 text-ui-sm"}
+      data-testid="review-file-pagination"
+    >
       <Input
-        className="text-ui-sm"
+        className={compact ? "h-7 rounded-sm bg-transparent text-ui-sm" : "text-ui-sm"}
         aria-label={intl.formatMessage({ id: "git.review.searchFiles" })}
         placeholder={intl.formatMessage({ id: "git.review.searchFiles" })}
         value={model.query}
@@ -53,43 +58,49 @@ export function ReviewFilePagination({
           onNavigate?.();
         }}
       />
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="min-w-0 flex-1 text-foreground-subtle">
-          {intl.formatMessage(
-            { id: "git.review.filePage" },
-            {
-              total: model.total,
-              matched: model.matched,
-              current: model.page + 1,
-              pages: model.pages,
-            },
-          )}
-        </span>
-        <Button
-          type="button"
-          size="xs"
-          variant="outline"
-          disabled={model.page === 0}
-          onClick={() => {
-            model.setPage(model.page - 1);
-            onNavigate?.();
-          }}
-        >
-          {intl.formatMessage({ id: "git.review.previousPage" })}
-        </Button>
-        <Button
-          type="button"
-          size="xs"
-          variant="outline"
-          disabled={model.page + 1 >= model.pages}
-          onClick={() => {
-            model.setPage(model.page + 1);
-            onNavigate?.();
-          }}
-        >
-          {intl.formatMessage({ id: "git.review.nextPage" })}
-        </Button>
-      </div>
+      {!compact || model.pages > 1 || model.query ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="min-w-0 flex-1 text-foreground-subtle">
+            {intl.formatMessage(
+              { id: "git.review.filePage" },
+              {
+                total: model.total,
+                matched: model.matched,
+                current: model.page + 1,
+                pages: model.pages,
+              },
+            )}
+          </span>
+          {model.pages > 1 ? (
+            <>
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                disabled={model.page === 0}
+                onClick={() => {
+                  model.setPage(model.page - 1);
+                  onNavigate?.();
+                }}
+              >
+                {intl.formatMessage({ id: "git.review.previousPage" })}
+              </Button>
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                disabled={model.page + 1 >= model.pages}
+                onClick={() => {
+                  model.setPage(model.page + 1);
+                  onNavigate?.();
+                }}
+              >
+                {intl.formatMessage({ id: "git.review.nextPage" })}
+              </Button>
+            </>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

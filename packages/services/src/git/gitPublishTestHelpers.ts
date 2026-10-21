@@ -71,8 +71,9 @@ export async function publishFixture(
       },
     },
   });
+  const selectedCommand = wrap ? wrap(command) : command;
   const service = createGitService({
-    commandProvider: wrap ? wrap(command) : command,
+    commandProvider: selectedCommand,
     commitMessageGenerator: generator,
   });
   const remote = async (name: string) => {
@@ -89,5 +90,18 @@ export async function publishFixture(
   };
   const request = { workspacePath: root, workspaceIdentity: "fixture:publish" };
   const state = () => service.getPublishState(request);
-  return { base, root, git, at, remote, hook, globalConfig, captured, service, request, state };
+  return {
+    base,
+    root,
+    git,
+    at,
+    remote,
+    hook,
+    globalConfig,
+    captured,
+    service,
+    request,
+    state,
+    command: selectedCommand,
+  };
 }

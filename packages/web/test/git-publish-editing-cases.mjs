@@ -1,7 +1,12 @@
+import {
+  showReviewFiles,
+  returnToReview,
+  openRemotePublication,
+} from "./git-review-pane-helpers.mjs";
 import assert from "node:assert/strict";
 
 export async function runGitPublishEditingCases(t, { page, url }) {
-  const dialog = page.getByTestId("git-commit-dialog");
+  const dialog = page.getByTestId("git-commit-review-pane").filter({ visible: true });
   const input = page.getByTestId("git-commit-message-input");
   const fixture = (method, ...args) =>
     page.evaluate(({ method, args }) => globalThis.__gitCommitFixture[method](...args), {
@@ -47,6 +52,7 @@ export async function runGitPublishEditingCases(t, { page, url }) {
     await dialog.waitFor();
   };
   const options = async () => {
+    await openRemotePublication(page);
     await page.getByTestId("git-publish-toggle").click();
     await page.getByTestId("git-publish-remote-origin").waitFor();
   };
@@ -97,18 +103,18 @@ export async function runGitPublishEditingCases(t, { page, url }) {
     await page.getByTestId("git-commit-generate-button").click();
     await generated();
     await input.fill("fix: 人工审核说明");
-    await page.getByTestId("git-review-open-files").click();
-    await page.getByTestId("git-review-exclude-a.ts").click();
-    await page.getByTestId("code-viewer-return-review").click();
+    await showReviewFiles(page);
+    await page.getByTestId("git-review-include-a.ts").first().uncheck();
+    await returnToReview(page);
     assert.equal(await input.inputValue(), "fix: 人工审核说明");
     assert.equal(await page.getByTestId("git-commit-action-item-commit").isDisabled(), true);
     await page.getByTestId("git-commit-generate-button").click();
     await generated();
     const requests = await page.evaluate(() => globalThis.__gitCommitFixture.calls);
     assert.deepEqual(requests.at(-1).excludedFilePaths, ["a.ts"]);
-    await page.getByTestId("git-scope-open-files").click();
-    await page.getByTestId("git-review-restore-a.ts").click();
-    await page.getByTestId("code-viewer-return-review").click();
+    await showReviewFiles(page, true);
+    await page.getByTestId("git-review-include-a.ts").first().check();
+    await returnToReview(page);
     assert.equal(await page.getByTestId("git-commit-action-item-commit").isDisabled(), true);
     assert.equal(await page.getByTestId("git-review-acknowledge").count(), 0);
     assert.deepEqual(await calls(), []);
@@ -123,8 +129,8 @@ export async function runGitPublishEditingCases(t, { page, url }) {
     await page.getByTestId("git-review-next").click();
     assert.match(await dialog.innerText(), /审核组 2/);
     await page.getByTestId("git-review-prev").click();
-    await page.getByTestId("git-review-open-files").click();
-    await page.getByTestId("code-viewer-return-review").click();
+    await showReviewFiles(page);
+    await returnToReview(page);
     await check("git-review-acknowledge");
     await input.press("Control+Enter");
     await page.waitForFunction(() => globalThis.__gitCommitFixture.publish.calls.length === 1);
@@ -220,9 +226,12 @@ export async function runGitPublishEditingCases(t, { page, url }) {
     await open();
     await input.fill("fix: 保留范围调整说明");
     await page.evaluate(() => globalThis.__gitCommitFixture.publish.holdList());
+    await openRemotePublication(page);
     await page.getByTestId("git-publish-toggle").click();
     await page.waitForFunction(() => globalThis.__gitCommitFixture.publish.listPending());
+    await page.getByTestId("git-view-review").click();
     await page.getByTestId("git-commit-include-unstaged").click();
+    await openRemotePublication(page);
     await page.getByTestId("git-publish-reload").click();
     await page.getByTestId("git-publish-remote-origin").waitFor();
     await page.evaluate(() => globalThis.__gitCommitFixture.publish.releaseList());
@@ -235,8 +244,12 @@ export async function runGitPublishEditingCases(t, { page, url }) {
     await load();
     await open();
     await page.evaluate(() => globalThis.__gitCommitFixture.publish.failList());
+    await openRemotePublication(page);
     await page.getByTestId("git-publish-toggle").click();
-    await dialog.getByText("fixture-publish-list-failure", { exact: false }).waitFor();
+    await page
+      .getByTestId("git-network-publication-host")
+      .getByText("fixture-publish-list-failure", { exact: false })
+      .waitFor();
     await page.getByTestId("git-publish-reload").click();
     await page.getByTestId("git-publish-remote-origin").waitFor();
     assert.deepEqual(await calls(), []);

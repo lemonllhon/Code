@@ -16,9 +16,14 @@ import {
   type GitChangeSectionId,
 } from "@lcode/shared";
 import { GitPublishRepo } from "./repo/gitPublishRepo.js";
-import { commitWithPublishState } from "./gitServiceCommit.js";
+import { commitWithPublishState, commitAndSwitchWithPublishState } from "./gitServiceCommit.js";
 import { readOptionalBranchComparison } from "./gitBranchComparisonRead.js";
-import { isPathInWorkspaceScope, normalizeGitPath, toWorkspaceRelativeGitPath } from "./config.js";
+import { createGitFileOperations } from "./gitServiceFileOperations.js";
+import { createGitNetworkOperations } from "./gitServiceNetwork.js";
+import { createGitWorkspaceOperations } from "./gitServiceWorkspaceOperations.js";
+import { GitNetworkJournal } from "./gitNetworkJournal.js";
+import type { CheckoutCoordinator } from "../worktree/node.js";
+import { matchesWorkspaceScope, normalizeGitPath, toWorkspaceRelativeGitPath } from "./config.js";
 import { filterCommitMessageFilesByCurrentSession } from "./commitMessageFileScope.js";
 import type { IGitService } from "./git.js";
 import { GitReviewWorkspaceState } from "./gitReviewWorkspaceState.js";
@@ -43,16 +48,6 @@ const logger = createServiceLogger("git-commit-review");
 
 function toAbsolutePath(repoRoot: string, repoRelativePath: string): string {
   return resolve(repoRoot, ...normalizeGitPath(repoRelativePath).split("/"));
-}
-
-function matchesWorkspaceScope(
-  workspaceInRepoPath: string,
-  entry: { path: string; originalPath: string | null },
-): boolean {
-  return (
-    isPathInWorkspaceScope(entry.path, workspaceInRepoPath) ||
-    (entry.originalPath ? isPathInWorkspaceScope(entry.originalPath, workspaceInRepoPath) : false)
-  );
 }
 
 function buildFileChange(
@@ -201,11 +196,13 @@ export function createGitService(options?: {
   commitMessageGenerator?: GitCommitMessageGenerator;
   mutationJournalReader?: MutationJournalReader;
   reviewStateDataDir?: string;
+  checkoutCoordinator?: CheckoutCoordinator;
 }): IGitService {
   const command = options?.commandProvider ?? createGitCommandProvider();
   const repo = options?.repo ?? createGitCliRepo({ commandProvider: command });
   const publish = new GitPublishRepo(repo, command);
   const reviewWorkspace = new GitReviewWorkspaceState(options?.reviewStateDataDir);
+  const operations = new GitNetworkJournal(options?.reviewStateDataDir);
   // 持久提交事实与模型可用性无关；没有生成器时仍可对账已提交的审核组。
   const reviews = new CommitReviewService(
     new CommitReviewRepo(repo, command),
@@ -214,6 +211,8 @@ export function createGitService(options?: {
   );
 
   return {
+    ...createGitNetworkOperations(repo, command, options?.reviewStateDataDir, operations),
+    ...createGitWorkspaceOperations(repo, command, operations, options?.checkoutCoordinator),
     getReviewWorkspace: (params) => reviewWorkspace.read(params),
     updateReviewWorkspace: (params) => reviewWorkspace.update(params),
     onDynamicReviewWorkspace: (params) => reviewWorkspace.subscribe(params),
@@ -285,17 +284,7 @@ export function createGitService(options?: {
       };
     },
 
-    async stagePaths(params) {
-      await repo.stage(params.workspacePath, params.paths);
-    },
-
-    async unstagePaths(params) {
-      await repo.unstage(params.workspacePath, params.paths);
-    },
-
-    async discardPaths(params) {
-      await repo.discard(params.workspacePath, params.paths, params.staged ?? false);
-    },
+    ...createGitFileOperations(repo, publish.state),
 
     async generateCommitMessage(input) {
       const params = gitGenerateCommitMessageRequestSchema.parse(input);
@@ -388,6 +377,10 @@ export function createGitService(options?: {
         publish.state,
         gitCommitRequestSchema.parse(params),
       );
+    },
+
+    async commitAndSwitchBranch(input) {
+      return commitAndSwitchWithPublishState(repo, reviews, publish.state, input);
     },
 
     async push(params) {

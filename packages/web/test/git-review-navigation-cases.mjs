@@ -1,7 +1,13 @@
+import {
+  showReviewFiles,
+  returnToReview,
+  openRemotePublication,
+} from "./git-review-pane-helpers.mjs";
 import assert from "node:assert/strict";
 
 export async function runGitReviewNavigationCases(t, { page, url }) {
-  const dialog = page.getByTestId("git-commit-dialog");
+  const dialog = page.getByTestId("git-commit-review-pane").filter({ visible: true });
+  const publication = page.getByTestId("git-network-publication-host");
   const fixture = (method, ...args) =>
     page.evaluate(({ method, args }) => globalThis.__gitCommitFixture[method](...args), {
       method,
@@ -18,8 +24,10 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
     await dialog.getByTestId("worktree-completed-evidence").locator("summary").first().click();
     await dialog.getByTestId("worktree-stage-back").click();
     await dialog.getByTestId("worktree-current-stage").click();
-    await dialog.getByTestId("worktree-remote-publication").waitFor();
-    assert.match(await dialog.innerText(), /发布 L-GO/);
+    await openRemotePublication(page);
+    await publication.getByTestId("worktree-remote-publication").waitFor();
+    assert.match(await publication.innerText(), /发布 L-GO/);
+    await returnToReview(page);
     await dialog.getByTestId("git-review-stage-back").click();
     await dialog.getByTestId("worktree-target-branch").click();
     await page.getByRole("option", { name: "main", exact: true }).click();
@@ -58,13 +66,14 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
       assert.deepEqual(await page.evaluate(() => globalThis.__gitCommitFixture.publish.calls), []);
       await page.goto(url);
       await page.getByTestId("git-action-trigger").click();
-      await dialog.getByTestId("git-publish-toggle").click();
-      await dialog.getByTestId("git-publish-remote-origin").check();
-      await dialog.getByTestId("git-publish-remote-backup").check();
-      await dialog.getByTestId("git-publish-branch-enabled").check();
+      await openRemotePublication(page);
+      await publication.getByTestId("git-publish-toggle").click();
+      await publication.getByTestId("git-publish-remote-origin").check();
+      await publication.getByTestId("git-publish-remote-backup").check();
+      await publication.getByTestId("git-publish-branch-enabled").check();
       await page.evaluate(() => globalThis.__gitCommitFixture.publish.failPush("backup"));
-      await dialog.getByTestId("git-publish-preview").click();
-      await dialog.getByTestId("git-publish-confirm").click();
+      await publication.getByTestId("git-publish-preview").click();
+      await publication.getByTestId("git-publish-confirm").click();
       await page.waitForFunction(
         () =>
           document
@@ -72,7 +81,7 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
             ?.getAttribute("aria-busy") === "false",
       );
       const calls = await page.evaluate(() => globalThis.__gitCommitFixture.publish.calls);
-      await dialog.getByTestId("git-failure-to-composer").click();
+      await publication.getByTestId("git-failure-to-composer").click();
       await dialog.waitFor({ state: "hidden" });
       const report = await page.getByTestId("composer-draft").inputValue();
       assert.match(report, /origin.*success/);
@@ -97,12 +106,18 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
           await navigate.innerText(),
           english ? "View merge result and publish L-GO" : "查看合并结果并发布 L-GO",
         );
-        await dialog.getByTestId("git-publish-toggle").click();
-        await dialog.getByTestId("git-publish-commit-unavailable").waitFor();
-        assert.equal(await dialog.getByTestId("git-publish-commit-preview").isDisabled(), true);
-        assert.equal(await dialog.getByTestId("git-publish-preview").isEnabled(), true);
+        await openRemotePublication(page);
+        await publication.getByTestId("git-publish-toggle").click();
+        await publication.getByTestId("git-publish-commit-unavailable").waitFor();
+        assert.equal(
+          await publication.getByTestId("git-publish-commit-preview").isDisabled(),
+          true,
+        );
+        assert.equal(await publication.getByTestId("git-publish-preview").isEnabled(), true);
+        await returnToReview(page);
         await navigate.click();
-        const targetPublish = dialog.getByTestId("worktree-remote-publication");
+        await openRemotePublication(page);
+        const targetPublish = publication.getByTestId("worktree-remote-publication");
         await targetPublish.waitFor();
         assert.equal(
           await targetPublish.getByTestId("git-publish-toggle").innerText(),
@@ -116,8 +131,9 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
         );
         assert.equal(await targetPublish.getByTestId("git-publish-commit-preview").count(), 0);
         assert.ok(
-          await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+          await publication.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
         );
+        await returnToReview(page);
         await navigate.click();
         await dialog.getByTestId("git-commit-execution-summary").waitFor();
         assert.deepEqual(
@@ -150,13 +166,13 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
             await page.getByTestId("git-merge-open-source-files").click();
             await page.getByTestId("review-file-workspace").waitFor();
             assert.equal(await page.getByTestId("review-exclude-page").count(), 0);
-            await page.getByTestId("code-viewer-return-review").click();
+            await returnToReview(page);
             await page.getByTestId("worktree-open-diff").waitFor();
             await page.getByTestId("git-review-stage-back").click();
-            await page.getByTestId("git-scope-open-files").waitFor();
+            await page.getByTestId("git-commit-scope-counts").waitFor();
             assert.equal(await page.getByTestId("git-commit-message-input").isDisabled(), true);
           } else {
-            await page.getByTestId("git-scope-open-files").waitFor();
+            await page.getByTestId("git-commit-scope-counts").waitFor();
             assert.equal(await page.getByTestId("git-commit-message-input").isDisabled(), false);
             assert.equal(await page.getByTestId("git-merge-open-source-files").count(), 0);
             if (status === "published") {
@@ -165,14 +181,15 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
                 "查看合并结果并发布 L-GO",
               );
               await page.getByTestId("git-commit-message-input").fill("fix: new source work");
-              await page.getByTestId("git-scope-open-files").click();
+              await showReviewFiles(page, true);
               await page.getByTestId("review-exclude-page").click();
-              await page.getByTestId("code-viewer-return-review").click();
+              await returnToReview(page);
               assert.equal(
                 await page.getByTestId("git-commit-action-item-commit").isDisabled(),
                 true,
               );
               await page.getByTestId("git-review-stage-back").click();
+              await openRemotePublication(page);
               await page.getByTestId("worktree-remote-publication").waitFor();
               assert.equal(
                 await page
@@ -181,7 +198,7 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
                   .isEnabled(),
                 true,
               );
-              await page.getByTestId("git-commit-dialog").press("Control+Enter");
+              await publication.press("Control+Enter");
               assert.deepEqual(
                 await page.evaluate(() => globalThis.__gitCommitFixture.publish.calls),
                 [],
@@ -193,32 +210,35 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
       }
     },
   );
-  await t.test("本地审核优先显示文件范围，发布折叠，差异返回保留草稿", async () => {
+  await t.test("本地审核优先显示文件范围，发布在远端折叠，差异返回保留草稿", async () => {
     for (const width of [1280, 390]) {
       for (const locale of ["zh-CN", "en-US"]) {
         await page.setViewportSize({ width, height: 900 });
         await page.goto(url + (locale === "en-US" ? "?english" : ""));
         await fixture("dirty", ["a.ts", "b.ts"]);
         await page.getByTestId("git-action-trigger").click();
-        const scope = page.getByTestId("git-scope-open-files");
+        const scope = page.getByTestId("git-commit-scope-counts");
         const message = page.getByTestId("git-commit-message-input");
         await scope.waitFor();
         assert.ok((await scope.boundingBox()).y < (await message.boundingBox()).y);
+        assert.equal(await dialog.getByTestId("git-publish-toggle").count(), 0);
+        await openRemotePublication(page);
         assert.equal(
-          await page.getByTestId("git-publish-toggle").getAttribute("aria-expanded"),
+          await publication.getByTestId("git-publish-toggle").getAttribute("aria-expanded"),
           "false",
         );
+        await returnToReview(page);
         await message.fill("fix: local review draft");
-        await scope.click();
+        await showReviewFiles(page, true);
         await page.getByTestId("review-file-workspace").waitFor();
         await page.getByTestId("review-exclude-page").click();
-        await page.getByTestId("code-viewer-return-review").click();
+        await returnToReview(page);
         assert.equal(await message.inputValue(), "fix: local review draft");
         assert.equal(await page.getByTestId("git-commit-action-item-commit").isDisabled(), true);
       }
     }
   });
-  await t.test("遮罩不关闭，X 与手动重开保留冻结审核及编辑内容", async () => {
+  await t.test("侧栏关闭与手动重开保留冻结审核及编辑内容", async () => {
     for (const english of [false, true]) {
       await page.setViewportSize({ width: english ? 390 : 1280, height: 900 });
       await page.goto(url + (english ? "?english" : ""));
@@ -226,9 +246,7 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
       await page.getByTestId("git-review-acknowledge").waitFor();
       await page.getByTestId("git-commit-message-input").fill("fix: keep reviewed draft");
       await page.getByTestId("git-review-acknowledge").click();
-      await page.mouse.click(5, 5);
-      assert.equal(await dialog.isVisible(), true);
-      await page.getByTestId("git-review-dismiss").click();
+      await page.getByTestId("git-commit-close").click();
       await dialog.waitFor({ state: "hidden" });
       await page.getByTestId("git-action-trigger").click();
       assert.equal(
@@ -239,7 +257,7 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
         await page.getByTestId("git-review-acknowledge").getAttribute("data-state"),
         "checked",
       );
-      assert.equal(await dialog.locator("pre").count(), 0);
+      assert.equal(await page.getByTestId("git-commit-dialog").count(), 0);
     }
   });
   await t.test("冻结差异使用已有查看器，返回保留阶段且切换会话使旧返回失效", async () => {
@@ -249,62 +267,56 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
     await page.getByTestId("git-review-acknowledge").waitFor();
     await page.getByTestId("git-commit-message-input").fill("fix: reviewed once");
     const calls = await page.evaluate(() => globalThis.__gitCommitFixture.calls.length);
-    await page.getByTestId("git-review-open-files").click();
-    await dialog.waitFor({ state: "hidden" });
-    await page.getByTestId("code-viewer-return-review").waitFor();
-    assert.equal(
-      await page.evaluate(() => globalThis.__gitCommitFixture.previewSource.type),
-      "patch",
-    );
-    assert.equal(
-      await page.evaluate(() => globalThis.__gitCommitFixture.previewSource.reviewFiles[0].patch),
-      "+fixture",
-    );
-    await page.getByTestId("code-viewer-return-review").click();
+    await showReviewFiles(page);
+    assert.equal(await dialog.isVisible(), true);
+    if (await page.getByTestId("git-review-show-diff").isVisible())
+      await page.getByTestId("git-review-show-diff").click();
+    assert.match(await page.getByTestId("git-review-diff-content").innerText(), /fixture/);
+    await returnToReview(page);
     assert.equal(
       await page.getByTestId("git-commit-message-input").inputValue(),
       "fix: reviewed once",
     );
     assert.equal(await page.evaluate(() => globalThis.__gitCommitFixture.calls.length), calls);
-    await page.getByTestId("git-review-open-files").click();
+    await showReviewFiles(page);
     await fixture("switchSession", "b");
     await page.getByTestId("code-viewer-return-review").waitFor({ state: "hidden" });
     assert.equal(await dialog.isVisible(), false);
   });
-  await t.test("一万文件只在独立区域分页渲染；搜索及批量排除作用于当前页", async () => {
+  await t.test("一万文件在侧栏内分页渲染；搜索及批量排除作用于明确范围", async () => {
     await page.goto(url);
     await fixture(
       "dirty",
       Array.from({ length: 10_000 }, (_, index) => `src/file-${String(index).padStart(5, "0")}.ts`),
     );
     await page.getByTestId("git-action-trigger").click();
-    await page.getByTestId("git-scope-open-files").waitFor();
-    assert.equal(await dialog.locator("li").count(), 0);
-    await page.getByTestId("git-scope-open-files").click();
+    await page.getByTestId("git-commit-scope-counts").waitFor();
+    await showReviewFiles(page, true);
     const list = page.getByTestId("review-workspace-files");
     await list.waitFor();
-    assert.equal(await list.locator("li").count(), 50);
+    assert.equal(await list.locator("[data-review-file]").count(), 50);
     assert.match(await page.getByTestId("review-file-pagination").innerText(), /10,000|10000/);
     await page.getByTestId("review-exclude-page").click();
     assert.equal(await list.getByText("已排除的审核文件", { exact: true }).count(), 50);
     await page.getByRole("button", { name: "下一页", exact: true }).click();
-    assert.equal(await list.locator("li").count(), 50);
+    assert.equal(await list.locator("[data-review-file]").count(), 50);
     assert.equal(await list.getByText("已排除的审核文件", { exact: true }).count(), 0);
     await page.getByRole("textbox", { name: "搜索文件路径" }).fill("file-09999");
-    assert.equal(await list.locator("li").count(), 1);
+    assert.equal(await list.locator("[data-review-file]").count(), 1);
     await page.getByTestId("review-exclude-matching").click();
     await page.getByRole("textbox", { name: "搜索文件路径" }).fill("src/");
     await page.getByTestId("review-exclude-matching").click();
-    await page.getByTestId("code-viewer-return-review").click();
+    await returnToReview(page);
     assert.match(await page.getByTestId("git-commit-scope-counts").innerText(), /已选 0/);
     assert.equal(await page.getByTestId("git-commit-generate-button").isDisabled(), true);
-    await page.getByTestId("git-scope-open-files").click();
+    await showReviewFiles(page, true);
     await page.getByTestId("review-restore-all").click();
-    await page.getByTestId("code-viewer-return-review").click();
+    await returnToReview(page);
     assert.match(await page.getByTestId("git-commit-scope-counts").innerText(), /已排除 0/);
     assert.equal(await page.evaluate(() => globalThis.__gitCommitFixture.calls.length), 0);
   });
   await t.test("提交与合并使用单个窗口；上一步不重放来源提交，关闭重开保留候选确认", async () => {
+    await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto(url);
     await fixture("executionMode", "worktree");
     await fixture("automatic");
@@ -312,12 +324,12 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
     await page.getByTestId("commit-and-merge-control").getByRole("checkbox").check();
     await page.getByTestId("git-commit-and-merge").click();
     await page.getByTestId("worktree-approve-candidate").waitFor();
-    assert.equal(await page.getByRole("dialog").count(), 1);
+    assert.equal(await page.getByRole("dialog").count(), 0);
     await page.getByTestId("worktree-approve-candidate").check();
     await page.getByTestId("git-review-stage-back").click();
     assert.equal(await page.getByTestId("git-commit-action-item-commit").isDisabled(), true);
     await page.getByTestId("git-review-stage-back").click();
-    await page.getByTestId("git-review-dismiss").click();
+    await page.getByTestId("git-commit-close").click();
     await page.getByTestId("git-action-trigger").click();
     assert.equal(
       await page.getByTestId("worktree-approve-candidate").getAttribute("data-state"),
@@ -345,11 +357,14 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
         await fixture("dirty", ["a.ts", "b.ts"]);
         await page.getByTestId("git-action-trigger").click();
         await page.getByTestId("git-commit-message-input").fill("fix: retain reviewed scope");
-        await page.getByTestId("git-scope-open-files").click();
-        await dialog.waitFor({ state: "hidden" });
+        await showReviewFiles(page, true);
+        assert.equal(await dialog.isVisible(), true);
         await page.getByTestId("review-file-workspace").waitFor();
-        await page.getByTestId("code-viewer-return-review").waitFor();
-        assert.equal(await page.getByTestId("review-workspace-files").locator("li").count(), 2);
+        await page.getByTestId("git-commit-review-pane").waitFor();
+        assert.equal(
+          await page.getByTestId("review-workspace-files").locator("[data-review-file]").count(),
+          2,
+        );
         assert.equal(await page.getByText("打开标签页", { exact: true }).isVisible(), false);
         await page.waitForFunction(() => globalThis.__gitCommitFixture.diffQueries.length > 0);
         const diff = await page.evaluate(() => globalThis.__gitCommitFixture.diffQueries[0]);
@@ -358,12 +373,7 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
           mode === "worktree" ? "/fixture/worktrees/a" : "/fixture/repo",
         );
         assert.equal(diff.workspaceIdentity, executionIdentity);
-        assert.equal(
-          await page.evaluate(
-            () => globalThis.__gitCommitFixture.previewSource.workspaceRemoteSessionId,
-          ),
-          identity ? "fixture-preview-attachment" : undefined,
-        );
+        assert.equal(await page.getByTestId("git-commit-dialog").count(), 0);
         if (width === 390) {
           assert.equal(
             await page
@@ -374,15 +384,15 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
           );
         }
         await page.getByTestId("review-exclude-page").click();
-        await page.getByTestId("code-viewer-return-review").click();
+        await returnToReview(page);
         assert.equal(
           await page.getByTestId("git-commit-message-input").inputValue(),
           "fix: retain reviewed scope",
         );
         assert.match(await page.getByTestId("git-commit-scope-counts").innerText(), /已排除 2/);
-        await page.getByTestId("git-scope-open-files").click();
+        await showReviewFiles(page, true);
         await page.getByTestId("review-restore-all").click();
-        await page.getByTestId("code-viewer-return-review").click();
+        await returnToReview(page);
         assert.match(await page.getByTestId("git-commit-scope-counts").innerText(), /已排除 0/);
         assert.equal(await page.evaluate(() => globalThis.__gitCommitFixture.calls.length), 0);
         assert.equal(
@@ -392,19 +402,24 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
       }
     }
   });
-  await t.test("真实工作树变更页切换会话后隔离，切回恢复标签但旧审核返回入口失效", async () => {
+  await t.test("工作区共享 Git 标签不泄露上一会话审核；切回手动恢复 Host 草稿", async () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto(`${url}?shellPreview`);
     await fixture("executionMode", "worktree");
     await page.getByTestId("git-action-trigger").click();
-    await page.getByTestId("git-scope-open-files").click();
+    await page.getByTestId("git-commit-message-input").fill("fix: scope a draft");
+    await showReviewFiles(page, true);
     await page.getByTestId("review-file-workspace").waitFor();
     await fixture("switchSession", "b");
     await page.getByTestId("review-file-workspace").waitFor({ state: "hidden" });
     assert.equal(await page.getByTestId("code-viewer-return-review").isVisible(), false);
-    await page.getByText("打开标签页", { exact: true }).waitFor();
     await fixture("switchSession", "a");
+    await page.getByTestId("git-action-trigger").click();
     await page.getByTestId("review-file-workspace").waitFor();
+    assert.equal(
+      await page.getByTestId("git-commit-message-input").inputValue(),
+      "fix: scope a draft",
+    );
     assert.equal(await page.getByTestId("code-viewer-return-review").isVisible(), false);
   });
 }

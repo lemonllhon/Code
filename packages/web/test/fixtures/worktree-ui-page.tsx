@@ -18,6 +18,7 @@ import { GitActionMenu } from "@/GitActionMenu.js";
 import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import { useTabStore, useTabStoreApi } from "@/store/TabStoreProvider.js";
 import { WorktreeSettingsSection } from "@/settings/WorktreeSettingsSection.js";
+import { FixtureReviewPreview } from "./review-preview.js";
 
 export function WorktreeFixturePage({
   workspacePath,
@@ -106,15 +107,25 @@ export function WorktreeFixturePage({
         }}
       />
       {reviewProjectSelected && activeSessionId ? (
-        <GitActionMenu
-          workspacePath="/fixture/worktrees/task"
-          originWorkspacePath={workspacePath}
-          originWorkspaceIdentity={identity}
-          executionSessionId={activeSessionId}
-          executionBindingId="binding"
-          gitSummary={{ ...gitSummary, workspacePath: "/fixture/worktrees/task" }}
-          onRefreshGit={() => {}}
-        />
+        <>
+          <FixtureReviewPreview
+            panel={{
+              workspacePath,
+              workspaceIdentity: identity,
+              executionPath: "/fixture/worktrees/task",
+              sessionId: activeSessionId,
+            }}
+          />
+          <GitActionMenu
+            workspacePath="/fixture/worktrees/task"
+            originWorkspacePath={workspacePath}
+            originWorkspaceIdentity={identity}
+            executionSessionId={activeSessionId}
+            executionBindingId="binding"
+            gitSummary={{ ...gitSummary, workspacePath: "/fixture/worktrees/task" }}
+            onRefreshGit={() => {}}
+          />
+        </>
       ) : null}
       {draftVisible ? (
         <div

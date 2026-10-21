@@ -2,6 +2,7 @@
 import { readFile, stat } from "node:fs/promises";
 import { deleteLocalBranch } from "./gitBranchDeletion.js";
 import { commitWithGit } from "./gitCommitRepo.js";
+import { mutateGitFiles } from "./gitFileMutationRepo.js";
 import { isAbsolute, resolve, sep } from "node:path";
 import type {
   GitBranchMutationAction,
@@ -856,7 +857,17 @@ export function createGitCliRepo(options?: { commandProvider?: GitCommandProvide
           }),
           commandProvider.run({
             cwd: resolution.repoRoot,
-            args: ["diff", "--numstat", "-z", "--find-renames", "--"],
+            // Git diff 的 autoRefreshIndex 仍可能在 OPTIONAL_LOCKS=0 时回写 stat；
+            // 固定旧 mtime 的真实仓库回归已复现，必须显式关闭这条隐式写入路径。
+            args: [
+              "-c",
+              "diff.autoRefreshIndex=false",
+              "diff",
+              "--numstat",
+              "-z",
+              "--find-renames",
+              "--",
+            ],
             env: { GIT_OPTIONAL_LOCKS: "0" },
             timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
             maxOutputBytes: DEFAULT_GIT_OUTPUT_BYTES,
@@ -1303,7 +1314,16 @@ export function createGitCliRepo(options?: { commandProvider?: GitCommandProvide
         env: { GIT_OPTIONAL_LOCKS: "0" },
         args: staged
           ? ["diff", "--cached", "--no-ext-diff", "--no-color", "--binary", "--", repoRelativePath]
-          : ["diff", "--no-ext-diff", "--no-color", "--binary", "--", repoRelativePath],
+          : [
+              "-c",
+              "diff.autoRefreshIndex=false",
+              "diff",
+              "--no-ext-diff",
+              "--no-color",
+              "--binary",
+              "--",
+              repoRelativePath,
+            ],
         timeoutMs: DEFAULT_GIT_DIFF_TIMEOUT_MS,
         maxOutputBytes: DEFAULT_GIT_DIFF_BYTES,
       });
@@ -1414,68 +1434,37 @@ export function createGitCliRepo(options?: { commandProvider?: GitCommandProvide
     },
 
     async stage(workspacePath: string, paths: string[]): Promise<void> {
-      const resolution = ensureRepositoryAvailable(
-        await this.resolveRepository(workspacePath),
-        "stage paths",
-      );
-      const repoPaths = Array.from(
-        new Set(await Promise.all(paths.map((path) => normalizeInputPath(resolution, path)))),
-      );
-      if (repoPaths.length === 0) {
-        return;
+      try {
+        await mutateGitFiles(commandProvider, await this.getStatus(workspacePath), paths, "stage");
+      } finally {
+        invalidate(workspacePath);
       }
-
-      const result = await commandProvider.run({
-        cwd: resolution.repoRoot,
-        args: ["add", "--", ...repoPaths],
-        timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
-      });
-      ensureGitCommandSucceeded("git add", result);
-      invalidate(workspacePath);
     },
 
     async unstage(workspacePath: string, paths: string[]): Promise<void> {
-      const resolution = ensureRepositoryAvailable(
-        await this.resolveRepository(workspacePath),
-        "unstage paths",
-      );
-      const repoPaths = Array.from(
-        new Set(await Promise.all(paths.map((path) => normalizeInputPath(resolution, path)))),
-      );
-      if (repoPaths.length === 0) {
-        return;
+      try {
+        await mutateGitFiles(
+          commandProvider,
+          await this.getStatus(workspacePath),
+          paths,
+          "unstage",
+        );
+      } finally {
+        invalidate(workspacePath);
       }
-
-      const result = await commandProvider.run({
-        cwd: resolution.repoRoot,
-        args: ["restore", "--staged", "--", ...repoPaths],
-        timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
-      });
-      ensureGitCommandSucceeded("git restore --staged", result);
-      invalidate(workspacePath);
     },
 
     async discard(workspacePath: string, paths: string[], staged: boolean): Promise<void> {
-      const resolution = ensureRepositoryAvailable(
-        await this.resolveRepository(workspacePath),
-        "discard paths",
-      );
-      const repoPaths = Array.from(
-        new Set(await Promise.all(paths.map((path) => normalizeInputPath(resolution, path)))),
-      );
-      if (repoPaths.length === 0) {
-        return;
+      try {
+        await mutateGitFiles(
+          commandProvider,
+          await this.getStatus(workspacePath),
+          paths,
+          staged ? "discard-staged" : "discard",
+        );
+      } finally {
+        invalidate(workspacePath);
       }
-
-      const result = await commandProvider.run({
-        cwd: resolution.repoRoot,
-        args: staged
-          ? ["restore", "--source=HEAD", "--staged", "--worktree", "--", ...repoPaths]
-          : ["restore", "--worktree", "--", ...repoPaths],
-        timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
-      });
-      ensureGitCommandSucceeded("git restore", result);
-      invalidate(workspacePath);
     },
 
     async commit(workspacePath, message, paths, options) {

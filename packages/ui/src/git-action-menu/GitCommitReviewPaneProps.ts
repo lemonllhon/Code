@@ -3,11 +3,13 @@ import type { GitCommitReview, SessionExecutionMode } from "@lcode/shared";
 import type { WorktreeIntegration } from "@lcode/services";
 import type { GitCommitDialogState } from "./commitDialogModel.js";
 import type { PublishOptionsPanelProps } from "./GitPublishOptionsPanel.js";
-import type { PublishPlan } from "./publishModel.js";
+import type { PublishPlan, PublicationRefreshStatus } from "./publishModel.js";
 import type { PublishRun } from "./publishExecution.js";
+import type { ReviewFileActions } from "@/store/reviewDiffNavigationStore.js";
 
-export interface GitCommitDialogProps {
+export interface GitCommitReviewPaneProps {
   open: boolean;
+  focusOnOpen?: boolean;
   failureAction?: ReactNode;
   worktreeActions?: ReactNode;
   worktreeMergeActions?: ReactNode;
@@ -19,12 +21,15 @@ export interface GitCommitDialogProps {
   syncBlocked?: boolean;
   syncStatus?: ReactNode;
   onOpenFiles: (readOnly?: boolean) => void;
-  onOpenScopeFiles: () => void;
   canOpenFiles: boolean;
+  fileActions: ReviewFileActions;
+  diffRevision: number;
   executionMode?: SessionExecutionMode;
   loading: boolean;
   state: GitCommitDialogState | null;
   workspacePath: string;
+  workspaceIdentity?: string;
+  workspaceRemoteSessionId?: string;
   message: string;
   previousMessage: string | null;
   error: string | null;
@@ -45,6 +50,8 @@ export interface GitCommitDialogProps {
   >;
   plan: PublishPlan | null;
   run: PublishRun | null;
+  publicationRefresh?: PublicationRefreshStatus;
+  onRetryPublicationRefresh?: () => void;
   onReviewAcknowledge: (value: boolean) => void;
   onBrowse: (position: number) => void;
   onManualFallback: () => void;

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { openRemotePublication } from "./git-review-pane-helpers.mjs";
 
 export async function runGitPublishCases(t, { page, url }) {
-  const dialog = page.getByTestId("git-commit-dialog");
+  const dialog = page.getByTestId("git-commit-review-pane").filter({ visible: true });
+  const publication = page.getByTestId("git-network-publication-host");
   const input = page.getByTestId("git-commit-message-input");
   const control = (method, ...args) =>
     page.evaluate(({ method, args }) => globalThis.__gitCommitFixture.publish[method](...args), {
@@ -22,9 +24,9 @@ export async function runGitPublishCases(t, { page, url }) {
   const open = async () => {
     await page.getByTestId("git-action-trigger").click();
     await dialog.waitFor();
-    await page.getByTestId("git-publish-toggle").waitFor();
   };
   const publishOptions = async () => {
+    await openRemotePublication(page);
     await page.getByTestId("git-publish-toggle").click();
     await page.getByTestId("git-publish-remote-origin").waitFor();
   };
@@ -63,7 +65,7 @@ export async function runGitPublishCases(t, { page, url }) {
     await fixture("automatic");
     await input.waitFor();
     await input.fill("fix: 用户保留的提交纪要");
-    await page.keyboard.press("Escape");
+    await page.getByTestId("git-commit-close").click();
     await dialog.waitFor({ state: "hidden" });
     await open();
     assert.equal(await input.inputValue(), "fix: 用户保留的提交纪要");
@@ -78,9 +80,11 @@ export async function runGitPublishCases(t, { page, url }) {
     await publishOptions();
     await configureBranches();
     await preview();
-    await page.getByTestId("git-review-dismiss").click();
+    await page.getByTestId("git-view-review").click();
+    await page.getByTestId("git-commit-close").click();
     await dialog.waitFor({ state: "hidden" });
     await page.getByTestId("git-action-trigger").click();
+    await openRemotePublication(page);
     await page.getByTestId("git-publish-summary").waitFor();
     assert.deepEqual(await calls(), []);
     await page.getByTestId("git-publish-back").click();
@@ -208,14 +212,16 @@ export async function runGitPublishCases(t, { page, url }) {
       await page.evaluate((theme) => {
         document.documentElement.className = theme;
       }, theme);
-      assert.ok(await dialog.evaluate((element) => element.scrollWidth - element.clientWidth <= 1));
+      assert.ok(
+        await publication.evaluate((element) => element.scrollWidth - element.clientWidth <= 1),
+      );
     }
     await tagMode("create");
     await page.getByTestId("git-publish-version-patch").click();
     assert.equal(await page.getByTestId("git-publish-tag-name").inputValue(), "v1.10.1");
     await page.getByTestId("git-publish-tag-name").fill("v99.0.0");
     await page.getByTestId("git-publish-preview").click();
-    await dialog.getByRole("alert").filter({ hasText: "非提交目标" }).waitFor();
+    await publication.getByRole("alert").filter({ hasText: "非提交目标" }).waitFor();
     assert.equal(await page.getByTestId("git-publish-confirm").count(), 0);
     assert.deepEqual(await calls(), []);
     await tagMode("push-existing");
@@ -319,7 +325,7 @@ export async function runGitPublishCases(t, { page, url }) {
     );
   });
 
-  await t.test("推送在途切换会话，迟到响应不执行后续远端或关闭新弹窗", async () => {
+  await t.test("推送在途切换会话，迟到响应不执行后续远端或关闭新审核页", async () => {
     await load();
     await open();
     await publishOptions();
@@ -333,6 +339,7 @@ export async function runGitPublishCases(t, { page, url }) {
     await open();
     await input.fill("fix: 新会话草稿");
     await control("releasePush");
+    await page.getByTestId("git-view-network").click();
     await page.getByTestId("git-publish-toggle").waitFor();
     assert.equal(await input.inputValue(), "fix: 新会话草稿");
     assert.equal((await calls()).length, 1);
@@ -345,6 +352,9 @@ export async function runGitPublishCases(t, { page, url }) {
     await check("git-review-acknowledge");
     await publishOptions();
     await configureBranches();
+    await publication.press("Control+Enter");
+    assert.deepEqual(await calls(), []);
+    await page.getByTestId("git-view-review").click();
     await input.press("Control+Enter");
     await dialog.waitFor({ state: "hidden" });
     assert.deepEqual(
@@ -369,7 +379,7 @@ export async function runGitPublishCases(t, { page, url }) {
       await tagMode("create-and-push");
       await page.getByTestId("git-publish-tag-name").fill("v1.10.1");
       await preview();
-      const size = await dialog.evaluate((element) => ({
+      const size = await publication.evaluate((element) => ({
         left: element.getBoundingClientRect().left,
         right: element.getBoundingClientRect().right,
         viewport: innerWidth,

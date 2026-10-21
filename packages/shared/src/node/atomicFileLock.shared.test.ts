@@ -3,6 +3,8 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { acquireFileLock } from "./atomicFileLock.js";
 
 async function fixture(t: { after: (action: () => Promise<void>) => void }) {
@@ -73,4 +75,39 @@ test("malformed abandoned metadata is reclaimed without treating it as shared", 
   const release = await acquireFileLock(path, [5], 1000, 200, { shared: true });
   t.after(release);
   assert.equal((await readdir(`${path}.lock`)).length, 1);
+});
+
+test("即时 admission 只回收已退出 PID；活跃/无 owner/损坏锁仍拒绝", async (t) => {
+  const path = await fixture(t);
+  const deadPid = Number(
+    (
+      await promisify(execFile)(
+        process.execPath,
+        ["-e", "process.stdout.write(String(process.pid))"],
+        { windowsHide: true },
+      )
+    ).stdout,
+  );
+  await mkdir(`${path}.lock`);
+  for (const name of ["dead-a", "dead-b"])
+    await writeFile(
+      join(`${path}.lock`, `owner-${name}.json`),
+      JSON.stringify({ pid: deadPid, createdAt: Date.now(), token: name, mode: "shared" }),
+    );
+  const release = await acquireFileLock(path, [], 10_000, 0, { reclaimDeadOwners: true });
+  t.after(release);
+  await assert.rejects(acquireFileLock(path, [], 10_000, 0, { reclaimDeadOwners: true }), {
+    code: "LCODE_FILE_LOCK_TIMEOUT",
+  });
+  assert.equal((await readdir(`${path}.lock`)).length, 1);
+  await release();
+  await mkdir(`${path}.lock`);
+  await assert.rejects(acquireFileLock(path, [], 10_000, 0, { reclaimDeadOwners: true }), {
+    code: "LCODE_FILE_LOCK_TIMEOUT",
+  });
+  await writeFile(join(`${path}.lock`, "owner-corrupt.json"), "null");
+  await assert.rejects(acquireFileLock(path, [], 10_000, 0, { reclaimDeadOwners: true }), {
+    code: "LCODE_FILE_LOCK_TIMEOUT",
+  });
+  assert.deepEqual(await readdir(`${path}.lock`), ["owner-corrupt.json"]);
 });

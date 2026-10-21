@@ -6,6 +6,7 @@ import { getErrorMessage } from "@/lib/errorMessage.js";
 export function useReviewFileDiff(
   source: PatchCodeViewerSource,
   file?: ReviewPreviewFile,
+  revision?: number,
 ): { patch: string; loading: boolean; error?: string } {
   const { gitService } = useWorkspaceServices(
     source.workspacePath,
@@ -15,6 +16,8 @@ export function useReviewFileDiff(
   const [result, setResult] = useState<{ key: string; patch: string; error?: string } | null>(null);
   const key = JSON.stringify([
     source.reviewReturnToken,
+    revision,
+    source.workspaceRemoteSessionId,
     source.workspaceIdentity ?? source.workspacePath,
     file?.path,
     file?.staged,

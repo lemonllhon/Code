@@ -36,3 +36,26 @@ test("用户主动关闭消费草稿；失败的未显示请求不伪造消费",
   assert.equal(owner.canAutoOpen("draft-b"), false);
   assert.equal(owner.canAutoOpen("draft-c"), true);
 });
+
+test("远端被动读取可升级为自动审核，旧响应失效；显示后才消费草稿", () => {
+  const owner = new GitCommitDialogLifecycle();
+  const passive = owner.begin("network");
+  assert.equal(owner.canAutoOpen("draft-a"), true);
+  const review = owner.begin("automatic", "draft-a");
+  assert.equal(owner.isCurrent(passive), false);
+  assert.equal(owner.consumed("draft-a"), false);
+  assert.equal(owner.shown(review), true);
+  assert.equal(owner.consumed("draft-a"), true);
+  assert.equal(owner.canAutoOpen("draft-b"), false);
+});
+
+test("人工接管远端后不能被自动草稿替换，关闭后新草稿仍可打开", () => {
+  const owner = new GitCommitDialogLifecycle();
+  owner.begin("network");
+  owner.engage();
+  assert.equal(owner.canAutoOpen("draft-a"), false);
+  owner.ignoreDraft("draft-a");
+  owner.close();
+  assert.equal(owner.canAutoOpen("draft-a"), false);
+  assert.equal(owner.canAutoOpen("draft-b"), true);
+});

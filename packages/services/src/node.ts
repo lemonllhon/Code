@@ -34,7 +34,9 @@ import {
 } from "./runtime-environment/node.js";
 export { createPublicRuntimeEnvironmentService } from "./runtime-environment/node.js";
 import { coordinateGitCheckoutWrites } from "./git/gitCheckoutCoordination.js";
-import { createWorktreeGitPort } from "./git/worktreeGitPort.js";
+import { createGitManagementService } from "./git-management/gitManagementService.js";
+import { createManagedGitCommand } from "./git-management/managedGitCommand.js";
+import { IGitManagementService } from "./git-management/contract.js";
 export { createWorktreeService, createCheckoutCoordinator } from "./worktree/node.js";
 import {
   buildLocalMediaPreviewUrl,
@@ -732,6 +734,7 @@ export function getOffPeakRequestAuthBuilder(
 const managedHostApiNetworkTransports = new WeakMap<ServiceCollection, HostApiNetworkTransport>();
 // dispose 不属于 RPC 契约；Host 退出只释放调度，不改写用户的 enabled 配置。
 const managedGitBackupDisposers = new WeakMap<ServiceCollection, () => void>();
+const managedGitAuthorizationDisposers = new WeakMap<ServiceCollection, () => void>();
 const managedRuntimeEnvironmentDisposers = new WeakMap<ServiceCollection, () => Promise<void>>();
 const managedTerminalOwners = new WeakMap<
   ServiceCollection,
@@ -1499,8 +1502,21 @@ export function createLocalServices(options: {
   const accountProviderCredentialStore = createAccountProviderCredentialStore({
     credentialService,
   });
+  const gitManagementOwner = createGitManagementService({
+    credentials: credentialService,
+    oauthNetworkOptions: async () => {
+      const settings = await settingService.get();
+      return {
+        httpProxy: settings.httpProxy,
+        noProxy: settings.httpProxyNoProxy,
+        caCertPath: settings.httpProxyCaCertPath,
+      };
+    },
+  });
+  const managedGitCommand = createManagedGitCommand(gitManagementOwner);
   const broadcastService = createBroadcastService(options?.parentPort ?? null);
-  const gitCheckpointService = createGitCheckpointService();
+  // 检查点也必须使用用户配置的 Git，不能在审核/工作树之外悄悄回到系统 binary。
+  const gitCheckpointService = createGitCheckpointService({ commandProvider: managedGitCommand });
   const hostApiNetworkTransport =
     options?.hostApiNetworkTransport ??
     createHostApiNetworkTransport(async () => {
@@ -2094,7 +2110,7 @@ export function createLocalServices(options: {
         };
   const worktreeOptions = {
     dataDir: join(resolveAppConfigDir(), "worktrees"),
-    git: createWorktreeGitPort(),
+    git: managedGitCommand,
   };
   const checkoutCoordinator = createCheckoutCoordinator(worktreeOptions);
   const runtimeEnvironmentHost = createRuntimeEnvironmentHost(
@@ -2582,6 +2598,8 @@ export function createLocalServices(options: {
     logger: createServiceLogger("git-commit-message"),
   });
   const rawGitService = createGitService({
+    commandProvider: managedGitCommand,
+    checkoutCoordinator,
     reviewStateDataDir: join(resolveAppConfigDir(), "git-review-workspaces"),
     commitMessageGenerator: gitCommitMessageGenerator,
     mutationJournalReader: (params) => lcodeAgentService.getWorkspaceFileMutationJournal(params),
@@ -2695,6 +2713,12 @@ export function createLocalServices(options: {
     .register(IFileService, fileService)
     .register(IMediaPreviewService, mediaPreviewService)
     .register(IGitService, gitService)
+    .register(IGitManagementService, {
+      getSnapshot: () => gitManagementOwner.getSnapshot(),
+      mutate: (request) => gitManagementOwner.mutate(request),
+      detect: () => gitManagementOwner.detect(),
+      authorize: (request) => gitManagementOwner.authorize(request),
+    })
     .register(IWorktreeService, createPublicWorktreeService(worktreeService))
     .register(
       IProjectExecutionSetService,
@@ -2851,6 +2875,7 @@ export function createLocalServices(options: {
     .register(IPromptAttachmentTransferService, createLocalPromptAttachmentTransferService());
 
   const gitBackupOwner = createGitBackupService(join(resolveAppConfigDir(), "git-backup"), {
+    commandProvider: managedGitCommand,
     credentialService,
     fetch: hostApiNetworkTransport.fetch,
   });
@@ -2921,6 +2946,7 @@ export function createLocalServices(options: {
   // 见 sharedSqliteRepos 声明处注释：登记全部 tasks-index sqlite 句柄，dispose 链统一关闭
   sqliteReposToClose.push(taskIndexRepo);
   sharedSqliteRepos.set(services, sqliteReposToClose);
+  managedGitAuthorizationDisposers.set(services, () => gitManagementOwner.dispose());
   managedTerminalOwners.set(services, terminalService);
   managedRuntimeEnvironmentDisposers.set(services, async () => {
     await runtimeEnvironmentHost.disposeAndWait();
@@ -3016,6 +3042,8 @@ export function disposeServiceResources(services: ServiceCollection): void {
     });
   managedGitBackupDisposers.get(services)?.();
   managedGitBackupDisposers.delete(services);
+  managedGitAuthorizationDisposers.get(services)?.();
+  managedGitAuthorizationDisposers.delete(services);
   // host process 退出前以前没有统一遍历本地服务做资源回收，
   // terminal/task wrapper 这类会拉起子进程的服务只能等宿主进程自己结束，时序上可能留下短暂残留。
   // 这里集中调用各服务的本地 disposeAll 钩子，把“退出 app = 回收所有托管资源”落成机械动作。
@@ -3066,6 +3094,8 @@ async function disposeOtherServiceResourcesAndWait(services: ServiceCollection):
   managedTerminalOwners.delete(services);
   managedGitBackupDisposers.get(services)?.();
   managedGitBackupDisposers.delete(services);
+  managedGitAuthorizationDisposers.get(services)?.();
+  managedGitAuthorizationDisposers.delete(services);
   // app 关闭时 host 需要等 agent 进程树完成 graceful + force 清理。
   // 旧的同步 dispose 会在 host 退出时丢掉强杀 timer，导致 lcode-cli/app-server 变成孤儿进程。
   const disposableServices = [

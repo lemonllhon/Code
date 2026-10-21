@@ -413,13 +413,256 @@ nodes:
         symbol: createWorktreeService
     invariants:
       - "Binding and operation records belong to the target Host; remote identity and connection routing must remain intact."
+  - id: capability.git-advanced-history
+    kind: capability
+    label: Filtered visible history, parent diffs and reviewed history actions
+    aliases:
+      [
+        高级历史,
+        历史筛选,
+        提交详情,
+        Cherry-pick,
+        Revert,
+        附注 Tag,
+        签名 Tag,
+        git F 阶段,
+        窄侧栏图谱,
+        图谱分区布局,
+        图谱候选筛选,
+        图谱键盘菜单,
+        批量摘取撤销,
+        历史 Reset 恢复,
+      ]
+    codeSeeds:
+      - file: packages/ui/src/git-graph/GitHistoryPane.tsx
+        symbol: GitHistoryPane
+      - file: packages/ui/src/git-graph/GitHistoryToolbar.tsx
+        symbol: GitHistoryToolbar
+      - file: packages/ui/src/git-graph/GitHistoryDetail.tsx
+        symbol: GitHistoryDetail
+      - file: packages/ui/src/git-graph/GitHistoryDiff.tsx
+        symbol: GitHistoryDiff
+      - file: packages/ui/src/hooks/useGitHistory.ts
+        symbol: useGitHistory
+      - file: packages/services/src/git/gitServiceHistory.ts
+        symbol: createGitHistoryOperations
+      - file: packages/services/src/git/repo/gitHistoryRepo.ts
+        symbol: GitHistoryRepo
+      - file: packages/services/src/git/repo/gitHistoryTagRepo.ts
+        symbol: GitHistoryTagRepo
+      - file: packages/shared/src/gitHistory.ts
+        symbol: gitHistoryRequestSchema
+      - file: packages/ui/src/git-graph/GitHistoryFiles.tsx
+        symbol: GitHistoryFiles
+      - file: packages/ui/src/git-graph/GitGraphRow.tsx
+        symbol: GitGraphRow
+      - file: packages/ui/src/hooks/useGitGraphViewport.ts
+        symbol: useGitGraphViewport
+      - file: packages/ui/src/hooks/useGitGraphColumns.ts
+        symbol: useGitGraphColumns
+      - file: packages/services/src/git/repo/gitHistoryCandidatesRepo.ts
+        symbol: GitHistoryCandidatesRepo
+      - file: packages/services/src/git/repo/gitHistorySearch.ts
+        symbol: GitHistorySearch
+      - file: packages/services/src/git/repo/gitHistoryResetRepo.ts
+        symbol: GitHistoryResetRepo
+      - file: packages/shared/src/gitHistoryReset.ts
+        symbol: gitHistoryResetRequestSchema
+    invariants:
+      - "Compact and wide history share one graph/list. Layout sizes and filter drafts are local UI state; resizing and closing never write Git."
+      - "Pagination freezes visible refs and filters. Detail/file reads compare a selected immutable parent and never mutate the index."
+      - "Cherry-pick/revert use the original integration journal, reservation and native continue/abort; merges require a separately specified mainline."
+      - "Annotated/signed tags use the common-directory writer, never force or auto-push; native signing keys stay on the target Host."
+      - "Candidates, tree, column widths, viewport and selection stay read-only UI projections; frozen refs and scope tokens reject stale reads."
+      - "Batch actions use one native sequencer and journal owner; continuation verifies the remaining ordered targets and explicit merge mainline."
+      - "Reset shares the checkout writer and durable reservation, preserves recovery refs before mutation, and restores only an unchanged verified result."
+  - id: capability.git-general-integration
+    kind: capability
+    label: Reviewed native merge and linear rebase lifecycle
+    aliases: [通用 merge, 通用 rebase, 继续整合, 中止整合, git E2 阶段]
+    codeSeeds:
+      - file: packages/ui/src/git-workspace/GitIntegrationPane.tsx
+        symbol: GitIntegrationPane
+      - file: packages/ui/src/hooks/useGitIntegration.ts
+        symbol: useGitIntegration
+      - file: packages/services/src/git/gitServiceIntegration.ts
+        symbol: createGitIntegrationOperations
+      - file: packages/services/src/git/repo/gitIntegrationState.ts
+        symbol: GitIntegrationState
+      - file: packages/shared/src/gitIntegration.ts
+        symbol: gitIntegrationActionRequestSchema
+    invariants:
+      - "Start freezes target OID and requires a clean branch. The original journal and reservation survive every conflict pause."
+      - "Continue and abort verify native markers, original branch, replay plan and revision; RPC cannot specify writer bypass."
+      - "Manual resolution never implicitly continues. Unknown outcomes never replay and unsettled writers retain their lease."
+  - id: capability.git-manual-conflicts
+    kind: capability
+    label: Three-way stage diffs and reviewed manual conflict results
+    aliases: [三方 Diff, 人工冲突解决, 保存解决结果, git E 阶段]
+    codeSeeds:
+      - file: packages/ui/src/git-conflicts/GitConflictsPane.tsx
+        symbol: GitConflictsPane
+      - file: packages/ui/src/hooks/useGitConflicts.ts
+        symbol: useGitConflicts
+      - file: packages/services/src/git/gitServiceConflicts.ts
+        symbol: createGitConflictOperations
+      - file: packages/services/src/git/repo/gitConflictRepo.ts
+        symbol: GitConflictRepo
+      - file: packages/services/src/git/repo/gitConflictMutations.ts
+        symbol: GitConflictMutations
+      - file: packages/shared/src/gitConflicts.ts
+        symbol: gitSaveConflictRequestSchema
+    invariants:
+      - "Base, ours and theirs are exact index stages. Saving a result and marking it resolved are separate reviewed commands."
+      - "Only the original operation may pass its reservation. External conflicts require explicit adoption; process uncertainty survives restart."
+      - "HEAD, operation, index and file revisions are rechecked under the native index lock. Binary, encoding, large and complex conflicts are not rewritten as text."
+      - "Unsubmitted drafts are window-local UI state. Stale revisions and Host changes never inherit authorization or replay writes."
+  - id: capability.git-import-and-stash
+    kind: capability
+    label: Reviewed repository init and clone, shared Stash and durable checkout recovery
+    aliases: [初始化仓库, 克隆仓库, Git 仓库向导, 项目内仓库引导, Stash, git D 阶段]
+    codeSeeds:
+      - file: packages/ui/src/git-workspace/GitRepositoryWizard.tsx
+        symbol: GitRepositoryWizard
+      - file: packages/ui/src/hooks/useGitRepositoryAcquisition.ts
+        symbol: useGitRepositoryAcquisition
+      - file: packages/ui/src/git-workspace/GitRepositoryImportForm.tsx
+        symbol: GitRepositoryImportForm
+      - file: packages/ui/src/hooks/useGitStash.ts
+        symbol: useGitStash
+      - file: packages/services/src/git/gitServiceWorkspaceOperations.ts
+        symbol: createGitWorkspaceOperations
+      - file: packages/services/src/worktree/adapters/reservations.ts
+        symbol: createCheckoutReservations
+      - file: packages/shared/src/gitWorkspaceOperations.ts
+        symbol: gitAcquireRepositoryRequestSchema
+    invariants:
+      - "Init preserves existing files. Clone owns one absent child directory, preserves failed results, and never cleans or retries automatically."
+      - "Stash save previews the whole checkout; apply uses exact OID and keeps the entry; drop rechecks reflog bytes under native Git locks."
+      - "All writes use the existing coordinator and journal. Unresolved checkout reservations survive Host restart and block Agent admission."
+      - "Only original scope/request recovery may clear its reservation after reviewing actual Git state; reconnect never replays writes."
+      - "The project form owns its multi-folder draft; the embedded wizard only acquires and attaches a directory. Saving a project is separate and never replays successful Git acquisition."
+      - "Repository attachment requires success from the current context and mutation request ID; a previous success never substitutes for a later lost response."
+  - id: capability.git-management
+    kind: capability
+    label: Host-owned Git configuration and encrypted repository authentication accounts
+    aliases:
+      [
+        Git 管理,
+        GitHub 账号,
+        自建 GitLab,
+        Gitea 账号,
+        Forgejo,
+        Git 服务器账号,
+        自动检测 SSH,
+        GCM 多账号,
+        SSH 公钥指纹,
+        系统凭据多账号,
+        Bitbucket 自动识别,
+        Git 浏览器授权,
+        Git OAuth PKCE,
+      ]
+    codeSeeds:
+      - file: packages/ui/src/settings/GitManagementSection.tsx
+        symbol: GitManagementSection
+      - file: packages/ui/src/settings/GitBinaryPathControl.tsx
+        symbol: GitBinaryPathControl
+      - file: packages/ui/src/settings/GitSshKeyList.tsx
+        symbol: GitSshKeyList
+      - file: packages/ui/src/hooks/useGitManagement.ts
+        symbol: useGitManagement
+      - file: packages/services/src/git-management/contract.ts
+        symbol: IGitManagementService
+      - file: packages/services/src/git-management/gitManagementService.ts
+        symbol: createGitManagementService
+      - file: packages/services/src/git-management/managedGitCommand.ts
+        symbol: createManagedGitCommand
+      - file: packages/services/src/git/gitCheckpointService.ts
+        symbol: createGitCheckpointService
+      - file: packages/services/src/git-backup/gitBackupSnapshot.ts
+        symbol: captureGitSnapshot
+      - file: packages/shared/src/gitManagement.ts
+        symbol: gitManagementMutationSchema
+      - file: packages/services/src/git-management/gitDetection.ts
+        symbol: detectGitAccounts
+      - file: packages/services/src/git-management/gitSystemCredentialDetection.ts
+        symbol: detectSystemGitCredentials
+      - file: packages/services/src/git-management/gitAccountAuthorization.ts
+        symbol: createGitAccountAuthorization
+      - file: packages/ui/src/settings/GitAccountAuthorization.tsx
+        symbol: GitAccountAuthorization
+    invariants:
+      - "One Host owns encrypted configuration; CAS updates never expose stored tokens through snapshots, normal settings, URLs or command arguments."
+      - "The repository wizard passes account ID/revision only; Host validates protocol, server and path before acquisition and preserves existing write coordination and recovery."
+      - "Static SSH/CLI detection and noninteractive GCM account listing never execute config commands or read private key bytes. Public key details come only from .pub files. Import is explicit; account changes invalidate old acquisition previews."
+      - "WinCred/Keychain/Secret Service discovery reads metadata only, preserves separate usernames and reports source availability; it never unlocks stores or extracts secrets."
+      - "Explicit browser authorization is Host-owned and request-idempotent, uses device flow or PKCE, and saves verified identities through the existing CAS/encrypted profile. UI and Main never own OAuth tokens."
+      - "Git OAuth owns a scoped public network transport using its Host's proxy and default/system/custom CA trust. TLS remains verified; Windows/macOS/Linux and remote Hosts never borrow browser trust or disable validation."
+      - "Fetch and Push use a nonsecret local account binding; deleted or mismatched accounts do not silently fall back to another credential."
+      - "Review, worktrees, checkpoints and Git backup validation receive the same configured Git provider; external shell environments remain separately owned."
+  - id: capability.git-network-operations
+    kind: capability
+    label: Remote configuration, branch tracking, explicit Fetch and reviewed fast-forward updates
+    aliases: [远端管理, 分支跟踪, Fetch, 仅快进更新, git C 阶段]
+    codeSeeds:
+      - file: packages/ui/src/git-network/GitNetworkPane.tsx
+        symbol: GitNetworkPane
+      - file: packages/ui/src/hooks/useGitNetwork.ts
+        symbol: useGitNetwork
+      - file: packages/services/src/git/gitServiceNetwork.ts
+        symbol: createGitNetworkOperations
+      - file: packages/services/src/git/repo/gitNetworkRepo.ts
+        symbol: GitNetworkRepo
+      - file: packages/services/src/git/gitNetworkJournal.ts
+        symbol: GitNetworkJournal
+    invariants:
+      - "Refresh stays offline. Explicit Fetch only changes the selected remote-tracking namespace; no prune, tags or worktree update."
+      - "Fast-forward confirmation freezes branch, target OID, configuration revision and checkout fingerprints. Stale or dirty state is rejected."
+      - "The Host persists request receipts without URLs. Reconnect queries original requestId and never replays uncertain mutations."
+      - "The existing coordinator resolves common-dir before checkout permits. Independent worktree file writes remain concurrent."
+  - id: capability.git-file-operations
+    kind: capability
+    label: Scoped stage, unstage and confirmed discard in the Git changes pane
+    aliases: [暂存, 取消暂存, 丢弃改动, stagePaths, unstagePaths, discardPaths, 提交再切分支]
+    codeSeeds:
+      - file: packages/ui/src/hooks/useGitActions.ts
+        symbol: useGitActions
+      - file: packages/ui/src/GitPane.tsx
+        symbol: GitPane
+      - file: packages/services/src/git/gitServiceFileOperations.ts
+        symbol: createGitFileOperations
+      - file: packages/services/src/git/repo/gitFileMutationRepo.ts
+        symbol: mutateGitFiles
+      - file: packages/services/src/git/gitServiceCommit.ts
+        symbol: commitAndSwitchWithPublishState
+    invariants:
+      - "Git owns index and working tree facts; the UI owns pending interaction and confirmation only. Review inclusion is not staging."
+      - "Discard requires a frozen publish state and concrete file scope; untracked deletion never expands to directories or ignored files."
+      - "Workspace identity selects the Host; stale source, attachment and Host results cannot reopen a confirmation or submit to another scope."
+      - "Commit-and-switch uses one writer and preserves successful commit facts even when switching fails."
   - id: capability.git-commit-merge-review
     kind: capability
     label: Commit and merge review with optional publishing and factual results
-    aliases: [提交与合并审核, 无需合并, 零变更合并, 推送完成结论]
+    aliases:
+      [
+        提交与合并审核,
+        无需合并,
+        零变更合并,
+        推送完成结论,
+        右侧提交审核,
+        自动打开审核,
+        远端与 Tag 发布,
+        发布停止自动刷新,
+      ]
     codeSeeds:
-      - file: packages/ui/src/git-action-menu/GitCommitDialog.tsx
-        symbol: GitCommitDialog
+      - file: packages/ui/src/git-action-menu/GitCommitReviewPane.tsx
+        symbol: GitCommitReviewPane
+      - file: packages/ui/src/git-action-menu/GitPublicationPortal.tsx
+        symbol: GitPublicationHost
+      - file: packages/ui/src/git-action-menu/GitSourcePublication.tsx
+        symbol: GitSourcePublication
+      - file: packages/ui/src/app-shell/GitReviewSidePane.tsx
+        symbol: GitReviewSidePane
       - file: packages/ui/src/worktree/WorktreePublication.tsx
         symbol: WorktreePublication
       - file: packages/services/src/worktree/app/integrationPreflight.ts
@@ -430,6 +673,8 @@ nodes:
       - "Already-contained source commits end as up-to-date before creating a candidate or running checks; uncommitted source changes require an explicit range choice."
       - "File content changes are classified from Git trees, independently of commit-history-only merges."
       - "Publication browsing is a versioned Host projection; confirmation and publishing runs remain device-local, and navigation never replays commands."
+      - "Review and publication share their existing scoped controllers; publication is projected into the Remote tab without copying plans or execution state. Final commit receipts retire the submitted scope before the next manual review."
+      - "Stopped source and target publication runs automatically reload read models once; results and edits remain, old approval is revoked, and reads never resume or replay writes."
   - id: boundary.checkout-writer
     kind: service
     label: Canonical checkout execution permit
@@ -830,18 +1075,22 @@ nodes:
       - 新建项目
       - 多文件夹项目
       - 源文件夹
+      - 项目内 Git 仓库
     codeSeeds:
       - file: packages/ui/src/ChatEmptyState.tsx
         symbol: ChatEmptyWorkspacePreviewMenu
       - file: packages/shared/src/localProjects.ts
         symbol: createLocalProject
+      - file: packages/ui/src/WorkspaceSidebar/ProjectSourceFolders.tsx
+        symbol: ProjectSourceFolders
       - file: packages/services/src/session/mcpWorkspaceScope.ts
         symbol: appendWorkspaceToFilesystemMcpServers
     invariants:
-      - AppSettings.localProjects is the authoritative registry; a workspace tab stores only the
-        selected localProjectId projection.
+      - AppSettings.projectDefinitions is the writable registry; localProjects is its same-commit
+        compatibility projection, and a workspace tab stores only the selected localProjectId.
       - workspacePath remains the primary folder for execution, Git, display, and workspace-key
         fallback; secondary folders only extend project-scoped discovery and filesystem access.
+      - "New-project drafts can choose one primary folder; editing retains the historical primary identity. Repository creation only appends a deduplicated source folder until the original project save command."
   - id: persistence.local-project-registry
     kind: persistence
     label: Local multi-folder project registry in AppSettings
@@ -1540,6 +1789,16 @@ nodes:
       - "Menus append editable drafts through the scoped existing receiver; only an explicit send admits context."
       - "Capsule IDs are independent typed references and never share URLs; the target store validates source history again."
 edges:
+  - from: capability.git-management
+    to: capability.git-import-and-stash
+    type: supplies-host-scoped-authentication
+    rank: must-inspect
+    condition: Acquisition validates the selected account revision before creating a directory; its existing writer and receipt remain authoritative.
+  - from: capability.git-management
+    to: capability.git-network-operations
+    type: authenticates-bound-remote-commands
+    rank: must-inspect
+    condition: The command adapter verifies bound accounts against actual remote URLs without altering checkout admission or recovery.
   - from: capability.conversation-runtime
     to: state.runtime-memory-admission
     type: admits-runtime-processes-through
@@ -1680,6 +1939,74 @@ edges:
     to: boundary.workspace-key
     type: isolated-by
     rank: invariant-only
+  - from: capability.git-advanced-history
+    to: capability.git-general-integration
+    type: executes-history-actions-through
+    rank: must-inspect
+  - from: capability.git-advanced-history
+    to: boundary.checkout-writer
+    type: serializes-checkout-and-tag-ref-writes-through
+    rank: must-inspect
+  - from: capability.git-advanced-history
+    to: service.worktree-owner
+    type: preserves-candidate-owner-and-admission
+    rank: must-inspect
+  - from: capability.git-advanced-history
+    to: boundary.workspace-key
+    type: isolated-by
+    rank: must-inspect
+  - from: capability.git-general-integration
+    to: capability.git-manual-conflicts
+    type: resolves-paused-native-conflicts-through
+    rank: must-inspect
+  - from: capability.git-general-integration
+    to: boundary.checkout-writer
+    type: serialized-by
+    rank: must-inspect
+  - from: capability.git-general-integration
+    to: service.worktree-owner
+    type: preserves-candidate-owner-and-admission
+    rank: must-inspect
+  - from: capability.git-general-integration
+    to: boundary.workspace-key
+    type: isolated-by
+    rank: must-inspect
+  - from: capability.git-manual-conflicts
+    to: boundary.checkout-writer
+    type: guarded-by
+    rank: must-inspect
+  - from: capability.git-manual-conflicts
+    to: service.worktree-owner
+    type: preserves-execution-admission-through
+    rank: must-inspect
+  - from: capability.git-manual-conflicts
+    to: boundary.workspace-key
+    type: isolated-by
+    rank: must-inspect
+  - from: capability.git-manual-conflicts
+    to: capability.git-import-and-stash
+    type: resolves-original-operation-through
+    rank: must-inspect
+  - from: capability.git-import-and-stash
+    to: boundary.checkout-writer
+    type: guarded-by
+    rank: must-inspect
+  - from: capability.git-import-and-stash
+    to: service.worktree-owner
+    type: preserves-execution-admission-through
+    rank: must-inspect
+  - from: capability.git-import-and-stash
+    to: boundary.workspace-key
+    type: isolated-by
+    rank: must-inspect
+  - from: capability.git-file-operations
+    to: boundary.checkout-writer
+    type: guarded-by
+    rank: must-inspect
+  - from: capability.git-file-operations
+    to: boundary.workspace-key
+    type: isolates-by
+    rank: must-inspect
   - from: capability.git-commit-merge-review
     to: service.worktree-owner
     type: commits-to

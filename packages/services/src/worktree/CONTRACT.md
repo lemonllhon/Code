@@ -46,6 +46,14 @@ Review draft text, file exclusions and browsing stages are owned separately by t
 Host GitReviewWorkspaceState, exposed through the existing Git RPC contract. They never
 authorize source commits or target publication. UI approvals remain local to the device,
 and all execution still passes this service's candidate/checkout/version checks.
+General Git merge/rebase/cherry-pick/revert uses the existing Host-only checkout reservation port with
+kind `integration`. The original Git journal owns native operation facts; a reservation
+contains only its key and resource path. Continue/abort derives this key on the Host,
+never from RPC flags, and cannot adopt a managed candidate integration. Agent admission
+and actual spawn honor the same reservation. See [E2 integration](../../../../specs/git-integration-operations.md).
+History reads and parent Diff remain read-only. Annotated/signed tag creation holds
+the common-directory repository writer and has no checkout reservation; it never
+replaces a ref or auto-pushes. See [F history](../../../../specs/git-advanced-history.md).
 The host supplies its existing application data directory and Git command port. The storage
 management service is not a business persistence API. Each record is an atomic private JSON
 file; commands take an inter-process file lock before re-reading and writing it.

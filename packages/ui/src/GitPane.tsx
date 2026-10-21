@@ -14,7 +14,9 @@ import {
   SelectValue,
 } from "@/components/ui/select.js";
 import { type GitPaneFileChange, type GitPaneRepositoryState } from "@/hooks/useGitRepository.js";
-import { useServices } from "@/hooks/useServices.js";
+import { useGitActions } from "@/hooks/useGitActions.js";
+import { GitFileActionButtons } from "@/GitPane/GitFileActionButtons.js";
+import { GitDiscardConfirmation } from "@/GitPane/GitDiscardConfirmation.js";
 import { useFileContextActions } from "@/hooks/useFileContextActions.js";
 import { useWorkspaceOpenInEditorTarget } from "@/hooks/useWorkspaceOpenInEditorTarget.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
@@ -71,7 +73,6 @@ export function GitPane({
   onRefresh: () => void;
   onRevealFileInTree?: (path: string) => void;
 }) {
-  const { gitService } = useServices();
   const { intl } = useLCodeIntl();
   const theme = useLCodeStore((state) => state.theme);
   const codePreviewSettings = useLCodeStore((state) => state.codePreviewSettings);
@@ -110,6 +111,23 @@ export function GitPane({
       : (gitState.error ?? currentDataset.error);
   const currentLoading =
     currentSourceOption.id === "last-turn" ? currentDataset.loading : gitState.loading;
+  const fileActionsState = useGitActions({
+    workspacePath,
+    workspaceIdentity,
+    workspaceRemoteSessionId,
+    sourceId: currentSourceOption.id,
+    enabled:
+      !currentDataset.readonly &&
+      !currentSourceOption.readonly &&
+      !currentLoading &&
+      !currentError &&
+      gitState.workspaceKey === (workspaceIdentity?.trim() || workspacePath) &&
+      gitState.summary.isRepository &&
+      gitState.summary.isGitAvailable &&
+      !currentChanges.some((change) => change.isConflicted),
+    onRefresh,
+  });
+  const { gitService } = fileActionsState;
 
   const emptyStateCopy = useMemo(() => {
     if (currentLoading) {
@@ -193,7 +211,7 @@ export function GitPane({
     diffGenerationRef.current += 1;
     pendingDiffKeysRef.current.clear();
     setDiffStateByKey({});
-  }, [gitState.revision, workspacePath]);
+  }, [gitState.revision, workspacePath, workspaceIdentity, workspaceRemoteSessionId, gitService]);
 
   useEffect(() => {
     if (!expandedPath) {
@@ -229,6 +247,7 @@ export function GitPane({
       void gitService
         .getDiff({
           workspacePath,
+          workspaceIdentity,
           path: change.path,
           sourceId,
         })
@@ -286,10 +305,11 @@ export function GitPane({
           }));
         })
         .finally(() => {
-          pendingDiffKeysRef.current.delete(cacheKey);
+          // 旧 Host 的迟到结果不能释放新 Host 同路径的请求标记。
+          if (diffGenerationRef.current === generation) pendingDiffKeysRef.current.delete(cacheKey);
         });
     },
-    [diffStateByKey, gitService, workspacePath],
+    [diffStateByKey, gitService, workspacePath, workspaceIdentity],
   );
 
   useEffect(() => {
@@ -495,6 +515,19 @@ export function GitPane({
         </Select>
 
         <div className="flex items-center gap-2">
+          {fileActionsState.available && currentChanges.length > 0 ? (
+            <GitFileActionButtons
+              all
+              staged={currentSourceOption.id === "staged"}
+              disabled={fileActionsState.pending}
+              onAction={(action) =>
+                fileActionsState.run(
+                  action,
+                  currentChanges.map((change) => change.workspaceRelativePath),
+                )
+              }
+            />
+          ) : null}
           <Button
             type="button"
             variant="ghost"
@@ -508,6 +541,22 @@ export function GitPane({
         </div>
       </div>
 
+      {fileActionsState.error ? (
+        <p
+          role="alert"
+          data-testid="git-file-operation-error"
+          className="px-3 pb-2 text-ui-sm text-destructive"
+        >
+          {fileActionsState.error}
+        </p>
+      ) : null}
+      <GitDiscardConfirmation
+        confirmation={fileActionsState.confirmation}
+        pending={fileActionsState.pending}
+        canConfirm={fileActionsState.available}
+        onCancel={fileActionsState.cancelDiscard}
+        onConfirm={fileActionsState.confirmDiscard}
+      />
       {currentSourceOption.id === "last-turn" && currentDataset.isSelectedTurn ? (
         <div className="flex items-center justify-between gap-2 px-3 pb-2 text-ui-sm text-foreground-subtle">
           <span>{intl.formatMessage({ id: "git.source.selectedTurnReadonly" })}</span>
@@ -553,6 +602,17 @@ export function GitPane({
                     style={{ top: `${virtualRow.start}px` }}
                   >
                     <GitPaneChangeCard
+                      actions={
+                        fileActionsState.available ? (
+                          <GitFileActionButtons
+                            staged={currentSourceOption.id === "staged"}
+                            disabled={fileActionsState.pending}
+                            onAction={(action) =>
+                              fileActionsState.run(action, [change.workspaceRelativePath])
+                            }
+                          />
+                        ) : undefined
+                      }
                       change={change}
                       contextMenuLabels={contextMenuLabels}
                       diffState={diffState}

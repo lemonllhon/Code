@@ -9,6 +9,10 @@ import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useReviewWorkspaceState } from "@/hooks/useReviewWorkspaceState.js";
 import { WorktreeCompletionSummary } from "./WorktreeCompletionSummary.js";
 import { Button } from "@/components/ui/button.js";
+import {
+  GitPublicationPortal,
+  useGitPublicationNavigation,
+} from "@/git-action-menu/GitPublicationPortal.js";
 
 export function WorktreePublication({
   operation,
@@ -32,6 +36,7 @@ export function WorktreePublication({
     workspaceIdentity,
   );
   const { intl } = useLCodeIntl();
+  const navigatePublication = useGitPublicationNavigation();
   const shared = useReviewWorkspaceState(
     originWorkspacePath,
     workspaceIdentity,
@@ -78,6 +83,8 @@ export function WorktreePublication({
       {publish.run && !showPreview ? (
         <GitPublishResults
           run={publish.run}
+          refreshStatus={publish.refreshStatus}
+          onRefresh={publish.retryRefresh}
           onRetry={(id) => void publish.retry(id)}
           onReset={() => {
             setShowPreview(false);
@@ -145,12 +152,14 @@ export function WorktreePublication({
         <Button
           type="button"
           variant="ghost"
-          onClick={() =>
+          onClick={() => {
             shared.patch({
               mergeView: { operationId: operation.id, source: true },
               worktreeView: { key: `${operation.id}/3`, stage: 0 },
-            })
-          }
+            });
+            // 发布导航已迁入远端；返回提交/合并时同时切回原审核页，不能停留在来源发布表单。
+            navigatePublication?.("review");
+          }}
         >
           {intl.formatMessage({ id: "worktree.flow.commitMerge" })}
         </Button>
@@ -223,5 +232,7 @@ export function WorktreePublication({
       )}
     </section>
   );
-  return renderReview ? renderReview(workflow) : workflow;
+  return renderReview
+    ? renderReview(<GitPublicationPortal>{workflow}</GitPublicationPortal>)
+    : workflow;
 }
