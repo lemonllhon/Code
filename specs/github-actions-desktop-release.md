@@ -2,6 +2,16 @@
 
 ## 产品规则
 
+### v3.20.1 Git 评审工作台发行（2026-10-21）
+
+- 根 `package.json` 的桌面版本由 `3.20.0` 更新为 `3.20.1`，库存只同步该 manifest 的输入摘要；依赖图、锁文件与许可证材料不变。
+- 发行包含 `3c00175a` 的右侧评审工作台与仓库管理（手动/自动评审统一、Git 图、文件操作、远端管理与冲突解决）、跨平台账号发现与浏览器授权、多文件夹项目表单内嵌仓库获取，以及 `e96dd63f` v3.20.0 之后的全部提交。v3.20.0 已发布，新版本必须包含其后的源码，不能复用同一提交或仅改版本号。
+- 本轮库存输入条数不变（3011），`worker-source.ts` 生成产物在该提交内已与库存哈希一致（`ea54b57d`），发行提交不改动它。
+- 新建附注 tag `v3.20.1`，只推送至 `code` remote 对应的 `lemonllhon/Code`；不移动或覆盖既有 tag。`L-GO` 以快进方式推送到 `code/L-GO`。
+- 发行输入以提交对象为准：`node scripts/verify-release-inputs.mjs --source=HEAD` 必须覆盖全部库存输入，本地工作区哈希不作为依据（Windows `core.autocrlf` 会改变工作区字节）。
+- cfworker-remote 在桌面构建开始后，以 `LCODE_ENV=production pnpm build:mobile-web` 重新装配 `public`，提交信息记录源码提交 SHA；`public/site` 的发行目录由 Worker 实时代理 GitHub Release，不固化版本号。
+- 验收远端 tag 解引用后的 SHA 等于 `L-GO` 远端 SHA，Actions 在 `lemon-casino/LemonCode` 完成六平台构建与公开 Release，cfworker-remote 的 `public` 与主仓库构建产物一致。
+
 ### v3.20.0 壁纸市场与启动恢复发行（2026-10-20）
 
 - 根 `package.json` 的桌面版本由 `3.19.9` 更新为 `3.20.0`。
