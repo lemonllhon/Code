@@ -61,6 +61,7 @@ const PAIRING_COPY = {
     failedTitle: "配对失败",
     staleLinkHint: "请在桌面端重新生成配对链接(扫码或复制链接)后再试。",
     retryHint: "可点击重试;若仍失败,请在桌面端重新生成配对链接。",
+    rememberedRetryHint: "请在桌面开启远程控制后，从原入口重试，无需重新扫码。",
     retry: "重试",
   },
   "en-US": {
@@ -73,6 +74,8 @@ const PAIRING_COPY = {
     staleLinkHint:
       "Generate a new pairing link (QR code or copied URL) on the desktop and try again.",
     retryHint: "You can retry; if it keeps failing, generate a new pairing link on the desktop.",
+    rememberedRetryHint:
+      "Enable Remote Control on the desktop, then retry this address. No new QR scan is needed.",
     retry: "Retry",
   },
 } as const;
@@ -334,6 +337,13 @@ export function MobilePairingPage({
   }, [route, onConnected]);
 
   if (phase.kind === "failed") {
+    // 稳定房间离线/停止并不撤销设备；旧提示要求重新扫码，会把恢复误导成再次授权。
+    const remembered =
+      loadStoredPairingCredential()?.roomId === route.roomId &&
+      !CREDENTIAL_DEATH_KEYS.has(phase.key);
+    const retryable =
+      RETRYABLE_KEYS.has(phase.key) ||
+      (remembered && ["room-missing", "stopped", "expired"].includes(phase.key));
     return (
       <PairingShell>
         <div className="flex items-center gap-3">
@@ -345,9 +355,13 @@ export function MobilePairingPage({
           {phase.detail ? ` ${phase.detail}` : ""}
         </p>
         <p className="mt-2 text-ui-xs/relaxed text-foreground-subtle">
-          {RETRYABLE_KEYS.has(phase.key) ? copy.retryHint : copy.staleLinkHint}
+          {remembered && retryable
+            ? copy.rememberedRetryHint
+            : retryable
+              ? copy.retryHint
+              : copy.staleLinkHint}
         </p>
-        {RETRYABLE_KEYS.has(phase.key) ? (
+        {retryable ? (
           <Button
             type="button"
             variant="outline"

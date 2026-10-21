@@ -87,6 +87,7 @@ async function createWorkerContext(browser, viewport) {
     revoked: false,
     busy: false,
     holdBridge: false,
+    desktopOffline: false,
     hostBusyResponses: 0,
     pairCalls: 0,
     dataCalls: 0,
@@ -117,6 +118,10 @@ async function createWorkerContext(browser, viewport) {
       return;
     }
     worker.dataCalls += 1;
+    if (worker.desktopOffline) {
+      socket.close({ code: 4004, reason: "room not found" });
+      return;
+    }
     if (worker.revoked || target.searchParams.get("auth") !== CREDENTIAL) {
       socket.close({ code: 4002, reason: "device credential rejected" });
       return;
@@ -223,6 +228,29 @@ test("手机远控：关闭页面、后台断连与网络重试不重放配对�
       } finally {
         await context.close();
       }
+    });
+    await t.test(`${width}px：重启或停止再开启后原入口免重复授权`, async (scenario) => {
+      const { context, worker } = await createWorkerContext(browser, { width, height: 844 });
+      scenario.after(() => context.close());
+      const page = await context.newPage();
+      await page.goto(url);
+      await connected(page);
+      worker.desktopOffline = true;
+      worker.sockets.at(-1).close({ code: 4007, reason: "room stopped" });
+      // 原入口只保留房间地址；恢复不能依赖首次二维码中的 capability。
+      const originalEntry = url.split("#")[0];
+      await page.goto(originalEntry);
+      await page.getByText("配对房间不存在,链接可能已失效。", { exact: true }).waitFor();
+      await page
+        .getByText("请在桌面开启远程控制后，从原入口重试，无需重新扫码。", { exact: true })
+        .waitFor();
+      assert.ok(await page.evaluate(() => localStorage.getItem("lcode:remote-pairing:device:v1")));
+      assert.equal(worker.pairCalls, 1);
+      worker.desktopOffline = false;
+      await page.getByRole("button", { name: "重试", exact: true }).click();
+      await connected(page);
+      assert.equal(worker.pairCalls, 1);
+      assert.equal(worker.dataCalls, 3);
     });
   }
   await t.test("心跳断连后通过原设备凭据恢复，不重新确认", async () => {

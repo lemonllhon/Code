@@ -1702,7 +1702,15 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
         hideWindow: () => win.hide(),
       }),
     windowHostProcessMap,
-    onHostProcessReady: (windowKey) => cuaPipFocusRouter.refreshWindow(windowKey),
+    onHostProcessReady: (windowKey) => {
+      cuaPipFocusRouter.refreshWindow(windowKey);
+      const primary = getMainApplicationWindows()[0];
+      if (primary?.webContents.id === windowKey) {
+        void remoteControlController
+          .restorePairing(primary.id)
+          .catch((error) => logger.warn("[remote-control] startup restore failed:", error));
+      }
+    },
     awaitFirstHostSpawnDecision,
     spawnHostProcess: (win, label, initMessage) =>
       spawnHostProcess(

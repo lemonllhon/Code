@@ -1463,8 +1463,10 @@ nodes:
         key uses public hosted admission, while a user-supplied write-only key is stored by Main and sent
         for health checks and host tunnels. public-rate-limited Workers ignore that optional key for
         admission and rate-limit bypass; non-default access-key Workers still fail closed without one."
-      - "Each room has an independent random roomId, capability and host token; the host token stays in
-        Main memory and never enters pairing URLs, Renderer IPC or persisted config."
+      - "Each room has an independent random roomId and host token; negotiated persistentRoom identity
+        and listening intent use Main's encrypted credential store, while capability rotates in memory.
+        Host tokens never enter pairing URLs, Renderer IPC, logs or plaintext config. Normal exit restores
+        the primary window Host; explicit stop/disable prevents startup restore and preserves device grants."
       - "One Desktop Main owns one active pairing room; concurrent window starts are generation-gated so
         only the latest user intent can create a tunnel."
       - "Negotiated multiDevice rooms authorize requests independently and route one replayable

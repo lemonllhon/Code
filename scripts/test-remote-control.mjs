@@ -3,10 +3,12 @@ import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 const root = resolve(import.meta.dirname, "..");
 const files = [
+  "scripts/remote-control-persistence.test.mjs",
   "packages/rpc/test/channelServer.test.ts",
   "packages/shared/src/remoteControlBridgeFrame.test.ts",
   "packages/shared/src/sshProxyBoundary.test.ts",
   "packages/desktop/src/main/desktopRemoteControlController.test.ts",
+  "packages/desktop/src/main/desktopRemoteControlRestart.test.ts",
   "packages/desktop/src/main/desktopRemoteControlTunnel.test.ts",
   "packages/desktop/src/main/desktopRemoteControlFramePump.test.ts",
   "packages/desktop/src/host/windowWorkspaceAttachmentService.test.ts",

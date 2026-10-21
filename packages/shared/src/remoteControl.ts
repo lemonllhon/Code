@@ -48,6 +48,8 @@ export const remoteControlRoomCreateFrameSchema = z
     capHash: base64UrlSchema,
     ttlMs: z.number().int().positive(),
     multiDevice: z.literal(true).optional(),
+    /** 保留已授权房间的 host 身份绑定，支持桌面重启恢复。 */
+    persistentRoom: z.literal(true).optional(),
     devices: z
       .array(
         z
@@ -129,6 +131,8 @@ export const remoteControlRoomReadyFrameSchema = z
     // 已桥接房间不再受配对 TTL 限制，Worker 重连返回 null 是既有合法协议。
     expiresAt: z.number().int().positive().nullable(),
     multiDevice: z.literal(true).optional(),
+    /** 保留已授权房间的 host 身份绑定，支持桌面重启恢复。 */
+    persistentRoom: z.literal(true).optional(),
   })
   .strict();
 export type RemoteControlRoomReadyFrame = z.infer<typeof remoteControlRoomReadyFrameSchema>;

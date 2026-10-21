@@ -15,6 +15,20 @@ export const REMOTE_CONTROL_ACCESS_KEY_CREDENTIAL_KEY = "remoteControl.accessKey
 export const REMOTE_CONTROL_CLIENT_ID_CREDENTIAL_KEY = "remoteControl.clientId";
 export const REMOTE_CONTROL_CONFIG_CREDENTIAL_KEY = "remoteControl.config";
 export const REMOTE_CONTROL_DEVICES_CREDENTIAL_KEY = "remoteControl.devices";
+export const REMOTE_CONTROL_RECOVERY_CREDENTIAL_KEY = "remoteControl.recovery";
+
+const recoverySchema = z
+  .object({
+    version: z.literal(1),
+    workerBaseUrl: z.string().url(),
+    roomId: z.string().regex(/^[A-Za-z0-9_-]{22}$/),
+    hostToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+    listening: z.boolean(),
+    persistentRoom: z.boolean(),
+    localTarget: z.boolean(),
+  })
+  .strict();
+export type RemoteControlRecovery = z.infer<typeof recoverySchema>;
 
 /** 与 @lcode/services ICredentialService 的 load/save/delete 面(测试注入用窄接口)。 */
 export interface RemoteControlCredentialService {
@@ -46,6 +60,11 @@ export interface RemoteControlStore {
   saveClientId(clientId: string): Promise<void>;
   loadConfig(): Promise<RemoteControlPersistedConfig>;
   saveConfig(config: RemoteControlPersistedConfig): Promise<void>;
+  loadRecovery(): Promise<RemoteControlRecovery | null>;
+  updateRecovery(
+    update: (current: RemoteControlRecovery | null) => RemoteControlRecovery | null,
+  ): Promise<void>;
+  flush(): Promise<void>;
   loadDevices(): Promise<RemoteControlPersistedDevice[]>;
   saveDevices(devices: RemoteControlPersistedDevice[]): Promise<void>;
   updateDevices(
@@ -62,6 +81,17 @@ export function createRemoteControlStore(options: {
 
   // 授权、lastSeen 与撤销共用一条串行写入路径，避免并发 load/save 覆盖另一台设备。
   let deviceWrites: Promise<void> = Promise.resolve();
+  let recoveryWrites: Promise<void> = Promise.resolve();
+  async function readRecovery(): Promise<RemoteControlRecovery | null> {
+    const raw = await credentialService.load(REMOTE_CONTROL_RECOVERY_CREDENTIAL_KEY);
+    if (!raw) return null;
+    try {
+      return recoverySchema.parse(JSON.parse(raw));
+    } catch {
+      logger.warn("[remote-control-store] invalid recovery record; keeping device authorizations");
+      return null;
+    }
+  }
   async function readDevices(): Promise<RemoteControlPersistedDevice[]> {
     try {
       const raw = await credentialService.load(REMOTE_CONTROL_DEVICES_CREDENTIAL_KEY);
@@ -106,6 +136,26 @@ export function createRemoteControlStore(options: {
   }
 
   return {
+    async loadRecovery() {
+      await recoveryWrites;
+      return readRecovery();
+    },
+    updateRecovery(update) {
+      const operation = recoveryWrites.then(async () => {
+        const next = update(await readRecovery());
+        if (next) {
+          await credentialService.save(
+            REMOTE_CONTROL_RECOVERY_CREDENTIAL_KEY,
+            JSON.stringify(recoverySchema.parse(next)),
+          );
+        }
+      });
+      recoveryWrites = operation.catch(() => {});
+      return operation;
+    },
+    async flush() {
+      await Promise.all([deviceWrites, recoveryWrites]);
+    },
     async loadAccessKey() {
       try {
         const value = await credentialService.load(REMOTE_CONTROL_ACCESS_KEY_CREDENTIAL_KEY);

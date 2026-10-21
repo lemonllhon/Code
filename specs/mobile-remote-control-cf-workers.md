@@ -33,7 +33,7 @@
 
 - 官方托管地址固定为 `https://code.lemon.vin`;本地未保存 Worker 地址或旧值为空时回填该地址。官方托管服务不要求用户填写接入 Key，但设置页在该地址下仍必须允许输入、粘贴和保存用户自己的 Key；空 Key 继续走托管公开模式，已保存 Key 则由 Main 作为可选请求头发送，供同域名的私有/自管部署使用。
 - **禁止**把官方服务的全局共享 Key 写进源码、GitHub Actions、安装包、混淆字符串或客户端凭据库。客户端可解密/使用的共享秘密都可被提取,不能作为多人服务的安全边界。
-- 每次新建房间由 Desktop Main 独立生成 128-bit `roomId`、256-bit 一次性 capability 与 256-bit `hostToken`;`hostToken` 只放在 host WebSocket header 中,不进入二维码、配对 URL、Renderer、日志或持久化配置。DO 首次 host 接入时原子绑定其哈希,重连必须持同一 token,防止知道 roomId 的其他客户端替换 host。
+- 新房间由 Desktop Main 独立生成 128-bit `roomId` 与 256-bit `hostToken`，capability 每次开启/刷新重新生成。协商 `persistentRoom` 后，房间身份和监听意图保存在 Main 现有加密凭据存储中，正常退出后恢复，手动停止/禁用后不自动恢复；停止后再开启仍保留原设备授权。host token 不进入二维码、配对 URL、Renderer、日志或明文配置。DO 首次 host 接入原子绑定其哈希；已授权稳定房间停止后仍保留身份绑定，详见 [桌面重启恢复](./remote-control-desktop-restart.md)。
 - 官方托管 Worker 采用显式 `public-rate-limited` host admission:无共享客户端秘密,按稳定安装 ID 与网络来源两层限速;任一限速 binding 缺失时 fail-closed。该模式即使收到用户配置的可选 Key 也不以它放行或绕过限速。自建 Worker 默认仍为 `access-key` 模式,空 Key 拒绝连接。
 - `idFromName(roomId)` 只决定每房间 DO 路由;用户状态、设备凭据、失败计数和 socket 不得进入全局对象。随机 roomId + 每房间 hostToken 共同保证不同安装之间不冲突、不串房。
 - 单个 Desktop Main 进程仍只拥有一个活动配对房间;多个窗口同时点击开启时以最后一次用户意图为准,旧 start 在出站前返回 `PAIRING_REQUEST_SUPERSEDED`,不得留下孤儿隧道。不同安装/用户进程之间互不共享该状态。
@@ -129,7 +129,7 @@ sequenceDiagram
 - 桌面「停止」或吊销某设备后,该设备现有连接立即断开且凭据失效;再次连接需重新走双方授权。
 - 手机断网后重连(同设备凭据):web-remote-replayable 恢复,已结算事实不丢、可 replay 补齐。
 - 设置禁用后,桌面立即断开出站连接且不再重连;主开关关闭时不产生任何出站请求。
-- Worker 不持久化任务队列、快照、消息内容(仅鉴权哈希与房间映射,TTL 清理);房间关闭后 DO 状态清空。
+- Worker 不持久化任务队列、快照、消息内容；关闭房间清除临时连接状态，已授权稳定房间只保留 host 身份哈希绑定，legacy/未授权孤儿继续完整清理。
 - 中英文、桌面窄窗口与手机窄屏均可用;扫码与复制链接两条路径等价。
 - 桌面端设置侧栏「基础设置」组显示「远程控制」;侧栏 footer 也保留远程控制快捷入口,点击向上弹出「移动端远程控制」配对弹框(二维码/复制链接/停止/刷新在弹框内完成);两处入口读写同一配置与配对状态。Web/手机视图无此入口,直达意图不得把分区解析回退成 general。
 - footer 配对弹框处于“状态未知”时点击「开启等待」只显示一个可交互的二次确认框；背景 Popover 被遮罩压低，确认框内容位于遮罩之上。点击取消后回到原配对弹框且不调用开始命令；点击确认只调用一次开始命令，关闭后不残留灰色遮罩。

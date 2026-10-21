@@ -76,9 +76,10 @@ export interface RemoteControlTunnelStartParams {
   accessKey?: string;
   /** 匿名托管服务限速使用的稳定安装 ID，不是认证秘密。 */
   clientId: string;
-  /** 每房间独立的 host 重连凭据；不进二维码、Renderer 或持久化配置。 */
+  /** 每房间独立的 host 凭据；只由 Main 的加密凭据存储保存，不进 Renderer/日志/明文配置。 */
   hostToken: string;
   roomId: string;
+  persistentRoom?: boolean;
   capHash: string;
   ttlMs: number;
   multiDevice?: true;
@@ -223,6 +224,7 @@ export function createRemoteControlTunnelSession(
       capHash: liveCapHash,
       ttlMs: liveTtlMs,
       ...(params.multiDevice ? { multiDevice: true } : {}),
+      ...(params.persistentRoom ? { persistentRoom: true } : {}),
       devices: liveDevices,
     });
   }
