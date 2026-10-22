@@ -85,6 +85,32 @@ function fixture() {
   };
 }
 
+for (const error of ["dependency_required", "sign_in_required"] as const)
+  test(`${error} stops automatic retries for the day but permits manual retry`, async () => {
+    const f = fixture();
+    let calls = 0;
+    const driver = await f.host.driver();
+    f.host.driver = async () => ({
+      ...driver,
+      checkin: async () => {
+        calls++;
+        return { outcome: "failed", error };
+      },
+    });
+    await f.owner.setAutomatic("a", true);
+    await f.owner.runAutomatic();
+    f.advance(31 * 60_000);
+    f.account!.checkin!.result!.validUntil = "2026-10-15T00:00:00Z";
+    await f.owner.runAutomatic();
+    assert.equal(calls, 1);
+    await f.owner.run("a");
+    assert.equal(calls, 2);
+    f.advance(24 * 3600_000);
+    await f.owner.runAutomatic();
+    assert.equal(calls, 3);
+    f.owner.dispose();
+  });
+
 test("manual and automatic requests share one result, persisted for the Beijing day", async () => {
   const f = fixture();
   await f.owner.run("a");

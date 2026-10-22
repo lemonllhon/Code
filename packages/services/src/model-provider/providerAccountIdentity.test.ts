@@ -8,6 +8,31 @@ import { ProviderAccountStorage } from "./providerAccountStorage.js";
 import { ProviderAccounts } from "./providerAccounts.js";
 import type { StoredAccount } from "./providerAccountStoreSchema.js";
 
+for (const error of ["dependency_required", "sign_in_required", undefined] as const)
+  test(`reauthorization clears blocking check-in failure ${error ?? "success is retained"}`, () => {
+    const accounts: StoredAccount[] = [];
+    const channel = { id: "qoder", name: "Fixture" };
+    admitProviderAccount(accounts, channel, {
+      type: "oauth",
+      identityKey: "fixture",
+      access: "fixture-old",
+    });
+    const result = {
+      outcome: error ? ("failed" as const) : ("claimed" as const),
+      ...(error ? { error } : {}),
+      at: "2026-10-22T00:00:00Z",
+      day: "2026-10-22",
+    };
+    accounts[0]!.checkin = { automatic: true, result };
+    admitProviderAccount(accounts, channel, {
+      type: "oauth",
+      identityKey: "fixture",
+      access: "fixture-new",
+    });
+    assert.equal(accounts[0]!.checkin?.automatic, true);
+    assert.deepEqual(accounts[0]!.checkin?.result, error ? undefined : result);
+  });
+
 test("adding known identity upgrades an identical old API key but keeps different organizations apart", () => {
   const accounts: StoredAccount[] = [];
   const channel = { id: "factory", name: "Factory" };

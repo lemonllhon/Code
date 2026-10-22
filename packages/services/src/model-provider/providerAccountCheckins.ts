@@ -6,6 +6,7 @@ import {
 import type { AuthDriver, AuthDriverContext } from "@lcode/provider-node";
 import type { StoredAccount } from "./providerAccountStoreSchema.js";
 import { createServiceLogger } from "../logger/serviceLogger.js";
+import { checkinRequiresAction } from "./providerAccountCheckinPolicy.js";
 
 interface CheckinHost {
   read(): Promise<StoredAccount[]>;
@@ -141,9 +142,12 @@ export class ProviderAccountCheckins {
   private settled(account: StoredAccount, automatic: boolean): boolean {
     const last = account.checkin?.result;
     if (!last || last.day !== providerCheckinDay(this.now())) return false;
-    if (last.validUntil && Date.parse(last.validUntil) <= this.now()) return false;
     const age = this.now() - Date.parse(last.at);
     if (age < 0) return false;
+    // 缺少厂商原生依赖/需要重新登录是确定性失败，定时器重复请求不能修复；
+    // 当天暂停自动重试，保留人工重试与次日检查，网络失败仍沿用原退避。
+    if (automatic && checkinRequiresAction(last)) return true;
+    if (last.validUntil && Date.parse(last.validUntil) <= this.now()) return false;
     if (last.outcome === "failed") return automatic && age < EVERY;
     if (["qoder", "qoder-cn"].includes(account.channelId)) return automatic && age < EVERY;
     return true;

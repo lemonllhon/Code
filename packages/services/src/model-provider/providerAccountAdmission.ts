@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { AuthGrant } from "@lcode/provider-node";
 import type { ProviderAccountImportResult } from "@lcode/shared";
 import type { StoredAccount } from "./providerAccountStoreSchema.js";
+import { checkinRequiresAction } from "./providerAccountCheckinPolicy.js";
 
 export function safeAccountLabel(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -59,6 +60,9 @@ export function admitProviderAccount(
     existing.routingEpoch = (existing.routingEpoch ?? 0) + 1;
     delete existing.error;
     delete existing.authorizationStatus;
+    // 新凭据已经提交后才清除确定性阻塞；自动开关和已领取事实仍归原账号所有。
+    if (existing.checkin && checkinRequiresAction(existing.checkin.result))
+      delete existing.checkin.result;
     return { status: "updated", connectionId: existing.connectionId };
   }
   const connectionId = randomUUID();
