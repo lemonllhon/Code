@@ -16,6 +16,59 @@
 - 空状态按来源说明原因：已暂存无改动说明提交后清空；未暂存无改动说明当前文件已与 index 一致；上一轮说明已结束轮次的历史语义。中英文、桌面和手机共享组件。
 - 每轮聊天文件摘要在“撤销”前提供“审查”。按钮携带该会话、轮次 row/entity、logEpoch 与原 workspace 路由，打开同一审查面板的“所选轮次改动”；选择保持在该轮，不随下一轮开始/完成漂移。手动重新选择“上一轮改动”回到自动跟随最近已结束轮次；会话/工作区切换清除指定轮次。运行中、缺少 entity 和已撤销时按钮不可用。只读审查与撤销是独立动作。
 
+## 后台刷新稳定性（2026-10-22）
+
+### 已确认原因与产品规则
+
+- 变更页把读取中的 `loading` 同时当作文件操作能力：每轮刷新卸载再挂载暂存/丢弃按钮，导致文件名、统计和展开箭头横向跳动。区分长期能力与即时可执行性：同范围有效列表的按钮保持 DOM、位置和尺寸，读取期间仍禁止发送写入，不能移除按钮或反复改变透明度。
+- 每次 Git 读取完成都增加 revision；旧实现据此清空整个 Diff 缓存，使已经展开的内容反复变成 loading、收缩后再展开。revision 仅使缓存需要重新核对，不能先删除已显示内容。相同 Diff 沿用原对象；内容不同（包括增删行数不变）仍须更新。
+- 同范围、同来源、同文件最多一个在途 Diff 读取。在途收到多个 revision 合并为最新一次后续读取，先接纳当前结果再核对最新版本，不能用不断丢弃响应造成饥饿。首次尚无 Diff 才显示 loading；读取失败显示真实诊断，不能无限伪装为成功旧内容。
+- 源码检查另发现重复选中当前历史轮次也会先清空 dataset。同一 lease、路径、轮次权威 key 的历史重新核对保留已有列表和内嵌 patch；自动跟随切换到同一轮的显式选择使用同一有效 logEpoch。真正换轮、换 lease/路径/纪元时仍隔离旧内容，过期显式请求仍报错。扩展测试原始版本也出现历史 Diff 空白；运行时确认夹具缺少产品使用的 worker provider，先补齐相同 provider 后验证历史刷新。
+- 文件内容查找仅在查询、当前命中位置或显式导航变化时定位；缓存重新核对和相同快照不能因对象引用改变把用户滚动位置拉回命中行。
+- workspacePath、identity、remoteSessionId 或 Git 服务实例改变后，旧缓存立即不可见；迟到响应不得污染新范围或释放新请求。同路径跨 Host 仍隔离。缓存只为 UI 展示，不能用于审核审批或写入校验。
+- 常规文件事件与 Linux 可见面板轮询静默更新已有快照，不反复旋转刷新图标；初次读取与用户主动刷新保留进度反馈，刷新按钮和文件操作的禁用样式保持尺寸与色彩稳定。真实列表变化仍按仓库事实更新。
+- 文件事件、聚焦恢复和 Linux 轮询复用既有串行刷新 owner。聚焦/可见性监听只注册一套，Linux 轮询只补充定时意图；无文件事件的 Windows/macOS 不自行连续读取。不得通过延长定时器或停止监听掩盖闪烁。
+- 不修改 Host writer、expectedState、丢弃确认、owner/lease、desktop continuous / mobile replayable 恢复协议，不新增持久化迁移或自动写入。
+
+### 状态所有者与顺序
+
+```mermaid
+sequenceDiagram
+    participant Signal as 文件事件 / 唯一聚焦监听 / Linux 可见轮询
+    participant Read as useGitRepository 串行读取
+    participant Pane as GitPane 已有列表与操作控件
+    participant Diff as 同范围 Diff 展示缓存
+    participant Host as 目标 Host Git Service
+    Signal->>Read: 合并刷新意图
+    Read->>Host: refresh（最多一个在途）
+    Read-->>Pane: 读取中，保留列表与按钮，禁止文件写入
+    Host-->>Read: 新快照 / 真实错误
+    Read-->>Pane: 接纳新事实及 revision
+    Pane->>Diff: 当前展开 / 搜索文件需要核对
+    Diff->>Host: getDiff（每个来源+文件最多一个在途）
+    Note over Diff,Pane: 保留已有内容与高度；新 revision 只合并后续核对
+    Host-->>Diff: 新 Diff / 真实错误
+    Diff-->>Pane: 相同内容保留对象，不同内容更新
+```
+
+Git Repository hook 仍独占仓库快照，GitPane 的 Diff hook 独占其展示缓存和在途标记；文件操作 hook 只拥有能力、进行中操作与确认，不拥有仓库事实。
+
+### 必需回归
+
+1. 确定性屏障挂住 refresh：批量及行按钮保留原 DOM/坐标，写入为零、丢弃确认不可执行；解锁后恢复。1280px/390px、中英文、明暗主题覆盖。
+2. 展开 Diff，连续相同快照及慢 getDiff 下内容不消失、高度和滚动不回跳；并发上限为一，相同内容不重建预览。查找已命中后手动滚动，自动刷新不能拉回原命中行。增删行统计不变而内容改变仍更新；失败有诊断，手动重试可恢复。
+3. 在途多个 revision 只排最新后续读取；切来源、切相同路径的 identity / Host 后迟到结果不串范围。同轮显式重选及手动历史刷新期间保留原文件 DOM、展开 patch 和滚动位置；换轮与撤销仍显示新权威结果。
+4. Windows/macOS 无事件时读取收敛；Linux 持续轮询不改变已显示 DOM/布局。单次聚焦只产生一次刷新意图，文件事件与慢刷新仍合并、有界且无响应饥饿。
+5. 暂存、取消暂存、丢弃、真实改动拒绝和提交审核既有回归通过。执行 typecheck、lint、架构检查；安装版由用户重建后验收。
+
+### 本轮验证记录
+
+- 新增 `git-pane-refresh.test.mjs`，在修复前复现按钮被卸载、旧 Diff 被卸载及搜索后 scrollTop 从 180 回到 0；修复后 6 个浏览器场景通过。覆盖读取屏障、慢 Diff 串行/合并、相同行数内容变化、错误重试、手动反馈、空状态、跨 Host 迟到响应和查找导航。
+- `git-review-live-turns.test.mjs` 的中文/英文、1280px/390px 四种组合通过，新增同轮手动核对保持文件及 patch DOM；持续文件事件仍在批次中刷新，Git RPC 最大并发为一。夹具补齐与产品相同的 Diff worker provider，未用跳过断言处理旧版本也存在的空白。
+- Git 文件操作、watcher、只读刷新与串行调度的 21 个服务/单元场景通过；暂存、取消暂存、丢弃拒绝过期状态以及只读操作不回写 index 的边界保持。历史查询和调度的 6 个单元场景通过。
+- 文件操作/远端入口浏览器回归 13 个场景、来源错误隔离 4 个场景、会话/工作树刷新 5 个场景通过。`pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 和本轮文件格式检查通过；架构 baseline/new 均为 0。
+- 本机浏览器使用 win32/darwin/linux Host 平台桩验证事件与轮询分支，不表示 macOS/Linux 原生客户端已验收；安装版继续等待用户重新构建。
+
 ## 唯一所有者与顺序
 
 CLI 是轮次、检查点、历史差异与持久化的唯一所有者；SessionDataLayer 共享订阅，projection store 是只读投影。历史 hook 只持有当前查询结果和租约。Git Service 是当前仓库快照的唯一所有者；UI scheduler 只合并只读刷新意图。

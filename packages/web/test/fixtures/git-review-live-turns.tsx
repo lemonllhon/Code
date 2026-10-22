@@ -24,6 +24,7 @@ import { ConversationFileSummaryPanel } from "@/v4/ConversationFileSummaryPanel.
 import type { ConversationRowRenderContext } from "@/v4/conversationRowContext.js";
 import type { GitTurnReviewRequest } from "@/v4/gitTurnReview.js";
 import { platform } from "./git-backup-platform.js";
+import { DiffsWorkerPoolProvider } from "@/root/DiffsWorkerPoolProvider.js";
 import "@lcode/ui/styles.css";
 
 const workspacePath = "/fixture/repo";
@@ -357,7 +358,9 @@ createRoot(document.getElementById("root")!).render(
         <StoreProvider broadcastService={broadcastService}>
           <TabStoreProvider>
             <LCodeIntlProvider initialLocale={params.has("english") ? "en-US" : "zh-CN"}>
-              <Fixture />
+              <DiffsWorkerPoolProvider>
+                <Fixture />
+              </DiffsWorkerPoolProvider>
             </LCodeIntlProvider>
           </TabStoreProvider>
         </StoreProvider>

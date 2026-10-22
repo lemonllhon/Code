@@ -17,6 +17,7 @@ export function useGitActions(options: {
   workspaceRemoteSessionId?: string;
   sourceId: GitChangeSourceId;
   enabled: boolean;
+  refreshing?: boolean;
   onRefresh: () => void;
 }) {
   const resolution = useWorkspaceServicesResolution(
@@ -30,6 +31,8 @@ export function useGitActions(options: {
     options.enabled &&
     resolution.rpcReady &&
     (options.sourceId === "staged" || options.sourceId === "unstaged");
+  // 能力决定控件是否存在；读取中仅禁止执行，不能反复卸载整列按钮导致列表跳动。
+  const canRun = available && !options.refreshing;
   const context = useMemo(
     () => ({
       request: { workspacePath: options.workspacePath, workspaceIdentity: identity },
@@ -39,8 +42,8 @@ export function useGitActions(options: {
     }),
     [options.workspacePath, identity, options.sourceId, gitService, resolution.remoteSessionId],
   );
-  const enabled = useRef(available);
-  enabled.current = available;
+  const enabled = useRef(canRun);
+  enabled.current = canRun;
   const latest = useRef<typeof context | null>(context);
   latest.current = context;
   const active = useRef<object | null>(null);
@@ -65,7 +68,7 @@ export function useGitActions(options: {
     paths: string[],
     confirmed?: DiscardConfirmation,
   ) => {
-    if (latest.current !== context || !available || !paths.length || active.current) return;
+    if (latest.current !== context || !canRun || !paths.length || active.current) return;
     if (
       (action === "stage" && context.sourceId !== "unstaged") ||
       (action === "unstage" && context.sourceId !== "staged")
@@ -114,6 +117,7 @@ export function useGitActions(options: {
   return {
     gitService,
     available,
+    canRun,
     ...current,
     run: (action: GitFileAction, paths: string[]) => {
       void execute(action, paths);

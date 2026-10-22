@@ -690,6 +690,10 @@ nodes:
         symbol: useGitActions
       - file: packages/ui/src/GitPane.tsx
         symbol: GitPane
+      - file: packages/ui/src/hooks/useGitPaneDiffs.ts
+        symbol: useGitPaneDiffs
+      - file: packages/ui/src/hooks/useGitAutoRefresh.ts
+        symbol: useGitAutoRefresh
       - file: packages/services/src/git/gitServiceFileOperations.ts
         symbol: createGitFileOperations
       - file: packages/services/src/git/repo/gitFileMutationRepo.ts
@@ -698,6 +702,7 @@ nodes:
         symbol: commitAndSwitchWithPublishState
     invariants:
       - "Git owns index and working tree facts; the UI owns pending interaction and confirmation only. Review inclusion is not staging."
+      - "Same-scope refresh keeps action controls and displayed Diff mounted. Reads disable file writes without changing control geometry; Diff reads serialize per source/path and revalidate the latest revision."
       - "Discard requires a frozen publish state and concrete file scope; untracked deletion never expands to directories or ignored files."
       - "Workspace identity selects the Host; stale source, attachment and Host results cannot reopen a confirmation or submit to another scope."
       - "Commit-and-switch uses one writer and preserves successful commit facts even when switching fails."

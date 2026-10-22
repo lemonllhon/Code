@@ -87,6 +87,37 @@ test("会话各轮历史审查与及时 Git 刷新使用共享 hooks", { timeout
             .click();
           await pane.getByRole("button", { name: /turn-4-0\.txt/ }).click();
           await pane.getByText("historical turn 4", { exact: true }).waitFor();
+          const historyRow = await pane
+            .getByRole("button", { name: /turn-4-0\.txt/ })
+            .elementHandle();
+          const historyPreview = await pane
+            .getByText("historical turn 4", { exact: true })
+            .elementHandle();
+          const priorDetails = (await api("metrics")).detailCompleted;
+          await api("delayDetails", 800);
+          await pane
+            .getByRole("button", { name: english ? "Refresh" : "刷新", exact: true })
+            .click();
+          await page.waitForFunction(
+            () =>
+              document.querySelector("section[data-testid]").getAttribute("aria-busy") === "true",
+          );
+          assert.equal(
+            await historyRow.evaluate((element) => element.isConnected),
+            true,
+            "history refresh keeps the same file row",
+          );
+          assert.equal(
+            await historyPreview.evaluate((element) => element.isConnected),
+            true,
+            "history refresh keeps the expanded patch",
+          );
+          await page.waitForFunction(
+            (count) => window.__liveReview.metrics().detailCompleted > count,
+            priorDetails,
+          );
+          await api("delayDetails", 0);
+          assert.equal(await historyRow.getAttribute("aria-expanded"), "true");
           assert.equal((await api("metrics")).files, 1);
           await select(english ? "Unstaged" : "未暂存");
           await pane.getByRole("button", { name: /current\.txt/ }).waitFor();

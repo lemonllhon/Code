@@ -204,6 +204,12 @@ export function GitPaneChangeCard({
               {intl.formatMessage({
                 id: getDiffFallbackMessageId(diffState?.availability ?? "unavailable"),
               })}
+              {/* 读取失败曾只显示通用占位，无法核对失败原因及重试结果。 */}
+              {diffState?.availability === "unavailable" && diffState.summary ? (
+                <p role="alert" className="mt-1 break-words text-ui-sm text-destructive">
+                  {diffState.summary}
+                </p>
+              ) : null}
             </div>
           )}
         </div>

@@ -117,15 +117,8 @@ export function useGitAutoRefresh({
     const timer = setInterval(() => {
       if (document.visibilityState === "visible") refreshRef.current();
     }, 2_000);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") refreshRef.current();
-    };
-    window.addEventListener("focus", onVisible);
-    document.addEventListener("visibilitychange", onVisible);
     return () => {
       clearInterval(timer);
-      window.removeEventListener("focus", onVisible);
-      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [
     canWatchCurrentWorkspace,
@@ -169,7 +162,8 @@ export function useGitAutoRefresh({
     // 首次快照由仓库 hook 读取；注册 watcher 只观察，不反向触发刷新。
     // 原建立时 flush 与执行目录失效组合后会产生无文件事件的 watch/unwatch 循环。
     // 后台期间文件事件可能丢失，重新显示/聚焦仍走同一刷新路径。
-    if (watchPaths.length > 0) {
+    // Linux 轮询只补定时信号；聚焦统一在此注册，避免 metadata watcher 与轮询各读一次。
+    if (canWatchCurrentWorkspace && gitSummary.isRepository && gitSummary.isGitAvailable) {
       window.addEventListener("focus", onVisible);
       document.addEventListener("visibilitychange", onVisible);
     }
@@ -225,5 +219,13 @@ export function useGitAutoRefresh({
         });
       }
     };
-  }, [currentWorkspaceKey, fileWatcherService, watchPaths, workspacePath]);
+  }, [
+    canWatchCurrentWorkspace,
+    currentWorkspaceKey,
+    fileWatcherService,
+    gitSummary.isRepository,
+    gitSummary.isGitAvailable,
+    watchPaths,
+    workspacePath,
+  ]);
 }

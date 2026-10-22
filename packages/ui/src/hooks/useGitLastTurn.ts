@@ -32,7 +32,7 @@ export function useGitLastTurn(options: {
   // chunk/revision 增长不能反复拉上一轮完整 patch；终态、摘要、撤销和纪元才使历史结果失效。
   const queryKey = JSON.stringify([
     snapshot?.logEpoch,
-    reviewTurn?.logEpoch,
+    reviewTurn?.logEpoch ?? snapshot?.logEpoch,
     header
       ? [header.rowId, header.entityId, header.state, header.fileChanges]
       : snapshot?.rows.window.at(-1)?.turnId,
@@ -50,7 +50,22 @@ export function useGitLastTurn(options: {
     const setDataset = (dataset: GitPaneDataset) => {
       if (!disposed) setView({ lease, key: queryKey, workspacePath, dataset });
     };
-    setDataset({ ...buildGitLastTurnDataset(workspacePath, null), loading: true });
+    // 同一轮重新选择/刷新曾先清空列表，紧接着的展开点击会被空列表 effect 撤销。
+    // 只在同一权威范围保留已显示 patch；换轮、换 lease/路径/纪元仍使用空投影隔离。
+    setView((current) => ({
+      lease,
+      key: queryKey,
+      workspacePath,
+      dataset: {
+        ...(current?.lease === lease &&
+        current.key === queryKey &&
+        current.workspacePath === workspacePath
+          ? current.dataset
+          : buildGitLastTurnDataset(workspacePath, null)),
+        loading: true,
+        error: null,
+      },
+    }));
     void (async () => {
       const current = lease.store.getState().snapshot!;
       if (reviewTurn && reviewTurn.logEpoch !== current.logEpoch) {

@@ -27,7 +27,7 @@ export function GitFileActionButtons({
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="size-7 text-foreground-subtle"
+            className="size-7 text-foreground-subtle disabled:opacity-100"
             disabled={disabled}
             aria-label={label}
             title={label}

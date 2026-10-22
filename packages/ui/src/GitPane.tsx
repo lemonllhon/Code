@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- GitPane 当前集中承载来源切换、diff 懒加载、展开状态和文件变更查找联动；后续拆分需按 Git 面板功能边界单独推进。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { GitChangeSourceId, GitDiffResult } from "@lcode/shared";
+import type { GitChangeSourceId } from "@lcode/shared";
 import { TID_GIT_PANE } from "@lcode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select.js";
 import { type GitPaneFileChange, type GitPaneRepositoryState } from "@/hooks/useGitRepository.js";
 import { useGitActions } from "@/hooks/useGitActions.js";
+import { useGitPaneDiffs } from "@/hooks/useGitPaneDiffs.js";
 import { GitFileActionButtons } from "@/GitPane/GitFileActionButtons.js";
 import { GitDiscardConfirmation } from "@/GitPane/GitDiscardConfirmation.js";
 import { useFileContextActions } from "@/hooks/useFileContextActions.js";
@@ -23,7 +24,6 @@ import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { joinFilePath, isAbsoluteFilePath } from "@/lib/path.js";
 import {
   getDiffCacheKey,
-  getErrorMessage,
   getGitPaneDiffFindContent,
   getSourceMessageId,
 } from "@/GitPane/helpers.js";
@@ -33,11 +33,6 @@ import { logger } from "@/logger.js";
 import { useLCodeStore } from "@/store/StoreProvider.js";
 import { resolveTheme } from "@/useTheme.js";
 import { getWorkspaceFileRelativePath } from "@/workspace-file-tree/model.js";
-
-interface GitDiffLoadState {
-  loading: boolean;
-  diff: GitDiffResult | null;
-}
 
 const GIT_PANE_CHANGE_ROW_ESTIMATE_PX = 32;
 const GIT_PANE_CHANGE_ROW_OVERSCAN = 14;
@@ -91,9 +86,7 @@ export function GitPane({
   });
   const resolvedTheme = resolveTheme(theme);
   const [expandedPath, setExpandedPath] = useState<string | null>(null);
-  const [diffStateByKey, setDiffStateByKey] = useState<Record<string, GitDiffLoadState>>({});
-  const diffGenerationRef = useRef(0);
-  const pendingDiffKeysRef = useRef(new Set<string>());
+  const [manualRefresh, setManualRefresh] = useState(false);
   const changeListScrollRef = useRef<HTMLDivElement | null>(null);
 
   const defaultSourceOption = gitState.sourceOptions[0]!;
@@ -111,6 +104,12 @@ export function GitPane({
       : (gitState.error ?? currentDataset.error);
   const currentLoading =
     currentSourceOption.id === "last-turn" ? currentDataset.loading : gitState.loading;
+  const showLoading =
+    currentLoading &&
+    (currentSourceOption.id === "last-turn" ||
+      manualRefresh ||
+      gitState.revision === 0 ||
+      !gitState.summary.isRepository);
   const fileActionsState = useGitActions({
     workspacePath,
     workspaceIdentity,
@@ -119,18 +118,37 @@ export function GitPane({
     enabled:
       !currentDataset.readonly &&
       !currentSourceOption.readonly &&
-      !currentLoading &&
       !currentError &&
       gitState.workspaceKey === (workspaceIdentity?.trim() || workspacePath) &&
       gitState.summary.isRepository &&
       gitState.summary.isGitAvailable &&
       !currentChanges.some((change) => change.isConflicted),
+    refreshing: Boolean(currentLoading),
     onRefresh,
   });
   const { gitService } = fileActionsState;
+  const { entries: diffStateByKey, load: loadDiffForChange } = useGitPaneDiffs({
+    workspacePath,
+    workspaceIdentity,
+    workspaceRemoteSessionId,
+    gitService,
+    revision: gitState.revision,
+  });
+  useEffect(() => {
+    if (!currentLoading) setManualRefresh(false);
+  }, [currentLoading]);
+  useEffect(() => {
+    setManualRefresh(false);
+  }, [
+    currentSourceOption.id,
+    workspacePath,
+    workspaceIdentity,
+    workspaceRemoteSessionId,
+    gitService,
+  ]);
 
   const emptyStateCopy = useMemo(() => {
-    if (currentLoading) {
+    if (showLoading) {
       return {
         title: intl.formatMessage({ id: "common.loading" }),
         description: intl.formatMessage({ id: "git.loading.description" }),
@@ -201,17 +219,11 @@ export function GitPane({
     currentSourceOption.id,
     currentDataset.isSelectedTurn,
     currentError,
-    currentLoading,
+    showLoading,
     gitState.summary.isGitAvailable,
     gitState.summary.isRepository,
     intl,
   ]);
-
-  useEffect(() => {
-    diffGenerationRef.current += 1;
-    pendingDiffKeysRef.current.clear();
-    setDiffStateByKey({});
-  }, [gitState.revision, workspacePath, workspaceIdentity, workspaceRemoteSessionId, gitService]);
 
   useEffect(() => {
     if (!expandedPath) {
@@ -222,95 +234,6 @@ export function GitPane({
       setExpandedPath(null);
     }
   }, [currentChanges, expandedPath]);
-
-  const loadDiffForChange = useCallback(
-    (change: GitPaneFileChange, sourceId: GitChangeSourceId) => {
-      if (sourceId === "last-turn" || change.diff) {
-        return;
-      }
-
-      const cacheKey = getDiffCacheKey(sourceId, change.path);
-      if (pendingDiffKeysRef.current.has(cacheKey) || diffStateByKey[cacheKey]?.diff) {
-        return;
-      }
-
-      pendingDiffKeysRef.current.add(cacheKey);
-      setDiffStateByKey((current) => ({
-        ...current,
-        [cacheKey]: {
-          loading: true,
-          diff: current[cacheKey]?.diff ?? null,
-        },
-      }));
-
-      const generation = diffGenerationRef.current;
-      void gitService
-        .getDiff({
-          workspacePath,
-          workspaceIdentity,
-          path: change.path,
-          sourceId,
-        })
-        .then((diff) => {
-          if (diffGenerationRef.current !== generation) {
-            return;
-          }
-
-          // 大文件 diff 卡顿问题需要先确认“卡在拉取还是卡在渲染”。
-          // 这里记录每次展开拿到的 diff 规模，便于从日志快速定位是否命中 fallback 条件。
-          // 文件变更查找会批量预加载 diff；这类逐文件规模日志只适合开发排查。
-          // 走 debug 可避免生产桌面日志被搜索行为刷大，同时保留定位大 diff 卡顿的线索。
-          logger.debug("[GitPane] diff 已加载", {
-            workspacePath,
-            sourceId,
-            path: change.path,
-            availability: diff.availability,
-            beforeChars: diff.beforeContent?.length ?? 0,
-            afterChars: diff.afterContent?.length ?? 0,
-          });
-
-          setDiffStateByKey((current) => ({
-            ...current,
-            [cacheKey]: {
-              loading: false,
-              diff,
-            },
-          }));
-        })
-        .catch((error: unknown) => {
-          if (diffGenerationRef.current !== generation) {
-            return;
-          }
-
-          const message = getErrorMessage(error);
-          logger.warn("[GitPane] 读取文件 diff 失败", {
-            workspacePath,
-            sourceId,
-            path: change.path,
-            error: message,
-          });
-          setDiffStateByKey((current) => ({
-            ...current,
-            [cacheKey]: {
-              loading: false,
-              diff: {
-                path: change.path,
-                availability: "unavailable",
-                patch: null,
-                beforeContent: null,
-                afterContent: null,
-                summary: message,
-              },
-            },
-          }));
-        })
-        .finally(() => {
-          // 旧 Host 的迟到结果不能释放新 Host 同路径的请求标记。
-          if (diffGenerationRef.current === generation) pendingDiffKeysRef.current.delete(cacheKey);
-        });
-    },
-    [diffStateByKey, gitService, workspacePath, workspaceIdentity],
-  );
 
   useEffect(() => {
     if (!expandedPath) {
@@ -407,23 +330,24 @@ export function GitPane({
     loadDiffForChange,
   ]);
 
+  const activeMatchPath = activeFileChangeFindMatch?.path;
+  const activeMatchInFile = activeFileChangeFindMatch?.matchIndexInFile;
+  const activeMatchIndex = currentChanges.findIndex((change) => change.path === activeMatchPath);
   useEffect(() => {
-    if (!activeFileChangeFindMatch) {
-      return;
-    }
-
-    const activeMatchIndex = currentChanges.findIndex(
-      (change) => change.path === activeFileChangeFindMatch.path,
-    );
     if (activeMatchIndex < 0) {
       return;
     }
 
+    // 缓存核对会重建 matches/changes 对象。按实际命中和显式导航定位，
+    // 不按对象引用重新居中，否则相同快照也会把用户滚动位置拉回文件开头。
     changeRowVirtualizer.scrollToIndex(activeMatchIndex, { align: "center" });
   }, [
-    activeFileChangeFindMatch,
+    activeMatchIndex,
+    activeMatchPath,
+    activeMatchInFile,
+    normalizedFileChangeFindQuery,
+    currentDataset.id,
     changeRowVirtualizer,
-    currentChanges,
     fileChangeFindNavigationRequestId,
   ]);
 
@@ -494,7 +418,11 @@ export function GitPane({
   );
 
   return (
-    <section data-testid={TID_GIT_PANE} className="flex h-full min-h-0 flex-col bg-background">
+    <section
+      data-testid={TID_GIT_PANE}
+      aria-busy={Boolean(currentLoading)}
+      className="flex h-full min-h-0 flex-col bg-background"
+    >
       <div className="flex items-center justify-between gap-3 p-3">
         <Select value={currentSourceOption.id} onValueChange={handleSelectSource}>
           <SelectTrigger className="max-w-full" size="lg">
@@ -519,7 +447,7 @@ export function GitPane({
             <GitFileActionButtons
               all
               staged={currentSourceOption.id === "staged"}
-              disabled={fileActionsState.pending}
+              disabled={!fileActionsState.canRun || fileActionsState.pending}
               onAction={(action) =>
                 fileActionsState.run(
                   action,
@@ -532,10 +460,14 @@ export function GitPane({
             type="button"
             variant="ghost"
             size="lg"
+            className="disabled:opacity-100"
             disabled={Boolean(currentLoading)}
-            onClick={onRefresh}
+            onClick={() => {
+              setManualRefresh(true);
+              onRefresh();
+            }}
           >
-            <RefreshCw className={cn("size-3.5", currentLoading && "animate-spin")} />
+            <RefreshCw className={cn("size-3.5", showLoading && "animate-spin")} />
             {intl.formatMessage({ id: "git.action.refresh" })}
           </Button>
         </div>
@@ -553,7 +485,7 @@ export function GitPane({
       <GitDiscardConfirmation
         confirmation={fileActionsState.confirmation}
         pending={fileActionsState.pending}
-        canConfirm={fileActionsState.available}
+        canConfirm={fileActionsState.canRun}
         onCancel={fileActionsState.cancelDiscard}
         onConfirm={fileActionsState.confirmDiscard}
       />
@@ -588,7 +520,7 @@ export function GitPane({
                 const cachedDiffState = diffStateByKey[diffCacheKey];
                 const diffState = change.diff ?? cachedDiffState?.diff ?? null;
                 const isDiffLoading =
-                  isExpanded && !change.diff && (!cachedDiffState || cachedDiffState.loading);
+                  isExpanded && !diffState && (!cachedDiffState || cachedDiffState.loading);
 
                 return (
                   <div
@@ -606,7 +538,7 @@ export function GitPane({
                         fileActionsState.available ? (
                           <GitFileActionButtons
                             staged={currentSourceOption.id === "staged"}
-                            disabled={fileActionsState.pending}
+                            disabled={!fileActionsState.canRun || fileActionsState.pending}
                             onAction={(action) =>
                               fileActionsState.run(action, [change.workspaceRelativePath])
                             }

@@ -3,7 +3,10 @@ import { createRoot } from "react-dom/client";
 import type { IBroadcastService, IGitService, IServiceAccessor } from "@lcode/services";
 import type { GitChangeSourceId, GitPublishState } from "@lcode/shared";
 import { GitPane } from "@/GitPane.js";
-import { useGitBranchSwitcher } from "@/hooks/useGitBranchSwitcher.js";
+import { BranchProbe } from "./git-file-operations-branch.js";
+import { createFileRefreshProbe } from "./git-file-operations-refresh.js";
+import { useGitRepository } from "@/hooks/useGitRepository.js";
+import { useGitAutoRefresh } from "@/hooks/useGitAutoRefresh.js";
 import type { GitPaneFileChange, GitPaneRepositoryState } from "@/hooks/useGitRepository.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { PlatformProvider } from "@/hooks/usePlatform.js";
@@ -17,6 +20,9 @@ import { platform } from "./git-backup-platform.js";
 import "@lcode/ui/styles.css";
 
 const root = "/fixture/repo";
+const params = new URLSearchParams(location.search);
+const live = params.has("live");
+if (params.has("dark")) document.documentElement.className = "dark theme-zai-dark";
 const change = (name: string, staged = false): GitPaneFileChange => ({
   path: `${root}/${name}`,
   repoRelativePath: name,
@@ -33,6 +39,11 @@ let unstaged = [
   { ...change("new.txt"), isUntracked: true, section: "untracked" as const },
 ];
 let staged = [change("other.ts", true)];
+if (params.has("many")) {
+  unstaged = Array.from({ length: 50 }, (_, index) =>
+    change(index === 0 ? "src/中文 file.ts" : `src/file-${index}.ts`),
+  );
+}
 let version = 0;
 const snapshot = (): GitPublishState => ({
   headCommitHash: "a".repeat(40),
@@ -44,7 +55,7 @@ const branchSummary = {
   workspacePath: root,
   repoRoot: root,
   workspaceInRepoPath: ".",
-  autoRefreshWatchPaths: [],
+  autoRefreshWatchPaths: [{ path: `${root}/.git`, recursive: true }],
   branchName: "main",
   trackingBranchName: null,
   headRefType: "branch" as const,
@@ -54,6 +65,17 @@ const branchSummary = {
   isGitAvailable: true,
   isRepository: true,
 };
+const refreshProbe = createFileRefreshProbe(
+  root,
+  () => ({
+    summary: branchSummary,
+    identity: null,
+    unstagedChanges: unstaged,
+    stagedChanges: staged,
+    branchComparison: null,
+  }),
+  params.get("os") ?? "win32",
+);
 const calls: { host: string; method: string; params: unknown }[] = [];
 let hold = false;
 let release: (() => void) | null = null;
@@ -61,6 +83,7 @@ let fail = false;
 let busy = false;
 const makeService = (host: string) =>
   ({
+    refresh: refreshProbe.refresh,
     getLocalBranches: async () => ({
       branches: [],
       currentBranchName: "main",
@@ -108,14 +131,7 @@ const makeService = (host: string) =>
         });
       return snapshot();
     },
-    getDiff: async () => ({
-      path: "src/中文 file.ts",
-      availability: "patch",
-      patch: "",
-      beforeContent: "before",
-      afterContent: "after",
-      summary: "",
-    }),
+    getDiff: refreshProbe.getDiff,
     ...Object.fromEntries(
       ["stagePaths", "unstagePaths", "discardPaths"].map((method) => [
         method,
@@ -156,8 +172,13 @@ const makeService = (host: string) =>
       ]),
     ),
   }) as unknown as IGitService;
-const local = { gitService: makeService("local") } as IServiceAccessor;
-const remote = { gitService: makeService("remote") } as IServiceAccessor;
+const makeServices = (host: string) =>
+  ({
+    gitService: makeService(host),
+    ...refreshProbe.services,
+  }) as unknown as IServiceAccessor;
+const local = makeServices("local");
+const remote = makeServices("remote");
 const registry = useRemoteWorkspaceSessionStore.getState();
 registry.registerBaseServices(local);
 registry.registerSession({ sessionId: "fixture-remote", services: remote });
@@ -167,42 +188,31 @@ const broadcast = {
   onMessage: () => ({ dispose() {} }),
 } as IBroadcastService;
 
-function BranchProbe({ identity, refresh }: { identity?: string; refresh: () => void }) {
-  const branch = useGitBranchSwitcher({
-    workspacePath: root,
-    workspaceIdentity: identity,
-    workspaceRemoteSessionId: identity ? "fixture-remote" : undefined,
-    currentBranchName: "main",
-    headRefType: "branch",
-    onRefreshGit: refresh,
-  });
-  return (
-    <div className="fixed bottom-0 right-0 bg-background">
-      <output data-testid="branch-probe-step">{branch.switchAssistStep ?? "none"}</output>
-      <button
-        data-testid="branch-probe-switch"
-        disabled={branch.mutationPending}
-        onClick={() => void branch.switchBranch("topic")}
-      >
-        Switch
-      </button>
-      <button
-        data-testid="branch-probe-commit"
-        disabled={branch.mutationPending || !branch.switchAssistState}
-        onClick={() => void branch.commitAndSwitchBranch()}
-      >
-        Commit and switch
-      </button>
-    </div>
-  );
-}
-
 function Fixture() {
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(false);
   const [source, setSource] = useState<GitChangeSourceId>("unstaged");
   const [identity, setIdentity] = useState<string>();
+  const [findQuery, setFindQuery] = useState("");
   const refresh = () => setRevision((value) => value + 1);
+  const liveState = useGitRepository({
+    workspacePath: root,
+    workspaceIdentity: identity,
+    remoteSessionId: identity ? "fixture-remote" : undefined,
+    includeExtendedData: true,
+    enabled: live,
+    refreshToken: revision,
+  });
+  useGitAutoRefresh({
+    workspacePath: root,
+    workspaceIdentity: identity,
+    remoteSessionId: identity ? "fixture-remote" : undefined,
+    gitSummary: liveState.summary,
+    gitSummaryWorkspaceKey: liveState.workspaceKey,
+    enabled: live,
+    livePanelVisible: live,
+    onRefreshGit: refresh,
+  });
   Object.assign(globalThis, {
     __gitFiles: {
       calls,
@@ -226,8 +236,16 @@ function Fixture() {
       disconnect: () =>
         useRemoteWorkspaceSessionStore.getState().unregisterSession("fixture-remote"),
       source: setSource,
+      search: setFindQuery,
       loading: () => setLoading(true),
       loaded: () => setLoading(false),
+      refresh,
+      ...refreshProbe.controls,
+      metrics: () => ({
+        ...refreshProbe.metrics(),
+        revision: liveState.revision,
+        loading: liveState.loading,
+      }),
     },
   });
   const state = {
@@ -269,7 +287,7 @@ function Fixture() {
   return (
     <main className="h-dvh max-w-xl border-r border-border">
       {new URLSearchParams(location.search).has("branch") ? (
-        <BranchProbe identity={identity} refresh={refresh} />
+        <BranchProbe root={root} identity={identity} refresh={refresh} />
       ) : null}
       <output data-testid="refresh-count" className="sr-only">
         {revision}
@@ -278,14 +296,14 @@ function Fixture() {
         workspacePath={root}
         workspaceIdentity={identity}
         workspaceRemoteSessionId={identity ? "fixture-remote" : undefined}
-        gitState={state}
+        gitState={live ? liveState : state}
         selectedSourceId={source}
         onSelectSource={setSource}
         onRefresh={refresh}
         onClose={() => {}}
         fileChangeFindActiveIndex={0}
         fileChangeFindNavigationRequestId={0}
-        fileChangeFindQuery=""
+        fileChangeFindQuery={findQuery}
         onFileChangeFindMatchCountChange={() => {}}
       />
     </main>
