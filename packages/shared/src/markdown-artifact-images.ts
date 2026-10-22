@@ -1,7 +1,8 @@
+import { isToolArtifactUri } from "./tool-artifact-uri.js";
 const ARTIFACT_IMAGE_RENDER_PREFIX = "/__lcode_artifact_image__/";
 const FENCE_PATTERN = /^( {0,3})(`{3,}|~{3,})(.*)$/u;
 const ARTIFACT_IMAGE_PATTERN =
-  /!\[[^\]\n]*\]\(\s*(?:<)?(lcode-artifact:\/\/[^\s)>]+)(?:>)?(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\s*\)/gu;
+  /!\[[^\]\n]*\]\(\s*(?:<)?((?:lcode|zcode)-artifact:\/\/[^\s)>]+)(?:>)?(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\s*\)/gu;
 
 function mapOutsideMarkdownFences(markdown: string, transform: (line: string) => string): string {
   let activeMarker: "`" | "~" | null = null;
@@ -51,7 +52,7 @@ export function decodeMarkdownArtifactImageSource(source: string): string | null
   if (!source.startsWith(ARTIFACT_IMAGE_RENDER_PREFIX)) return null;
   try {
     const ref = decodeURIComponent(source.slice(ARTIFACT_IMAGE_RENDER_PREFIX.length));
-    return ref.startsWith("lcode-artifact://") ? ref : null;
+    return isToolArtifactUri(ref) ? ref : null;
   } catch {
     return null;
   }

@@ -1,3 +1,4 @@
+import { isToolArtifactUri } from "@lcode/contracts";
 import { type MessageWithParts } from "@lcode/contracts";
 
 import type { LCodeApp } from "../app/types.js";
@@ -51,7 +52,7 @@ function snapshotFilePartArtifactUri(
   const metadataArtifactUri =
     typeof part.metadata?.artifactUri === "string" ? part.metadata.artifactUri : undefined;
   const artifactUri = metadataArtifactUri ?? part.url;
-  return artifactUri.startsWith("lcode-artifact://") ? artifactUri : undefined;
+  return isToolArtifactUri(artifactUri) ? artifactUri : undefined;
 }
 
 function dataUrlFromSnapshotArtifact(

@@ -1,3 +1,4 @@
+import { createToolArtifactUri } from "@lcode/contracts";
 // Storage adapters - EventStore, ArtifactStore, MemoryStore implementations
 
 import { randomUUID } from "node:crypto";
@@ -92,7 +93,7 @@ export class NodeToolArtifactStore implements ToolArtifactStorePort {
 
     return {
       id: artifactId,
-      uri: `lcode-artifact://${encodeURIComponent(request.sessionId)}/${encodeURIComponent(artifactId)}`,
+      uri: createToolArtifactUri(request.sessionId, artifactId),
       path,
       bytes: Buffer.byteLength(request.content, "utf8"),
       contentType,
@@ -126,7 +127,7 @@ export class NodeToolArtifactStore implements ToolArtifactStorePort {
 
     return {
       id: artifactId,
-      uri: `lcode-artifact://${encodeURIComponent(request.sessionId)}/${encodeURIComponent(artifactId)}`,
+      uri: createToolArtifactUri(request.sessionId, artifactId),
       path,
       bytes: content.byteLength,
       contentType: request.contentType,

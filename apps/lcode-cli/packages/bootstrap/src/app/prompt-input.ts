@@ -1,3 +1,4 @@
+import { isToolArtifactUri } from "@lcode/contracts";
 import { createHash } from "node:crypto";
 import type { TurnAttachment } from "@lcode/core";
 import type {
@@ -83,7 +84,7 @@ export async function materializeInputHistoryEntry(
   if (!entry?.attachments || !artifactStore) return entry;
   const attachments = await Promise.all(
     entry.attachments.map(async (attachment): Promise<InputHistoryAttachment> => {
-      if (!attachment.content?.startsWith("lcode-artifact://")) return attachment;
+      if (!isToolArtifactUri(attachment.content)) return attachment;
       try {
         const artifact = await artifactStore.readToolResultArtifact({ uri: attachment.content });
         return {

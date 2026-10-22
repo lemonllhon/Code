@@ -1,3 +1,4 @@
+import { isToolArtifactUri } from "@lcode/contracts";
 import { stat } from "node:fs/promises";
 import type { ToolArtifactStorePort } from "@lcode/contracts";
 import type { WorkflowImageRef } from "@lcode/dynamic-workflow";
@@ -12,11 +13,17 @@ export async function verifyWorkflowImageRefs(
   try {
     for (const ref of refs) {
       if (
-        !ref.mime.toLowerCase().startsWith("image/") || ref.mime.length > 128 ||
-        !ref.ref || ref.ref.length > 4096 || !ref.fileName || ref.fileName.length > 255 ||
-        !Number.isSafeInteger(ref.bytes) || ref.bytes < 0
-      ) return false;
-      if (ref.ref.startsWith("lcode-artifact://")) {
+        !ref.mime.toLowerCase().startsWith("image/") ||
+        ref.mime.length > 128 ||
+        !ref.ref ||
+        ref.ref.length > 4096 ||
+        !ref.fileName ||
+        ref.fileName.length > 255 ||
+        !Number.isSafeInteger(ref.bytes) ||
+        ref.bytes < 0
+      )
+        return false;
+      if (isToolArtifactUri(ref.ref)) {
         if (!artifactStore) return false;
         const artifact = await artifactStore.readToolResultArtifact({ uri: ref.ref });
         if (!artifact.content.startsWith("data:image/")) return false;
@@ -34,9 +41,7 @@ export async function verifyWorkflowImageRefs(
 export function workflowImageTurnAttachments(refs: readonly WorkflowImageRef[] | undefined) {
   return refs?.map((ref) => ({
     type: "image" as const,
-    ...(ref.ref.startsWith("lcode-artifact://")
-      ? { content: ref.ref, path: ref.fileName }
-      : { path: ref.ref }),
+    ...(isToolArtifactUri(ref.ref) ? { content: ref.ref, path: ref.fileName } : { path: ref.ref }),
     filename: ref.fileName,
     mimeType: ref.mime,
     sizeBytes: ref.bytes,

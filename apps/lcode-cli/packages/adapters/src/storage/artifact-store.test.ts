@@ -17,6 +17,7 @@ test("artifact codecs preserve binary/text serialization and media singleflight 
   assert.ok(store.writeToolResultBinaryArtifact);
   assert.ok(store.readToolResultBinaryArtifact);
   assert.ok(store.ensureMediaAttachmentPath);
+  assert.ok(store.statToolResultArtifact);
   const sessionId = "fixture-session" as SessionId;
   const binary = await store.writeToolResultBinaryArtifact({
     sessionId,
@@ -40,6 +41,18 @@ test("artifact codecs preserve binary/text serialization and media singleflight 
     content: '{"ok":true}',
   });
   assert.equal((await store.readToolResultArtifact({ uri: text.uri })).content, '{"ok":true}');
+  const legacy = text.uri.replace("lcode-artifact://", "zcode-artifact://");
+  assert.equal((await store.readToolResultArtifact({ uri: legacy })).content, '{"ok":true}');
+  assert.deepEqual(
+    { ...(await store.statToolResultArtifact({ uri: legacy })), uri: text.uri },
+    await store.statToolResultArtifact({ uri: text.uri }),
+  );
+  const legacyBinary = binary.uri.replace("lcode-artifact://", "zcode-artifact://");
+  assert.deepEqual(
+    (await store.readToolResultBinaryArtifact({ uri: legacyBinary })).bytes,
+    new Uint8Array([0, 255, 42]),
+  );
+  assert.ok(text.uri.startsWith("lcode-artifact://"));
   const pdfBytes = Buffer.from("%PDF-fixture");
   const pdf = await store.writeToolResultArtifact({
     sessionId,

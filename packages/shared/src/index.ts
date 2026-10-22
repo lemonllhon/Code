@@ -361,3 +361,5 @@ export * from "./gitManagement.js";
 export * from "./gitAuthentication.js";
 export * from "./gitAgentContext.js";
 export * from "./gitAccountOperation.js";
+
+export * from "./tool-artifact-uri.js";

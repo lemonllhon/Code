@@ -1,3 +1,4 @@
+import { isToolArtifactUri } from "@lcode/contracts";
 import type {
   ModelInputMessage,
   ModelMessageContentBlock,
@@ -63,8 +64,7 @@ function isPathProjectableUserMedia(
   // path 是可选增强；只有 artifact URI 或已有本地 path 才参与物化，避免阻断既有媒体发送。
   return (
     (block.type === "image" || block.type === "video" || isPdfBlock(block)) &&
-    ((block.source?.kind === "inline" &&
-      block.source.uri?.startsWith("lcode-artifact://") === true) ||
+    ((block.source?.kind === "inline" && isToolArtifactUri(block.source.uri) === true) ||
       (block.source?.kind === "local_file" && Boolean(block.source.path)))
   );
 }
@@ -78,7 +78,7 @@ async function resolveMediaAttachmentPath(
   if (source.kind === "local_file" && source.path) return source.path;
 
   const uri = source.uri;
-  if (!uri?.startsWith("lcode-artifact://") || !artifactStore?.ensureMediaAttachmentPath) {
+  if (!isToolArtifactUri(uri) || !artifactStore?.ensureMediaAttachmentPath) {
     throw mediaAttachmentMaterializationError(mediaType, source.placeholder ?? uri ?? source.id);
   }
   try {

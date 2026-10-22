@@ -1,5 +1,5 @@
 import type { FileSystemErrorCode } from "@lcode/contracts";
-import { isFileSystemPortError } from "@lcode/contracts";
+import { isFileSystemPortError, parseToolArtifactUri } from "@lcode/contracts";
 import { extractMarkdownArtifactImageRefs } from "@lcode/shared";
 import type { AttachmentRef } from "@lcode/shared/lcode-protocol-v4";
 import {
@@ -10,7 +10,12 @@ import {
 import { ConversationTopicPublisher } from "./conversation-topic-publisher.js";
 
 function artifactRefBelongsToSession(ref: string, sessionId: string): boolean {
-  return ref.startsWith(`lcode-artifact://${encodeURIComponent(sessionId)}/`);
+  // 历史 scheme 也经同一 codec，但 Markdown 附件仍必须属于当前 session。
+  try {
+    return parseToolArtifactUri(ref).sessionId === sessionId;
+  } catch {
+    return false;
+  }
 }
 
 /** 附件在文件系统层「确定不存在」的错误码集合。 */

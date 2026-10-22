@@ -1,3 +1,4 @@
+import { isToolArtifactUri } from "@lcode/contracts";
 import type { FilePart } from "@lcode/contracts";
 import { createPartId } from "../deps.js";
 import type {
@@ -46,9 +47,7 @@ export async function persistToolResultMediaAttachments(input: {
 
   const attachments: FilePart[] = [];
   for (const [index, block] of projection.mediaBlocks.entries()) {
-    const existingArtifactUri = block.source?.uri?.startsWith("lcode-artifact://")
-      ? block.source.uri
-      : undefined;
+    const existingArtifactUri = isToolArtifactUri(block.source?.uri) ? block.source.uri : undefined;
     const artifactUri =
       existingArtifactUri ??
       (

@@ -1,3 +1,4 @@
+import { parseToolArtifactUri as parseArtifactUri } from "@lcode/contracts";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 
@@ -164,25 +165,4 @@ export function decodeMediaDataUrlArtifact(
   return { bytes, mediaType: mediaType! };
 }
 
-export function parseArtifactUri(uri: string): { artifactId: string; sessionId: string } {
-  let parsed: URL;
-  try {
-    parsed = new URL(uri);
-  } catch (error) {
-    throw new Error(`Invalid tool artifact URI: ${uri}`, {
-      cause: error instanceof Error ? error : undefined,
-    });
-  }
-
-  if (parsed.protocol !== "lcode-artifact:") {
-    throw new Error(`Unsupported tool artifact URI: ${uri}`);
-  }
-
-  const sessionId = decodeURIComponent(parsed.hostname);
-  const artifactId = decodeURIComponent(parsed.pathname.replace(/^\/+/, ""));
-  if (!sessionId || !artifactId) {
-    throw new Error(`Invalid tool artifact URI: ${uri}`);
-  }
-
-  return { artifactId, sessionId };
-}
+export { parseArtifactUri };

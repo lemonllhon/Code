@@ -1,3 +1,4 @@
+import { isToolArtifactUri } from "@lcode/contracts";
 import type { FilePartSource, TurnAttachment } from "../deps.js";
 import type { ResolvedTurnAttachment } from "../types.js";
 import { safeAttachmentOriginalRef } from "./attachment-artifacts.js";
@@ -38,7 +39,7 @@ export function resolvedPlaceholderAttachment(
     // URI 仍保留，便于后续诊断和按既定授权路径重试。
     url:
       attachment.type === "video" || attachment.type === "pdf"
-        ? attachment.content?.startsWith("lcode-artifact://")
+        ? isToolArtifactUri(attachment.content)
           ? attachment.content
           : (attachment.path ??
             (attachment.type === "pdf" ? "inline:pdf" : (safeOriginalRef ?? "")))
