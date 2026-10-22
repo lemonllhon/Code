@@ -2603,14 +2603,11 @@ const enUS: Record<string, string> = {
   "ssh.title": "SSH Remote connection",
   "ssh.host": "Host",
   "ssh.proxyMode": "Proxy mode",
-  "ssh.proxyModeDescription":
-    "Select a saved proxy from Settings to reuse its address and credentials.",
   "ssh.proxy.direct": "Direct (no proxy)",
   "ssh.proxy.default": "Default proxy from Settings",
   "ssh.proxy.loading": "Loading saved proxies…",
   "ssh.proxy.loadError": "Unable to load saved proxies.",
   "ssh.proxy.retry": "Retry",
-  "ssh.proxy.empty": "No saved proxies. Add one in Settings to use it here.",
   "ssh.proxy.unavailable": "Selected proxy unavailable",
   "ssh.proxy.missing": "The selected proxy was deleted. Choose another proxy.",
   "ssh.hostPlaceholder": "Enter host address or IP, e.g. 192.168.1.100",
@@ -2634,6 +2631,7 @@ const enUS: Record<string, string> = {
   "ssh.privateKeySelect": "Choose private key file",
   "ssh.configAlias": "SSH config alias (optional)",
   "ssh.configAliasPlaceholder": "No alias selected",
+  "ssh.configAliasEmptyPlaceholder": "No aliases",
   "ssh.configAliasSearchPlaceholder": "Search SSH config alias",
   "ssh.configAliasEmpty": "No SSH config aliases available on this machine.",
   "ssh.configAliasLoadFailed":

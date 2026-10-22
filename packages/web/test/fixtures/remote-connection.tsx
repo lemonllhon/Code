@@ -19,8 +19,14 @@ const attempts: {
 }[] = [];
 const cancelled: (string | undefined)[] = [];
 const disposed: string[] = [];
+const aliasFixture = new URLSearchParams(location.search).get("aliases");
 const platform = {
-  listSSHConfigAliases: async () => [],
+  listSSHConfigAliases: async () => {
+    if (aliasFixture === "error") throw new Error("fixture alias read failure");
+    return aliasFixture === "available"
+      ? [{ alias: "fixture-alias", host: "fixture.invalid", port: 2222, username: "fixture" }]
+      : [];
+  },
   listWSLDistros: async () => [
     { name: "TestDistro", isDefault: true, state: "Running", version: 2 },
   ],

@@ -28,8 +28,8 @@ export function SshProxyModeField({
     !profiles.some((profile) => profile.id === value.profileId);
   const selectedValue = value.kind === "profile" ? `profile:${value.profileId}` : value.kind;
   return (
-    <div className="min-w-0 space-y-2 rounded-lg border border-input-border p-3">
-      <label htmlFor={id} className="block text-ui-base text-foreground">
+    <div className="min-w-0 space-y-1">
+      <label htmlFor={id} className="block text-ui-base text-foreground-subtle">
         {intl.formatMessage({ id: "ssh.proxyMode" })}
       </label>
       <Select
@@ -46,7 +46,6 @@ export function SshProxyModeField({
           id={id}
           data-testid="ssh-proxy-mode"
           className="w-full min-w-0"
-          aria-describedby={`${id}-description`}
           aria-invalid={missing || undefined}
         >
           <SelectValue />
@@ -67,9 +66,6 @@ export function SshProxyModeField({
           ) : null}
         </SelectContent>
       </Select>
-      <p id={`${id}-description`} className="text-ui-base text-foreground-subtle">
-        {intl.formatMessage({ id: "ssh.proxyModeDescription" })}
-      </p>
       {status === "loading" ? (
         <p role="status" className="text-ui-sm text-foreground-subtle">
           {message("loading")}
@@ -89,9 +85,6 @@ export function SshProxyModeField({
         <p role="alert" className="text-ui-sm text-destructive">
           {message("missing")}
         </p>
-      ) : null}
-      {status === "ready" && !profiles.length && !missing ? (
-        <p className="text-ui-sm text-foreground-subtle">{message("empty")}</p>
       ) : null}
     </div>
   );

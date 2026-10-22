@@ -227,7 +227,7 @@ export function RemoteConnectionSettingsStep({
   const { intl } = useLCodeIntl();
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6 h-full">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 h-full">
       <div
         data-testid="remote-connection-settings-scroll"
         // SSH 配置项增多时，表单内容以前没有自己的滚动边界，会继续绘制到下方按钮区域。

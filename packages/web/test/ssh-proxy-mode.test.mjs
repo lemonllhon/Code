@@ -15,7 +15,9 @@ test(
     for (const width of [1280, 390])
       for (const locale of ["en", "zh"]) {
         await t.test(`${width}px ${locale}`, async () => {
-          const page = await browser.newPage({ viewport: { width, height: 900 } });
+          const page = await browser.newPage({
+            viewport: { width, height: width === 1280 ? 720 : 844 },
+          });
           const errors = [];
           page.on("pageerror", (error) => errors.push(error.message));
           try {
@@ -39,14 +41,44 @@ test(
             await page.getByRole("option", { name: /Home SOCKS5/ }).click();
             await selection.press("Space");
             await page.getByRole("option", { name: /Office HTTP/ }).click();
-            await page
-              .getByText(
-                locale === "zh"
-                  ? "选择设置中已保存的代理，自动复用地址及账号密码。"
-                  : "Select a saved proxy from Settings to reuse its address and credentials.",
-                { exact: true },
-              )
-              .waitFor();
+            assert.equal(
+              await page
+                .getByText(
+                  locale === "zh"
+                    ? "选择设置中已保存的代理，自动复用地址及账号密码。"
+                    : "Select a saved proxy from Settings to reuse its address and credentials.",
+                  { exact: true },
+                )
+                .count(),
+              0,
+            );
+            assert.equal(await selection.getAttribute("aria-describedby"), null);
+            const resources = page.getByRole("group", {
+              name: locale === "zh" ? "资源下载方式" : "Resource download method",
+              exact: true,
+            });
+            const alias = await page.getByTestId("ssh-config-alias-select").boundingBox();
+            const resourceBox = await resources.boundingBox();
+            assert.ok(alias && resourceBox);
+            assert.ok(alias.width <= 224, "alias field stays compact");
+            if (width === 1280) {
+              assert.ok(
+                Math.abs(alias.y - resourceBox.y) <= 1,
+                "alias and download controls align",
+              );
+              assert.ok(
+                resourceBox.x > alias.x + alias.width,
+                "download method shares the alias row",
+              );
+            } else {
+              assert.ok(resourceBox.y > alias.y + alias.height, "narrow layout stacks the fields");
+            }
+            const scroll = page.getByTestId("remote-connection-settings-scroll");
+            const scrollBox = await scroll.boundingBox();
+            assert.ok(scrollBox && resourceBox.y >= scrollBox.y);
+            assert.ok(resourceBox.y + resourceBox.height <= scrollBox.y + scrollBox.height);
+            await resources.getByRole("button").nth(1).click();
+            assert.equal(await scroll.evaluate((el) => el.scrollTop), 0);
             assert.equal(await page.locator('input[type="password"]').count(), 1);
             assert.equal(
               (await page.locator("body").innerText()).includes("fixture-secret"),
@@ -86,6 +118,12 @@ test(
               ),
               "fixture-http",
             );
+            assert.equal(
+              await page.evaluate(
+                () => window.remoteConnectionFixture.attempts[0].target.assetInstallMode,
+              ),
+              "remote-download",
+            );
           } finally {
             await page.close();
             assert.deepEqual(errors, []);
@@ -110,9 +148,12 @@ test(
             .waitFor();
           await selection.click();
           await page.getByRole("option", { name: "Direct (no proxy)", exact: true }).click();
-          await page
-            .getByText("No saved proxies. Add one in Settings to use it here.", { exact: true })
-            .waitFor();
+          assert.equal(
+            await page
+              .getByText("No saved proxies. Add one in Settings to use it here.", { exact: true })
+              .count(),
+            0,
+          );
           await page.getByTestId("ssh-host-input").fill("fixture.invalid");
           await page.getByTestId("ssh-username-input").fill("fixture");
           await page.getByTestId("ssh-password-input").fill("fixture-password");
@@ -140,6 +181,89 @@ test(
         await page.getByRole("button", { name: "Retry", exact: true }).click();
         await page.getByTestId("ssh-proxy-mode").click();
         await page.getByRole("option", { name: /Home SOCKS5/ }).click();
+      } finally {
+        await page.close();
+      }
+    });
+
+    await t.test(
+      "empty alias list can be opened and searched without duplicated hints",
+      async () => {
+        const page = await browser.newPage();
+        page.setDefaultTimeout(10_000);
+        try {
+          await page.goto(`http://127.0.0.1:${port}/test/fixtures/remote-connection.html`);
+          await page.getByTestId("ssh-connect-trigger").click();
+          await page.getByRole("button", { name: "Next", exact: true }).click();
+          const alias = page.getByTestId("ssh-config-alias-select");
+          await page.getByText("No aliases", { exact: true }).waitFor();
+          assert.equal(
+            await page
+              .getByText("No SSH config aliases available on this machine.", { exact: true })
+              .count(),
+            0,
+          );
+          await alias.click();
+          const search = page.getByPlaceholder("Search SSH config alias");
+          await page
+            .getByText("No SSH config aliases available on this machine.", { exact: true })
+            .waitFor();
+          await search.fill("missing-alias");
+          await page
+            .getByText("No SSH config aliases available on this machine.", { exact: true })
+            .waitFor();
+          await search.fill("");
+          await page.getByRole("option", { name: "No alias selected", exact: true }).click();
+          await search.waitFor({ state: "detached" });
+          assert.equal(await alias.innerText(), "No aliases");
+          assert.equal(
+            await page
+              .getByText("No SSH config aliases available on this machine.", { exact: true })
+              .count(),
+            0,
+          );
+        } finally {
+          await page.close();
+        }
+      },
+    );
+
+    await t.test(
+      "existing aliases remain searchable and populate the connection fields",
+      async () => {
+        const page = await browser.newPage();
+        try {
+          await page.goto(
+            `http://127.0.0.1:${port}/test/fixtures/remote-connection.html?aliases=available`,
+          );
+          await page.getByTestId("ssh-connect-trigger").click();
+          await page.getByRole("button", { name: "Next", exact: true }).click();
+          await page.getByTestId("ssh-config-alias-select").click();
+          await page.getByPlaceholder("Search SSH config alias").fill("fixture-alias");
+          await page.getByRole("option", { name: /fixture-alias/ }).click();
+          assert.equal(await page.getByTestId("ssh-host-input").inputValue(), "fixture.invalid");
+          assert.equal(await page.getByTestId("ssh-port-input").inputValue(), "2222");
+          assert.equal(await page.getByTestId("ssh-username-input").inputValue(), "fixture");
+        } finally {
+          await page.close();
+        }
+      },
+    );
+
+    await t.test("alias read failure remains visible", async () => {
+      const page = await browser.newPage();
+      try {
+        await page.goto(
+          `http://127.0.0.1:${port}/test/fixtures/remote-connection.html?aliases=error`,
+        );
+        await page.getByTestId("ssh-connect-trigger").click();
+        await page.getByRole("button", { name: "Next", exact: true }).click();
+        await page
+          .getByText(
+            "Failed to load SSH config aliases. You can still enter connection info manually.",
+            { exact: true },
+          )
+          .waitFor();
       } finally {
         await page.close();
       }

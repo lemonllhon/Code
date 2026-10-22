@@ -159,9 +159,12 @@ export function RemoteConnectionFields({
   const sshAliasTriggerLabel = sshConfigAliasesLoading
     ? intl.formatMessage({ id: "common.loading" })
     : (selectedSshAliasOption?.alias ??
-      (sshConfigAliases.length === 0
-        ? intl.formatMessage({ id: "ssh.configAliasEmpty" })
-        : intl.formatMessage({ id: "ssh.configAliasPlaceholder" })));
+      intl.formatMessage({
+        id:
+          sshConfigAliases.length === 0 && !sshConfigAliasesError
+            ? "ssh.configAliasEmptyPlaceholder"
+            : "ssh.configAliasPlaceholder",
+      }));
   const handleSshAliasListWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
     const listElement = event.currentTarget;
     if (listElement.scrollHeight <= listElement.clientHeight) {
@@ -233,102 +236,153 @@ export function RemoteConnectionFields({
   switch (kind) {
     case "ssh":
       return (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <SshProxyModeField value={sshProxySelection} onChange={setSshProxySelection} />
-          <div className="space-y-1">
-            <label className="mb-1 block text-ui-base text-foreground-subtle">
-              {intl.formatMessage({ id: "ssh.configAlias" })}
-            </label>
-            <Popover open={sshAliasPopoverOpen} onOpenChange={setSshAliasPopoverOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  disabled={sshConfigAliasesLoading || sshConfigAliases.length === 0}
-                  data-testid={TID_SSH_CONFIG_ALIAS_SELECT}
-                  className="h-9 w-full max-w-80 justify-between rounded-lg border-input-border bg-input px-3 text-ui-base font-normal hover:border-input-border-hover hover:bg-input aria-expanded:border-input-border-focused aria-expanded:bg-input-focused"
-                >
-                  <span className="min-w-0 truncate text-left">{sshAliasTriggerLabel}</span>
-                  <ChevronDownIcon className="size-3.5 text-foreground-subtle" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" sideOffset={6} className="w-80 gap-0 bg-menu p-0">
-                <Command className="bg-transparent p-0 text-foreground">
-                  <CommandInput
-                    placeholder={intl.formatMessage({
-                      id: "ssh.configAliasSearchPlaceholder",
-                    })}
-                    className="h-8"
-                  />
-                  <CommandList
-                    ref={sshAliasListRef}
-                    className="max-h-60 overscroll-contain"
-                    onWheel={handleSshAliasListWheel}
+          {/* 别名和下载方式原先分占首尾两行，低窗口必须滚动；同排并收紧留白，优先露出下载选择。 */}
+          <div className="grid gap-2 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
+            <div className="space-y-1">
+              <label className="mb-1 block text-ui-base text-foreground-subtle">
+                {intl.formatMessage({ id: "ssh.configAlias" })}
+              </label>
+              <Popover open={sshAliasPopoverOpen} onOpenChange={setSshAliasPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    // 空列表原先禁用整个选择器，既不能搜索也无法查看空状态；仅加载期间禁用。
+                    disabled={sshConfigAliasesLoading}
+                    data-testid={TID_SSH_CONFIG_ALIAS_SELECT}
+                    className="h-9 w-full max-w-56 justify-between rounded-lg border-input-border bg-input px-3 text-ui-base font-normal hover:border-input-border-hover hover:bg-input aria-expanded:border-input-border-focused aria-expanded:bg-input-focused"
                   >
-                    <CommandEmpty className="px-4 py-5 text-foreground-subtle">
-                      {intl.formatMessage({ id: "ssh.configAliasEmpty" })}
-                    </CommandEmpty>
-                    <CommandGroup className="p-1">
-                      <CommandItem
-                        value={NO_SSH_CONFIG_ALIAS_VALUE}
-                        data-checked={selectedSshConfigAlias == null ? "true" : undefined}
-                        data-ssh-config-alias-selected={
-                          selectedSshConfigAlias == null ? "true" : undefined
-                        }
-                        className="min-h-8 cursor-pointer px-2 text-ui-base"
-                        onSelect={() => {
-                          clearSelectedSshConfigAlias();
-                          setSshAliasPopoverOpen(false);
-                        }}
-                      >
-                        <span className="truncate">
-                          {intl.formatMessage({ id: "ssh.configAliasPlaceholder" })}
-                        </span>
-                      </CommandItem>
-                      {sshConfigAliases.map((aliasOption) => (
+                    <span className="min-w-0 truncate text-left">{sshAliasTriggerLabel}</span>
+                    <ChevronDownIcon className="size-3.5 text-foreground-subtle" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" sideOffset={6} className="w-80 gap-0 bg-menu p-0">
+                  <Command className="bg-transparent p-0 text-foreground">
+                    <CommandInput
+                      placeholder={intl.formatMessage({
+                        id: "ssh.configAliasSearchPlaceholder",
+                      })}
+                      className="h-8"
+                    />
+                    <CommandList
+                      ref={sshAliasListRef}
+                      className="max-h-60 overscroll-contain"
+                      onWheel={handleSshAliasListWheel}
+                    >
+                      {sshConfigAliases.length === 0 ? (
+                        <p role="status" className="px-3 py-2 text-ui-base text-foreground-subtle">
+                          {intl.formatMessage({
+                            id: sshConfigAliasesError
+                              ? "ssh.configAliasLoadFailed"
+                              : "ssh.configAliasEmpty",
+                          })}
+                        </p>
+                      ) : (
+                        <CommandEmpty className="px-4 py-5 text-foreground-subtle">
+                          {intl.formatMessage({ id: "ssh.configAliasEmpty" })}
+                        </CommandEmpty>
+                      )}
+                      <CommandGroup className="p-1">
                         <CommandItem
-                          key={aliasOption.alias}
-                          value={`${aliasOption.alias} ${formatSshConfigAliasSummary(aliasOption)}`}
-                          data-checked={
-                            selectedSshConfigAlias === aliasOption.alias ? "true" : undefined
-                          }
+                          value={NO_SSH_CONFIG_ALIAS_VALUE}
+                          data-checked={selectedSshConfigAlias == null ? "true" : undefined}
                           data-ssh-config-alias-selected={
-                            selectedSshConfigAlias === aliasOption.alias ? "true" : undefined
+                            selectedSshConfigAlias == null ? "true" : undefined
                           }
                           className="min-h-8 cursor-pointer px-2 text-ui-base"
                           onSelect={() => {
-                            applySshConfigAlias(aliasOption);
+                            clearSelectedSshConfigAlias();
                             setSshAliasPopoverOpen(false);
                           }}
                         >
-                          <span className="flex min-w-0 flex-1 flex-col text-left">
-                            <span className="truncate">{aliasOption.alias}</span>
-                            <span className="truncate text-ui-base text-foreground-subtle">
-                              {formatSshConfigAliasSummary(aliasOption)}
-                            </span>
+                          <span className="truncate">
+                            {intl.formatMessage({ id: "ssh.configAliasPlaceholder" })}
                           </span>
                         </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-            <p
-              className={cn(
-                "text-ui-base",
-                sshConfigAliasesError ? "text-warning" : "text-foreground-subtle",
-              )}
-            >
-              {sshConfigAliasesLoading
-                ? intl.formatMessage({ id: "common.loading" })
-                : sshConfigAliasesError
-                  ? intl.formatMessage({ id: "ssh.configAliasLoadFailed" })
-                  : sshConfigAliases.length === 0
-                    ? intl.formatMessage({ id: "ssh.configAliasEmpty" })
-                    : intl.formatMessage({ id: "ssh.configAliasDescription" })}
-            </p>
+                        {sshConfigAliases.map((aliasOption) => (
+                          <CommandItem
+                            key={aliasOption.alias}
+                            value={`${aliasOption.alias} ${formatSshConfigAliasSummary(aliasOption)}`}
+                            data-checked={
+                              selectedSshConfigAlias === aliasOption.alias ? "true" : undefined
+                            }
+                            data-ssh-config-alias-selected={
+                              selectedSshConfigAlias === aliasOption.alias ? "true" : undefined
+                            }
+                            className="min-h-8 cursor-pointer px-2 text-ui-base"
+                            onSelect={() => {
+                              applySshConfigAlias(aliasOption);
+                              setSshAliasPopoverOpen(false);
+                            }}
+                          >
+                            <span className="flex min-w-0 flex-1 flex-col text-left">
+                              <span className="truncate">{aliasOption.alias}</span>
+                              <span className="truncate text-ui-base text-foreground-subtle">
+                                {formatSshConfigAliasSummary(aliasOption)}
+                              </span>
+                            </span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              {sshConfigAliasesLoading || sshConfigAliasesError || sshConfigAliases.length > 0 ? (
+                <p
+                  className={cn(
+                    "text-ui-base",
+                    sshConfigAliasesError ? "text-warning" : "text-foreground-subtle",
+                  )}
+                >
+                  {sshConfigAliasesLoading
+                    ? intl.formatMessage({ id: "common.loading" })
+                    : sshConfigAliasesError
+                      ? intl.formatMessage({ id: "ssh.configAliasLoadFailed" })
+                      : intl.formatMessage({ id: "ssh.configAliasDescription" })}
+                </p>
+              ) : null}
+            </div>
+            <div>
+              <label className="mb-1 block text-ui-base text-foreground-subtle">
+                {intl.formatMessage({ id: "ssh.assetInstallMode" })}
+              </label>
+              <div
+                role="group"
+                aria-label={intl.formatMessage({ id: "ssh.assetInstallMode" })}
+                className="inline-flex w-full max-w-md flex-col items-stretch rounded-lg border border-input-border bg-input p-[3px] sm:flex-row"
+              >
+                {(["local-download-upload", "remote-download"] as const).map((value) => {
+                  const selected = assetInstallMode === value;
+
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setAssetInstallMode(value)}
+                      aria-pressed={selected}
+                      className={cn(
+                        "inline-flex min-h-7 min-w-0 flex-1 items-center justify-center rounded-md px-3 py-1 text-center text-ui-base font-medium transition-colors",
+                        SSH_SWITCH_BASE,
+                        selected ? SSH_SWITCH_SELECTED : SSH_SWITCH_INACTIVE,
+                      )}
+                    >
+                      <span className="min-w-0 break-words">
+                        {intl.formatMessage({
+                          id: `ssh.assetInstallMode.${value}`,
+                        })}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1 text-ui-base text-foreground-subtle">
+                {intl.formatMessage({ id: "ssh.assetInstallModeDescription" })}
+              </p>
+            </div>
           </div>
 
           {/* Electron / Chromium 的原生 autocomplete 在 SSH 向导里不稳定，
@@ -338,7 +392,7 @@ export function RemoteConnectionFields({
               这里把宽度限制在字段语义范围内，只收窄建议列表，不改变原输入框布局。 */}
           {/* 示例值直接作为 placeholder 会被误认为已有默认值。
               这里改成“输入提示 + 示例”，让用户知道仍需手动填写必填字段。 */}
-          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_6.5rem]">
+          <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_6.5rem]">
             <RemoteConnectionHistoryInput
               className="h-9 text-ui-base"
               label={intl.formatMessage({ id: "ssh.host" })}
@@ -367,7 +421,7 @@ export function RemoteConnectionFields({
           </div>
 
           {/* 认证组按文字和 UI 字号决定列宽；窄屏可换行，避免固定高度/宽度裁切大字号英文。 */}
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
             <RemoteConnectionHistoryInput
               className="h-9 text-ui-base"
               label={intl.formatMessage({ id: "ssh.username" })}
@@ -441,7 +495,7 @@ export function RemoteConnectionFields({
               <label className="mb-1 block text-ui-base text-foreground-subtle">
                 {intl.formatMessage({ id: "ssh.privateKey" })}
               </label>
-              <div className="relative mb-3">
+              <div className="relative mb-2">
                 <RemoteConnectionHistoryInput
                   className="h-9 pr-10 text-ui-base"
                   value={privateKeyPath}
@@ -492,44 +546,6 @@ export function RemoteConnectionFields({
               />
             </div>
           )}
-
-          <div>
-            <label className="mb-1 block text-ui-base text-foreground-subtle">
-              {intl.formatMessage({ id: "ssh.assetInstallMode" })}
-            </label>
-            <div
-              role="group"
-              aria-label={intl.formatMessage({ id: "ssh.assetInstallMode" })}
-              className="inline-flex w-full max-w-md flex-col items-stretch rounded-lg border border-input-border bg-input p-[3px] sm:w-fit sm:flex-row"
-            >
-              {(["local-download-upload", "remote-download"] as const).map((value) => {
-                const selected = assetInstallMode === value;
-
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setAssetInstallMode(value)}
-                    aria-pressed={selected}
-                    className={cn(
-                      "inline-flex min-h-7 min-w-0 flex-1 items-center justify-center rounded-md px-3 py-1 text-center text-ui-base font-medium transition-colors",
-                      SSH_SWITCH_BASE,
-                      selected ? SSH_SWITCH_SELECTED : SSH_SWITCH_INACTIVE,
-                    )}
-                  >
-                    <span className="min-w-0 break-words">
-                      {intl.formatMessage({
-                        id: `ssh.assetInstallMode.${value}`,
-                      })}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-1 text-ui-base text-foreground-subtle">
-              {intl.formatMessage({ id: "ssh.assetInstallModeDescription" })}
-            </p>
-          </div>
         </div>
       );
     case "wsl":
