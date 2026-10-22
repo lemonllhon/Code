@@ -9,6 +9,7 @@ export * from "./invocation-context.js";
 export type { ModelToolCall as ToolCall } from "./message-content.js";
 
 export * from "./content-protection.js";
+export { readModelFailureDisposition } from "./failure-disposition.js";
 
 export {
   ModelErrorCode,

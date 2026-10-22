@@ -1,10 +1,12 @@
 # 模型请求失败全链路排查与系统性修复方案
 
-2026-10-22，承接日志调查及 `oauth-routing-quota-refresh.md`。状态：**排查与待实施方案，未修改行为代码**。以当前检出源码及本地 magpie `d9c6a60d` 为对照；日志对应的已打包客户端构建版本尚未确证。本文中的修复规则和接口是实施目标，不表示已经交付。
+2026-10-22，承接日志调查及 `oauth-routing-quota-refresh.md`。状态：**已实施已确认缺陷并通过本地验证**。以当前检出源码及本地 magpie `d9c6a60d` 为对照；日志对应的已打包客户端构建版本尚未确证。未确证的供应商原始空响应及条件性协议转换仍按下文证据边界处理。
 
 ## 排查结论与证据等级
 
 原日志 7,147 条、34 轮任务：6 完成、16 失败、12 取消。93 条 error 包含多层重复及正常取消，不能作为独立故障数。已经逐类核对全部 warn/error 事件。
+
+后续用户补充 Qoder 的 Git 工具 schema 400，已完成 [工具 Schema 跨供应商排查与方案](provider-tool-schema-compatibility-audit.md)：除 Qoder 缺少 object 根外，还复现 Google 多分支丢失，以及手动 API、部分 Chat 和 MCP 边界的覆盖缺口。该问题属于请求契约兼容，与空响应、配额和压缩重试分别治理。
 
 | 问题                       | 现场事实                                                                                                                        | 源码与复现结论                                                                                                                                          | 尚缺证据                                                                              |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
@@ -132,7 +134,13 @@ flowchart LR
 6. Responses 标准 delta、只有终态 output、只有 output_item.done、重复 item、冲突正文、混合 text/tool/reasoning、截断 EOF、response.failed 都有端到端合成样例；断言没有丢字、重字或重复工具副作用。
 7. desktop-continuous 和 web-remote-replayable 使用相同的最终失败与选择事实；断线重连只恢复投影，不重放物理请求。交互呈现若变化，补充桌面/手机 E2E 场景。
 
-## 本轮实际验证
+## 验证记录
+
+### 实施前调查验证
+
+### 实施决定（2026-10-22）
+
+本轮实施已确认缺陷：异常空 completion 在 adapter 的一次重试后终止；adapter 错误携带明确恢复处置和预算耗尽标记，compact 的 transport fallback 与外层摘要重试共用该契约。Runtime 公开唯一模型选型持久化入口，deferred 不写子表，首次创建父行后落最新选型；同 Runtime 的配置写入串行。长期配额在 provider 边界识别结构化码与已知 Google 错误格式。warning 不保留自由正文，token 数值白名单与 usage presence 保留诊断；反馈保留不可变请求和安全终态信息。尚未确证的现场 GPT 上游原因不通过猜测参数/协议修复。
 
 - 根 `node scripts/check-workspace-freshness.mjs`：通过；Node v24.21.0，pnpm 10.34.6，符合 mise。
 - `pnpm architecture:check --changed`：通过，新旧违规均 0；已读取 lcode-cli/services 受控上下文。
@@ -141,6 +149,29 @@ flowchart LR
 - compact 生命周期、标题生命周期、远端 provider relay 三组现有测试：通过（dot reporter）；不是本方案实施后的回归证明。
 - `node scripts/test-model-stream-tool-pipeline.mjs`：159 通过、0 失败。
 - 合成验证：真实 SDK 的四种 Responses 流、真实原生驱动出站字段、长期/短期 429 分类、不可重试 adapter error 被 auto compact 调用三次。均使用虚构输入与 mock fetch，没有调用真实账号或模型服务。
-- 本轮只新增本方案文档，不修改运行时代码、现有本地 UI 改动或 magpie。尚未抓取现场原始 SSE，也未对新版已打包客户端进行线上复测；根因未确证的项目在上表明确列出。
+- 以上为实施前调查结果；不得当作本轮实现后的回归结果。现场原始 SSE 及已打包客户端线上复测仍缺失。
 
 真实供应商空响应的上游原因仍需新版日志的实际出站参数、原始终态结构和 usage 证明；方案目标是让失败有界、可定位，不宣称已修复供应商服务。
+
+### 本轮实现
+
+- 公共失败契约冻结终止/耗尽状态；普通和 workflow generate/stream 完全空响应最多两次物理调用，失败不提交成功结算。有效推理、已报告正 usage、正常 stop、内容过滤维持各自语义。
+- compact 的流转非流 fallback 和自动三次摘要策略读取同一恢复资格；终止/耗尽不换 transport、不再重试。已提交历史在失败时不变，现有可恢复摘要验证仍可重试。
+- Runtime 唯一选型持久化 owner，草稿只更新内存；父行创建后读取最新选型，同 Runtime 串行写不可变快照。入口日志单独记录 deferred/persisted/failed/unavailable，选型已生效不等于已落库。
+- Google 已知个人/日额度耗尽归一为现有终止业务码；未知 429 和短限流保持原分类，HTTP 状态、请求 ID 与 Retry-After 保留。
+- SDK warning 只保留类型、消息大小与 details 是否存在，最多 20 项；有限非负 token 计数可见，usage 缺失与已报告零可分辨。反馈最多三次，安全区分 HTTP/timeout/network，不转发正文或凭据，不重放模型请求。
+- 综合并行回归暴露已有 quota 测试真实请求时间与虚拟 owner 时钟不一致；只修复测试输入时钟，生产额度语义未改。
+- GPT 根因仍未证实。仅终态正文恢复属于条件性方案，本轮未启用猜测的协议转换；新增有界失败和诊断不等于证明上游为何返回空内容。其余未分类的辅助请求、inactive read、checkpoint、取消清理和快速档位确认继续保留证据边界。
+
+复现入口：`pnpm --dir apps/lcode-cli typecheck` 构建公开依赖后运行 `node --import tsx --test scripts/provider-schema-compatibility.test.mjs`；完整流式管线为 `node scripts/test-model-stream-tool-pipeline.mjs`。本轮专项回归命令和结果记录在下方最终验证条目。
+
+### 最终验证（2026-10-22）
+
+- 根 `pnpm typecheck`、`pnpm lint`：通过。并行 Git 账号集成测试曾造成 rootDir 类型错误，后续最终根检查已通过；本修复未改动该测试。
+- CLI `pnpm --dir apps/lcode-cli typecheck`：27 个任务全部通过；`pnpm --dir apps/lcode-cli lint`：通过，保留原 `core/src/tool/registry.ts:163` 的一条 no-useless-fallback-in-spread warning。Turbo 另有现有 workspace lockfile 提示，未修改依赖或锁文件。
+- 40 个专项测试文件：330 通过、0 失败；包含实际 worker 固定渠道、真实 SDK mock fetch、三种协议、配额/feedback、压缩/持久化、远端 relay 与嵌入产物同步。首次并行运行 327/328 的失败已定位为既有 quota 测试时钟差，修复测试后重新全量通过。
+- `node scripts/test-model-stream-tool-pipeline.mjs`：159 通过、0 失败；含 desktop-continuous / web-remote-replayable 的既有工具事件回归。
+- 最后 schema 边界组：86 通过、0 失败；其中跨路径集成 `scripts/provider-schema-compatibility.test.mjs` 为 66 项。此处为上述专项的子集与补充检查，不把重复运行相加为独立用例数。
+- `pnpm architecture:check --changed`：通过，新违规 0、baseline 0；根和 CLI 的本次文件格式检查通过，`git diff --check` 通过。
+- `node scripts/build-auth-plugin-worker.mjs`、`node scripts/licenses.mjs notices` 已执行；`readVerifiedNotices()` 校验当前清单通过。改动模块为 provider、provider-node、lcode-cli；源码和测试共 +1518/-332，净 +1186 行（不含生成 worker、许可清单和文档）。
+- 不更改 UI/Host 的业务所有权、owner/lease、手机恢复或数据库结构。模型选型 owner 为 Runtime，重试 owner 为 adapter；状态顺序见前述图。没有真实账号请求、线上客户端复测或真实 Git 网络操作。未经证实的 GPT 上游原因仍待现场原始终态证据。

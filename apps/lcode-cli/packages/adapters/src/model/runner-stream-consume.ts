@@ -1,5 +1,4 @@
 import type { ModelStreamEvent } from "@lcode/contracts";
-import { canRetryEmptyCompletion } from "./empty-completion-retry.js";
 import { type AttemptAdmission } from "./request-admission.js";
 import { isZeroOutputModelCompletion } from "./runner-diagnostics.js";
 import { publishModelStatus, publishModelTelemetryMilestone } from "./runner-status.js";
@@ -144,16 +143,10 @@ export async function* consumeStreamAttempt(
         textLength: state.diagnostics.textDeltaChars,
         toolCallCount: state.diagnostics.toolCallCount,
         usage: state.diagnostics.usage,
-      }) &&
-      canRetryEmptyCompletion({
-        abortSignal: input.request.abortSignal,
-        attempt: state.attempt,
-        maxAttempts: input.retry.maxAttempts,
-        retryCount: retryState.emptyCompletionRetryCount,
       });
     if (shouldHoldEmptyCompletionEvents) {
       // finish 会把已缓存的 start 一并刷给 core；先暂存到自然 EOF，确认这是
-      // generic empty 后再重试，避免第一次 attempt 的 finish/start 泄漏到 UI。
+      // generic empty 后再决定重试或终止，避免第一次 attempt 的 finish/start 泄漏到 UI。
       event.visibleEvents.length = 0;
     }
     state.emittedError = state.emittedError || event.emittedError;

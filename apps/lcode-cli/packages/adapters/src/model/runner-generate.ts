@@ -7,8 +7,8 @@ import {
 import { resolveAnthropicRequestMetadataUserId } from "./anthropic-request-metadata.js";
 import {
   canRetryEmptyCompletion,
-  createEmptyCompletionFailure,
-  scheduleEmptyCompletionRetry,
+  exhaustedEmptyCompletionError,
+  prepareEmptyCompletionRetry,
 } from "./empty-completion-retry.js";
 import { classifyModelFailure } from "./failure-classifier.js";
 import { unwrapRetryError } from "./failure-inspection.js";
@@ -28,10 +28,7 @@ import {
   isZeroOutputModelCompletion,
   logGenerateTextDiagnostics,
 } from "./runner-diagnostics.js";
-import {
-  createDeferredRetryYieldGate,
-  RetryYieldBeforeInvocationError,
-} from "./runner-failover-yield.js";
+import { RetryYieldBeforeInvocationError } from "./runner-failover-yield.js";
 import { sanitizeModelNetworkHeaders } from "./runner-network-headers.js";
 import {
   normalizeReasoning,
@@ -254,9 +251,6 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
       );
       assertGenerateTextFinish(attemptState.resolved, result);
       const usage = normalizeUsage(result.totalUsage ?? result.usage);
-      attemptState.resolved.apiKeyAttempt?.observeUsage?.(usage);
-      await attemptState.resolved.apiKeyAttempt?.flushRouting?.();
-      await attemptState.resolved.observeRoutingUsage?.(usage);
       const toolCalls = normalizeToolCalls(result, input.logger);
       const toolResults = normalizeToolResults(result, toolCalls);
       const sources = normalizeSources(result);
@@ -298,7 +292,7 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
         retryState.emptyCompletionRetryCount += 1;
         // 正常 resolve 的空 completion 也进入 backoff；不能在等待 policy 或 sleep 时占用物理请求票据。
         admission.release();
-        await scheduleEmptyCompletionRetry({
+        await prepareEmptyCompletionRetry({
           abortSignal: input.request.abortSignal,
           attempt,
           completedAt,
@@ -312,35 +306,26 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
           startedAt: attemptState.startedAt,
           statusContext: attemptState.statusContext,
           statusSink: input.statusSink,
+          request: input.request,
+          resolved: attemptState.resolved,
+          retryState,
         });
-        const emptyFailure = createEmptyCompletionFailure();
-        const emptyRetryYieldGate = createDeferredRetryYieldGate(
-          {
-            attempt,
-            canRetry: true,
-            consumedRetryAttempts: attemptState.retryBudgetAttempt,
-            failure: emptyFailure,
-            logger: input.logger,
-            request: input.request,
-            resolved: attemptState.resolved,
-          },
-          toAdapterError(
-            new Error(emptyFailure.message),
-            emptyFailure,
-            attemptState.statusContext,
-            attempt,
-            {
-              errorPhase: "response",
-              retryYieldedToFailover: true,
-            },
-          ),
-        );
-        if (await emptyRetryYieldGate.shouldYield()) {
-          throw new RetryYieldBeforeInvocationError(emptyRetryYieldGate.adapterError);
-        }
-        retryState.pendingRetryYield = emptyRetryYieldGate;
         continue;
       }
+      if (
+        input.request.preserveProviderStreamBoundaries !== true &&
+        isZeroOutputModelCompletion({
+          finishReason: result.finishReason,
+          reasoningLength,
+          textLength: text.length,
+          toolCallCount: toolCalls?.length ?? 0,
+          usage,
+        })
+      )
+        throw exhaustedEmptyCompletionError();
+      attemptState.resolved.apiKeyAttempt?.observeUsage?.(usage);
+      await attemptState.resolved.apiKeyAttempt?.flushRouting?.();
+      await attemptState.resolved.observeRoutingUsage?.(usage);
       const completedAt = Date.now();
 
       recordGenerateTextDebug({

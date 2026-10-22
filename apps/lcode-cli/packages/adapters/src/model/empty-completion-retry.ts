@@ -1,9 +1,21 @@
 import { ModelErrorCode, ModelFailureReason, ModelRetryReason } from "@lcode/contracts";
 import type { Logger, ModelStatusSink } from "@lcode/contracts";
 import type { ClassifiedModelFailure } from "./failure-classifier.js";
-import { calculateRetryDelay, logRetryDelayDecision, sleep } from "./runner-retry.js";
+import {
+  calculateRetryDelay,
+  logRetryDelayDecision,
+  sleep,
+  toAdapterError,
+} from "./runner-retry.js";
 import { publishModelStatus, type ModelStatusContext } from "./runner-status.js";
 import type { ResolvedAiSdkModelRetryOptions } from "./retry-policy.js";
+import { ModelProtocolError } from "@lcode/contracts";
+import {
+  createDeferredRetryYieldGate,
+  RetryYieldBeforeInvocationError,
+} from "./runner-failover-yield.js";
+import type { AiSdkModelTextRequest, ResolvedAiSdkModel } from "./runner-runtime.js";
+import type { ModelRunnerRetryState } from "./runner-request-state.js";
 
 const EMPTY_COMPLETION_MAX_RETRIES = 1;
 const EMPTY_COMPLETION_MESSAGE =
@@ -18,6 +30,42 @@ export function createEmptyCompletionFailure(): ClassifiedModelFailure {
     retryReason: ModelRetryReason.ServerError,
     retryable: true,
   };
+}
+
+export function exhaustedEmptyCompletionError(): ModelProtocolError {
+  // 空响应只允许 adapter 重试一次；耗尽后必须终止，不能作为 length 成功交给 Core 续跑。
+  return new ModelProtocolError(ModelErrorCode.InvalidModelResponse, EMPTY_COMPLETION_MESSAGE, {
+    retryBudgetExhausted: true,
+  });
+}
+
+export async function prepareEmptyCompletionRetry(
+  input: Parameters<typeof scheduleEmptyCompletionRetry>[0] & {
+    request: AiSdkModelTextRequest;
+    resolved: ResolvedAiSdkModel;
+    retryState: Pick<ModelRunnerRetryState, "pendingRetryYield">;
+  },
+): Promise<void> {
+  // generate/stream 共用同一 backoff 与 failover 交接，物理票据由调用方在等待前释放。
+  await scheduleEmptyCompletionRetry(input);
+  const failure = createEmptyCompletionFailure();
+  const gate = createDeferredRetryYieldGate(
+    {
+      attempt: input.attempt,
+      canRetry: true,
+      consumedRetryAttempts: input.retryBudgetAttempt,
+      failure,
+      logger: input.logger,
+      request: input.request,
+      resolved: input.resolved,
+    },
+    toAdapterError(new Error(failure.message), failure, input.statusContext, input.attempt, {
+      errorPhase: input.errorPhase,
+      retryYieldedToFailover: true,
+    }),
+  );
+  if (await gate.shouldYield()) throw new RetryYieldBeforeInvocationError(gate.adapterError);
+  input.retryState.pendingRetryYield = gate;
 }
 
 export function canRetryEmptyCompletion(input: {

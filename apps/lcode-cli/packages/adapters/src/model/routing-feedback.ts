@@ -47,6 +47,8 @@ export function createRoutingFeedback(
   const send = async (usage: RoutingUsage) => {
     const body = JSON.stringify(usage);
     state = { pending: true, attempts: 0, delivered: false };
+    let statusCode: number | undefined;
+    let failureKind: "http" | "timeout" | "network" | undefined;
     for (let attempt = 0; attempt < 3; attempt++) {
       state.attempts++;
       try {
@@ -62,14 +64,30 @@ export function createRoutingFeedback(
           state.delivered = true;
           return;
         }
+        statusCode = response.status;
+        failureKind = "http";
         if (response.status < 500 && response.status !== 429) break;
-      } catch {
+      } catch (error) {
+        statusCode = undefined;
+        failureKind =
+          error instanceof Error && ["AbortError", "TimeoutError"].includes(error.name)
+            ? "timeout"
+            : "network";
         /* 网络未知只重试不可变反馈，不重放模型 POST。 */
       }
     }
     state.pending = false;
     logger?.warn(
       "Routing feedback unconfirmed after bounded retries; conservative reservation retained",
+      {
+        event: "model.routing.feedback_unconfirmed",
+        module: "adapters.model",
+        status: "failed",
+        attempts: state.attempts,
+        statusCode,
+        failureKind,
+        outcome: usage.outcome,
+      },
     );
   };
   return Object.assign(send, { diagnostics: () => ({ ...state }) });

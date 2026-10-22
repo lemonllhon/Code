@@ -336,6 +336,7 @@ export function isZeroOutputModelCompletion(input: {
 }): boolean {
   return (
     input.finishReason !== undefined &&
+    !["content-filter", "content_filter", "refusal"].includes(input.finishReason) &&
     input.reasoningLength === 0 &&
     isSuspiciousModelCompletion({
       finishReason: input.finishReason,
@@ -370,14 +371,15 @@ function isZeroUsage(usage?: ModelUsage): boolean {
   const serverToolUse =
     (usage.serverToolUse?.webSearchRequests ?? 0) + (usage.serverToolUse?.webFetchRequests ?? 0);
   if (serverToolUse > 0) return false;
-  const total =
-    usage.totalTokens ??
-    (usage.inputTokens ?? 0) +
-      (usage.outputTokens ?? 0) +
-      (usage.cacheReadTokens ?? 0) +
-      (usage.cacheWriteTokens ?? 0) +
-      (usage.reasoningTokens ?? 0);
-  return total === 0;
+  // 上游 total=0 也可能带有 reasoning/output 计数；不能据此重放已消耗的请求。
+  return [
+    usage.totalTokens,
+    usage.inputTokens,
+    usage.outputTokens,
+    usage.cacheReadTokens,
+    usage.cacheWriteTokens,
+    usage.reasoningTokens,
+  ].every((count) => count === undefined || count === 0);
 }
 
 function toLogError(error: unknown): Error {

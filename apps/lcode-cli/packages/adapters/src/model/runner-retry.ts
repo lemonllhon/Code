@@ -118,6 +118,17 @@ export function toAdapterError(
   const providerBusinessError =
     findProviderBusinessError(unwrapped) ?? readMappedAiSdkProviderBusinessError(unwrapped);
   const normalizedContext = {
+    // 资格在 adapter 离开时冻结，Core 不应把可恢复原因误当成仍有物理预算。
+    retryDisposition: failure.retryBudgetExhausted
+      ? "exhausted"
+      : !failure.retryable
+        ? "terminal"
+        : statusContext.maxAttempts > 0 && attempt >= statusContext.maxAttempts
+          ? "exhausted"
+          : "retryable",
+    retryBudgetExhausted:
+      failure.retryBudgetExhausted === true ||
+      (failure.retryable && statusContext.maxAttempts > 0 && attempt >= statusContext.maxAttempts),
     attempt,
     maxAttempts: statusContext.maxAttempts,
     modelId: statusContext.modelId,

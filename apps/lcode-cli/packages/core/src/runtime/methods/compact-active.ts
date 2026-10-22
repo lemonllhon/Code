@@ -31,6 +31,7 @@ import { createRuntimeModel } from "./runtime-model.js";
 import type { CompactConversationAttempt } from "./compact-active-types.js";
 import { requestCompactConversationSummary } from "./compact-active-request.js";
 import { commitCompactConversationSummary } from "./compact-active-commit.js";
+import { canRecoverCompactModelFailure } from "./compact-failure-policy.js";
 
 const AUTO_COMPACT_MAX_ATTEMPTS = 3;
 const COMPACT_TOOL_KEEP_MAX_COUNT = 100;
@@ -290,7 +291,7 @@ async function compactActiveConversationImpl(
 }
 
 function isAutoCompactRetryableError(error: unknown): boolean {
-  return isCoreError(error) ? error.retryable : true;
+  return canRecoverCompactModelFailure(error) && (isCoreError(error) ? error.retryable : true);
 }
 
 function selectInitialCompactEntriesForActiveConversation(input: {

@@ -76,10 +76,12 @@ export type WorkflowModelFailurePolicy =
  * invalid_request）；其余按 reason / code；表外一切 = retry。
  */
 export function resolveWorkflowModelFailurePolicy(
-  failure: Pick<ClassifiedModelFailure, "code" | "reason" | "retryable">,
+  failure: Pick<ClassifiedModelFailure, "code" | "reason" | "retryable" | "retryBudgetExhausted">,
   providerCode: string | undefined,
 ): WorkflowModelFailurePolicy {
   if (failure.reason === ModelFailureReason.Cancelled) return { decision: "cancelled" };
+  // 无上限只适用于瞬态故障；已耗尽的专用空响应预算不能被 workflow 再次放大。
+  if (failure.retryBudgetExhausted) return { decision: "stop", kind: "other" };
   if (providerCode !== undefined && WORKFLOW_QUOTA_PROVIDER_CODES.has(providerCode)) {
     return { decision: "stop", kind: "quota" };
   }
@@ -157,6 +159,7 @@ export function inspectWorkflowModelFailure(
       code: code as ClassifiedModelFailure["code"],
       reason: reason as ClassifiedModelFailure["reason"],
       retryable: context.retryable === true,
+      retryBudgetExhausted: context.retryBudgetExhausted === true,
     },
     providerCode,
   );

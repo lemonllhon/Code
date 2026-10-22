@@ -230,7 +230,8 @@ test("late normalized usage survives a long requests-only body and compacted bli
     maxLeases: 2,
     now: () => now,
   });
-  const value = input("long");
+  // 临时目录创建耗时不能改变虚拟时钟与请求时间的差，否则并行执行会偶发未越过压实窗口。
+  const value = input("long", {}, now);
   value.windows[0]!.unit = "requests";
   const first = await owner.reserve(value);
   await owner.dispatch(first);

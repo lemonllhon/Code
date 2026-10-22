@@ -13,6 +13,8 @@ export interface SerializedLogError {
 export type SerializableLogEntry = Record<string, unknown>;
 
 export class DefaultLogRedactor implements LogRedactor {
+  private readonly usageCounterPattern =
+    /^(?:input|output|total|reasoning|cacheRead|cacheWrite|maxOutput|contextWindow)Tokens$|^(?:input|output|total|reasoning|cache_read_input|cache_creation_input)_tokens$|^(?:tokenCount|preCompactTokenCount)$/;
   private readonly sensitiveKeyPattern =
     /(?:api[-_]?key|authorization|cookie|credential|password|secret|token)/i;
 
@@ -39,7 +41,14 @@ export class DefaultLogRedactor implements LogRedactor {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>).map(([key, entryValue]) => [
         key,
-        this.sensitiveKeyPattern.test(key)
+        entryValue !== undefined &&
+        this.sensitiveKeyPattern.test(key) &&
+        !(
+          this.usageCounterPattern.test(key) &&
+          typeof entryValue === "number" &&
+          Number.isFinite(entryValue) &&
+          entryValue >= 0
+        )
           ? "[Redacted]"
           : this.redactValue(entryValue, seen, depth + 1),
       ]),
@@ -65,10 +74,7 @@ export function stripReservedContext(context: LogContext): Record<string, unknow
   return Object.keys(rest).length === 0 ? undefined : rest;
 }
 
-export function toSerializableEntry(
-  entry: LogEntry,
-  redactor: LogRedactor,
-): SerializableLogEntry {
+export function toSerializableEntry(entry: LogEntry, redactor: LogRedactor): SerializableLogEntry {
   const value = {
     timestamp: entry.timestamp.toISOString(),
     level: entry.levelName.toLowerCase(),

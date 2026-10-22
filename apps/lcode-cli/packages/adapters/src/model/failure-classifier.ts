@@ -2,6 +2,7 @@ import {
   ModelErrorCode,
   ModelFailureReason as ModelFailureReasonValue,
   ModelRetryReason as ModelRetryReasonValue,
+  readModelFailureDisposition,
 } from "@lcode/contracts";
 import {
   getErrorCode,
@@ -46,6 +47,7 @@ export function classifyModelFailure(
 
   if (code === ModelErrorCode.InvalidModelResponse) {
     return {
+      retryBudgetExhausted: readModelFailureDisposition(unwrapped) === "exhausted",
       code: ModelErrorCode.InvalidModelResponse,
       message:
         unwrapped instanceof Error ? unwrapped.message : "Model returned an invalid response.",

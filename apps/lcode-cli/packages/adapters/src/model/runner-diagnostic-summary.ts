@@ -60,6 +60,9 @@ export function summarizeStreamChunk(chunk: unknown): Record<string, unknown> {
 export function summarizeModelUsage(usage?: ModelUsage): Record<string, unknown> | undefined {
   if (!usage) return undefined;
   return {
+    presence: Object.values(usage).some((value) => typeof value === "number")
+      ? "reported"
+      : "missing",
     cacheReadTokens: usage.cacheReadTokens,
     cacheWriteTokens: usage.cacheWriteTokens,
     inputTokens: usage.inputTokens,

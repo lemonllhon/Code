@@ -1,8 +1,8 @@
 import type { ModelStreamEvent } from "@lcode/contracts";
 import {
   canRetryEmptyCompletion,
-  createEmptyCompletionFailure,
-  scheduleEmptyCompletionRetry,
+  exhaustedEmptyCompletionError,
+  prepareEmptyCompletionRetry,
 } from "./empty-completion-retry.js";
 import { classifyModelFailure } from "./failure-classifier.js";
 import { detectProviderBusinessFinishError } from "./provider-finish-business-error.js";
@@ -13,10 +13,6 @@ import {
   isZeroOutputModelCompletion,
   logStreamDiagnostics,
 } from "./runner-diagnostics.js";
-import {
-  createDeferredRetryYieldGate,
-  RetryYieldBeforeInvocationError,
-} from "./runner-failover-yield.js";
 import { TerminalStreamChunkError, toAdapterError } from "./runner-retry.js";
 import { publishModelStatus } from "./runner-status.js";
 import { providerRequestIdFromHeaders } from "./runner-telemetry.js";
@@ -189,7 +185,7 @@ export async function* completeStreamAttempt(
         });
         retryState.emptyCompletionRetryCount += 1;
         admission.release();
-        await scheduleEmptyCompletionRetry({
+        await prepareEmptyCompletionRetry({
           abortSignal: input.request.abortSignal,
           attempt: state.attempt,
           completedAt,
@@ -204,37 +200,27 @@ export async function* completeStreamAttempt(
           statusContext: state.statusContext,
           statusSink: input.statusSink,
           streamOutputCommitted: false,
+          request: input.request,
+          resolved: state.resolved,
+          retryState,
         });
-        const emptyFailure = createEmptyCompletionFailure();
-        const emptyRetryYieldGate = createDeferredRetryYieldGate(
-          {
-            attempt: state.attempt,
-            canRetry: true,
-            consumedRetryAttempts: state.retryBudgetAttempt,
-            failure: emptyFailure,
-            logger: input.logger,
-            request: input.request,
-            resolved: state.resolved,
-          },
-          toAdapterError(
-            new Error(emptyFailure.message),
-            emptyFailure,
-            state.statusContext,
-            state.attempt,
-            {
-              errorPhase: "stream",
-              retryYieldedToFailover: true,
-            },
-          ),
-        );
-        if (await emptyRetryYieldGate.shouldYield()) {
-          throw new RetryYieldBeforeInvocationError(emptyRetryYieldGate.adapterError);
-        }
-        retryState.pendingRetryYield = emptyRetryYieldGate;
         return true;
       }
     }
   }
+
+  if (
+    !state.emittedError &&
+    input.request.preserveProviderStreamBoundaries !== true &&
+    isZeroOutputModelCompletion({
+      finishReason: state.diagnostics.finishReason,
+      reasoningLength: state.diagnostics.reasoningDeltaChars,
+      textLength: state.diagnostics.textDeltaChars,
+      toolCallCount: state.diagnostics.toolCallCount,
+      usage: state.diagnostics.usage,
+    })
+  )
+    throw exhaustedEmptyCompletionError();
 
   logStreamDiagnostics({
     attempt: state.attempt,

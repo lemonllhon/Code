@@ -11,6 +11,7 @@ export interface ClassifiedModelFailure {
   reason: ModelFailureReason;
   retryReason: ModelRetryReason;
   retryable: boolean;
+  retryBudgetExhausted?: boolean;
   retryAfterMs?: number;
   statusCode?: number;
 }
