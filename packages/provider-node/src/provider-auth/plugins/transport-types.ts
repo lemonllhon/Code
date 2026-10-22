@@ -23,6 +23,8 @@ export type WorkerMessage = {
     | "credential"
     | "disposed"
     | "refresh-end"
+    | "child-start"
+    | "child-exit"
     | "authorization-diagnostic";
   id: number;
   value?: unknown;

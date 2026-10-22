@@ -2576,6 +2576,8 @@ The original import revisions of copied components are not recorded in the curre
 
 - Magpie account check-in protocol rules (MIT): packages/provider-node/src/provider-auth/plugins/checkin.mjs. License reference: https://raw.githubusercontent.com/yetone/magpie/707fbb249df755423d3b2b77c6f001dd376d75c4/LICENSE. Original import revision: 707fbb249df755423d3b2b77c6f001dd376d75c4.
 
+- Magpie provider protocol follow-up adaptations (MIT): packages/provider-node/src/provider-auth/plugins/vendor-followup-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-minimax-checkin-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-followup.test.mjs, packages/provider-node/src/provider-auth/plugins/vendor-stream-followup.test.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/1b06308fad9386171c25f377d3ff8fcc4d4f3757/LICENSE. Original import revision: 1b06308fad9386171c25f377d3ff8fcc4d4f3757.
+
 Fig autocomplete source carries the repository's MIT license; the generated registry records npm @withfig/autocomplete@2.692.3 metadata as ISC. The original source MIT notice is retained below.
 
 ## Embedded native and WASM components
@@ -40753,6 +40755,8 @@ SOFTWARE.
 - Magpie provider compatibility backports: https://raw.githubusercontent.com/magpie-community/plugins/5b68df0057501d67b3eda711800ad57254634a58/LICENSE
 
 - Magpie provider cross-platform compatibility backports: https://raw.githubusercontent.com/magpie-community/plugins/7ee60f825387455db26157ade2740a0f4ddbf3ee/LICENSE
+
+- Magpie provider protocol follow-up adaptations: https://raw.githubusercontent.com/magpie-community/plugins/1b06308fad9386171c25f377d3ff8fcc4d4f3757/LICENSE
 
 
 

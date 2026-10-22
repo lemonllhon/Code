@@ -64,6 +64,24 @@ function fixture(run: (id: string, request: Request) => Promise<Response>, chann
   return { accounts, active, calls, request };
 }
 
+for (const channel of ["codex", "claude", "copilot", "fixture"])
+  test(`Host ${channel} content refusal cannot switch accounts`, async () => {
+    const pool = fixture(
+      async () =>
+        Response.json(
+          { error: { code: "cyber_policy", message: "fixture refusal" } },
+          { status: 403 },
+        ),
+      channel,
+    );
+    const res = await pool.request();
+    assert.equal(res.status, 400);
+    assert.equal(res.headers.get("x-lcode-upstream-status"), "403");
+    await res.text();
+    assert.deepEqual(pool.calls, ["first"]);
+    assert.equal(pool.active.size, 0);
+  });
+
 test("Copilot model refusal tries another account for the exact model and hides the internal marker", async () => {
   const pool = fixture(async (id, request) => {
     assert.equal(((await request.json()) as { model: string }).model, "model");

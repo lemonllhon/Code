@@ -1,6 +1,7 @@
 import type { ProviderApiKey } from "@lcode/provider";
 import { ApiKeyPool, type ApiKeyFailoverState, type ApiKeyLease } from "./api-key-pool.js";
 import { observeApiKeyResponse } from "./api-key-response.js";
+import { normalizeContentRefusalResponse } from "@lcode/provider-node";
 
 export type { ApiKeyFailoverState } from "./api-key-pool.js";
 
@@ -27,7 +28,8 @@ export function withApiKeyLease(
     }
     let response: Response;
     try {
-      response = await fetch(request);
+      // SDK 解析之前就会更新 key 健康；必须先区分内容拒绝，避免误禁用并轮换同一请求。
+      response = await normalizeContentRefusalResponse(await fetch(request));
     } catch (error) {
       lease.end?.(false);
       throw error;

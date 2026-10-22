@@ -7,6 +7,7 @@ import {
   type ModelRetryReason,
 } from "@lcode/contracts";
 import { isNetworkFailure, isTimeoutFailure } from "./failure-inspection.js";
+import { isContentRefusalCode } from "@lcode/provider";
 import type { ProviderBusinessError } from "./model-execution.js";
 
 interface ProviderBusinessCodeMapping {
@@ -328,6 +329,13 @@ for (const code of ["engine_overloaded_error", "overloaded_error"]) {
 export function getProviderBusinessCodeMapping(
   providerCode: string,
 ): ProviderBusinessCodeMapping | undefined {
+  if (isContentRefusalCode(providerCode)) return {
+    code: ModelErrorCode.InvalidModelRequest,
+    message: "Provider refused the request content.",
+    reason: ModelFailureReasonValue.InvalidRequest,
+    retryReason: ModelRetryReasonValue.NetworkError,
+    retryable: false,
+  };
   return PROVIDER_BUSINESS_CODE_MAPPINGS.get(providerCode);
 }
 

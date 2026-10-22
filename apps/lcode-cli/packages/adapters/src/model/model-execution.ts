@@ -24,6 +24,8 @@ import {
 } from "@lcode/contracts";
 import {
   resolveProviderNetworkConfig,
+  readContentRefusalCode,
+  isContentRefusalCode,
   type ProviderApiKey,
   type RegistryProviderConfig,
   type RoutingRequest,
@@ -911,6 +913,13 @@ export function readProviderBusinessFailureFromBody(body: unknown):
     return undefined;
   }
 
+  const refusal = readContentRefusalCode(record);
+  if (refusal) return {
+    providerCode: refusal,
+    providerMessage: readProviderMessage(asRecord(record.response) ?? record),
+    responseBodySummary: { error: { code: refusal } },
+    statusCode: 400,
+  };
   const errorRecord = asRecord(record.error);
   const providerCode =
     toProviderCode(record.providerCode) ??
@@ -1277,6 +1286,7 @@ function isNonZeroProviderCode(value: ProviderCode | undefined): boolean {
 }
 
 function providerCodeToStatusCode(value: ProviderCode | undefined): number | undefined {
+  if (isContentRefusalCode(value)) return 400;
   if (typeof value === "number" && Number.isFinite(value)) {
     const statusCode = Math.trunc(value);
     return isHttpStatusCode(statusCode) ? statusCode : undefined;

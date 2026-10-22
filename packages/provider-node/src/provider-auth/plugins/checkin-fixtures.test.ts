@@ -70,6 +70,7 @@ for (const channel of ["workbuddy", "trae-cn", "minimax-code", "minimax-code-glo
         refresh: "fixture-refresh",
         uid: "fixture-user",
         accountId: "fixture-user",
+        realUserID: "fixture-user",
         deviceToken: "fixture-device",
         deviceRefresh: "fixture-device-refresh",
         expires: Date.now() + 3600_000,

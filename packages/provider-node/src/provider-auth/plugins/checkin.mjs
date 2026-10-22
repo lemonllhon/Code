@@ -1,8 +1,6 @@
 const endpoints = {
   workbuddy: "https://copilot.tencent.com/v2/billing/meter",
   "trae-cn": "https://api.trae.cn/trae/api/v2/ug/checkin_credits",
-  "minimax-code": "https://agent.minimax.cn/minimax-cloud/api/v1/signin",
-  "minimax-code-global": "https://agent.minimax.io/minimax-cloud/api/v1/signin",
   qoder: "https://openapi.qoder.sh/sash/api/v1/me/campaigns",
   "qoder-cn": "https://openapi.qoder.com.cn/sash/api/v1/me/campaigns",
 };
@@ -17,12 +15,7 @@ const reward = (credit, streak) => ({
 const failure = (error = "request_failed") => ({ outcome: "failed", error });
 
 /** 只暴露有限签到动作；厂商请求仍经过原 loader 的鉴权、代理、刷新和取消。 */
-export async function checkinWithLoader(
-  channel,
-  loader,
-  signal,
-  { signMiniMax, now = Date.now() } = {},
-) {
+export async function checkinWithLoader(channel, loader, signal, { now = Date.now() } = {}) {
   signal.throwIfAborted();
   const base = endpoints[channel];
   if (!base || typeof loader?.fetch !== "function") return { outcome: "unsupported" };
@@ -144,40 +137,11 @@ export async function checkinWithLoader(
     return {
       outcome: "claimed",
       ...reward(
-        credit === undefined ? undefined : credit + (number(claim.data.extra_credits) ?? 0),
+        // 只有额外奖励时基础值未知，不能把服务端已确认的奖励一并丢弃。
+        credit === undefined && number(claim.data.extra_credits) === undefined
+          ? undefined
+          : (credit ?? 0) + (number(claim.data.extra_credits) ?? 0),
       ),
-    };
-  }
-  if (channel.startsWith("minimax")) {
-    if (!signMiniMax) return failure();
-    const status = await ask(
-      "/status?timezone_id=Asia%2FShanghai",
-      "GET",
-      signMiniMax(channel, "GET", now),
-    );
-    const error = refused(status);
-    if (error) return error;
-    if (Number(status.data?.base_resp?.status_code ?? 0)) return failure();
-    const days = status.data?.data?.days;
-    if (!Array.isArray(days)) return failure();
-    const today = days.find((d) => d.is_today === true);
-    if (!today) return { outcome: "inactive" };
-    if (today.status === 3) return { outcome: "done", ...reward(today.points, today.day_no) };
-    if (today.status === 4) return { outcome: "ineligible" };
-    if (today.status !== 2) return { outcome: "inactive" };
-    const claim = await ask(
-      "/claim?timezone_id=Asia%2FShanghai",
-      "POST",
-      signMiniMax(channel, "POST", now),
-    );
-    const rejected = refused(claim);
-    if (rejected) return rejected;
-    if (Number(claim.data?.base_resp?.status_code ?? 0)) return failure();
-    const data = claim.data?.data;
-    if (![1, 2].includes(data?.claim_result)) return failure();
-    return {
-      outcome: data.claim_result === 1 ? "claimed" : "done",
-      ...reward(data.points ?? today.points, data.day_no ?? today.day_no),
     };
   }
   const status = await ask("", "GET");

@@ -3,7 +3,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { createQuotaFacts } from "./quota-facts.mjs";
 import childProcess from "node:child_process";
 import http from "node:http";
-import { plugins, assertGrantChannel, miniMaxCheckinSignature } from "./catalog.mjs";
+import { plugins, assertGrantChannel } from "./catalog.mjs";
 import { checkinWithLoader } from "./checkin.mjs";
 import { discoverCatalog } from "./catalog-operation.mjs";
 import { authorize, grantFrom, methodsFor } from "./compatibility.mjs";
@@ -70,7 +70,12 @@ for (const method of ["spawn", "execFile"]) {
     }
     const child = original(...args);
     children.add(child);
-    child.once("close", () => children.delete(child));
+    // 只报告实际创建的进程；父 transport 独占清理账本，异常退出也能回收孙进程。
+    if (child.pid) send({ kind: "child-start", id: child.pid });
+    child.once("close", () => {
+      children.delete(child);
+      if (child.pid) send({ kind: "child-exit", id: child.pid });
+    });
     return child;
   };
 }
@@ -226,11 +231,14 @@ async function call(message, scope) {
   const loader = await hooks.auth.loader(currentGrant, provider);
   check();
   if (message.operation === "checkin") {
-    return hooks.auth.checkin
-      ? hooks.auth.checkin(currentGrant, provider)
-      : checkinWithLoader(workerData.channel, loader, scope.controller.signal, {
-          signMiniMax: miniMaxCheckinSignature,
-        });
+    const result = hooks.auth.checkin
+      ? await hooks.auth.checkin(currentGrant, provider)
+      : await checkinWithLoader(workerData.channel, loader, scope.controller.signal);
+    check();
+    // 签到与 quota 复用同一账号事实通道；内部 signIn 不进入公开的严格 Reply。
+    const { signIn, ...reply } = result;
+    if (["expired", "kept", "renewed"].includes(signIn)) await credential("signin", signIn);
+    return reply;
   }
   if (message.operation === "models" || message.operation === "modelCatalog") {
     const catalog = await discoverCatalog({
@@ -329,7 +337,6 @@ function dispose() {
     credentials.close();
     for (const child of children) {
       closing.push(new Promise((resolve) => child.once("close", resolve)));
-      child.kill();
     }
     for (const server of servers) {
       closing.push(
@@ -351,9 +358,6 @@ function dispose() {
   })();
   return disposing;
 }
-process.on("exit", () => {
-  for (const child of children) child.kill();
-});
 parentPort.on("message", (message) => {
   if (message.kind === "dispose") return dispose();
   if (message.kind === "credential-result") {

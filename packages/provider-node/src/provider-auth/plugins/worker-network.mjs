@@ -7,6 +7,7 @@ import { authorizationRequestPhase } from "../authorization-phase.ts";
 import { readAuthorizationDiagnostic } from "../authorization-diagnostics.ts";
 import { isPluginAuxiliaryRequest } from "./auxiliary-request.ts";
 import { isPluginRefreshRequest } from "./refresh-policy.mjs";
+import { normalizePluginContentRefusal } from "./content-refusal.mjs";
 import { createHostApiNetworkTransport, resolveHostProxyForUrl } from "../../network-transport.ts";
 
 export function installWorkerNetwork({ scopes, check, workerData, refresh }) {
@@ -36,7 +37,7 @@ export function installWorkerNetwork({ scopes, check, workerData, refresh }) {
     }
     const originalUrl = input instanceof Request ? input.url : String(input);
     const method = init.method ?? (input instanceof Request ? input.method : "GET");
-    const auxiliary = isPluginAuxiliaryRequest(workerData.channel, input);
+    const auxiliary = isPluginAuxiliaryRequest(workerData.channel, input, init);
     const inference =
       scope?.singleAttempt && !auxiliary && !isPluginRefreshRequest(workerData.channel, input, init)
         ? scope.singleAttempt.claim(method, new URL(originalUrl).pathname)
@@ -69,7 +70,8 @@ export function installWorkerNetwork({ scopes, check, workerData, refresh }) {
     );
     if (scope?.listing) Object.assign(scope.listing, { tried: true, lastOk: false });
     return response.then(
-      (res) => {
+      async (res) => {
+        res = await normalizePluginContentRefusal(workerData.channel, res);
         if (inference) scope.singleAttempt.observe(res.status, res.headers);
         if (scope?.authorization && !res.ok) {
           scope.authorizationDiagnostic = readAuthorizationDiagnostic(

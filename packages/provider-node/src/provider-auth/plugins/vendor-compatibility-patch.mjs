@@ -3,6 +3,12 @@ import { patchDevinToolImages } from "./vendor-devin-images-patch.mjs";
 import { patchZedOrganization } from "./vendor-zed-organization-patch.mjs";
 import { patchQoderSession } from "./vendor-qoder-session-patch.mjs";
 import { patchDevinEmptyReply } from "./vendor-devin-empty-patch.mjs";
+import {
+  patchKiroApiKey,
+  patchZedSystemTurns,
+  patchDevinCompression,
+} from "./vendor-followup-patch.mjs";
+import { patchMiniMaxCheckin } from "./vendor-minimax-checkin-patch.mjs";
 
 /** 来源为 plugins 5b68df0；原始 vendor 字节和其他供应商策略保持不变。 */
 export function applyProviderCompatibility(path, source) {
@@ -14,6 +20,9 @@ export function applyProviderCompatibility(path, source) {
     "zed/index.mjs",
     "devin/index.mjs",
     "grok/index.mjs",
+    "kiro/index.mjs",
+    "minimax/index.mjs",
+    "trae/index.mjs",
   ]);
   if (!known.has(path)) return source;
   source = source.replaceAll("\r\n", "\n");
@@ -59,6 +68,8 @@ export function applyProviderCompatibility(path, source) {
     );
   }
   if (path === "qoder/index.mjs") {
+    // 设备流由当前 worker 轮询，桌面 URL scheme 会在 macOS/Windows/Linux 抢走结果页。
+    source = replacePinned(source, 'redirect: "qoder-app://",', 'redirect: "",');
     source = patchQoderSession(source);
     // 仅已知 10605 可穿过 HTTP 包装；外层真实业务 code 仍具有优先级。
     source = replacePinnedRegion(
@@ -98,8 +109,37 @@ export function applyProviderCompatibility(path, source) {
       "if (e instanceof SignInGone || e?.expired) return signedInError(e)\n      return errorResponse({ status: 502, message: e?.message ?? String(e) })",
     );
   }
-  if (path === "zed/index.mjs") return patchZedOrganization(source);
-  if (path === "devin/index.mjs") return patchDevinEmptyReply(patchDevinToolImages(source));
+  if (path === "kiro/index.mjs") return patchKiroApiKey(source);
+  if (path === "trae/index.mjs") {
+    // 新 CN 授权使用客户端设备格式；已保存的设备绑定保持，不能在签到时轮换身份。
+    source = replacePinned(
+      source,
+      "const newDevice = () => ({ deviceId: digits(19),",
+      'const newDevice = (site) => ({ deviceId: digits(site?.id === "trae-cn" ? 16 : 19),',
+    );
+    source = replacePinned(source, "const device = newDevice()", "const device = newDevice(site)");
+    // 空快照不是推理内容，继续检查厂商其他已有字段（plugins 40d7c52）。
+    source = replacePinned(
+      source,
+      'd.reasoning_content ?? d.reasoning ?? delta.reasoning_content ?? ""',
+      '[d.reasoning_content, d.reasoning, delta.reasoning_content, delta.reasoning].find(v => typeof v === "string" && v) ?? ""',
+    );
+    source = replacePinned(
+      source,
+      "if (!o.name) o.name = c.name",
+      "if (!o.name) o.name = c.name\n    else if (c.name && c.name.startsWith(o.name) && c.name !== o.name) o.name = c.name",
+    );
+    source = replacePinned(
+      source,
+      'e.message || "Trae CN returned an error"',
+      'e.message || "Trae returned an error"',
+    );
+    return replacePinned(source, "`Trae CN: ${message}`", "`${site.realm}: ${message}`");
+  }
+  if (path === "minimax/index.mjs") return patchMiniMaxCheckin(source);
+  if (path === "zed/index.mjs") return patchZedSystemTurns(patchZedOrganization(source));
+  if (path === "devin/index.mjs")
+    return patchDevinCompression(patchDevinEmptyReply(patchDevinToolImages(source)));
   if (path === "grok/index.mjs") {
     // 过滤工具后必须同步检查 choice；Grok 会拒绝没有 tools 的显式 none。
     source = replacePinned(

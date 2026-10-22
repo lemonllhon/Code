@@ -15,6 +15,8 @@ export * from "./runtime-paths.js";
 export * from "./provider-auth/index.js";
 export { exportPortableProviderGrant } from "./provider-auth/backup.js";
 export * from "./provider-network.js";
+export { normalizeContentRefusalResponse } from "./content-refusal.js";
+export { terminateNodeProcessTree, type NodeProcessTreeOptions } from "./process-tree.js";
 
 export { createGitCredentialHelper, type GitCredentialResolver } from "./git-credential-helper.js";
 export { runGitCredentialHelper } from "./git-credential-helper-runner.js";

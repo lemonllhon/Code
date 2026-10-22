@@ -79,43 +79,6 @@ test("unsupported channels and cancellation perform no upstream request", async 
   });
 });
 
-for (const channel of ["minimax-code", "minimax-code-global"])
-  test(`${channel} signs status and claim through the same authenticated loader`, async () => {
-    const calls = [],
-      signs = [];
-    const result = await checkinWithLoader(
-      channel,
-      {
-        fetch: async (input, init) => {
-          const request = new Request(input, init);
-          calls.push(request);
-          assert.equal(request.headers.get("x-signature"), "fixture-signature");
-          return Response.json({
-            base_resp: { status_code: 0 },
-            data:
-              calls.length === 1
-                ? { days: [{ is_today: true, status: 2, points: 800, day_no: 2 }] }
-                : { claim_result: 1, points: 0, day_no: 2 },
-          });
-        },
-      },
-      new AbortController().signal,
-      {
-        now: 123,
-        signMiniMax: (...args) => {
-          signs.push(args);
-          return { "x-signature": "fixture-signature" };
-        },
-      },
-    );
-    assert.deepEqual(result, { outcome: "claimed", credit: 0, streak: 2 });
-    assert.deepEqual(signs, [
-      [channel, "GET", 123],
-      [channel, "POST", 123],
-    ]);
-    assert.equal(new URL(calls[0].url).searchParams.get("timezone_id"), "Asia/Shanghai");
-  });
-
 for (const channel of ["qoder", "qoder-cn"])
   test(`${channel} respects campaign windows, server claimability and partial rewards`, async () => {
     const now = Date.now(),

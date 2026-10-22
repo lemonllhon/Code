@@ -430,5 +430,24 @@
     "roots": ["packages/provider-node/src/provider-auth/plugins/checkin.mjs"],
     "scope": "Upstream-derived daily check-in endpoint, response and campaign-window rules only. No upstream repository is modified.",
     "license": "MIT"
+  },
+  {
+    "id": "Magpie provider protocol follow-up adaptations",
+    "referenceRevision": "1b06308fad9386171c25f377d3ff8fcc4d4f3757",
+    "importRevision": "1b06308fad9386171c25f377d3ff8fcc4d4f3757",
+    "source": "https://raw.githubusercontent.com/magpie-community/plugins/1b06308fad9386171c25f377d3ff8fcc4d4f3757/LICENSE",
+    "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
+    "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
+    "provenance": "Bounded adaptations of Kiro API key control-plane discovery (2039678), MiniMax account check-in signing and renewal (4d73d22/532e738), Devin Connect compression (4fd68ba), Zed inline system turns (3d355d3), Trae reasoning/name deltas and new CN authorization device shape (40d7c52/63a3d2a), and Qoder browser redirect removal (f5548bd). Original vendor bytes and hashes remain pinned. Local adaptations preserve Host refresh CAS, safe reply projection, async compression, and single inference attempt ownership.",
+    "roots": [
+      "packages/provider-node/src/provider-auth/plugins/vendor-followup-patch.mjs",
+      "packages/provider-node/src/provider-auth/plugins/vendor-minimax-checkin-patch.mjs",
+      "packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs",
+      "packages/provider-node/src/provider-auth/plugins/vendor-followup.test.mjs",
+      "packages/provider-node/src/provider-auth/plugins/vendor-stream-followup.test.mjs",
+      "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
+    ],
+    "scope": "Upstream-derived protocol behavior and regression scenarios only; process ownership, common refusal classification and Host/worker integration are local work.",
+    "license": "MIT"
   }
 ]

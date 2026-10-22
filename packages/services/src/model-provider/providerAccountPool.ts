@@ -9,6 +9,7 @@ import type { ProviderAccountScheduler } from "./providerAccountScheduler.js";
 import type { ProviderAccountQuotas } from "./providerAccountQuotas.js";
 import type { RoutingInvocation } from "@lcode/shared";
 import { RoutingError } from "@lcode/provider";
+import { normalizeContentRefusalResponse } from "@lcode/provider-node";
 interface PoolAccount {
   connectionId: string;
   channelId: string;
@@ -76,7 +77,7 @@ export async function executeProviderAccountPool<T extends PoolAccount>(
             ? "/responses"
             : "/chat/completions";
       const upstream = model.baseURL.replace(/\/+$/u, "") + suffix;
-      const response = await host.withAccountLock(account, async () => {
+      let response = await host.withAccountLock(account, async () => {
         signal.throwIfAborted();
         const driver = await host.driver(account);
         if (selected && !driver.routingSingleAttempt)
@@ -110,6 +111,8 @@ export async function executeProviderAccountPool<T extends PoolAccount>(
           },
         );
       });
+      // 原生与插件驱动共享错误事实；内容拒绝不能先被 Host 标成鉴权失效或切换账号。
+      response = await normalizeContentRefusalResponse(response, channelId);
       selected?.observeHeaders(response);
       // Copilot 目录可能给账号列出不可调用的模型；仅对驱动确认的模型拒绝尝试同模型的另一账号。
       const modelRefused =

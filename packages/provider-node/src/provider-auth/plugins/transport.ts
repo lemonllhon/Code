@@ -5,6 +5,7 @@ import { PLUGIN_WORKER_SOURCE } from "./worker-source.js";
 import { readNetworkRequestBody } from "../../network-request-body.js";
 import { NetworkCleanup } from "../../network-cleanup.js";
 import { PluginRefreshOwnership } from "./refresh-ownership.js";
+import { PluginChildOwner } from "./child-owner.js";
 import {
   providerAuthorizationDiagnosticSchema,
   type ProviderAuthorizationDiagnostic,
@@ -27,6 +28,7 @@ export class PluginWorkerTransport {
   private readonly uploadCleanup = new NetworkCleanup();
   private activeUploads = 0;
   private readonly refreshes = new PluginRefreshOwnership(() => !this.closed);
+  private readonly children = new PluginChildOwner();
 
   constructor(
     channel: string,
@@ -55,11 +57,13 @@ export class PluginWorkerTransport {
         this.closed = true;
         this.lifetime.abort(abortedError());
         void this.refreshes.shutdown();
+        void this.children.close().catch(() => {});
         this.failAll(new Error("Provider plugin worker stopped"));
         resolve(code);
       });
     });
     this.worker.on("error", (error) => {
+      void this.children.close().catch(() => {});
       this.closed = true;
       this.lifetime.abort(abortedError());
       this.failAll(error instanceof Error ? error : new Error(String(error)));
@@ -168,6 +172,9 @@ export class PluginWorkerTransport {
   dispose(options?: { deadlineAt?: number }): Promise<void> {
     if (this.disposing) return this.disposing;
     this.lifetime.abort(abortedError());
+    // 先从父端关闭子树，不能让 worker 先杀根进程后丢失 Windows 的祖先关系。
+    const childrenClosing = this.children.close();
+    void childrenClosing.catch(() => {});
     if (!this.closed) {
       this.closed = true;
       this.failAll(abortedError());
@@ -181,6 +188,7 @@ export class PluginWorkerTransport {
           Promise.allSettled([
             this.uploadCleanup.drain(),
             this.refreshes.drain(),
+            childrenClosing,
             this.exit.then((code) => {
               if (code !== 0) throw new Error(`Provider worker cleanup failed (exit ${code})`);
             }),
@@ -215,6 +223,8 @@ export class PluginWorkerTransport {
         }
       } finally {
         if (timer) clearTimeout(timer);
+        // 强制终止 worker 也不能跳过已启动的 OS 子树回收。
+        await this.children.close();
       }
     })();
     return this.disposing;
@@ -238,6 +248,14 @@ export class PluginWorkerTransport {
   }
 
   private async receive(message: WorkerMessage): Promise<void> {
+    if (message.kind === "child-start") {
+      this.children.started(message.id);
+      return;
+    }
+    if (message.kind === "child-exit") {
+      this.children.exited(message.id);
+      return;
+    }
     if (message.kind === "refresh-end") {
       if (
         !Number.isSafeInteger(message.operationId) ||

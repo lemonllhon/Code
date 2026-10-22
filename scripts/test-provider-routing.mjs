@@ -22,8 +22,9 @@ const groups = [
   ["packages/services/src/lcode-agent", /^providerConnectivityStartup\.test\.ts$/u],
   [
     "packages/provider-node/src/provider-auth/plugins",
-    /^(?:authorization-progress|single-attempt.*|backport-(?:.*-)?fixtures)\.test\.ts$/u,
+    /^(?:authorization-progress|single-attempt.*|backport-(?:.*-)?fixtures|transport-(?:children|close))\.test\.ts$/u,
   ],
+  ["packages/provider-node/src", /^process-tree\.test\.ts$/u],
   [
     "packages/provider-node/src/provider-auth/native",
     /^(?:authorization-diagnostics|claude-routing|claude-relay-lifecycle)\.test\.ts$/u,
@@ -51,6 +52,9 @@ const files = process.argv.includes("--ui")
       .concat(
         "packages/provider-node/src/provider-auth/plugins/vendor-compatibility.test.mjs",
         "packages/provider-node/src/provider-auth/plugins/vendor-backports-20261022.test.mjs",
+        "packages/provider-node/src/provider-auth/plugins/vendor-followup.test.mjs",
+        "packages/provider-node/src/provider-auth/plugins/vendor-stream-followup.test.mjs",
+        "apps/lcode-cli/packages/adapters/src/model/content-refusal.test.ts",
       )
       .sort();
 const child = spawn(
