@@ -75,7 +75,7 @@ export async function loadSource(t, relativePath, stubs = {}, compilerOptions = 
   return import(pathToFileURL(output).href);
 }
 
-export function loadMacUpdateRuntime(t) {
+export function loadMacUpdateRuntime(t, stubs = {}) {
   const updateElectronStub = `
     import {EventEmitter} from 'node:events';
     export const events=[], controls={handoffFailure:false};
@@ -110,6 +110,7 @@ export function loadMacUpdateRuntime(t) {
           options.exitApp();
         }
       `,
+      ...stubs,
     },
     { define: { "process.platform": '"darwin"' } },
   );

@@ -379,17 +379,20 @@ function normalizeProgressPercent(progress: unknown): string | undefined {
   return Math.max(0, Math.min(100, percent)).toFixed(0);
 }
 
-function logForceAutoUpdateProgress(progress: string | undefined) {
+function logAutoUpdateProgress(progress: string | undefined) {
   if (!progress) {
     return;
   }
 
   const bucket = Math.floor(Number(progress) / 10) * 10;
-  if (bucket === forceAutoUpdateLastLoggedProgressBucket) {
+  if (
+    forceAutoUpdateLastLoggedProgressBucket !== null &&
+    bucket <= forceAutoUpdateLastLoggedProgressBucket
+  ) {
     return;
   }
   forceAutoUpdateLastLoggedProgressBucket = bucket;
-  logger.info(`[force-update] 自动升级下载进度 ${progress}%`);
+  logger.info(`[auto-update] download progress: ${progress}%`);
 }
 
 function buildDownloadProgressState(
@@ -974,6 +977,7 @@ function clearAvailableUpdateState() {
 }
 
 function clearDownloadingUpdateState() {
+  forceAutoUpdateLastLoggedProgressBucket = null;
   downloadingUpdateVersion = null;
   downloadingUpdateReleaseNotes = null;
   downloadingUpdateChannel = null;
@@ -1252,12 +1256,6 @@ function handleUpdateDownloadProgress(progress: {
   if (menuState.kind !== "download-progress" && menuState.kind !== "update-available") return;
 
   const normalizedProgress = normalizeProgressPercent(progress) ?? progress.percent.toFixed(0);
-  const speed = progress.bytesPerSecond
-    ? `, ${(progress.bytesPerSecond / 1024).toFixed(0)} KB/s`
-    : "";
-  logger.info(
-    `[auto-update] download progress: ${progress.percent.toFixed(1)}%${speed}, ${(progress.transferred / 1024 / 1024).toFixed(1)}/${(progress.total / 1024 / 1024).toFixed(1)} MB`,
-  );
   if (menuState.kind === "update-available") clearAvailableUpdateState();
   setAutoUpdaterMenuState(
     buildDownloadProgressState(normalizedProgress, {
@@ -1265,7 +1263,8 @@ function handleUpdateDownloadProgress(progress: {
       totalBytes: progress.total,
     }),
   );
-  logForceAutoUpdateProgress(normalizedProgress);
+  // 高频原始进度仍更新唯一产品状态，生产日志复用既有分桶，避免每个 chunk 落盘。
+  logAutoUpdateProgress(normalizedProgress);
   notifyForceAutoUpdate({
     kind: "downloading",
     ...(downloadingUpdateVersion ? { version: downloadingUpdateVersion } : {}),
@@ -1367,6 +1366,7 @@ function downloadAvailableUpdate(reason = "renderer") {
 
   const targetVersion = menuState.version;
   downloadingUpdateVersion = targetVersion;
+  forceAutoUpdateLastLoggedProgressBucket = null;
   downloadingUpdateReleaseNotes = menuState.releaseNotes ?? availableUpdateReleaseNotes;
   downloadingUpdateChannel = menuState.channel ?? availableUpdateChannel;
   downloadingUpdateArtifact = availableUpdateArtifact;

@@ -1,4 +1,5 @@
 import { ProjectNativeBridge } from "./projectNativeBridge.js";
+import { createHash } from "node:crypto";
 import { getProjectNativeRoutingOwner } from "./projectNativeOwner.js";
 import {
   PROJECT_NATIVE_ROUTE_METHOD,
@@ -1574,7 +1575,12 @@ export function createLCodeAgentService(
         logger.info(undefined, "account provider config 已交付到 LCode agent", {
           providerCount: result.providerCount,
           reason: params.reason,
-          receivedRevision: result.receivedRevision,
+          // revision 包含完整账号目录投影；回执仍精确比较，生产日志只保留关联摘要。
+          receivedRevisionLength: result.receivedRevision.length,
+          receivedRevisionDigest: createHash("sha256")
+            .update(result.receivedRevision)
+            .digest("hex")
+            .slice(0, 16),
           status: result.status,
         });
       });
