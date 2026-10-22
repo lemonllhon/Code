@@ -735,6 +735,11 @@ export interface ILCodeAgentService {
       cleanup: import("@lcode/shared").LCodeSessionWorktreeCleanupParams;
     },
   ): Promise<{ sessionIds: string[] }>;
+  cleanupWorkspaceSessions(
+    params: LCodeAgentWorkspaceTarget & {
+      cleanup: import("@lcode/shared").LCodeSessionWorkspaceCleanupParams;
+    },
+  ): Promise<{ sessionIds: string[] }>;
   /** 受信 Host 的环境恢复维护；不启动模型或 hydrate session。 */
   rebindWorktreeSessions(
     params: LCodeAgentWorkspaceTarget & {

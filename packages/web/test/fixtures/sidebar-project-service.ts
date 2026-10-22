@@ -39,7 +39,7 @@ export function createSidebarProjectCommands(
     if (duplicate)
       return { status: "conflict", project: duplicate, reason: "Duplicate project source" };
     let project: ProjectDefinition | null = null;
-    if (request.type === "save") {
+    if (request.type === "save" || request.type === "archive") {
       const members =
         request.project.members ??
         request.project.sourceFolderPaths.map((path) => ({
@@ -53,16 +53,33 @@ export function createSidebarProjectCommands(
       project = {
         ...request.project,
         revision: (existing?.revision ?? 0) + 1,
+        ...(request.type === "archive" ? { archivedAt: existing?.archivedAt ?? Date.now() } : {}),
         members,
         memberOrder: request.project.memberOrder ?? members.map((member) => member.id),
       };
     }
-    const next = projects.filter((item) => item.id !== request.projectId);
-    if (project) next.unshift(project);
+    if (request.type === "restore" && existing) {
+      const { archivedAt: _archivedAt, ...active } = existing;
+      project = { ...active, revision: (existing.revision ?? 0) + 1 };
+    }
+    const next = [...projects];
+    const index = next.findIndex((item) => item.id === request.projectId);
+    if (index >= 0) next.splice(index, 1, ...(project ? [project] : []));
+    else if (project) next.unshift(project);
     settings.projectDefinitions = { version: 1, projects: next };
     settings.localProjects = next.filter(
       (item) => !("workspaceIdentity" in item && item.workspaceIdentity),
     );
+    if (request.type === "remove" && !existing?.workspaceIdentity) {
+      const paths =
+        existing?.sourceFolderPaths ?? (request.workspace ? [request.workspace.workspacePath] : []);
+      settings.recentProjects = settings.recentProjects?.filter((path) => !paths.includes(path));
+      settings.lastWorkspaceSession = settings.lastWorkspaceSession?.filter(
+        (entry) =>
+          entry.kind === "remote" ||
+          (!paths.includes(entry.workspacePath) && entry.localProjectId !== existing?.id),
+      );
+    }
     // 与 SettingService 同一提交边界：远端定义移除同步清理恢复历史，窗口无需再次保存。
     if (request.type === "remove" && existing?.workspaceIdentity?.trim()) {
       settings.lastWorkspaceSession = settings.lastWorkspaceSession?.filter(

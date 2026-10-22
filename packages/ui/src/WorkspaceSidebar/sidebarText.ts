@@ -1,5 +1,26 @@
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 const labels = {
+  archiveProject: ["归档项目", "Archive project"],
+  restoreProject: ["恢复项目", "Restore project"],
+  deleteProject: ["删除项目…", "Delete project…"],
+  deleteProjectConfirm: ["永久删除", "Delete permanently"],
+  deleteProjectHint: [
+    "将永久删除此项目的记录及全部会话（包括置顶、归档和隐藏的历史），无法恢复。磁盘上的源码目录会保留。请先停止正在运行的会话。",
+    "Permanently deletes this project and all its chats, including pinned, archived and hidden history. This cannot be undone. Source folders on disk are kept. Stop running chats first.",
+  ],
+  deleteProjectOffline: [
+    "请先连接此项目，以确认全部会话已永久删除；离线时可以归档。",
+    "Connect this project to permanently delete all its chats. You can archive it while offline.",
+  ],
+  deleteProjectUpgrade: [
+    "当前 Host 不支持永久删除项目会话，请升级后重试。",
+    "Update this Host to permanently delete project chats.",
+  ],
+  archivedProjects: ["已归档项目", "Archived projects"],
+  projectActionFailed: [
+    "项目操作失败，请刷新后重试。",
+    "The project could not be updated. Refresh and try again.",
+  ],
   integrationProgress: ["合入目标", "Target integration"],
   partialIntegration: ["部分完成", "Partially complete"],
   readingProgress: ["读取审核进度…", "Reading review progress…"],
@@ -53,8 +74,8 @@ const labels = {
   newExecutionSet: ["新建协作工作集会话", "New collaboration set chat"],
   repositories: ["仓库", "repositories"],
   activeExecutionSet: [
-    "项目仍有协作工作集，请先归档工作集再移除项目。",
-    "Archive this project's collaboration sets before removing the project.",
+    "项目仍有协作工作集，请先处理工作集再删除项目。可以直接归档项目。",
+    "Manage this project's collaboration sets before deleting it. You can archive the project now.",
   ],
   renameExecutionSet: ["重命名工作集…", "Rename collaboration set…"],
   archiveExecutionSet: ["归档整个工作集…", "Archive collaboration set…"],
@@ -91,8 +112,8 @@ const labels = {
   deleteArchiveScope: ["删除当前范围的归档会话…", "Delete archived chats in this scope…"],
   syncRemote: ["同步到远端", "Sync to remote"],
   verifySource: [
-    "来源尚未完成校验，请连接或刷新后再移除项目。",
-    "Verify the source by connecting or refreshing before removing the project.",
+    "请连接或刷新来源后再永久删除项目；离线时可以归档。",
+    "Connect or refresh this source before permanently deleting the project. You can archive it while offline.",
   ],
   copyInfo: ["复制信息", "Copy information"],
   workspace: ["工作空间", "Workspace"],
@@ -204,8 +225,8 @@ const labels = {
   refresh: ["刷新", "Refresh"],
   addProject: ["添加项目…", "Add project…"],
   activeBinding: [
-    "项目仍有独立工作树。请先在工作树管理中处理后再移除项目，以保留来源连接。",
-    "This project has independent worktrees. Manage them before removing the project so their source connection is preserved.",
+    "项目仍有独立工作树，请先在工作树管理中处理后再删除项目。可以直接归档项目。",
+    "Manage this project's worktrees before deleting it. You can archive the project now.",
   ],
 } as const;
 export type SidebarTextKey = keyof typeof labels;

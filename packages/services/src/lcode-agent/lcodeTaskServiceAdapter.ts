@@ -89,6 +89,7 @@ import {
   type TraceId,
   lcodeContextUsageBreakdownSchema,
   lcodeSessionSettingsStateSchema,
+  lcodeSessionWorkspaceCleanupParamsSchema,
   type LCodeDeliveryKind,
   type LCodeMessagePart,
   type LCodeMessageWithParts,
@@ -2854,6 +2855,28 @@ export function createLCodeTaskServiceAdapter(
       await options.lcodeAgentService.disposeWorkspace(normalizeWorkspaceParams(params));
     },
 
+    async deleteWorkspaceTasks(params): Promise<void> {
+      // 中文依据：RPC 是运行时边界；缺失 path 不能落入 repo 的“查询全部 workspace”语义。
+      const scope = lcodeSessionWorkspaceCleanupParamsSchema
+        .omit({ sessionIds: true })
+        .parse(params);
+      const matching = await options.lcodeAgentService.cleanupWorkspaceSessions({
+        ...scope,
+        cleanup: scope,
+      });
+      const deleted = await options.lcodeAgentService.cleanupWorkspaceSessions({
+        ...scope,
+        cleanup: { ...scope, sessionIds: matching.sessionIds },
+      });
+      const indexed = await taskIndexRepo.listTaskMetas({ ...scope, includeDeleted: true });
+      const ids = new Set([...deleted.sessionIds, ...indexed.map((task) => task.taskId)]);
+      for (const taskId of ids) {
+        const target = { ...scope, taskId };
+        const meta = await taskIndexRepo.purgeTaskHistory(target);
+        setOverlay(target, { deleted: true });
+        emitWorkspaceTaskListChanged(target, meta, "task_deleted");
+      }
+    },
     async deleteTask(params): Promise<void> {
       const meta = params.purgeHistory
         ? await taskIndexRepo.purgeTaskHistory(params)

@@ -12,6 +12,24 @@ const projects: LocalProject[] = [
   },
 ];
 
+test("archive suppresses open/recent fallback but preserves the same-path remote project", () => {
+  const archived = { ...projects[0]!, archivedAt: 1 };
+  const local = { workspacePath: archived.primaryFolderPath, label: "old" };
+  const remote = { ...local, workspaceIdentity: "fixture-remote", label: "remote" };
+  assert.deepEqual(
+    buildWorkspaceProjectMenuTabs({ localProjects: [archived], workspaceTabs: [local, remote] }),
+    [remote],
+  );
+  const all = buildWorkspaceProjectMenuTabs({
+    localProjects: [archived],
+    workspaceTabs: [local, remote],
+    includeArchived: true,
+  });
+  assert.equal(all[0]!.archivedAt, 1);
+  assert.equal(all[0]!.localProjectId, archived.id);
+  assert.equal(all.length, 2);
+});
+
 test("project menu combines persisted projects with legacy and remote workspace tabs", () => {
   const result = buildWorkspaceProjectMenuTabs({
     localProjects: projects,

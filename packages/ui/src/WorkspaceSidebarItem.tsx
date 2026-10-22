@@ -1,6 +1,8 @@
 import { ProjectRemoteSyncGroup } from "@/WorkspaceSidebar/ProjectRemoteSyncGroup.js";
 import { useSidebarOrganization } from "@/hooks/useSidebarOrganization.js";
 import { useSettings } from "@/hooks/useSettingService.js";
+import { useProjectArchiveActions } from "@/hooks/useProjectArchiveActions.js";
+import { useProjectDeletion } from "@/hooks/useProjectDeletion.js";
 import { findProjectDefinition } from "@lcode/shared";
 import {
   ContextMenu,
@@ -36,7 +38,8 @@ import {
   ListTree,
   RefreshCwIcon,
   MessageCirclePlus,
-  XIcon,
+  Trash2,
+  Archive,
 } from "lucide-react";
 import type { useSortable } from "@dnd-kit/sortable";
 import { BorderBeam } from "border-beam";
@@ -83,10 +86,7 @@ import {
   useBaseWorkspaceServices,
   useWorkspaceServicesResolution,
 } from "@/hooks/useWorkspaceServices.js";
-import {
-  applyTaskQueryCacheMutation,
-  invalidateTaskQueryCacheByScopes,
-} from "@/store/taskQueryCacheStore.js";
+import { applyTaskQueryCacheMutation } from "@/store/taskQueryCacheStore.js";
 import { useRemotePinnedTaskStore } from "@/store/remotePinnedTaskStore.js";
 import { useRemoteTimelineTaskStore } from "@/store/remoteTimelineTaskStore.js";
 import { logger } from "@/logger.js";
@@ -96,12 +96,6 @@ import { refreshSharedSkillStoreForWorkspace } from "@/lib/skillStoreRefresh.js"
 import { refreshWorkspacePluginCapabilitiesAfterRemoteSync } from "@/lib/remotePluginSyncRefresh.js";
 import { useMcpStore } from "@/store/mcpStore.js";
 import { TaskRowActionButton } from "@/workspace-grouped-tasks/task-row-action-button.js";
-import { releaseWorkspaceRuntimeAfterProjectRemoval } from "@/lib/workspaceRuntimeRelease.js";
-import {
-  hasRunningWorkspaceChat,
-  scanWindowsReservedDeviceNameFiles,
-} from "@/lib/workspaceRemovalSafety.js";
-import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { toast } from "@/components/ui/toast.js";
 import { useOpenWorktreeSettings } from "@/hooks/useOpenWorktreeSettings.js";
 
@@ -147,7 +141,6 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   tab,
   isActiveWorkspace,
   isExpanded,
-  closeTab,
   onRemoveLocalProject,
   onRemoveRemoteProject,
   toggleWorkspaceExpanded,
@@ -250,13 +243,33 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
     tab.remoteTarget,
   );
   const services = resolution.services;
-  const confirmDialog = useConfirmDialog();
   const sidebarText = useSidebarText();
   const organization = useSidebarOrganization();
   const { copyAbsolutePath } = useFileContextActions();
   const [projectContextOpen, setProjectContextOpen] = useState(false);
   const baseServices = useBaseWorkspaceServices();
   const { settings: projectSettings } = useSettings(baseServices);
+  const archiveProject = useProjectArchiveActions();
+  const { deleting, deleteProject } = useProjectDeletion(tab, {
+    onRemoveLocalProject,
+    onRemoveRemoteProject,
+  });
+  const projectActionPending = useRef(false);
+  const [archiving, setArchiving] = useState(false);
+  const handleArchiveProject = async () => {
+    if (projectActionPending.current) return;
+    projectActionPending.current = true;
+    setArchiving(true);
+    try {
+      await archiveProject(tab, true);
+    } catch (error) {
+      logger.error("[WorkspaceSidebarItem] 归档项目失败", { error });
+      toast(sidebarText("projectActionFailed"), { variant: "warning" });
+    } finally {
+      projectActionPending.current = false;
+      setArchiving(false);
+    }
+  };
   const projectDefinition = findProjectDefinition(
     projectSettings?.projectDefinitions?.projects ?? projectSettings?.localProjects ?? [],
     tab.workspacePath,
@@ -266,8 +279,6 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   const lcodeTaskService = services.lcodeTaskService;
   const taskItemsRef = useRef(taskItems);
   taskItemsRef.current = taskItems;
-  const workspaceLCodeStateRef = useRef(workspaceLCodeState);
-  workspaceLCodeStateRef.current = workspaceLCodeState;
   const findCurrentTaskItem = useCallback((taskId: string) => {
     // 流式刷新会重建 taskItems 数组，任务操作回调如果直接依赖数组，
     // 即使任务语义没变也会换引用，继续击穿 TaskListItem 的 memo。
@@ -412,155 +423,6 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
     },
     [onStartDraftInWorkspace, readOnlyReason, tab.workspaceIdentity, tab.workspacePath],
   );
-
-  const handleRemoveWorkspace = useCallback(async () => {
-    if (preserveOrigin) {
-      toast(removalBlockedReason ?? sidebarText("activeBinding"), { variant: "warning" });
-      return;
-    }
-    const workspaceKey = tab.workspaceIdentity?.trim() || tab.workspacePath;
-    logger.debug("[WorkspaceSidebarItem] 移除 workspace", {
-      isExpanded,
-      workspaceKey,
-    });
-
-    if (
-      hasRunningWorkspaceChat({
-        workspaceState: workspaceLCodeStateRef.current,
-        taskItems: taskItemsRef.current,
-      })
-    ) {
-      const confirmed = await confirmDialog({
-        title: intl.formatMessage({ id: "workspaceSidebar.removeRunningWorkspace.title" }),
-        description: intl.formatMessage({
-          id: "workspaceSidebar.removeRunningWorkspace.description",
-        }),
-        confirmLabel: intl.formatMessage({ id: "workspaceSidebar.removeRunningWorkspace.confirm" }),
-        cancelLabel: intl.formatMessage({ id: "common.cancel" }),
-        confirmVariant: "destructive",
-      });
-      if (!confirmed) {
-        logger.debug("[WorkspaceSidebarItem] 用户取消移除运行中 workspace", { workspaceKey });
-        return;
-      }
-    }
-
-    if (!isRemoteWorkspace && onRemoveLocalProject) {
-      try {
-        await onRemoveLocalProject({
-          ...(projectDefinition?.id || tab.localProjectId
-            ? { projectId: projectDefinition?.id ?? tab.localProjectId }
-            : {}),
-          workspacePath: tab.workspacePath,
-        });
-      } catch (error) {
-        logger.error("[WorkspaceSidebarItem] 删除项目定义失败", {
-          error,
-          localProjectId: tab.localProjectId,
-          workspaceKey,
-        });
-        toast(intl.formatMessage({ id: "workspaceSidebar.removeProjectFailed" }), {
-          variant: "warning",
-        });
-        return;
-      }
-    }
-
-    if (isRemoteWorkspace && onRemoveRemoteProject) {
-      try {
-        // 历史投影行可能没有真实 tab；显式移除必须先提交 owner，不能依赖 closeTab observer。
-        await onRemoveRemoteProject(workspaceKey);
-      } catch (error) {
-        logger.error("[WorkspaceSidebarItem] 移除远程项目历史失败", { error, workspaceKey });
-        toast(intl.formatMessage({ id: "workspaceSidebar.removeProjectFailed" }), {
-          variant: "warning",
-        });
-        return;
-      }
-    }
-    closeTab(tab.id);
-    if (
-      organization?.sectionFor({
-        kind: "project",
-        workspacePath: tab.workspacePath,
-        workspaceIdentity: tab.workspaceIdentity,
-      })
-    )
-      void organization.run(
-        [
-          {
-            type: "forget",
-            entries: [
-              {
-                kind: "project",
-                workspacePath: tab.workspacePath,
-                ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
-              },
-            ],
-          },
-        ],
-        false,
-        true,
-      );
-    releaseWorkspaceRuntimeAfterProjectRemoval({
-      tab: {
-        workspacePath: tab.workspacePath,
-        workspaceIdentity: tab.workspaceIdentity,
-      },
-      lcodeTaskService,
-    });
-    // 移除 workspace 只是移除入口和连接历史，不代表用户要隐藏历史任务：
-    // 这里只失效缓存，保留 sqlite 任务索引原状态，避免重连同一 SSH workspace 后任务像“丢了”。
-    invalidateTaskQueryCacheByScopes([
-      {
-        workspacePath: tab.workspacePath,
-        ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
-      },
-    ]);
-
-    if (!isRemoteWorkspace) {
-      void scanWindowsReservedDeviceNameFiles(baseServices.fileService, tab.workspacePath)
-        .then((result) => {
-          if (result.findings.length === 0) {
-            return;
-          }
-          const firstFinding = result.findings[0] ?? tab.workspacePath;
-          toast(
-            intl.formatMessage(
-              { id: "workspaceSidebar.windowsReservedNameRisk" },
-              { count: result.findings.length, path: firstFinding },
-            ),
-            { durationMs: 8_000, variant: "warning" },
-          );
-        })
-        .catch((error: unknown) => {
-          // Windows 保留设备名扫描只是移除后的兼容风险提示，失败不能影响 workspace 生命周期释放。
-          logger.debug("[WorkspaceSidebarItem] Windows 保留名风险扫描失败", {
-            workspaceKey,
-            error,
-          });
-        });
-    }
-  }, [
-    baseServices.fileService,
-    preserveOrigin,
-    removalBlockedReason,
-    sidebarText,
-    organization,
-    closeTab,
-    confirmDialog,
-    intl,
-    isExpanded,
-    isRemoteWorkspace,
-    onRemoveLocalProject,
-    onRemoveRemoteProject,
-    projectDefinition,
-    tab.id,
-    tab.localProjectId,
-    tab.workspaceIdentity,
-    tab.workspacePath,
-    lcodeTaskService,
-  ]);
 
   const handleReconnectRemoteWorkspace = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
@@ -1044,14 +906,19 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
         Separator={Separator}
       />
       <Separator />
+      <Item disabled={archiving || deleting} onSelect={() => void handleArchiveProject()}>
+        <Archive className="size-3.5" />
+        {sidebarText("archiveProject")}
+      </Item>
       <Item
         data-testid={testId(TID_WORKSPACE_CLOSE, tab.workspacePath)}
-        disabled={preserveOrigin}
+        variant="destructive"
+        disabled={preserveOrigin || deleting || archiving}
         title={preserveOrigin ? (removalBlockedReason ?? sidebarText("activeBinding")) : undefined}
-        onSelect={() => void handleRemoveWorkspace()}
+        onSelect={() => void deleteProject()}
       >
-        <XIcon className="size-3.5" />
-        {intl.formatMessage({ id: "workspaceSidebar.remove" })}
+        <Trash2 className="size-3.5" />
+        {sidebarText("deleteProject")}
       </Item>
     </>
   );

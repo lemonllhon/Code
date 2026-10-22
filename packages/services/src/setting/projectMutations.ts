@@ -96,6 +96,23 @@ export async function applyProjectMutation(
     ...(reason ? { reason } : {}),
   });
   if (
+    request.type === "remove" &&
+    !previous &&
+    request.workspace &&
+    projects.some(
+      (project) =>
+        projectDefinitionKey(project) ===
+        (request.workspace!.workspaceIdentity?.trim() ||
+          localProjectPathKey(request.workspace!.workspacePath)),
+    )
+  )
+    return {
+      result: result(
+        "conflict",
+        "A project was registered for this source; refresh before deleting",
+      ),
+    };
+  if (
     request.expectedRevision === null
       ? Boolean(previous)
       : !previous || (previous.revision ?? 0) !== request.expectedRevision
@@ -107,6 +124,32 @@ export async function applyProjectMutation(
       ),
     };
   let saved: ProjectDefinition | null = null;
+  if (request.type === "archive") {
+    const candidate = previous ?? request.project;
+    if (
+      candidate.id !== request.projectId ||
+      projects.some(
+        (project) =>
+          project.id !== request.projectId &&
+          projectDefinitionKey(project) === projectDefinitionKey(candidate),
+      )
+    )
+      return { result: result("conflict", "Project source already exists") };
+    // 中文依据：归档只保存导航事实，不能用新建流程的 stat 阻止离线/缺失目录进入归档。
+    saved = withMembers(
+      {
+        ...candidate,
+        revision: (previous?.revision ?? 0) + 1,
+        archivedAt: previous?.archivedAt ?? Date.now(),
+      },
+      previous,
+    );
+  }
+  if (request.type === "restore") {
+    if (!previous) return { result: result("conflict", "Project no longer exists") };
+    const { archivedAt: _archivedAt, ...active } = previous;
+    saved = { ...active, revision: (previous.revision ?? 0) + 1 };
+  }
   if (request.type === "save") {
     const candidate = request.project;
     if (
@@ -203,7 +246,16 @@ export async function applyProjectMutation(
         if (failure) return { result: result("validation_failed", failure) };
       }
     }
-    saved = withMembers({ ...candidate, revision: (previous?.revision ?? 0) + 1 }, previous);
+    // 编辑项目不能用旧表单无意恢复归档；生命周期状态只由 archive/restore 改变。
+    const { archivedAt: _archivedAt, ...editable } = candidate;
+    saved = withMembers(
+      {
+        ...editable,
+        ...(previous?.archivedAt ? { archivedAt: previous.archivedAt } : {}),
+        revision: (previous?.revision ?? 0) + 1,
+      },
+      previous,
+    );
   }
   const nextProjects = [...projects];
   if (previous) nextProjects.splice(index, 1, ...(saved ? [saved] : []));
@@ -216,16 +268,37 @@ export async function applyProjectMutation(
       .filter((project) => !project.workspaceIdentity)
       .map(({ workspaceIdentity: _identity, ...project }) => project),
     projectMutationReceipts: [
-      ...(current.projectMutationReceipts ?? []),
+      // 永久删除不能在旧 save/archive 收据中继续保留可还原的项目定义；删除收据仅保留幂等信息。
+      ...(current.projectMutationReceipts ?? []).filter(
+        (receipt) => request.type !== "remove" || receipt.result.project?.id !== request.projectId,
+      ),
       { operationId: request.operationId, request: signature, result: applied },
     ].slice(-256),
   };
-  if (request.type === "remove" && previous && !previous.workspaceIdentity) {
+  const removedProject =
+    request.type === "remove"
+      ? (previous ??
+        (request.workspace
+          ? {
+              id: request.projectId,
+              primaryFolderPath: request.workspace.workspacePath,
+              sourceFolderPaths: [request.workspace.workspacePath],
+              workspaceIdentity: request.workspace.workspaceIdentity,
+            }
+          : undefined))
+      : undefined;
+  if (removedProject && current.projectExecutionPreferences) {
+    const removedKey = removedProject.workspaceIdentity?.trim() || removedProject.primaryFolderPath;
+    next.projectExecutionPreferences = Object.fromEntries(
+      Object.entries(current.projectExecutionPreferences).filter(([key]) => key !== removedKey),
+    );
+  }
+  if (removedProject && !removedProject.workspaceIdentity) {
     const retained = new Set(
       next.localProjects.flatMap((project) => project.sourceFolderPaths.map(localProjectPathKey)),
     );
     const removed = new Set(
-      previous.sourceFolderPaths.map(localProjectPathKey).filter((key) => !retained.has(key)),
+      removedProject.sourceFolderPaths.map(localProjectPathKey).filter((key) => !retained.has(key)),
     );
     next.recentProjects = current.recentProjects.filter(
       (path) => !removed.has(localProjectPathKey(path)),
@@ -233,7 +306,7 @@ export async function applyProjectMutation(
     next.lastWorkspaceSession = (current.lastWorkspaceSession ?? []).filter(
       (entry) =>
         entry.kind === "remote" ||
-        (entry.localProjectId !== previous.id &&
+        (entry.localProjectId !== removedProject.id &&
           !removed.has(localProjectPathKey(entry.workspacePath))),
     );
     next.lastActiveTabIndex = Math.min(
@@ -241,9 +314,9 @@ export async function applyProjectMutation(
       Math.max(0, next.lastWorkspaceSession.length - 1),
     );
   }
-  if (request.type === "remove" && previous?.workspaceIdentity?.trim()) {
+  if (removedProject?.workspaceIdentity?.trim()) {
     // 远端定义和恢复历史必须在同一次设置提交中删除，避免第二次保存失败留下半删除项目。
-    const removedIdentity = previous.workspaceIdentity.trim();
+    const removedIdentity = removedProject.workspaceIdentity.trim();
     next.lastWorkspaceSession = (current.lastWorkspaceSession ?? []).filter(
       (entry) =>
         entry.kind !== "remote" ||

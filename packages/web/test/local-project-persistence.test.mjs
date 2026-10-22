@@ -67,6 +67,10 @@ test(
           const chunks = [];
           for await (const chunk of request) chunks.push(chunk);
           const patch = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+          if (request.url === "/project-command") {
+            response.end(JSON.stringify(await service.mutateProject(patch)));
+            return;
+          }
           mutations.push(patch);
           await service.update(patch);
         }
@@ -127,12 +131,18 @@ test(
     await page
       .getByRole("button", { name: "Saved app", exact: true })
       .waitFor({ state: "detached" });
-    assert.deepEqual((await persisted()).localProjects, [projects[1]]);
+    const projectCore = ({ id, name, primaryFolderPath, sourceFolderPaths }) => ({
+      id,
+      name,
+      primaryFolderPath,
+      sourceFolderPaths,
+    });
+    assert.deepEqual((await persisted()).localProjects.map(projectCore), [projects[1]]);
     service = createSettingService();
     await page.goto(url);
     await page.getByRole("button", { name: "Saved other", exact: true }).waitFor();
     assert.equal(await page.getByRole("button", { name: "Saved app", exact: true }).count(), 0);
-    assert.deepEqual((await persisted()).localProjects, [projects[1]]);
+    assert.deepEqual((await persisted()).localProjects.map(projectCore), [projects[1]]);
     assert.deepEqual(errors, []);
   },
 );

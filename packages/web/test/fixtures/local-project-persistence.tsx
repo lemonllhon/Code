@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { AppSettings } from "@lcode/shared";
+import type { AppSettings, ProjectMutationRequest } from "@lcode/shared";
 import type { IServiceAccessor } from "@lcode/services";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { PlatformProvider } from "@/hooks/usePlatform.js";
@@ -32,8 +32,12 @@ window.requestIdleCallback = (callback) => fixture.idle.push(callback);
 window.cancelIdleCallback = () => {
   fixture.idle = [];
 };
-async function settingsRequest(method: string, patch?: Partial<AppSettings>) {
-  const response = await fetch(origin, {
+async function settingsRequest(
+  method: string,
+  patch?: Partial<AppSettings> | ProjectMutationRequest,
+  path = "",
+) {
+  const response = await fetch(`${origin}${path}`, {
     method,
     headers: { "Content-Type": "application/json" },
     ...(patch ? { body: JSON.stringify(patch) } : {}),
@@ -58,8 +62,12 @@ const services = new Proxy(
       update: async (patch: Partial<AppSettings>) => {
         await settingsRequest("POST", patch);
       },
+      mutateProject: async (request: ProjectMutationRequest) =>
+        settingsRequest("POST", request, "/project-command"),
     },
     broadcastService: { onMessage: dispose, send: async () => {} },
+    // 重连订阅是 dynamic event 工厂；普通 on* 桩会令 Root 挂载中断，掩盖持久化验收。
+    windowWorkspaceService: { onDynamicReconnectRequested: () => dispose },
     modelSelectionService: {
       onDidChange: dispose,
       getView: () => {

@@ -2142,6 +2142,15 @@ export const lcodeSessionWorktreeCleanupParamsSchema = z
 export type LCodeSessionWorktreeCleanupParams = z.infer<
   typeof lcodeSessionWorktreeCleanupParamsSchema
 >;
+/** 项目永久删除维护；无 sessionIds 只查询，提交时必须携带完整冻结集合。 */
+export const lcodeSessionWorkspaceCleanupParamsSchema = z.strictObject({
+  workspacePath: nonEmptyString,
+  workspaceIdentity: nonEmptyString.optional(),
+  sessionIds: z.array(nonEmptyString).optional(),
+});
+export type LCodeSessionWorkspaceCleanupParams = z.infer<
+  typeof lcodeSessionWorkspaceCleanupParamsSchema
+>;
 export const lcodeSessionWorktreeCleanupResultSchema = z
   .object({ sessionIds: z.array(nonEmptyString) })
   .strict();
@@ -3838,6 +3847,7 @@ export const lcodeProtocolMethods = {
   sessionGoal: "session/goal",
   sessionClose: "session/close",
   sessionWorktreeCleanup: "session/worktreeCleanup",
+  sessionWorkspaceCleanup: "session/workspaceCleanup",
   sessionWorktreeRebind: "session/worktreeRebind",
   // setModel 仍被 lcodeSessionService 的 desktop 旧链路消费；replayable
   // switchModelConfig 已直接由目标 Environment Registry 解析 Selection。

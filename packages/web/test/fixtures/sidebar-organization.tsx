@@ -51,8 +51,13 @@ if (params.has("empty")) {
   tasks = [];
   bindings = [];
 }
+if (params.has("project-lifecycle")) {
+  bindings = [];
+  tasks = tasks.filter((task) => !task.executionBindingId);
+}
 const listeners = new Set<(state: SidebarOrganization) => void>();
 const calls: Array<{ method: string; params: unknown }> = [];
+let rejectDeletion = false;
 const readFailures = new Map<string, string>();
 const heldReads = new Map<string, (error?: string) => void>();
 const holdNextReads = new Set<string>();
@@ -85,6 +90,10 @@ const settings: Partial<AppSettings> = JSON.parse(
   ],
   remoteWorkspaceSessions: [],
 };
+if (params.has("implicit-project") && !localStorage.getItem("sidebar-fixture-projects")) {
+  settings.localProjects = [];
+  tabs = tabs.map(({ localProjectId: _id, ...tab }) => tab);
+}
 const historyFixture = createHistoryRemovalFixture({
   enabled: savedHistory,
   settings,
@@ -190,6 +199,18 @@ installSidebarMenuServices(
   },
 );
 Object.assign(services.lcodeTaskService, {
+  deleteWorkspaceTasks: async (scope: { workspacePath: string; workspaceIdentity?: string }) => {
+    calls.push({ method: "deleteWorkspaceTasks", params: scope });
+    if (rejectDeletion) throw new Error("Fixture permanent deletion failed");
+    tasks = tasks.filter(
+      (task) =>
+        (task.workspaceIdentity?.trim() || task.workspacePath) !==
+        (scope.workspaceIdentity?.trim() || scope.workspacePath),
+    );
+    useLCodeSessionStore
+      .getState()
+      .bumpTaskListVersion(scope.workspacePath, scope.workspaceIdentity);
+  },
   unarchiveTask: async ({ taskId }: { taskId: string }) => {
     tasks = tasks.map((task) =>
       task.taskId === taskId ? { ...task, archivedAt: undefined } : task,
@@ -286,6 +307,9 @@ Object.assign(globalThis, {
     identity,
     origin,
     settings: () => settings,
+    rejectDeletion: (reject: boolean) => {
+      rejectDeletion = reject;
+    },
     ...historyFixture.actions,
     holdProjectSave: projectCommands.hold,
     releaseProjectSave: projectCommands.release,
@@ -333,7 +357,18 @@ function Fixture({ onRemoveRemoteProject, onReconnect }: HistoryRemovalActions) 
   useEffect(() => {
     setTheme(theme as never);
     api.setState({
-      tabs: historyFixture.tabs(tabs, params.has("opened")),
+      tabs: historyFixture
+        .tabs(tabs, params.has("opened"))
+        .filter(
+          (tab) =>
+            !params.has("project-lifecycle") ||
+            tab.workspaceIdentity ||
+            tab.workspacePurpose === "conversation" ||
+            settings.recentProjects?.includes(tab.workspacePath) ||
+            (settings.projectDefinitions?.projects ?? settings.localProjects)?.some(
+              (project) => project.primaryFolderPath === tab.workspacePath,
+            ),
+        ),
       activeTabId: "project",
       activeWorkspacePath: origin,
     });

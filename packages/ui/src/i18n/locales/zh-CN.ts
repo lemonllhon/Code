@@ -2383,14 +2383,6 @@ const zhCN: Record<string, string> = {
   "workspaceSidebar.searchTasksPlaceholder": "搜索任务...",
   "workspaceSidebar.searchArchivedTasksPlaceholder": "搜索归档任务...",
   "workspaceSidebar.closeTaskSearch": "关闭任务搜索",
-  "workspaceSidebar.remove": "移除",
-  "workspaceSidebar.removeRunningWorkspace.title": "移除运行中的项目？",
-  "workspaceSidebar.removeRunningWorkspace.description":
-    "该项目还有运行中的对话或 Agent。移除项目会停止并释放相关运行状态，历史任务不会被删除。",
-  "workspaceSidebar.removeRunningWorkspace.confirm": "移除并停止运行",
-  "workspaceSidebar.removeProjectFailed": "项目移除失败，请重试。",
-  "workspaceSidebar.windowsReservedNameRisk":
-    "已移除项目，但检测到 {count} 个 Windows 保留名文件，可能影响后续删除或重命名目录：{path}",
   "workspaceSidebar.reconnect": "重新连接",
   "workspaceSidebar.reconnectDesktopUnavailable":
     "桌面窗口暂时无法处理重新连接，请确认窗口已就绪后重试。",

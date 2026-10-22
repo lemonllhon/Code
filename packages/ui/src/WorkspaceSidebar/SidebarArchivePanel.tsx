@@ -4,7 +4,8 @@ import type { WorktreeBinding } from "@lcode/services";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
 import { WorkspaceArchivedTasksFlatSection } from "@/WorkspaceArchivedTasksFlatSection.js";
 import { isWorktreeSidebarTask } from "@/lib/worktreeSidebar.js";
-import type { LCodeTaskMeta } from "@lcode/shared";
+import type { LCodeTaskMeta, ProjectDefinition } from "@lcode/shared";
+import { ArchivedProjectRow } from "./ArchivedProjectRow.js";
 import { Button } from "@/components/ui/button.js";
 import {
   DropdownMenu,
@@ -33,12 +34,14 @@ export function SidebarArchivePanel({
   bindings,
   sortBy,
   sets,
+  projects,
 }: {
   props: UnifiedSidebarTreeProps;
   queryTabs: WorkspaceTabState[];
   bindings: WorktreeBinding[];
   sortBy: "created" | "updated";
   sets: SidebarExecutionSetsResult;
+  projects: ProjectDefinition[];
 }) {
   const text = useSidebarText();
   const [source, setSource] = useState("all");
@@ -133,6 +136,18 @@ export function SidebarArchivePanel({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+          {source === "all" && projects.length ? (
+            <>
+              <h3 className="px-2 py-1 text-ui-sm text-foreground-subtle">
+                {text("archivedProjects")}
+              </h3>
+              <ul>
+                {projects.map((project) => (
+                  <ArchivedProjectRow key={project.id} project={project} props={props} />
+                ))}
+              </ul>
+            </>
+          ) : null}
           {source === "all" || source === "executionSets"
             ? archivedSets.map((entry) => (
                 <ExecutionSetSidebarRow

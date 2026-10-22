@@ -2561,14 +2561,6 @@ const enUS: Record<string, string> = {
   "workspaceSidebar.searchTasksPlaceholder": "Search tasks...",
   "workspaceSidebar.searchArchivedTasksPlaceholder": "Search archived tasks...",
   "workspaceSidebar.closeTaskSearch": "Close task search",
-  "workspaceSidebar.remove": "Remove",
-  "workspaceSidebar.removeRunningWorkspace.title": "Remove a running project?",
-  "workspaceSidebar.removeRunningWorkspace.description":
-    "This project still has a running chat or Agent. Removing it will stop and release the related runtime state, but task history will not be deleted.",
-  "workspaceSidebar.removeRunningWorkspace.confirm": "Remove and stop",
-  "workspaceSidebar.removeProjectFailed": "Failed to remove the project. Please try again.",
-  "workspaceSidebar.windowsReservedNameRisk":
-    "Project removed, but {count} Windows reserved-name file(s) were detected and may affect later folder deletion or renaming: {path}",
   "workspaceSidebar.reconnect": "Reconnect",
   "workspaceSidebar.reconnectDesktopUnavailable":
     "The desktop window cannot reconnect right now. Wait for it to be ready and try again.",

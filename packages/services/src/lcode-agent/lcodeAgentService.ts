@@ -114,6 +114,7 @@ import {
   lcodeProcessResourceSampleSchema,
   lcodeSessionCloseResultSchema,
   lcodeSessionWorktreeCleanupResultSchema,
+  lcodeSessionWorkspaceCleanupParamsSchema,
   lcodeSessionWorktreeRebindParamsSchema,
   lcodeSessionWorktreeRebindResultSchema,
   lcodeSessionCompactResultSchema,
@@ -5151,6 +5152,22 @@ export function createLCodeAgentService(
       return client.request(
         lcodeProtocolMethods.sessionWorktreeCleanup,
         params.cleanup,
+        lcodeSessionWorktreeCleanupResultSchema,
+      );
+    },
+    async cleanupWorkspaceSessions(params) {
+      const cleanup = lcodeSessionWorkspaceCleanupParamsSchema.parse(params.cleanup);
+      if (
+        !sameRuntimeWorkspacePath(params.workspacePath, cleanup.workspacePath) ||
+        (params.workspaceIdentity?.trim() || "") !== (cleanup.workspaceIdentity?.trim() || "")
+      )
+        throw new Error(
+          "scope-mismatch: project cleanup must use its own workspace maintenance lane",
+        );
+      const client = await getReadOnlyClient(params);
+      return client.request(
+        lcodeProtocolMethods.sessionWorkspaceCleanup,
+        cleanup,
         lcodeSessionWorktreeCleanupResultSchema,
       );
     },

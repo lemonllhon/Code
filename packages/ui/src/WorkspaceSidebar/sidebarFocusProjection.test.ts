@@ -62,6 +62,16 @@ test("focus inherits container chats once, respects explicit placement and keeps
   );
   assert.equal(projectSidebarFocus("all", snapshot, catalog, tasks).sections.length, 3);
   assert.deepEqual(snapshot, before);
+  const archived = projectSidebarFocus(
+    "all",
+    snapshot,
+    catalog,
+    [],
+    new Set([origin.workspacePath]),
+  );
+  assert.deepEqual(archived.sections[0]!.entries, [tree]);
+  assert.deepEqual(archived.sections[1]!.entries, []);
+  assert.deepEqual(snapshot, before, "archive must retain original placement for restoration");
   assert.equal(
     projectSidebarFocus("chats", emptySidebarOrganization(), catalog, [...tasks, tasks[0]!]).chats
       .length,

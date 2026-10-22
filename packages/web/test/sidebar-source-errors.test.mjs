@@ -9,7 +9,7 @@ const proxyScreenshots = fileURLToPath(
 );
 
 test(
-  "saved remote history removal commits without a tab and survives reload",
+  "offline saved projects archive without losing history and remain archived after reload",
   { timeout: 120000 },
   async (t) => {
     const { browser, port } = await startWorkflowProgressBrowser(t);
@@ -31,8 +31,8 @@ test(
       // 保存失败仍展示原项目；重试必须再次提交，不可被已修改的 owner ref 误判为成功。
       await page.evaluate(() => globalThis.__sidebarOrganization.rejectHistorySave(true));
       await row.click({ button: "right" });
-      await page.getByRole("menuitem", { name: "移除", exact: true }).click();
-      await page.getByText("项目移除失败，请重试。", { exact: true }).waitFor();
+      await page.getByRole("menuitem", { name: "归档项目", exact: true }).click();
+      await page.getByText("项目操作失败，请刷新后重试。", { exact: true }).waitFor();
       await row.waitFor();
       await page.evaluate(() => globalThis.__sidebarOrganization.rejectHistorySave(false));
       if (opened) {
@@ -49,7 +49,7 @@ test(
       await page.screenshot({
         path: `${proxyScreenshots}/history-removal-${width}.png`,
       });
-      await page.getByRole("menuitem", { name: "移除", exact: true }).click();
+      await page.getByRole("menuitem", { name: "归档项目", exact: true }).click();
       await row.waitFor({ state: "hidden" });
       await page.getByRole("button", { name: "另一台远程项目", exact: true }).waitFor();
       await page.getByRole("button", { name: "网站项目", exact: true }).waitFor();
@@ -57,13 +57,13 @@ test(
         await page.evaluate(() =>
           globalThis.__sidebarOrganization.settings().projectDefinitions.projects.map((p) => p.id),
         ),
-        ["project", "saved-1"],
+        ["project", "saved-0", "saved-1"],
       );
       assert.equal(
         await page.evaluate(
           () =>
             globalThis.__sidebarOrganization.calls.filter(
-              (call) => call.method === "project" && call.params.type === "remove",
+              (call) => call.method === "project" && call.params.type === "archive",
             ).length,
         ),
         1,
@@ -75,7 +75,7 @@ test(
               .settings()
               .lastWorkspaceSession.filter((entry) => entry.kind === "remote").length,
         ),
-        1,
+        2,
       );
       await page.evaluate(() => {
         globalThis.__sidebarOrganization.finishConnection();
@@ -92,7 +92,7 @@ test(
               .settings()
               .lastWorkspaceSession.filter((entry) => entry.kind === "remote").length,
         ),
-        1,
+        2,
       );
       await page.reload();
       await page.getByRole("button", { name: "另一台远程项目", exact: true }).waitFor();
@@ -105,7 +105,7 @@ test(
 );
 
 test(
-  "disconnected projects without known dependencies can be removed after catalog errors",
+  "disconnected projects can archive after catalog errors without deleting chats",
   { timeout: 120000 },
   async (t) => {
     const { browser, port } = await startWorkflowProgressBrowser(t);
@@ -131,7 +131,7 @@ test(
       });
       await page.waitForFunction(() => globalThis.__sidebarOrganization.hasHeldRead());
       await remote.click({ button: "right" });
-      const remove = page.getByRole("menuitem", { name: "移除", exact: true });
+      const remove = page.getByRole("menuitem", { name: "归档项目", exact: true });
       assert.equal(await remove.isEnabled(), true);
       await mkdir(proxyScreenshots, { recursive: true });
       await page.screenshot({
@@ -170,7 +170,7 @@ test(
     await page.getByRole("button", { name: "重新连接", exact: true }).waitFor();
     await page.getByRole("button", { name: "远程服务", exact: true }).click({ button: "right" });
     assert.equal(
-      await page.getByRole("menuitem", { name: "移除", exact: true }).isDisabled(),
+      await page.getByRole("menuitem", { name: "删除项目…", exact: true }).isDisabled(),
       true,
     );
     await page.keyboard.press("Escape");

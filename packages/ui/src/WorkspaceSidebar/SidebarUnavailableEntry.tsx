@@ -1,5 +1,6 @@
 import { Ellipsis, Folder, GitBranch, Layers, MessageCircle, Unplug } from "lucide-react";
-import type { SidebarEntryRef } from "@lcode/shared";
+import { sidebarEntryKey, type SidebarEntryRef } from "@lcode/shared";
+import type { SidebarTimelineGroup } from "@/WorkspaceTimelineTasksSection.js";
 import { Button } from "@/components/ui/button.js";
 import {
   ContextMenu,
@@ -18,6 +19,15 @@ import {
 import { SidebarPlacementItems } from "./SidebarPlacementItems.js";
 import { SidebarEntryInteraction } from "./SidebarEntryInteraction.js";
 import { useSidebarText } from "./sidebarText.js";
+
+export function unavailableSidebarGroup(ref: SidebarEntryRef, label: string): SidebarTimelineGroup {
+  return {
+    key: sidebarEntryKey(ref),
+    label: null,
+    items: [],
+    header: <SidebarUnavailableEntry entry={ref} label={label} />,
+  };
+}
 
 export function SidebarUnavailableEntry({
   entry,

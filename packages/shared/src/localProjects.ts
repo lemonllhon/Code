@@ -8,6 +8,7 @@ export interface LocalProject {
   primaryFolderPath: string;
   sourceFolderPaths: string[];
   revision?: number;
+  archivedAt?: number;
   description?: string;
   members?: import("./projectDefinitions.js").ProjectMember[];
   memberOrder?: string[];

@@ -59,6 +59,7 @@ import { contextCapsuleMethods } from "./store-context-capsule.js";
 import { sessionTargetMethods } from "./store-target.js";
 import { auxiliaryStoreMethods } from "./store-auxiliary.js";
 import { worktreeCleanupMethods } from "./store-worktree-cleanup.js";
+import { workspaceCleanupMethods } from "./store-workspace-cleanup.js";
 import { worktreeRebindMethods } from "./store-worktree-rebind.js";
 import type { StoreMethods } from "./store-access.js";
 type ForkMethods = StoreMethods<typeof sessionForkMethods>;
@@ -126,6 +127,7 @@ export class SqliteSessionStore
   declare listScriptWorkflowEvents: AuxiliaryMethods["listScriptWorkflowEvents"];
   declare createSessionTaskLink: AuxiliaryMethods["createSessionTaskLink"];
   declare worktreeCleanup: StoreMethods<typeof worktreeCleanupMethods>["worktreeCleanup"];
+  declare workspaceCleanup: StoreMethods<typeof workspaceCleanupMethods>["workspaceCleanup"];
   declare worktreeRebind: StoreMethods<typeof worktreeRebindMethods>["worktreeRebind"];
   declare workflowJournalStore: StoreMethods<typeof workflowJournalMethods>["workflowJournalStore"];
   declare acquireWorkflowExecutionOwner: StoreMethods<
@@ -374,6 +376,7 @@ for (const methods of [
   sessionTargetMethods,
   auxiliaryStoreMethods,
   worktreeCleanupMethods,
+  workspaceCleanupMethods,
   worktreeRebindMethods,
   workflowJournalMethods,
   historyDiscoveryMethods,

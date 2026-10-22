@@ -14,7 +14,7 @@ import { taskSidebarRef } from "@/lib/sidebarOrganization.js";
 import { groupTaskTimelineItems } from "@/lib/taskTimelineGroups.js";
 import { SidebarEntryInteraction } from "./SidebarEntryInteraction.js";
 import { SidebarSectionHeader } from "./SidebarSectionHeader.js";
-import { SidebarUnavailableEntry } from "./SidebarUnavailableEntry.js";
+import { SidebarUnavailableEntry, unavailableSidebarGroup } from "./SidebarUnavailableEntry.js";
 import { WorktreeSidebarRow } from "./WorktreeSidebarRow.js";
 import { Button } from "@/components/ui/button.js";
 import { useSidebarText } from "./sidebarText.js";
@@ -27,6 +27,7 @@ import { useSidebarSystemActions } from "./useSidebarSystemActions.js";
 import { SidebarProjectEntry } from "./SidebarProjectEntry.js";
 import type { SidebarExecutionSetsResult } from "@/hooks/useSidebarExecutionSets.js";
 export function useUnifiedSidebarProjection({
+  archivedScopes,
   props,
   projects,
   trees,
@@ -48,6 +49,7 @@ export function useUnifiedSidebarProjection({
   activateTab,
   closeTab,
 }: {
+  archivedScopes: ReadonlySet<string>;
   props: UnifiedSidebarTreeProps;
   projects: WorkspaceTabState[];
   trees: SidebarWorktreesResult;
@@ -109,9 +111,6 @@ export function useUnifiedSidebarProjection({
     );
     return index < 0 ? Number.MAX_SAFE_INTEGER : index;
   };
-  const unavailable = (ref: SidebarEntryRef, label: string): SidebarTimelineGroup => ({
-    key: sidebarEntryKey(ref), label: null, items: [], header: <SidebarUnavailableEntry entry={ref} label={label} />,
-  });
   const buildGroups = (tasks: LCodeTaskMeta[]): SidebarTimelineGroup[] => {
     const groups: SidebarTimelineGroup[] = [];
     const header = (
@@ -147,7 +146,13 @@ export function useUnifiedSidebarProjection({
       if (ref.kind === "project") {
         const tab = projects.find((item) => sidebarEntryKey(projectRef(item)) === key);
         if (tab) groups.push({ key, label: null, items: [], header: renderProject(tab, tasks) });
-        else groups.push(unavailable(ref, catalog.find((item) => sidebarEntryKey(item.ref) === key)?.label || ref.workspacePath));
+        else
+          groups.push(
+            unavailableSidebarGroup(
+              ref,
+              catalog.find((item) => sidebarEntryKey(item.ref) === key)?.label || ref.workspacePath,
+            ),
+          );
       } else if (ref.kind === "worktree") {
         const entry = trees.entries.find((item) => sidebarEntryKey(treeRef(item)) === key);
         if (entry) {
@@ -220,19 +225,12 @@ export function useUnifiedSidebarProjection({
               ),
             });
         } else
-          groups.push({
-            key,
-            label: null,
-            items: [],
-            header: (
-              <SidebarUnavailableEntry
-                entry={ref}
-                label={
-                  catalog.find((item) => sidebarEntryKey(item.ref) === key)?.label || ref.bindingId
-                }
-              />
+          groups.push(
+            unavailableSidebarGroup(
+              ref,
+              catalog.find((item) => sidebarEntryKey(item.ref) === key)?.label || ref.bindingId,
             ),
-          });
+          );
       } else if (ref.kind === "executionSet") {
         const entry = sets.entries.find((entry) => sidebarEntryKey(executionSetRef(entry)) === key);
         if (entry && entry.snapshot.status !== "archived")
@@ -264,7 +262,14 @@ export function useUnifiedSidebarProjection({
                     .slice(0, limits[key] ?? 20)
                 : [],
           });
-        else if (!entry) groups.push(unavailable(ref, catalog.find((item) => sidebarEntryKey(item.ref) === key)?.label || ref.executionSetId));
+        else if (!entry)
+          groups.push(
+            unavailableSidebarGroup(
+              ref,
+              catalog.find((item) => sidebarEntryKey(item.ref) === key)?.label ||
+                ref.executionSetId,
+            ),
+          );
       } else {
         const task = tasks.find((item) => sidebarEntryKey(taskSidebarRef(item)) === key);
         if (task) groups.push({ key, label: null, items: [task] });
@@ -284,7 +289,13 @@ export function useUnifiedSidebarProjection({
           });
       }
     };
-    const projected = projectSidebarFocus(focus, organization.snapshot, catalog, tasks);
+    const projected = projectSidebarFocus(
+      focus,
+      organization.snapshot,
+      catalog,
+      tasks,
+      archivedScopes,
+    );
     for (const section of projected.sections) {
       const first = groups.length;
       header(

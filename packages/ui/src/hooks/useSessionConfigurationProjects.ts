@@ -3,6 +3,7 @@ import {
   buildRemoteWorkspaceIdentity,
   findProjectDefinition,
   type AppSettings,
+  type ProjectDefinition,
 } from "@lcode/shared";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
 import {
@@ -35,12 +36,14 @@ export function resolveSessionConfigurationProjects({
   worktreeEntries,
   sessionsById,
   sessionIdByWorkspaceIdentity,
+  includeArchived = false,
 }: {
   settings: AppSettings | null;
   workspaceTabs: WorkspaceTabState[];
   worktreeEntries: SidebarWorktreeEntry[];
   sessionsById: Record<string, RemoteWorkspaceSession>;
   sessionIdByWorkspaceIdentity: Record<string, string>;
+  includeArchived?: boolean;
 }): SessionConfigurationProject[] {
   const bindings = worktreeEntries.map((entry) => entry.binding);
   const projects = new Map<string, SessionConfigurationProject>();
@@ -62,8 +65,15 @@ export function resolveSessionConfigurationProjects({
   };
   for (const path of settings?.recentProjects ?? [])
     add({ workspacePath: path, label: getPathLeaf(path) || path });
-  for (const project of settings?.localProjects ?? [])
-    add({ workspacePath: project.primaryFolderPath, label: project.name });
+  for (const project of (settings?.projectDefinitions?.projects ??
+    settings?.localProjects ??
+    []) as ProjectDefinition[])
+    add({
+      workspacePath: project.primaryFolderPath,
+      workspaceIdentity: project.workspaceIdentity,
+      label: project.name,
+      localProjectId: project.id,
+    });
   // 原因：配置原先只遍历打开的 tab，保存但未打开的 SSH/WSL/Docker 项目无法选择。
   // 历史只提供身份和展示数据，不能据此连接或把远端模型替换为本地模型。
   for (const entry of getRemoteWorkspaceSessionEntries(settings ?? {}))
@@ -92,7 +102,7 @@ export function resolveSessionConfigurationProjects({
     add({ ...tab, label: local?.name || tab.label });
   }
   for (const { origin } of worktreeEntries) add(origin);
-  return [...projects.values()].map((project) => {
+  return [...projects.values()].flatMap((project) => {
     const sessionId = project.workspaceIdentity
       ? sessionIdByWorkspaceIdentity[project.workspaceIdentity]
       : undefined;
@@ -104,9 +114,12 @@ export function resolveSessionConfigurationProjects({
     const normalized = definition
       ? { ...project, label: definition.name, localProjectId: definition.id }
       : project;
-    return sessionId && sessionsById[sessionId]
-      ? { ...normalized, remoteSessionId: sessionId }
-      : normalized;
+    if (definition?.archivedAt && !includeArchived) return [];
+    return [
+      sessionId && sessionsById[sessionId]
+        ? { ...normalized, remoteSessionId: sessionId }
+        : normalized,
+    ];
   });
 }
 

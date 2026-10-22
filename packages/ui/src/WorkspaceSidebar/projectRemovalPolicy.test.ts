@@ -12,18 +12,32 @@ const disconnected = {
   sourceUnavailable: true,
 };
 
-test("failed remote placeholders can be removed without reconnecting or verifying an absent owner", () => {
-  assert.equal(projectRemovalBlockedReason(disconnected), undefined);
-  assert.equal(projectRemovalBlockedReason({ ...disconnected, sourceLoading: true }), undefined);
+test("permanent deletion requires an online verified source; offline projects can use archive instead", () => {
+  assert.equal(projectRemovalBlockedReason(disconnected), "verifySource");
+  assert.equal(
+    projectRemovalBlockedReason({ ...disconnected, sourceLoading: true }),
+    "verifySource",
+  );
 });
 
 test("known dependencies keep disconnected origins protected", () => {
   for (const [flag, reason] of [
     ["hasExecutionSets", "activeExecutionSet"],
-    ["hasIndependentChats", "dependentChats"],
     ["hasWorktrees", "activeBinding"],
   ] as const)
     assert.equal(projectRemovalBlockedReason({ ...disconnected, [flag]: true }), reason);
+});
+
+test("separately placed chats are included in project deletion rather than blocking it", () => {
+  assert.equal(
+    projectRemovalBlockedReason({
+      ...disconnected,
+      sourceConnected: true,
+      sourceUnavailable: false,
+      hasIndependentChats: true,
+    }),
+    undefined,
+  );
 });
 
 test("local and connected remote sources still require their own verification", () => {

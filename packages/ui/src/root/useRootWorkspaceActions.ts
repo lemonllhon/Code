@@ -27,7 +27,6 @@ import { isRendererReloadNavigation } from "@/lib/rendererNavigation.js";
 import { parseWslUncWorkspacePath } from "@/lib/wslUncWorkspace.js";
 import { logger } from "@/logger.js";
 import { openFolderFromWorkspaceEntry } from "@/root/openWorkspaceFolderEntry.js";
-import { buildLocalProjectRemovalPatch } from "@/localProjectLifecycle.js";
 import { useConversationWorkspaceActions } from "@/root/useConversationWorkspaceActions.js";
 import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import {
@@ -717,17 +716,19 @@ export function useRootWorkspaceActions({
       }
       // 已删除 ID 的重试必须幂等；不能退回路径匹配而误删另一设备的同名目录。
       if (request.projectId) return;
-      const patch = buildLocalProjectRemovalPatch(settings, request);
-      if (!patch) {
-        return;
-      }
-
-      // 只删除应用中的项目元数据，不碰源码目录；同时清理 recent/session 索引，
-      // 防止选择器、启动恢复和新建冲突校验继续把已移除项目当成有效项目。
-      const { localProjects: _projects, ...navigation } = patch;
-      await updateAppSettings(navigation);
+      // 中文依据：旧 recent/session 项目没有定义，原 helper 返回 null 后入口会被 recent 立即投影回来。
+      // 与显式项目共用设置 owner 的锁与事务，在最新快照中清理导航索引。
+      const result = await mutateProject({
+        type: "remove",
+        operationId: createUuid(),
+        projectId: createUuid(),
+        expectedRevision: null,
+        workspace: { workspacePath: request.workspacePath },
+      });
+      if (result.status !== "applied")
+        throw new Error(result.reason ?? "Project could not be deleted");
     },
-    [services.settingService, supportsSettings, updateAppSettings, mutateProject],
+    [services.settingService, supportsSettings, mutateProject],
   );
 
   const handleCreateScratchWorkspace = useCallback(

@@ -61,8 +61,19 @@ export interface UnifiedSidebarTreeProps {
 export function UnifiedSidebarTree(props: UnifiedSidebarTreeProps) {
   const text = useSidebarText();
   const organization = useSidebarOrganization()!;
-  const { projects, trees, sets, bindings, queryTabs, activateTab, closeTab } =
-    useUnifiedSidebarSources();
+  const {
+    projects,
+    archivedProjects,
+    archivedScopes,
+    trees,
+    sets,
+    archiveSets,
+    bindings,
+    queryTabs,
+    archiveQueryTabs,
+    activateTab,
+    closeTab,
+  } = useUnifiedSidebarSources();
   const {
     isOpen,
     toggle: togglePreference,
@@ -154,6 +165,7 @@ export function UnifiedSidebarTree(props: UnifiedSidebarTreeProps) {
     }
   };
   const buildGroups = useUnifiedSidebarProjection({
+    archivedScopes,
     props,
     projects,
     trees,
@@ -239,9 +251,10 @@ export function UnifiedSidebarTree(props: UnifiedSidebarTreeProps) {
       ) : null}
       {archiveOpen ? (
         <SidebarArchivePanel
-          sets={sets}
+          sets={archiveSets}
+          projects={archivedProjects}
           props={props}
-          queryTabs={queryTabs}
+          queryTabs={archiveQueryTabs}
           bindings={bindings}
           sortBy={sortBy}
         />

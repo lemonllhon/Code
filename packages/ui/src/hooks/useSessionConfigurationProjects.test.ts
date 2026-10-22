@@ -25,6 +25,22 @@ const settings = appSettingsSchema.parse({
   })),
 });
 
+test("archived local project is hidden from session configuration despite recent and open tabs", () => {
+  const archivedSettings = appSettingsSchema.parse({
+    ...settings,
+    localProjects: settings.localProjects.map((project) => ({ ...project, archivedAt: 1 })),
+  });
+  const result = resolveSessionConfigurationProjects({
+    settings: archivedSettings,
+    workspaceTabs: [{ id: "local", kind: "workspace", workspacePath: path, label: "Local" }],
+    worktreeEntries: [],
+    sessionsById: {},
+    sessionIdByWorkspaceIdentity: {},
+  });
+  assert.equal(result.length, 3);
+  assert.ok(result.every((item) => item.workspaceIdentity));
+});
+
 test("saved remote projects derive identities without merging equal local/remote paths", () => {
   const result = resolveSessionConfigurationProjects({
     settings,

@@ -69,6 +69,10 @@ export interface LocalSettingStorePort {
 }
 
 export interface SessionStorePort {
+  /** 按完整工作区身份查询/永久清理；事务内校验完整集合，并保留 ID journal 供诊断清理重试。 */
+  workspaceCleanup?(
+    input: import("@lcode/shared").LCodeSessionWorkspaceCleanupParams,
+  ): Promise<{ sessionIds: string[] }>;
   /**
    * 受信 Host 环境重绑；无 expectedSessionIds 仅校验/查询全部 latest binding。
    * 提交须携带已关闭 resident 的完整查询集合，BEGIN IMMEDIATE 内重读并整批 CAS；

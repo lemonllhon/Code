@@ -26,6 +26,8 @@ export const projectMemberSchema = z.strictObject({
 });
 export type ProjectMember = z.infer<typeof projectMemberSchema>;
 export const projectMetadataShape = {
+  /** 导航归档事实由设置 owner 持久化；不代表会话或 Git 工作树被归档。 */
+  archivedAt: z.number().int().positive().optional(),
   /** 默认执行成员与历史身份锚点分离；旧项目缺省时使用原主目录。 */
   primaryMemberId: z.string().trim().min(1).max(200).optional(),
   revision: z.number().int().positive().optional(),
@@ -154,7 +156,19 @@ const commandBase = {
 };
 export const projectMutationRequestSchema = z.discriminatedUnion("type", [
   z.strictObject({ ...commandBase, type: z.literal("save"), project: projectDefinitionSchema }),
-  z.strictObject({ ...commandBase, type: z.literal("remove") }),
+  z.strictObject({
+    ...commandBase,
+    type: z.literal("remove"),
+    /** 旧入口没有显式定义时，在同一事务清理其导航索引。 */
+    workspace: z
+      .strictObject({
+        workspacePath: z.string().trim().min(1),
+        workspaceIdentity: z.string().trim().min(1).optional(),
+      })
+      .optional(),
+  }),
+  z.strictObject({ ...commandBase, type: z.literal("archive"), project: projectDefinitionSchema }),
+  z.strictObject({ ...commandBase, type: z.literal("restore") }),
 ]);
 export type ProjectMutationRequest = z.infer<typeof projectMutationRequestSchema>;
 export const projectMutationResultSchema = z.strictObject({

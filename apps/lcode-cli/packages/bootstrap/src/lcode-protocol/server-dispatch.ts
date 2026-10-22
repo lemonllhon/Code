@@ -1,6 +1,7 @@
 import { querySessionDebug } from "./session-debug.js";
 import { getProviderUsageStats } from "./provider-usage-stats.js";
 import { cleanupWorktreeSessions } from "./worktree-session-cleanup.js";
+import { cleanupWorkspaceSessions } from "./workspace-session-cleanup.js";
 import { rebindWorktreeSessions } from "./worktree-session-rebind.js";
 import { workspaceFileMutationJournal } from "./workspace-file-mutation-journal.js";
 import { lcodeProtocolMethods, lcodeWorkspaceHookTrustGrantParamsSchema } from "@lcode/shared";
@@ -280,6 +281,8 @@ export async function dispatchRequest(host: ProtocolDispatchHost, request: LCode
       return await closeSession(host.context, request.params, true);
     case lcodeProtocolMethods.sessionWorktreeCleanup:
       return await cleanupWorktreeSessions(host.context, request.params);
+    case lcodeProtocolMethods.sessionWorkspaceCleanup:
+      return await cleanupWorkspaceSessions(host.context, request.params);
     case lcodeProtocolMethods.sessionWorktreeRebind:
       return await rebindWorktreeSessions(host.context, request.params);
     case lcodeProtocolMethods.workspaceReadPresentation:

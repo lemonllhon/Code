@@ -15,7 +15,8 @@
 
 ## 状态所有者与接口
 
-- `AppSettings.localProjects` 是项目定义的唯一权威持久化来源。
+- 当前项目注册表由 `AppSettings.projectDefinitions` 和 `SettingService.mutateProject` 所有；`localProjects` 是同次提交的本地兼容投影。
+- 项目生命周期以 [删除与归档规范](project-delete-and-archive.md) 为准：归档保留项目与会话并进入归档区；删除永久清理项目记录与全部会话，保留磁盘源码。
 - `TabStore` 只保存当前 tab 对应的 `localProjectId` 投影，用于恢复和展示关联；项目名称和文件夹列表始终从设置快照读取。
 - 项目注册表不依赖窗口是否打开项目标签页。启动登录/模型检查、active-first 延迟恢复、关闭标签页、恢复失败或新窗口均不得删除项目定义；仅用户明确“移除项目”时沿现有删除命令清理该项目定义及其恢复索引。
 - 项目选择器始终展示已保存项目；没有打开标签页时由项目定义投影名称、主目录和项目 ID，选择后沿现有打开项目命令创建标签页。不得把“未打开”当作失效记录。
