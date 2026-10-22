@@ -30,6 +30,7 @@ import { useOpenWorktreeSettings } from "@/hooks/useOpenWorktreeSettings.js";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import type { RemoteConnectionLogEntry } from "@/hooks/useRemoteConnectionLogs.js";
 import type { WorktreeFileTarget } from "./WorktreeSidebarRow.js";
+import type { DesktopWorkspaceReconnect } from "@/hooks/windowWorkspaceReconnect.js";
 
 export interface UnifiedSidebarTreeProps {
   workspacePath: string;
@@ -51,7 +52,7 @@ export interface UnifiedSidebarTreeProps {
     request: import("@lcode/shared").LocalProjectRemoveRequest,
   ) => Promise<void>;
   onRemoveRemoteProject?: (workspaceKey: string) => Promise<void>;
-  onReconnectRemoteWorkspace(key: string, options?: { cancelPending?: boolean }): Promise<void>;
+  onReconnectRemoteWorkspace: DesktopWorkspaceReconnect;
   onCancelRemoteProject?(sessionId: string): Promise<void>;
   reconnectingRemoteWorkspaceKeys: string[];
   remoteWorkspaceErrorByWorkspaceKey: Record<string, string>;
@@ -64,7 +65,7 @@ export function UnifiedSidebarTree(props: UnifiedSidebarTreeProps) {
   const {
     projects,
     archivedProjects,
-    archivedScopes,
+    inactiveScopes,
     trees,
     sets,
     archiveSets,
@@ -165,7 +166,7 @@ export function UnifiedSidebarTree(props: UnifiedSidebarTreeProps) {
     }
   };
   const buildGroups = useUnifiedSidebarProjection({
-    archivedScopes,
+    inactiveScopes,
     props,
     projects,
     trees,
@@ -223,13 +224,18 @@ export function UnifiedSidebarTree(props: UnifiedSidebarTreeProps) {
           {text(archiveOpen ? "archived" : focus === "all" ? "workspace" : focus)}
         </span>
         <SidebarOrganizeMenu
+          onActivate={() => setArchiveOpen(false)}
           sortBy={sortBy}
           setSortBy={setSortBy}
           dates={dates}
           setDates={setDates}
           expand={expansion}
           focus={focus}
-          setFocus={setFocus}
+          setFocus={(value) => {
+            // 中文依据：archiveOpen 会遮住 focus 投影；同一已选项也必须立即退出归档区。
+            setArchiveOpen(false);
+            setFocus(value);
+          }}
         />
         <Button
           data-testid="sidebar-archive-toggle"

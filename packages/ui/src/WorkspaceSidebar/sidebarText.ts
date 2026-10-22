@@ -1,16 +1,17 @@
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 const labels = {
+  removeProjectFromSidebar: ["从侧边栏移除", "Remove from sidebar"],
   archiveProject: ["归档项目", "Archive project"],
   restoreProject: ["恢复项目", "Restore project"],
   deleteProject: ["删除项目…", "Delete project…"],
   deleteProjectConfirm: ["永久删除", "Delete permanently"],
   deleteProjectHint: [
-    "将永久删除此项目的记录及全部会话（包括置顶、归档和隐藏的历史），无法恢复。磁盘上的源码目录会保留。请先停止正在运行的会话。",
-    "Permanently deletes this project and all its chats, including pinned, archived and hidden history. This cannot be undone. Source folders on disk are kept. Stop running chats first.",
+    "将永久删除此项目的记录及全部会话（包括置顶、归档和隐藏的历史），无法恢复。磁盘上的源码目录会保留。请先停止正在运行的会话。远程连接已关闭时将自动重连，连接成功后执行删除。",
+    "Permanently deletes this project and all its chats, including pinned, archived and hidden history. This cannot be undone. Source folders on disk are kept. Stop running chats first. Closed remote connections are reconnected before deletion.",
   ],
   deleteProjectOffline: [
-    "请先连接此项目，以确认全部会话已永久删除；离线时可以归档。",
-    "Connect this project to permanently delete all its chats. You can archive it while offline.",
+    "无法连接原远程项目，尚未执行永久删除。请检查连接后重试。",
+    "Could not connect to the original remote project. Permanent deletion has not started. Check the connection and retry.",
   ],
   deleteProjectUpgrade: [
     "当前 Host 不支持永久删除项目会话，请升级后重试。",

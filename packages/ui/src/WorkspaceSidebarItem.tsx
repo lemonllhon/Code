@@ -1,8 +1,9 @@
 import { ProjectRemoteSyncGroup } from "@/WorkspaceSidebar/ProjectRemoteSyncGroup.js";
 import { useSidebarOrganization } from "@/hooks/useSidebarOrganization.js";
 import { useSettings } from "@/hooks/useSettingService.js";
-import { useProjectArchiveActions } from "@/hooks/useProjectArchiveActions.js";
+import { useProjectNavigationActions } from "@/hooks/useProjectNavigationActions.js";
 import { useProjectDeletion } from "@/hooks/useProjectDeletion.js";
+import type { DesktopWorkspaceReconnect } from "@/hooks/windowWorkspaceReconnect.js";
 import { findProjectDefinition } from "@lcode/shared";
 import {
   ContextMenu,
@@ -40,6 +41,7 @@ import {
   MessageCirclePlus,
   Trash2,
   Archive,
+  X,
 } from "lucide-react";
 import type { useSortable } from "@dnd-kit/sortable";
 import { BorderBeam } from "border-beam";
@@ -208,10 +210,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   reconnectingRemoteWorkspaceKeys: string[];
   remoteWorkspaceErrorByWorkspaceKey: Record<string, string>;
   reconnectingRemoteWorkspaceLogsByWorkspaceKey: Record<string, RemoteConnectionLogEntry[]>;
-  onReconnectRemoteWorkspace: (
-    workspaceKey: string,
-    options?: { cancelPending?: boolean },
-  ) => Promise<void>;
+  onReconnectRemoteWorkspace: DesktopWorkspaceReconnect;
   onOpenFileTree?: (target: {
     workspacePath: string;
     workspaceName: string;
@@ -249,25 +248,26 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   const [projectContextOpen, setProjectContextOpen] = useState(false);
   const baseServices = useBaseWorkspaceServices();
   const { settings: projectSettings } = useSettings(baseServices);
-  const archiveProject = useProjectArchiveActions();
+  const navigateProject = useProjectNavigationActions();
   const { deleting, deleteProject } = useProjectDeletion(tab, {
     onRemoveLocalProject,
     onRemoveRemoteProject,
+    onReconnectRemoteWorkspace,
   });
   const projectActionPending = useRef(false);
-  const [archiving, setArchiving] = useState(false);
-  const handleArchiveProject = async () => {
+  const [updatingProjectNavigation, setUpdatingProjectNavigation] = useState(false);
+  const handleProjectNavigation = async (action: "archive" | "hide") => {
     if (projectActionPending.current) return;
     projectActionPending.current = true;
-    setArchiving(true);
+    setUpdatingProjectNavigation(true);
     try {
-      await archiveProject(tab, true);
+      await navigateProject(tab, action);
     } catch (error) {
-      logger.error("[WorkspaceSidebarItem] 归档项目失败", { error });
+      logger.error("[WorkspaceSidebarItem] 更新项目导航失败", { action, error });
       toast(sidebarText("projectActionFailed"), { variant: "warning" });
     } finally {
       projectActionPending.current = false;
-      setArchiving(false);
+      setUpdatingProjectNavigation(false);
     }
   };
   const projectDefinition = findProjectDefinition(
@@ -906,14 +906,24 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
         Separator={Separator}
       />
       <Separator />
-      <Item disabled={archiving || deleting} onSelect={() => void handleArchiveProject()}>
+      <Item
+        disabled={updatingProjectNavigation || deleting}
+        onSelect={() => void handleProjectNavigation("hide")}
+      >
+        <X className="size-3.5" />
+        {sidebarText("removeProjectFromSidebar")}
+      </Item>
+      <Item
+        disabled={updatingProjectNavigation || deleting}
+        onSelect={() => void handleProjectNavigation("archive")}
+      >
         <Archive className="size-3.5" />
         {sidebarText("archiveProject")}
       </Item>
       <Item
         data-testid={testId(TID_WORKSPACE_CLOSE, tab.workspacePath)}
         variant="destructive"
-        disabled={preserveOrigin || deleting || archiving}
+        disabled={preserveOrigin || deleting || updatingProjectNavigation}
         title={preserveOrigin ? (removalBlockedReason ?? sidebarText("activeBinding")) : undefined}
         onSelect={() => void deleteProject()}
       >

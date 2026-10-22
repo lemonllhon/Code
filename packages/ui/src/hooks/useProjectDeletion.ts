@@ -6,10 +6,10 @@ import {
   sidebarEntryKey,
   type LocalProjectRemoveRequest,
 } from "@lcode/shared";
-import {
-  useBaseWorkspaceServices,
-  useWorkspaceServicesResolution,
-} from "./useWorkspaceServices.js";
+import { useBaseWorkspaceServices } from "./useWorkspaceServices.js";
+import { resolveProjectDeletionServices } from "./projectDeletionServices.js";
+import type { DesktopWorkspaceReconnect } from "./windowWorkspaceReconnect.js";
+import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
 import { useSettings } from "./useSettingService.js";
 import { useConfirmDialog } from "./useConfirmDialog.js";
 import { useSidebarOrganization } from "./useSidebarOrganization.js";
@@ -28,6 +28,7 @@ export function useProjectDeletion(
   callbacks: {
     onRemoveLocalProject?: (request: LocalProjectRemoveRequest) => Promise<void>;
     onRemoveRemoteProject?: (key: string) => Promise<void>;
+    onReconnectRemoteWorkspace?: DesktopWorkspaceReconnect;
   } = {},
 ) {
   const base = useBaseWorkspaceServices();
@@ -36,11 +37,8 @@ export function useProjectDeletion(
     (target.remoteTarget
       ? buildRemoteWorkspaceIdentity(target.workspacePath, target.remoteTarget)
       : undefined);
-  const resolution = useWorkspaceServicesResolution(
-    target.workspacePath,
-    target.remoteSessionId,
-    workspaceIdentity,
-    target.remoteTarget,
+  const isRemoteTarget = Boolean(
+    workspaceIdentity || target.remoteSessionId || target.remoteTarget,
   );
   const { mutateProject } = useSettings(base);
   const confirm = useConfirmDialog();
@@ -54,8 +52,6 @@ export function useProjectDeletion(
     pending.current = true;
     setDeleting(true);
     try {
-      if (!resolution.rpcReady || (resolution.isRemoteTarget && !workspaceIdentity))
-        throw new Error(text("deleteProjectOffline"));
       if (
         !(await confirm({
           title: text("deleteProject"),
@@ -70,7 +66,23 @@ export function useProjectDeletion(
         workspacePath: target.workspacePath,
         ...(workspaceIdentity ? { workspaceIdentity } : {}),
       };
-      const services = resolution.services;
+      const services = await resolveProjectDeletionServices(
+        { ...target, workspaceIdentity },
+        base,
+        useRemoteWorkspaceSessionStore.getState,
+        callbacks.onReconnectRemoteWorkspace
+          ? async (key, options) => {
+              // 中文依据：关闭标签页后的项目仍在注册表；重连 owner 需要原 identity 的窗口入口。
+              tabs.getState().ensureWorkspaceTab(target.workspacePath, {
+                workspaceIdentity,
+                remoteTarget: target.remoteTarget,
+                localProjectId: target.localProjectId,
+              });
+              await callbacks.onReconnectRemoteWorkspace!(key, options);
+            }
+          : undefined,
+        text("deleteProjectOffline"),
+      );
       // 中文依据：确认框打开期间依赖可能改变，不能只信任菜单的旧禁用态；归档项也走同一门禁。
       if (!services.worktreeService) throw new Error(text("deleteProjectUpgrade"));
       const bindings = await services.worktreeService.list(scope);
@@ -92,9 +104,9 @@ export function useProjectDeletion(
       if (typeof services.lcodeTaskService.deleteWorkspaceTasks !== "function")
         throw new Error(text("deleteProjectUpgrade"));
       await services.lcodeTaskService.deleteWorkspaceTasks(scope);
-      if (resolution.isRemoteTarget && callbacks.onRemoveRemoteProject) {
+      if (isRemoteTarget && callbacks.onRemoveRemoteProject) {
         await callbacks.onRemoveRemoteProject(scope.workspaceIdentity || scope.workspacePath);
-      } else if (!resolution.isRemoteTarget && callbacks.onRemoveLocalProject) {
+      } else if (!isRemoteTarget && callbacks.onRemoveLocalProject) {
         await callbacks.onRemoveLocalProject({
           workspacePath: scope.workspacePath,
           ...(project ? { projectId: project.id } : {}),

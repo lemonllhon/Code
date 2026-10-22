@@ -27,7 +27,7 @@ import { useSidebarSystemActions } from "./useSidebarSystemActions.js";
 import { SidebarProjectEntry } from "./SidebarProjectEntry.js";
 import type { SidebarExecutionSetsResult } from "@/hooks/useSidebarExecutionSets.js";
 export function useUnifiedSidebarProjection({
-  archivedScopes,
+  inactiveScopes,
   props,
   projects,
   trees,
@@ -49,7 +49,7 @@ export function useUnifiedSidebarProjection({
   activateTab,
   closeTab,
 }: {
-  archivedScopes: ReadonlySet<string>;
+  inactiveScopes: ReadonlySet<string>;
   props: UnifiedSidebarTreeProps;
   projects: WorkspaceTabState[];
   trees: SidebarWorktreesResult;
@@ -294,7 +294,7 @@ export function useUnifiedSidebarProjection({
       organization.snapshot,
       catalog,
       tasks,
-      archivedScopes,
+      inactiveScopes,
     );
     for (const section of projected.sections) {
       const first = groups.length;

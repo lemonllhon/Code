@@ -39,7 +39,7 @@ export function createSidebarProjectCommands(
     if (duplicate)
       return { status: "conflict", project: duplicate, reason: "Duplicate project source" };
     let project: ProjectDefinition | null = null;
-    if (request.type === "save" || request.type === "archive") {
+    if (request.type === "save" || request.type === "archive" || request.type === "hide") {
       const members =
         request.project.members ??
         request.project.sourceFolderPaths.map((path) => ({
@@ -54,6 +54,9 @@ export function createSidebarProjectCommands(
         ...request.project,
         revision: (existing?.revision ?? 0) + 1,
         ...(request.type === "archive" ? { archivedAt: existing?.archivedAt ?? Date.now() } : {}),
+        ...(request.type === "hide"
+          ? { sidebarHiddenAt: existing?.sidebarHiddenAt ?? Date.now() }
+          : {}),
         members,
         memberOrder: request.project.memberOrder ?? members.map((member) => member.id),
       };
@@ -61,6 +64,10 @@ export function createSidebarProjectCommands(
     if (request.type === "restore" && existing) {
       const { archivedAt: _archivedAt, ...active } = existing;
       project = { ...active, revision: (existing.revision ?? 0) + 1 };
+    }
+    if (request.type === "show" && existing) {
+      const { sidebarHiddenAt: _sidebarHiddenAt, ...visible } = existing;
+      project = { ...visible, revision: (existing.revision ?? 0) + 1 };
     }
     const next = [...projects];
     const index = next.findIndex((item) => item.id === request.projectId);

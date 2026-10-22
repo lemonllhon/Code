@@ -51,6 +51,7 @@ import {
 import { useRemoteConnectionEntryVisibility } from "@/hooks/useRemoteConnectionEntryVisibility.js";
 import { markRemoteWorkspaceRunningTasksFailed } from "@/lib/remoteWorkspaceSessionRuntime.js";
 import { useSettings } from "@/hooks/useSettingService.js";
+import { submitProjectNavigation } from "@/hooks/projectNavigationCommands.js";
 
 export { reconnectRemoteWorkspaceHistoryEntry };
 
@@ -471,6 +472,7 @@ async function selectRemoteWorkspaceProjectFromDialog({
   bindRemoteWorkspaceIdentity,
   addTab,
   onWorkspaceActivated,
+  beforeWorkspaceActivated,
   refreshPinnedTasks,
   refreshTimelineTasks,
 }: {
@@ -505,6 +507,10 @@ async function selectRemoteWorkspaceProjectFromDialog({
     },
   ) => void;
   onWorkspaceActivated?: (target: { workspacePath: string; workspaceIdentity: string }) => void;
+  beforeWorkspaceActivated?: (target: {
+    workspacePath: string;
+    workspaceIdentity: string;
+  }) => Promise<void>;
   refreshPinnedTasks: (params: {
     sessionId: string;
     workspacePath: string;
@@ -533,6 +539,7 @@ async function selectRemoteWorkspaceProjectFromDialog({
 
   const canonicalPath = await resolveRemoteWorkspaceCanonicalPath(sessionId, path);
   const workspaceIdentity = buildRemoteWorkspaceIdentity(canonicalPath, remoteTarget);
+  await beforeWorkspaceActivated?.({ workspacePath: canonicalPath, workspaceIdentity });
   const existingWorkspaceTab = getWorkspaceTabs().find(
     (tab): tab is import("@/store/tabStore.js").WorkspaceTabState =>
       isWorkspaceTab(tab) &&
@@ -651,7 +658,7 @@ export function useRemoteWorkspaceHistory({
   const showRemoteConnectionEntry = useRemoteConnectionEntryVisibility();
   const canUseRemoteWorkspace = allowRemoteWorkspace && showRemoteConnectionEntry;
   const allowRemoteWorkspaceRestore = canUseRemoteWorkspace;
-  const { update: updateAppSettings } = useSettings(services);
+  const { update: updateAppSettings, mutateProject } = useSettings(services);
   const [remoteWorkspaceSessions, setRemoteWorkspaceSessions] = useState<
     RemoteWorkspaceSessionEntry[]
   >([]);
@@ -866,7 +873,10 @@ export function useRemoteWorkspaceHistory({
           (tab): tab is import("@/store/tabStore.js").WorkspaceTabState =>
             isWorkspaceTab(tab) && buildWorkspaceSessionKey(tab) === workspaceKey,
         );
-      if (!workspaceTab || workspaceTab.remoteSessionId) {
+      const connectedSession = workspaceTab?.remoteSessionId
+        ? getRemoteWorkspaceSession(workspaceTab.remoteSessionId)
+        : null;
+      if (!workspaceTab || connectedSession?.workspaceIdentity?.trim() === workspaceKey) {
         return false;
       }
 
@@ -1051,6 +1061,12 @@ export function useRemoteWorkspaceHistory({
           bindRemoteWorkspaceIdentity,
           addTab,
           onWorkspaceActivated,
+          beforeWorkspaceActivated: (target) =>
+            submitProjectNavigation(
+              { get: services.settingService.get, mutateProject },
+              { ...target, label: target.workspacePath },
+              "show",
+            ),
           refreshPinnedTasks: refreshRemotePinnedTasksForSession,
           refreshTimelineTasks: refreshRemoteTimelineTasksForSession,
         });
@@ -1069,6 +1085,8 @@ export function useRemoteWorkspaceHistory({
       onWorkspaceActivated,
       resolveRemoteWorkspaceCanonicalPath,
       canUseRemoteWorkspace,
+      services.settingService,
+      mutateProject,
     ],
   );
 
@@ -1123,6 +1141,16 @@ export function useRemoteWorkspaceHistory({
         return;
       }
 
+      const entry = remoteWorkspaceSessionsRef.current.find(
+        (item) => buildWorkspaceSessionKey(item) === workspaceKey,
+      );
+      if (entry)
+        await submitProjectNavigation(
+          { get: services.settingService.get, mutateProject },
+          { ...entry, remoteTarget: entry.target, label: entry.workspacePath },
+          "show",
+        );
+
       // 远程历史入口与侧栏重连都可能命中“重连中被用户移除”的竞态。
       // 这里抽成统一入口，确保两条路径共享相同的并发保护、保留校验与错误处理语义。
       const frozenSessions = freezeDeviceProfiles(
@@ -1168,6 +1196,7 @@ export function useRemoteWorkspaceHistory({
       services.settingService,
       tabStoreApi,
       canUseRemoteWorkspace,
+      mutateProject,
     ],
   );
 

@@ -14,6 +14,10 @@ import { useRemoteWorkspaceHistory } from "@/root/useRemoteWorkspaceHistory.js";
 import { useRootWorkspaceActions } from "@/root/useRootWorkspaceActions.js";
 import { useTabStoreApi } from "@/store/TabStoreProvider.js";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
+import type { DesktopWorkspaceReconnect } from "@/hooks/windowWorkspaceReconnect.js";
+import { ChatEmptyWorkspacePreviewMenu } from "@/ChatEmptyState.js";
+import { useSettings } from "@/hooks/useSettingService.js";
+import { isWorkspaceTab } from "@/store/tabStore.js";
 
 /** 网络和磁盘桩只提供 IO，历史状态、提交顺序、失败恢复均执行真实 Root owner。 */
 export function createHistoryRemovalFixture({
@@ -24,21 +28,25 @@ export function createHistoryRemovalFixture({
   defaults,
   calls,
   facts,
+  registerConnected,
 }: {
   enabled: boolean;
   settings: Partial<AppSettings>;
   origin: string;
-  target: Extract<RemoteTarget, { kind: "ssh" }>;
+  target: RemoteTarget;
   defaults: IServiceAccessor;
   calls: Array<{ method: string; params: unknown }>;
   facts: { connects: number; finishedReconnects: number };
+  registerConnected?: (sessionId: string) => void;
 }) {
   let rejectSave = false;
+  let connectionResult: "held" | "success" | "failure" = "held";
   let finishConnection: (() => void) | undefined;
   let finishCancellation: (() => void) | undefined;
   const listeners = new Set<() => void>();
   if (enabled && !settings.lastWorkspaceSession) {
-    const targets = [target, { ...target, host: "other.invalid" }];
+    const targets =
+      target.kind === "ssh" ? [target, { ...target, host: "other.invalid" }] : [target];
     settings.lastWorkspaceSession = [
       { kind: "local", workspacePath: origin },
       ...targets.map((remoteTarget) => ({
@@ -64,17 +72,19 @@ export function createHistoryRemovalFixture({
     };
   }
   return {
-    reconnect: (onReconnect?: (key: string) => Promise<void>) => async (key: string) => {
-      if (!onReconnect) {
-        facts.connects++;
-        return;
-      }
-      try {
-        await onReconnect(key);
-      } finally {
-        facts.finishedReconnects++;
-      }
-    },
+    reconnect:
+      (onReconnect?: DesktopWorkspaceReconnect): DesktopWorkspaceReconnect =>
+      async (key, options) => {
+        if (!onReconnect) {
+          facts.connects++;
+          return;
+        }
+        try {
+          await onReconnect(key, options);
+        } finally {
+          facts.finishedReconnects++;
+        }
+      },
     update: async (patch: Partial<AppSettings>) => {
       if (!enabled) return defaults.settingService.update(patch);
       calls.push({ method: "saveHistory", params: patch });
@@ -110,6 +120,13 @@ export function createHistoryRemovalFixture({
         ? {
             connectRemote: async () => {
               facts.connects++;
+              calls.push({ method: "connectRemote", params: {} });
+              if (connectionResult === "failure")
+                return { success: false, error: "Fixture connection refused" };
+              if (connectionResult === "success") {
+                registerConnected?.("reconnected");
+                return { success: true, sessionId: "reconnected" };
+              }
               return new Promise<{ success: false; error: string }>((resolve) => {
                 finishConnection = () =>
                   resolve({ success: false, error: "Fixture late connection failure" });
@@ -126,6 +143,9 @@ export function createHistoryRemovalFixture({
       listeners.forEach((listener) => listener());
     },
     actions: {
+      setReconnectResult: (result: typeof connectionResult) => {
+        connectionResult = result;
+      },
       rejectHistorySave: (reject: boolean) => {
         rejectSave = reject;
       },
@@ -143,8 +163,8 @@ export function createHistoryRemovalFixture({
                   settings.lastWorkspaceSession?.some(
                     (entry) =>
                       entry.kind === "remote" &&
-                      entry.target.kind === "ssh" &&
-                      entry.target.host === target.host,
+                      buildRemoteWorkspaceIdentity(entry.workspacePath, entry.target) ===
+                        buildRemoteWorkspaceIdentity(origin, target),
                   )),
             )
             .map((tab) => ({ ...tab, remoteSessionId: undefined })),
@@ -153,7 +173,12 @@ export function createHistoryRemovalFixture({
 
 export interface HistoryRemovalActions {
   onRemoveRemoteProject?: (key: string) => Promise<void>;
-  onReconnect?: (key: string) => Promise<void>;
+  onReconnect?: DesktopWorkspaceReconnect;
+  onSelectLocalProject?: (path: string) => Promise<void>;
+  onCreateLocalProject?: (
+    request: import("@lcode/shared").LocalProjectCreateRequest,
+  ) => Promise<void>;
+  onOpenRemoteHistory?: (key: string) => Promise<void>;
 }
 export function SavedHistoryFixture({
   services,
@@ -165,6 +190,7 @@ export function SavedHistoryFixture({
   const api = useTabStoreApi();
   const { intl } = useLCodeIntl();
   const platform = usePlatform();
+  const { settings: observedSettings } = useSettings(services);
   const [restored, setRestored] = useState(false);
   const activateTabByPath = useCallback(
     (...args: Parameters<ReturnType<typeof api.getState>["activateTabByPath"]>) =>
@@ -177,33 +203,38 @@ export function SavedHistoryFixture({
     },
     [api],
   );
-  const { handleRemoveLocalProject } = useRootWorkspaceActions({
-    intl,
-    services,
-    platform,
-    tabStoreApi: api,
-    addTab,
-    activeWorkspacePath: null,
-    activeWorkspaceIdentity: null,
-    supportsSettings: true,
-    allowOpenWorkspace: true,
-    preferDirectoryBrowser: false,
-    refreshProviderState: async () => {},
-    updateAppSettings: async () => {},
-    setOAuthError: () => {},
-    setUser: () => {},
-  });
-  const { restorePersistedSession, handleRemoveRemoteProject, handleReconnectRemoteWorkspace } =
-    useRemoteWorkspaceHistory({
+  const { handleRemoveLocalProject, handleSelectProject, handleCreateLocalProject } =
+    useRootWorkspaceActions({
       intl,
       services,
       platform,
-      supportsSettings: true,
       tabStoreApi: api,
-      activateTabByPath,
       addTab,
-      onRemoveProjectDefinition: handleRemoveLocalProject,
+      activeWorkspacePath: null,
+      activeWorkspaceIdentity: null,
+      supportsSettings: true,
+      allowOpenWorkspace: true,
+      preferDirectoryBrowser: false,
+      refreshProviderState: async () => {},
+      updateAppSettings: async () => {},
+      setOAuthError: () => {},
+      setUser: () => {},
     });
+  const {
+    restorePersistedSession,
+    handleRemoveRemoteProject,
+    handleReconnectRemoteWorkspace,
+    handleOpenRemoteWorkspaceFromHistory,
+  } = useRemoteWorkspaceHistory({
+    intl,
+    services,
+    platform,
+    supportsSettings: true,
+    tabStoreApi: api,
+    activateTabByPath,
+    addTab,
+    onRemoveProjectDefinition: handleRemoveLocalProject,
+  });
   useEffect(() => {
     let cancelled = false;
     void services.settingService.get().then(async (current) => {
@@ -216,9 +247,34 @@ export function SavedHistoryFixture({
     };
   }, [restorePersistedSession, services]);
   return restored ? (
-    <Content
-      onRemoveRemoteProject={handleRemoveRemoteProject}
-      onReconnect={handleReconnectRemoteWorkspace}
-    />
+    <>
+      {new URLSearchParams(location.search).has("project-navigation") ? (
+        <div data-testid="project-readd-picker">
+          <ChatEmptyWorkspacePreviewMenu
+            workspacePath="/fixture/conversations"
+            localProjects={
+              observedSettings?.projectDefinitions?.projects ??
+              observedSettings?.localProjects ??
+              []
+            }
+            workspaceTabs={api.getState().tabs.filter(isWorkspaceTab)}
+            onSelectWorkspace={(tab) =>
+              void handleSelectProject(tab.workspacePath, { localProjectId: tab.localProjectId })
+            }
+            onSelectConversationWorkspace={() => {}}
+            onConnectRemote={async () => "remote"}
+            onSelectRemoteProject={async () => {}}
+            onCancelRemoteProject={async () => {}}
+          />
+        </div>
+      ) : null}
+      <Content
+        onRemoveRemoteProject={handleRemoveRemoteProject}
+        onReconnect={handleReconnectRemoteWorkspace}
+        onSelectLocalProject={handleSelectProject}
+        onCreateLocalProject={handleCreateLocalProject}
+        onOpenRemoteHistory={handleOpenRemoteWorkspaceFromHistory}
+      />
+    </>
   ) : null;
 }

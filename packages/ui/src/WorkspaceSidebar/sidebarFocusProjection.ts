@@ -9,7 +9,7 @@ export function projectSidebarFocus(
   snapshot: SidebarOrganization,
   catalog: SidebarCatalogItem[],
   tasks: LCodeTaskMeta[],
-  archivedScopes?: ReadonlySet<string>,
+  inactiveScopes?: ReadonlySet<string>,
 ) {
   const explicit = new Set(
     snapshot.sections.flatMap((section) => section.entries.map(sidebarEntryKey)),
@@ -31,7 +31,7 @@ export function projectSidebarFocus(
         const scope =
           ref.kind === "project" ? ref : ref.kind === "task" ? ref.workspace : ref.origin;
         // 中文依据：归档保留分区事实以便恢复，活动投影不能把隐藏引用误显示为“来源不可用”。
-        if (archivedScopes?.has(scope.workspaceIdentity?.trim() || scope.workspacePath)) return [];
+        if (inactiveScopes?.has(scope.workspaceIdentity?.trim() || scope.workspacePath)) return [];
         if (focus === "all") return [ref];
         if (focus === "projects") return ref.kind === "project" ? [ref] : [];
         if (focus === "worktrees")

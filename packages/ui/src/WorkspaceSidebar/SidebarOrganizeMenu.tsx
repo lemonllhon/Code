@@ -43,6 +43,7 @@ export function SidebarOrganizeMenu({
   expand,
   focus,
   setFocus,
+  onActivate,
 }: {
   sortBy: "created" | "updated";
   setSortBy(value: "created" | "updated"): void;
@@ -51,6 +52,7 @@ export function SidebarOrganizeMenu({
   expand(value: boolean | null): void;
   focus: SidebarContentFocus;
   setFocus(value: SidebarContentFocus): void;
+  onActivate?(): void;
 }) {
   const organization = useSidebarOrganization()!;
   const compact = useSyncExternalStore(subscribeCompact, compactSnapshot, serverSnapshot);
@@ -181,6 +183,7 @@ export function SidebarOrganizeMenu({
           data-sidebar-organize-menu
           data-testid="sidebar-organize"
           aria-label={text("organize")}
+          onClick={onActivate}
           onPointerEnter={(event) => {
             if (event.pointerType === "mouse") {
               hover.current = true;

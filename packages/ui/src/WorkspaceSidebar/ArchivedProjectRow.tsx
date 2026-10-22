@@ -3,7 +3,7 @@ import { ArchiveRestore, Cloud, Folder, Trash2 } from "lucide-react";
 import type { ProjectDefinition } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
-import { useProjectArchiveActions } from "@/hooks/useProjectArchiveActions.js";
+import { useProjectNavigationActions } from "@/hooks/useProjectNavigationActions.js";
 import { useProjectDeletion } from "@/hooks/useProjectDeletion.js";
 import type { UnifiedSidebarTreeProps } from "./UnifiedSidebarTree.js";
 import { logger } from "@/logger.js";
@@ -17,7 +17,7 @@ export function ArchivedProjectRow({
   props: UnifiedSidebarTreeProps;
 }) {
   const text = useSidebarText();
-  const archive = useProjectArchiveActions();
+  const navigateProject = useProjectNavigationActions();
   const target = {
     workspacePath: project.primaryFolderPath,
     workspaceIdentity: project.workspaceIdentity,
@@ -32,14 +32,14 @@ export function ArchivedProjectRow({
     pending.current = true;
     setRestoring(true);
     try {
-      await archive(
+      await navigateProject(
         {
           workspacePath: project.primaryFolderPath,
           workspaceIdentity: project.workspaceIdentity,
           localProjectId: project.id,
           label: project.name,
         },
-        false,
+        "restore",
       );
     } catch (error) {
       logger.error("[ArchivedProjectRow] 恢复项目失败", { error });

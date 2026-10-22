@@ -14,6 +14,93 @@ const project = {
   sourceFolderPaths: ["/fixture/app"],
 };
 
+test("sidebar removal persists implicit and saved projects without deleting history, and show retains their IDs", async () => {
+  const root = await mkdtemp(join(tmpdir(), "lcode-project-hide-"));
+  const prior = process.env.LCODE_DESKTOP_HOME_DIR;
+  process.env.LCODE_DESKTOP_HOME_DIR = root;
+  const identity = buildRemoteWorkspaceIdentity(project.primaryFolderPath, {
+    kind: "ssh",
+    host: "fixture.invalid",
+    username: "dev",
+  });
+  const remote = { ...project, id: "remote", workspaceIdentity: identity };
+  try {
+    const settingsDirectory = join(root, ".lcode", "v2");
+    await mkdir(settingsDirectory, { recursive: true });
+    await writeFile(
+      join(settingsDirectory, "setting.json"),
+      JSON.stringify({
+        recentProjects: [project.primaryFolderPath],
+        localProjects: [],
+        projectDefinitions: { version: 1, projects: [remote] },
+        lastWorkspaceSession: [{ kind: "local", workspacePath: project.primaryFolderPath }],
+      }),
+    );
+    const owner = createSettingService();
+    for (const candidate of [project, remote]) {
+      const request = {
+        type: "hide" as const,
+        project: candidate,
+        projectId: candidate.id,
+        operationId: `hide-${candidate.id}`,
+        expectedRevision: candidate === project ? null : 0,
+      };
+      assert.equal((await owner.mutateProject(request)).status, "applied");
+      const reread = createSettingService();
+      const settings = await reread.get();
+      const hidden = settings.projectDefinitions!.projects.find((p) => p.id === candidate.id)!;
+      assert.ok(hidden.sidebarHiddenAt);
+      assert.equal(hidden.archivedAt, undefined);
+      assert.deepEqual(settings.recentProjects, [project.primaryFolderPath]);
+      assert.equal(settings.lastWorkspaceSession!.length, 1);
+      assert.equal((await reread.mutateProject(request)).status, "applied");
+      const stale = await reread.mutateProject({
+        ...request,
+        operationId: `stale-${candidate.id}`,
+        expectedRevision: 0,
+      });
+      assert.equal(stale.status, "conflict");
+      const shown = await reread.mutateProject({
+        type: "show",
+        projectId: hidden.id,
+        operationId: `show-${hidden.id}`,
+        expectedRevision: hidden.revision!,
+      });
+      assert.equal(shown.status, "applied");
+      assert.equal(shown.project!.sidebarHiddenAt, undefined);
+      assert.equal(shown.project!.id, hidden.id);
+      assert.deepEqual(shown.project!.members, hidden.members);
+      assert.equal(shown.project!.workspaceIdentity, hidden.workspaceIdentity);
+    }
+  } finally {
+    if (prior === undefined) delete process.env.LCODE_DESKTOP_HOME_DIR;
+    else process.env.LCODE_DESKTOP_HOME_DIR = prior;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("stale editor saves cannot clear sidebar removal and showing does not restore archive", async () => {
+  const settings = appSettingsSchema.parse({
+    localProjects: [{ ...project, revision: 1, sidebarHiddenAt: 100, archivedAt: 200 }],
+  });
+  const saved = await applyProjectMutation(settings, {
+    type: "save",
+    project: { ...project, name: "Edited" },
+    projectId: project.id,
+    operationId: "edit-hidden",
+    expectedRevision: 1,
+  });
+  assert.equal(saved.result.project!.sidebarHiddenAt, 100);
+  const shown = await applyProjectMutation(saved.next!, {
+    type: "show",
+    projectId: project.id,
+    operationId: "show-archived",
+    expectedRevision: 2,
+  });
+  assert.equal(shown.result.project!.archivedAt, 200);
+  assert.equal(shown.result.project!.sidebarHiddenAt, undefined);
+});
+
 test("implicit removal clears recent and restore indexes without touching a same-path remote", async () => {
   const target = { kind: "ssh" as const, host: "fixture.invalid", username: "dev" };
   const settings = appSettingsSchema.parse({

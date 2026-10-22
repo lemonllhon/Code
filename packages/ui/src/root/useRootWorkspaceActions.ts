@@ -21,6 +21,7 @@ import type { IServiceAccessor } from "@lcode/services";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useSettings } from "@/hooks/useSettingService.js";
+import { submitProjectNavigation } from "@/hooks/projectNavigationCommands.js";
 import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
 import { resolveLogoutProviderFamilyDomain } from "@/lib/providerFamilyDomainSettings.js";
 import { isRendererReloadNavigation } from "@/lib/rendererNavigation.js";
@@ -457,6 +458,13 @@ export function useRootWorkspaceActions({
           }
         }
 
+        // 中文依据：只激活旧 tab 不会清除持久化隐藏；先提交 show，让再次添加恢复原记录。
+        if (supportsSettings)
+          await submitProjectNavigation(
+            { get: services.settingService.get, mutateProject },
+            { workspacePath: path, label: path, localProjectId: tabOptions?.localProjectId },
+            "show",
+          );
         // 桌面端：检查是否已有其他窗口打开了该目录，如果是则激活该窗口对应 tab
         const result = await platform.activateOrSetWorkspace(path);
         if (result.activated) {
@@ -500,6 +508,7 @@ export function useRootWorkspaceActions({
       services.settingService,
       startDraftInWorkspace,
       supportsSettings,
+      mutateProject,
     ],
   );
 
@@ -580,6 +589,24 @@ export function useRootWorkspaceActions({
       );
       // 已保存但未打开的项目仍有效，不能根据窗口 tab 自动删除并替换它。
       if (conflictingProject && conflictingProject.id !== request.projectId) {
+        if (conflictingProject.sidebarHiddenAt && !conflictingProject.archivedAt) {
+          await submitProjectNavigation(
+            { get: services.settingService.get, mutateProject },
+            {
+              workspacePath: conflictingProject.primaryFolderPath,
+              workspaceIdentity: project.workspaceIdentity,
+              label: conflictingProject.name,
+              localProjectId: conflictingProject.id,
+            },
+            "show",
+          );
+          if (!project.workspaceIdentity)
+            await handleSelectProject(conflictingProject.primaryFolderPath, {
+              workspacePurpose: "project",
+              localProjectId: conflictingProject.id,
+            });
+          return;
+        }
         throw new Error(intl.formatMessage({ id: "chat.empty.createProject.duplicatePrimary" }));
       }
 

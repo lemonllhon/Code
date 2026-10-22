@@ -41,6 +41,25 @@ test("archived local project is hidden from session configuration despite recent
   assert.ok(result.every((item) => item.workspaceIdentity));
 });
 
+test("sidebar-removed projects remain selectable with their original project ID and same-path remote identities", () => {
+  const result = resolveSessionConfigurationProjects({
+    settings: appSettingsSchema.parse({
+      ...settings,
+      localProjects: settings.localProjects.map((p) => ({ ...p, sidebarHiddenAt: 1 })),
+    }),
+    workspaceTabs: [],
+    worktreeEntries: [],
+    sessionsById: {},
+    sessionIdByWorkspaceIdentity: {},
+  });
+  assert.equal(result.length, 4);
+  assert.equal(result[0]!.localProjectId, "local");
+  assert.deepEqual(
+    result.slice(1).map((p) => p.workspaceIdentity),
+    targets.map((t) => buildRemoteWorkspaceIdentity(path, t)),
+  );
+});
+
 test("saved remote projects derive identities without merging equal local/remote paths", () => {
   const result = resolveSessionConfigurationProjects({
     settings,

@@ -87,10 +87,7 @@ export interface AppProps {
     localWorkspacePath?: string,
   ) => Promise<void>;
   onCancelRemoteProject: (sessionId: string) => Promise<void>;
-  onReconnectRemoteWorkspace: (
-    workspaceKey: string,
-    options?: { cancelPending?: boolean },
-  ) => Promise<void>;
+  onReconnectRemoteWorkspace: import("@/hooks/windowWorkspaceReconnect.js").DesktopWorkspaceReconnect;
   onLogout?: () => void;
   onLogin?: () => void;
   user?: UserInfo | null;

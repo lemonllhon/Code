@@ -24,6 +24,7 @@ import { resolveWorktreeFileTarget } from "./worktreeFileTarget.js";
 import { cn } from "@/components/lib/utils.js";
 import { SidebarOrganizationProvider } from "@/hooks/useSidebarOrganization.js";
 import { UnifiedSidebarTree } from "@/WorkspaceSidebar/UnifiedSidebarTree.js";
+import type { DesktopWorkspaceReconnect } from "@/hooks/windowWorkspaceReconnect.js";
 export { applyWorkspaceTriggerSelection } from "@/WorkspaceSidebar/workspaceSidebarSelection.js";
 export { WorkspaceSidebarCollapsedRail } from "@/WorkspaceSidebar/WorkspaceSidebarCollapsedRail.js";
 interface SidebarFileTreeTarget {
@@ -122,10 +123,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
     localWorkspacePath?: string,
   ) => Promise<void>;
   onCancelRemoteProject: (sessionId: string) => Promise<void>;
-  onReconnectRemoteWorkspace: (
-    workspaceKey: string,
-    options?: { cancelPending?: boolean },
-  ) => Promise<void>;
+  onReconnectRemoteWorkspace: DesktopWorkspaceReconnect;
   onLogout?: () => void;
   onLogin?: () => void;
   user?: UserInfo | null;

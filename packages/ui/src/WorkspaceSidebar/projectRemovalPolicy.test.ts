@@ -12,12 +12,9 @@ const disconnected = {
   sourceUnavailable: true,
 };
 
-test("permanent deletion requires an online verified source; offline projects can use archive instead", () => {
-  assert.equal(projectRemovalBlockedReason(disconnected), "verifySource");
-  assert.equal(
-    projectRemovalBlockedReason({ ...disconnected, sourceLoading: true }),
-    "verifySource",
-  );
+test("offline deletion can initiate reconnect, then validates dependencies against the original source", () => {
+  assert.equal(projectRemovalBlockedReason(disconnected), undefined);
+  assert.equal(projectRemovalBlockedReason({ ...disconnected, sourceLoading: true }), undefined);
 });
 
 test("known dependencies keep disconnected origins protected", () => {

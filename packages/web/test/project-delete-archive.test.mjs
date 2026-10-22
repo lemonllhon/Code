@@ -31,12 +31,6 @@ test(
       const archiveLabel = english ? "Archive project" : "归档项目";
       const deleteLabel = english ? "Delete project…" : "删除项目…";
       await row.click({ button: "right" });
-      assert.equal(
-        await page
-          .getByRole("menuitem", { name: english ? "Remove" : "移除", exact: true })
-          .count(),
-        0,
-      );
       await page.getByRole("menuitem", { name: archiveLabel, exact: true }).click();
       await row.waitFor({ state: "hidden" });
       assert.equal(await page.getByText("本地项目会话", { exact: true }).count(), 0);

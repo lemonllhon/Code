@@ -124,7 +124,7 @@ export async function applyProjectMutation(
       ),
     };
   let saved: ProjectDefinition | null = null;
-  if (request.type === "archive") {
+  if (request.type === "archive" || request.type === "hide") {
     const candidate = previous ?? request.project;
     if (
       candidate.id !== request.projectId ||
@@ -135,12 +135,14 @@ export async function applyProjectMutation(
       )
     )
       return { result: result("conflict", "Project source already exists") };
-    // 中文依据：归档只保存导航事实，不能用新建流程的 stat 阻止离线/缺失目录进入归档。
+    // 中文依据：移除/归档只保存导航事实，不能用 stat 或删除依赖门禁阻止旧 recent、离线来源被隐藏。
     saved = withMembers(
       {
         ...candidate,
         revision: (previous?.revision ?? 0) + 1,
-        archivedAt: previous?.archivedAt ?? Date.now(),
+        ...(request.type === "archive"
+          ? { archivedAt: previous?.archivedAt ?? Date.now() }
+          : { sidebarHiddenAt: previous?.sidebarHiddenAt ?? Date.now() }),
       },
       previous,
     );
@@ -149,6 +151,11 @@ export async function applyProjectMutation(
     if (!previous) return { result: result("conflict", "Project no longer exists") };
     const { archivedAt: _archivedAt, ...active } = previous;
     saved = { ...active, revision: (previous.revision ?? 0) + 1 };
+  }
+  if (request.type === "show") {
+    if (!previous) return { result: result("conflict", "Project no longer exists") };
+    const { sidebarHiddenAt: _sidebarHiddenAt, ...visible } = previous;
+    saved = { ...visible, revision: (previous.revision ?? 0) + 1 };
   }
   if (request.type === "save") {
     const candidate = request.project;
@@ -246,12 +253,13 @@ export async function applyProjectMutation(
         if (failure) return { result: result("validation_failed", failure) };
       }
     }
-    // 编辑项目不能用旧表单无意恢复归档；生命周期状态只由 archive/restore 改变。
-    const { archivedAt: _archivedAt, ...editable } = candidate;
+    // 中文依据：旧编辑表单不能清除隐藏/归档事实，生命周期只由对应命令改变。
+    const { archivedAt: _archivedAt, sidebarHiddenAt: _sidebarHiddenAt, ...editable } = candidate;
     saved = withMembers(
       {
         ...editable,
         ...(previous?.archivedAt ? { archivedAt: previous.archivedAt } : {}),
+        ...(previous?.sidebarHiddenAt ? { sidebarHiddenAt: previous.sidebarHiddenAt } : {}),
         revision: (previous?.revision ?? 0) + 1,
       },
       previous,

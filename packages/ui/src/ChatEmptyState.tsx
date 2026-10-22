@@ -43,8 +43,12 @@ import {
   type RemoteTarget,
   type RemoteWorkspaceSessionEntry,
 } from "@lcode/shared";
-import { runUserAction, runUserActionAsync } from "@/lib/userActionTelemetry.js";
+import { runUserActionAsync } from "@/lib/userActionTelemetry.js";
+import { logger } from "@/logger.js";
+import { toast } from "@/components/ui/toast.js";
+import { useSidebarText } from "@/WorkspaceSidebar/sidebarText.js";
 import { ChatEmptyCreateProjectDialog } from "@/ChatEmptyCreateProjectDialog.js";
+import { useProjectNavigationActions } from "@/hooks/useProjectNavigationActions.js";
 import {
   buildWorkspaceProjectMenuTabs,
   type WorkspaceProjectMenuTab,
@@ -208,6 +212,8 @@ export function ChatEmptyWorkspacePreviewMenu({
   const { intl } = useLCodeIntl();
   const [createProjectDialogOpen, setCreateProjectDialogOpen] = useState(false);
   const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState("");
+  const navigateProject = useProjectNavigationActions();
+  const sidebarText = useSidebarText();
   const projectMenuTabs = useMemo(
     () => buildWorkspaceProjectMenuTabs({ localProjects, workspaceTabs }),
     [localProjects, workspaceTabs],
@@ -380,7 +386,7 @@ export function ChatEmptyWorkspacePreviewMenu({
                   workspaceIdentity,
                 })}
                 onSelect={() => {
-                  runUserAction({
+                  void runUserActionAsync({
                     input: {
                       featureId: isConversationWorkspace
                         ? "workspace.project_binding"
@@ -389,9 +395,16 @@ export function ChatEmptyWorkspacePreviewMenu({
                       trigger: "menu",
                       workspaceKind: isRemoteWorkspace ? "remote" : "local",
                     },
-                    operation: () => onSelectWorkspace(workspaceTab),
+                    operation: async () => {
+                      // 中文依据：再次选中旧 tab 只切换草稿，必须先清除 owner 的隐藏事实才会恢复侧栏。
+                      await navigateProject(workspaceTab, "show");
+                      onSelectWorkspace(workspaceTab);
+                    },
                     completed: { resultSource: "local_commit" },
                     failureStage: "workspace_switch",
+                  }).catch((error) => {
+                    logger.error("[ChatEmptyWorkspacePreviewMenu] 恢复侧栏项目失败", { error });
+                    toast(sidebarText("projectActionFailed"), { variant: "warning" });
                   });
                 }}
               >

@@ -102,6 +102,7 @@ const historyFixture = createHistoryRemovalFixture({
   defaults,
   calls,
   facts,
+  registerConnected: (sessionId) => registerRemote(sessionId),
 });
 const projectCommands = createHeldSidebarProjectCommands(settings, calls);
 const services = {
@@ -288,19 +289,20 @@ const { localSet, remoteSet } = executionSetFixtures;
 tasks = executionSetFixtures.tasks;
 const store = useRemoteWorkspaceSessionStore.getState();
 store.registerBaseServices(services);
-function registerRemote() {
+function registerRemote(sessionId = "remote") {
   store.registerSession({
-    sessionId: "remote",
+    sessionId,
     workspacePath: origin,
     workspaceIdentity: identity,
     target,
     services: remoteServices,
   });
-  store.bindWorkspaceIdentity(identity, "remote");
+  store.bindWorkspaceIdentity(identity, sessionId);
 }
 if (!savedHistory) registerRemote();
 Object.assign(globalThis, {
   __sidebarOrganization: {
+    projectTaskSnapshot: () => structuredClone(tasks),
     facts,
     calls,
     snapshot: () => snapshot,
@@ -350,7 +352,13 @@ Object.assign(globalThis, {
 const theme = params.get("theme") || "zai-dark";
 document.documentElement.classList.toggle("dark", ["zai-dark", "inkpurple"].includes(theme));
 document.documentElement.classList.add(`theme-${theme}`);
-function Fixture({ onRemoveRemoteProject, onReconnect }: HistoryRemovalActions) {
+function Fixture({
+  onRemoveRemoteProject,
+  onReconnect,
+  onSelectLocalProject,
+  onCreateLocalProject,
+  onOpenRemoteHistory,
+}: HistoryRemovalActions) {
   const api = useTabStoreApi();
   const [ready, setReady] = useState(false);
   const setTheme = useLCodeStore((state) => state.setTheme);
@@ -377,6 +385,19 @@ function Fixture({ onRemoveRemoteProject, onReconnect }: HistoryRemovalActions) 
   return (
     <main className="flex h-dvh bg-background text-foreground">
       {params.has("bases") ? <SidebarBasesFixture /> : null}
+      {params.has("project-navigation") ? (
+        <div>
+          <button onClick={() => void onSelectLocalProject?.(origin)}>再次打开本地目录</button>
+          <button
+            onClick={() =>
+              void onCreateLocalProject?.({ name: "不覆盖原名称", sourceFolderPaths: [origin] })
+            }
+          >
+            再次添加本地项目
+          </button>
+          <button onClick={() => void onOpenRemoteHistory?.(identity)}>再次添加远程项目</button>
+        </div>
+      ) : null}
       <div className="w-80 max-w-full shrink-0 bg-sidebar">
         {ready ? (
           <WorkspaceSidebar

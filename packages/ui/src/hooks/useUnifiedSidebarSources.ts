@@ -59,23 +59,26 @@ export function useUnifiedSidebarSources() {
   const archivedProjects = useMemo<ProjectDefinition[]>(
     () =>
       (settings?.projectDefinitions?.projects ?? settings?.localProjects ?? []).filter(
-        (project) => project.archivedAt,
+        (project) => project.archivedAt && !project.sidebarHiddenAt,
       ),
     [settings],
   );
-  const archivedScopes = useMemo(
+  const inactiveScopes = useMemo(
     () =>
       new Set(
-        archivedProjects.map(
-          (project) => project.workspaceIdentity?.trim() || project.primaryFolderPath,
-        ),
+        (settings?.projectDefinitions?.projects ?? settings?.localProjects ?? [])
+          .filter((project) => project.archivedAt || project.sidebarHiddenAt)
+          .map(
+            (project: ProjectDefinition) =>
+              project.workspaceIdentity?.trim() || project.primaryFolderPath,
+          ),
       ),
-    [archivedProjects],
+    [settings],
   );
   // 中文依据：catalog effect 会发布投影；过滤数组必须随事实变化才换引用，避免发布→重渲染循环。
   const activeTreeEntries = useMemo(
-    () => allTrees.entries.filter((entry) => !archivedScopes.has(scopeKey(entry.origin))),
-    [allTrees.entries, archivedScopes],
+    () => allTrees.entries.filter((entry) => !inactiveScopes.has(scopeKey(entry.origin))),
+    [allTrees.entries, inactiveScopes],
   );
   const trees = {
     ...allTrees,
@@ -108,8 +111,8 @@ export function useUnifiedSidebarSources() {
   useSidebarLegacyMigration(queryTabs, bindings, trees.loading);
   const archiveSets = useSidebarExecutionSets(projects, trees.lookup);
   const activeSetEntries = useMemo(
-    () => archiveSets.entries.filter((entry) => !archivedScopes.has(scopeKey(entry.origin))),
-    [archiveSets.entries, archivedScopes],
+    () => archiveSets.entries.filter((entry) => !inactiveScopes.has(scopeKey(entry.origin))),
+    [archiveSets.entries, inactiveScopes],
   );
   const sets = {
     ...archiveSets,
@@ -120,23 +123,23 @@ export function useUnifiedSidebarSources() {
     () =>
       queryTabs.filter(
         (tab) =>
-          !archivedScopes.has(scopeKey(tab)) &&
+          !inactiveScopes.has(scopeKey(tab)) &&
           !allTrees.entries.some(
             (entry) =>
-              archivedScopes.has(scopeKey(entry.origin)) &&
+              inactiveScopes.has(scopeKey(entry.origin)) &&
               isWorktreeSidebarWorkspace(tab, [entry.binding]),
           ),
       ),
-    [queryTabs, allTrees.entries, archivedScopes],
+    [queryTabs, allTrees.entries, inactiveScopes],
   );
   const activeProjects = useMemo(
-    () => projects.filter((tab) => !archivedScopes.has(scopeKey(tab))),
-    [projects, archivedScopes],
+    () => projects.filter((tab) => !inactiveScopes.has(scopeKey(tab))),
+    [projects, inactiveScopes],
   );
   return {
     projects: activeProjects,
     archivedProjects,
-    archivedScopes,
+    inactiveScopes,
     trees,
     sets,
     archiveSets,
