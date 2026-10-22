@@ -2,6 +2,16 @@
 
 ## 产品规则
 
+### v3.20.5 供应商、CLI 与桌面稳定性发行（2026-10-22）
+
+- 根 `package.json` 的桌面版本由 `3.20.4` 更新为 `3.20.5`。
+- 发行包含 `v3.20.4` 之后的全部提交：供应商目录非法响应归一与可操作 check-in 失败不再自动重试、更新进度与供应商配置诊断日志有界、桌面 Renderer 类型检查恢复、CUA 未签名发行与 PiP 恢复、Git 评审 watcher 取消即时生效、Host 资源释放不调用远端代理处置、CLI 统一读取旧版 artifact URI。v3.20.4 已发布，新版本必须包含其后的源码，不能复用同一提交或仅改版本号。
+- 本轮 `third-party/copied-components.json` 新增 `packages/provider/src/tool-schema.ts` 归因根，库存输入由 3011 增至 3014；必须重新生成 `THIRD-PARTY-NOTICES.md` 与库存，不能只改 manifest 摘要。
+- 新建附注 tag `v3.20.5`，只推送该 tag 至 `code` remote 对应的 `lemonllhon/Code`（fetch/push 均使用 lemonllhon 账号），不推送 `L-GO` 分支；不移动或覆盖既有 tag。
+- 发行输入以提交对象为准：`node scripts/verify-release-inputs.mjs --source=HEAD` 必须覆盖全部库存输入，本地工作区哈希不作为依据（Windows `core.autocrlf` 会改变工作区字节）。
+- cfworker-remote 在桌面构建开始后，以 `LCODE_ENV=production pnpm build:mobile-web` 重新装配 `public`，提交信息记录源码提交 SHA；`public/site` 的发行目录由 Worker 实时代理 GitHub Release，不固化版本号。该仓库 fetch/push 均使用 lemon-casino 账号。
+- 验收远端 tag 解引用后的 SHA 等于该 tag 指向的提交、Actions 在 `lemon-casino/LemonCode` 完成六平台构建与公开 Release，cfworker-remote 的 `public` 与主仓库构建产物一致。
+
 ### v3.20.4 Git 变更页刷新稳定性发行（2026-10-22）
 
 - 根 `package.json` 的桌面版本由 `3.20.3` 更新为 `3.20.4`，库存只同步该 manifest 的输入摘要；依赖图、锁文件与许可证材料不变。
