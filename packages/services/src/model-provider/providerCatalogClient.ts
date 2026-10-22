@@ -120,7 +120,19 @@ export function createProviderCatalogClient(
             await cancelBody(response, window.signal);
             throw new Error(`模型目录请求失败: HTTP ${response.status}`);
           }
-          const payload: unknown = await response.json();
+          let payload: unknown;
+          try {
+            payload = await response.json();
+          } catch (error) {
+            window.signal.throwIfAborted();
+            // 代理/错误 API 地址可能返回 HTTP 200 HTML；JSON.parse 错误会夹带
+            // 响应正文，统一转成可操作的协议诊断，不能把页面内容写入生产日志。
+            if (error instanceof SyntaxError)
+              throw new Error(
+                `模型目录响应不是有效 JSON（HTTP ${response.status}），请检查供应商 API 地址或代理响应。`,
+              );
+            throw error;
+          }
           window.signal.throwIfAborted();
           return { models: parseRemoteModelIds(payload) };
         }

@@ -15,6 +15,25 @@ const config = {
   api: { type: "openai-chat-completions", baseUrl: "https://example.test/v1" },
 } as const;
 
+for (const contentType of ["text/html", "application/json", ""])
+  test(`malformed catalog ${contentType || "without content type"} reports a safe protocol error`, async () => {
+    const client = createProviderCatalogClient(
+      async () =>
+        new Response("<!doctype html>private-fixture-body", {
+          headers: contentType ? { "content-type": contentType } : {},
+        }),
+    );
+    try {
+      await assert.rejects(client.listModels(config), (error: Error) => {
+        assert.match(error.message, /模型目录响应.*JSON.*HTTP 200/);
+        assert.equal(error.message.includes("private-fixture-body"), false);
+        return true;
+      });
+    } finally {
+      await client.disposeAndWait?.();
+    }
+  });
+
 test("model catalog falls through to the next key on authentication failure", async () => {
   const authorizations: string[] = [];
   const client = createProviderCatalogClient(async (_input, init) => {
