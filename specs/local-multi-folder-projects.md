@@ -11,7 +11,7 @@
 - 次要文件夹加入同一项目的文件搜索范围，并临时注入会话使用的 filesystem MCP 允许目录；不改变 `workspacePath`。
 - 已存在的 `recentProjects` 和没有项目 id 的本地 tab 保持为隐式单文件夹项目，避免迁移后消失。
 - 远程项目仍保持一个远程文件夹，不显示本地多文件夹创建流程。
-- “不在项目中工作”继续使用 conversation backing workspace，不写入本地项目定义。
+- 无项目会话继续使用 conversation backing workspace，不写入本地项目定义。会话输入框通过项目标签的 × 解除关联，项目菜单不再重复显示“不在项目中工作”；已处于无项目状态时标签显示“选择项目”。
 
 ## 状态所有者与接口
 
@@ -79,12 +79,32 @@ sequenceDiagram
 4. 建立或恢复会话时，filesystem MCP 参数包含全部仍存在的源文件夹，且不持久化改写用户 MCP 配置。
 5. 名称为空、未选择文件夹、重复主文件夹或超过数量上限时，创建按钮不可提交或显示明确错误。
 6. 取消目录选择、关闭弹窗或设置写入失败后，不新增项目/tab/会话草稿。
-7. 旧 `recentProjects`、远程 workspace 和“不在项目中工作”入口行为保持不变。
+7. 旧 `recentProjects` 和远程 workspace 恢复行为保持不变。项目菜单有/无匹配项目时都不显示重复的“不在项目中工作”；点击项目标签 × 后进入无项目状态，仍可从菜单重新选择项目，项目定义不被删除。
 8. 有已保存项目时，重启先停留在登录/模型检查门禁；项目注册表、recent 和恢复记录保持不变，门禁完成后恢复项目名称与 tab 关联。再次重启仍能恢复。
 9. 已保存项目没有打开 tab，或 workspace 恢复失败时仍能在项目选择器看到并重新打开；同主目录新建不能替换其 ID、名称或源文件夹。
 10. 明确移除项目后，重启不复活；同路径远程项目和其他项目不被该本地删除命令清理。
 
 ## 验证计划
+
+### 会话项目入口精简（2026-10-22）
+
+- 唯一解除入口为会话项目标签的 ×，复用原 `onSelectConversationWorkspace` 命令及 conversation backing workspace；不新增绑定状态、持久化写入或会话迁移。
+- `ChatEmptyWorkspacePreviewMenu` 只投影传入状态。允许快捷 × 的调用方不再展示重复菜单行；禁用 × 的定时任务配置保留原无项目选择能力，闲时任务原有能力限制不变。文案与测试 ID 仍用于该配置场景，不删除公共导出。
+- 菜单末尾分隔线仅在确有“新建项目”或保留的无项目选项时出现，空搜索结果不留下悬空分隔线。
+- 验收：中英文、桌面/390px 窄屏，菜单正常/空搜索结果均无重复行；点击 × 后出现“选择项目”，再次选择原项目可恢复；无 × 的配置菜单仍可选择无项目，已有项目定义不变。
+
+```mermaid
+sequenceDiagram
+  participant U as 项目标签×
+  participant C as 既有会话绑定命令
+  participant T as TabStore投影
+  U->>C: onSelectConversationWorkspace()
+  C->>T: 原conversation backing workspace/草稿状态转换
+  T-->>U: workspacePurpose=conversation，显示“选择项目”
+  Note over C,T: 不删除项目定义，不增加菜单侧状态owner
+```
+
+实际验证：相关菜单浏览器场景 4 项均通过，包含新增的 × 脱离/重新关联、中英文桌面/390px、空搜索结果下仍能新建，以及没有 × 的配置菜单保留无项目选项。既有混合项目名称/设备身份和显式移除回归通过；未改原绑定命令实现。新用例先复现重复菜单行，移除后修正夹具的关闭菜单步骤（等待真实菜单卸载，不使用延时）再通过。根类型、Lint、changed architecture（total/baseline/new=0）、关联格式及 diff 检查通过；夹具独立 TypeScript 检查通过。真实 SSH/WSL/Docker 和安装版未实测。
 
 - 共享层单元测试：设置默认值、项目校验、路径去重和主文件夹冲突。
 - 服务层单元测试：filesystem MCP 对多个存在目录去重注入，不存在目录跳过。

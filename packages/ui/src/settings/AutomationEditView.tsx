@@ -1540,7 +1540,7 @@ export function AutomationEditView({
     setModel("");
     // conversation backing workspace 曾被降格成名为 default 的普通项目，
     // 导致菜单泄露内部目录名和 Folder 图标。这里按 purpose 选择 canonical backing，
-    // 展示则交给会话侧固定的「不在项目中工作」菜单项。
+    // 展示交给没有快捷 × 时仍保留的“无项目”菜单项。
     setWorkspaceKey(resolveAutomationWorkspaceSelectionKey(conversationWorkspace));
   };
   const modelTriggerLabel = resolveAutomationModelTriggerLabel({
@@ -2606,7 +2606,7 @@ export function AutomationEditView({
                         workspacePath={selectedWorkspacePath}
                         workspaceTabs={workspaceMenuTabs}
                         // 定时任务允许选择 canonical conversation backing，但不提供 chip 上的快捷 X；
-                        // 菜单展示统一复用会话侧「不在项目中工作」文案和 MessageCircle 图标。
+                        // 没有快捷 × 的配置场景仍在菜单保留“无项目”选择及 MessageCircle 图标。
                         allowConversationWorkspaceSelection={Boolean(conversationWorkspace)}
                         allowConversationWorkspaceDetach={false}
                         onSelectWorkspace={handleSelectWorkspace}

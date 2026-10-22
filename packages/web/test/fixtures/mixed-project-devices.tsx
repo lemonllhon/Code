@@ -4,6 +4,15 @@ import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionSt
 import { RemoteProjectDevicesProvider } from "@/hooks/useRemoteProjectDevices.js";
 import type { RemoteDevice } from "@/lib/remoteDevices.js";
 
+const directoryCalls: Array<{ deviceId: string; path: string; includeHidden?: boolean }> = [];
+const pendingDirectories = new Map<string, () => void>();
+Object.assign(globalThis, {
+  __mixedDirectoryBrowser: {
+    calls: () => directoryCalls,
+    release: (path: string) => pendingDirectories.get(path)?.(),
+  },
+});
+
 export function MixedProjectDevicesFixture({
   services,
   children,
@@ -31,12 +40,34 @@ export function MixedProjectDevicesFixture({
       ...services,
       systemService: {
         ...services.systemService,
-        info: async () => ({ ...(await services.systemService.info()), homedir: "/app" }),
+        info: async () => ({
+          ...(await services.systemService.info()),
+          homedir: new URLSearchParams(location.search).get("remoteHome") || "/app",
+        }),
       },
       fileService: {
         ...services.fileService,
         resolvePath: async ({ path }: { path: string }) => path,
-        readdir: async () => [],
+        readdir: async ({ path, includeHidden }: { path: string; includeHidden?: boolean }) => {
+          directoryCalls.push({ deviceId: device.key, path, includeHidden });
+          if (path === "/denied") throw new Error("fixture-permission-denied");
+          if (path === "/slow")
+            await new Promise<void>((resolve) => pendingDirectories.set(path, resolve));
+          const names =
+            path === "/"
+              ? ["app", "bin", ...Array.from({ length: 60 }, (_, i) => `folder-${i}`)]
+              : path === "/app"
+                ? ["src", "projects", ".config", "README.md"]
+                : [];
+          return names
+            .filter((name) => includeHidden || !name.startsWith("."))
+            .map((name) => ({
+              name,
+              path: `${path === "/" ? "" : path}/${name}`,
+              type: name === "README.md" ? "file" : "directory",
+              isSymbolicLink: name === "bin",
+            }));
+        },
         stat: async ({ path }: { path: string }) => ({
           path,
           type: path === "/invalid" ? "file" : "directory",

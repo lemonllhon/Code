@@ -1,11 +1,43 @@
 import { useEffect, useState, useRef } from "react";
 import type { IServiceAccessor } from "@lcode/services";
 import type { FileEntry } from "@lcode/shared";
-import { FolderIcon, FolderSymlinkIcon } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUp,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  FolderIcon,
+  FolderSymlinkIcon,
+  HardDrive,
+  House,
+  Search,
+  X,
+} from "lucide-react";
 import { Button } from "./components/ui/button.js";
-import { Input } from "./components/ui/input.js";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "./components/ui/input-group.js";
 import { useLCodeIntl } from "./i18n/IntlProvider.js";
 import { logger } from "./logger.js";
+import { getContainingDirectoryPath, isAbsoluteFilePath, joinFilePath } from "./lib/path.js";
+
+function isDirectoryPathInput(value: string): boolean {
+  return (
+    isAbsoluteFilePath(value) ||
+    value === "~" ||
+    /^~[\\/]/.test(value) ||
+    /^\.{1,2}(?:[\\/]|$)/.test(value)
+  );
+}
+
+function getDirectoryRoot(path: string): string {
+  const root = path.match(/^(?:[a-zA-Z]:[\\/]|\\\\[^\\]+\\[^\\]+(?:\\|$)|\/)/)?.[0] || "/";
+  return root.startsWith("\\\\") && !root.endsWith("\\") ? `${root}\\` : root;
+}
 
 function createDirectoryBrowserReadParams(
   path: string,
@@ -61,15 +93,35 @@ export function DirectoryBrowser({
   embedded?: boolean;
 }) {
   const [currentPath, setCurrentPath] = useState("");
-  const [inputPath, setInputPath] = useState("");
+  const [inputValue, setInputValue] = useState("");
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showHiddenDirectories, setShowHiddenDirectories] = useState(false);
+  const [homePath, setHomePath] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const showHiddenDirectoriesRef = useRef(false);
   const requestGuardRef = useRef(createDirectoryBrowserRequestGuard());
   const { intl } = useLCodeIntl();
+  const rootPath = getDirectoryRoot(currentPath || homePath);
+  const parentPath =
+    currentPath.replace(/[\\/]+$/, "") === rootPath.replace(/[\\/]+$/, "")
+      ? null
+      : getContainingDirectoryPath(currentPath);
+  const trimmedInput = inputValue.trim();
+  // 路径和筛选共用一个草稿，按明确的路径前缀派生模式，避免两份输入状态互相覆盖。
+  const isPathInput = isDirectoryPathInput(trimmedInput);
+  const normalizedFilter = isPathInput ? "" : trimmedInput.toLocaleLowerCase();
+  const visibleEntries = entries.filter((entry) =>
+    entry.name.toLocaleLowerCase().includes(normalizedFilter),
+  );
+  const isReadyForInput = (value: string) =>
+    Boolean(currentPath) &&
+    !loading &&
+    !error &&
+    (!isDirectoryPathInput(value.trim()) || value.trim() === currentPath);
+  const ready = isReadyForInput(inputValue);
 
   // 初始化：获取 homedir 作为起始路径
   useEffect(() => {
@@ -77,7 +129,10 @@ export function DirectoryBrowser({
     services.systemService
       .info()
       .then((info) => {
-        if (active) navigateTo(info.homedir);
+        if (active) {
+          setHomePath(info.homedir);
+          void navigateTo(info.homedir);
+        }
       })
       .catch((err) => {
         if (!active) return;
@@ -111,7 +166,7 @@ export function DirectoryBrowser({
       const dirs = filterDirectoryBrowserEntries(result);
       setEntries(dirs);
       setCurrentPath(path);
-      setInputPath(path);
+      setInputValue(path);
       onPathChange?.(path);
       onReadyChange?.(true);
       // 滚动到顶部
@@ -132,15 +187,23 @@ export function DirectoryBrowser({
   };
 
   const handleGoUp = () => {
-    // 提取父目录路径
-    const parent = currentPath.replace(/\/[^/]+\/?$/, "") || "/";
-    navigateTo(parent);
+    // 目标设备可能是 Windows；复用跨平台路径工具，盘符根和 UNC share 根不可继续向上。
+    if (parentPath) void navigateTo(parentPath);
   };
 
   const handleInputSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = inputPath.trim();
-    if (trimmed) navigateTo(trimmed);
+    // 名称输入只筛选已读列表；回车不能把筛选词作为远端进程的相对路径读取。
+    if (!isPathInput) return;
+    const target =
+      trimmedInput === "~"
+        ? homePath
+        : /^~[\\/]/.test(trimmedInput)
+          ? joinFilePath(homePath, trimmedInput.slice(2))
+          : isAbsoluteFilePath(trimmedInput)
+            ? trimmedInput
+            : joinFilePath(currentPath, trimmedInput);
+    void navigateTo(target);
   };
 
   const handleToggleHiddenDirectories = () => {
@@ -155,7 +218,7 @@ export function DirectoryBrowser({
 
   const handleSelectCurrentPath = () => {
     const selectedPath = currentPath.trim();
-    if (!selectedPath || loading) {
+    if (!ready) {
       return;
     }
 
@@ -167,82 +230,149 @@ export function DirectoryBrowser({
   };
 
   const browserContent = (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div>
-        <div className="mb-1 block text-ui-base text-foreground-subtle">
-          {intl.formatMessage({ id: "directoryBrowser.title" })}
-        </div>
-
-        {/* 路径输入 */}
-        <form onSubmit={handleInputSubmit} className="flex flex-col gap-2 sm:flex-row">
-          <Input
-            type="text"
-            size="lg"
-            value={inputPath}
-            onChange={(e) => setInputPath(e.target.value)}
-            placeholder={intl.formatMessage({
-              id: "directoryBrowser.pathPlaceholder",
+    <div className="flex min-h-0 flex-1 flex-col gap-2" data-testid="directory-browser">
+      <div className="shrink-0 space-y-2">
+        <div className="flex flex-wrap items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={!parentPath}
+            title={intl.formatMessage({ id: "directoryBrowser.parent" })}
+            aria-label={intl.formatMessage({ id: "directoryBrowser.parent" })}
+            onClick={handleGoUp}
+          >
+            <ArrowUp className="size-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={!homePath}
+            onClick={() => void navigateTo(homePath)}
+          >
+            <House className="size-4 text-foreground-subtle" />
+            {intl.formatMessage({ id: "directoryBrowser.home" })}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={!homePath}
+            onClick={() => void navigateTo(rootPath)}
+          >
+            <HardDrive className="size-4 text-foreground-subtle" />
+            {intl.formatMessage({ id: "directoryBrowser.root" })}
+          </Button>
+          <Button
+            type="button"
+            variant={showHiddenDirectories ? "secondary" : "ghost"}
+            size="sm"
+            aria-pressed={showHiddenDirectories}
+            className="ml-auto"
+            onClick={handleToggleHiddenDirectories}
+          >
+            {showHiddenDirectories ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            {intl.formatMessage({
+              id: showHiddenDirectories
+                ? "directoryBrowser.hideHidden"
+                : "directoryBrowser.showHidden",
             })}
-            className="h-9 min-w-0 flex-1 text-ui-base"
-            autoFocus
-          />
-          <div className="flex gap-2 sm:shrink-0">
-            <Button
-              type="submit"
+          </Button>
+        </div>
+        {/* 单行地址栏同时承载路径跳转和名称筛选，把浏览空间还给目录列表。 */}
+        <form onSubmit={handleInputSubmit}>
+          <InputGroup data-testid="directory-browser-input" className="min-h-9 rounded-lg">
+            <InputGroupAddon className="py-0 text-foreground-subtle">
+              {isPathInput ? <FolderIcon className="size-4" /> : <Search className="size-4" />}
+            </InputGroupAddon>
+            <InputGroupInput
+              ref={inputRef}
+              data-testid="directory-browser-path"
+              type="text"
               size="lg"
-              className="h-9 min-w-0 flex-1 px-4 text-ui-base sm:flex-none"
-            >
-              {intl.formatMessage({ id: "directoryBrowser.go" })}
-            </Button>
-            <Button
-              type="button"
-              variant={showHiddenDirectories ? "secondary" : "outline"}
-              size="lg"
-              aria-pressed={showHiddenDirectories}
-              className="h-9 min-w-0 flex-1 px-3 text-ui-base sm:flex-none"
-              onClick={handleToggleHiddenDirectories}
-            >
-              {intl.formatMessage({
-                id: showHiddenDirectories
-                  ? "directoryBrowser.hideHidden"
-                  : "directoryBrowser.showHidden",
+              value={inputValue}
+              aria-label={intl.formatMessage({ id: "directoryBrowser.pathLabel" })}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                // 未提交的输入不是已浏览目录，不能让外层确认按钮沿用旧路径。
+                onReadyChange?.(isReadyForInput(e.target.value));
+              }}
+              onFocus={(event) => {
+                if (isPathInput) event.currentTarget.select();
+              }}
+              title={intl.formatMessage({ id: "directoryBrowser.inputHelp" })}
+              placeholder={intl.formatMessage({
+                id: "directoryBrowser.pathPlaceholder",
               })}
-            </Button>
-          </div>
+              className={`min-h-9 min-w-0 max-sm:text-mobile-input-safe ${isPathInput ? "font-mono" : ""}`}
+              autoFocus
+            />
+            <InputGroupAddon
+              align="inline-end"
+              className="shrink-0 gap-1 py-0 text-foreground-subtle"
+            >
+              <span className="whitespace-nowrap text-ui-sm font-normal">
+                {intl.formatMessage(
+                  { id: "directoryBrowser.count" },
+                  { count: visibleEntries.length },
+                )}
+              </span>
+              {inputValue !== currentPath ? (
+                <InputGroupButton
+                  size="icon-sm"
+                  aria-label={intl.formatMessage({ id: "directoryBrowser.clearInput" })}
+                  title={intl.formatMessage({ id: "directoryBrowser.clearInput" })}
+                  onClick={() => {
+                    setInputValue(currentPath);
+                    onReadyChange?.(isReadyForInput(currentPath));
+                    inputRef.current?.focus();
+                  }}
+                >
+                  <X className="size-4" />
+                </InputGroupButton>
+              ) : null}
+              {isPathInput ? (
+                <InputGroupButton
+                  type="submit"
+                  size="icon-sm"
+                  aria-label={intl.formatMessage({ id: "directoryBrowser.go" })}
+                  title={intl.formatMessage({ id: "directoryBrowser.go" })}
+                >
+                  <ArrowRight className="size-4" />
+                </InputGroupButton>
+              ) : null}
+            </InputGroupAddon>
+          </InputGroup>
         </form>
       </div>
 
       {/* 错误提示 */}
-      {error ? <div className="text-ui-base text-destructive">{error}</div> : null}
+      {error ? (
+        <div role="alert" className="shrink-0 text-ui-sm text-destructive">
+          {error}
+        </div>
+      ) : null}
 
       {/* 目录列表 */}
       <div
         ref={listRef}
-        className="flex-1 flex flex-col overflow-y-auto rounded-lg border border-border bg-background"
+        data-testid="directory-browser-list"
+        aria-busy={loading}
+        className="min-h-16 flex-1 flex flex-col overflow-y-auto overscroll-contain rounded-xl border border-border bg-surface"
       >
-        {/* 上级目录 */}
-        {currentPath && currentPath !== "/" ? (
-          <button
-            onClick={handleGoUp}
-            // 滚动容器是纵向 flex 布局，子项默认允许 shrink；
-            // 当目录很多触发滚动时，首行“返回上级”会被压缩导致高度变化。
-            className="flex h-10 w-full shrink-0 cursor-pointer items-center gap-2 border-b border-border px-3 text-left text-ui-base transition hover:bg-hover/50"
-          >
-            <FolderIcon className="size-4 shrink-0 text-foreground-subtle" />
-            <span className="text-foreground">..</span>
-          </button>
-        ) : null}
-
         {loading ? (
           <div className="p-4 text-center text-ui-base text-foreground-subtle">
             {intl.formatMessage({ id: "common.loading" })}
           </div>
-        ) : entries.length === 0 ? (
+        ) : error ? null : visibleEntries.length === 0 ? (
           <div className="p-4 text-center text-ui-base text-foreground-subtle">
-            {intl.formatMessage({ id: "directoryBrowser.noSubdirs" })}
+            {intl.formatMessage({
+              id: normalizedFilter ? "directoryBrowser.noMatches" : "directoryBrowser.noSubdirs",
+            })}
           </div>
         ) : (
-          entries.map((entry) => {
+          visibleEntries.map((entry) => {
             const EntryIcon =
               getDirectoryBrowserEntryIconKind(entry) === "folder-symlink"
                 ? FolderSymlinkIcon
@@ -250,12 +380,16 @@ export function DirectoryBrowser({
 
             return (
               <button
+                type="button"
                 key={entry.path}
                 onClick={() => navigateTo(entry.path)}
-                className="flex w-full shrink-0 cursor-pointer items-center gap-2 px-3 py-2 text-left text-ui-base transition hover:bg-hover/50"
+                className="group flex min-h-9 w-full shrink-0 cursor-pointer items-center gap-2 px-3 py-2 text-left text-ui-base transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-input-border-focused"
               >
                 <EntryIcon className="size-4 shrink-0 text-foreground-subtle" />
-                <span className="truncate">{entry.name}</span>
+                <span className="min-w-0 flex-1 truncate" title={entry.name}>
+                  {entry.name}
+                </span>
+                <ChevronRight aria-hidden="true" className="size-3.5 text-foreground-subtlest" />
               </button>
             );
           })
@@ -293,7 +427,7 @@ export function DirectoryBrowser({
             type="button"
             size="lg"
             className="h-10 min-w-0 px-5 text-ui-base"
-            disabled={!currentPath.trim() || loading}
+            disabled={!ready}
             onClick={handleSelectCurrentPath}
           >
             {intl.formatMessage({ id: "directoryBrowser.selectDir" })}

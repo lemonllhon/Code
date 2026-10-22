@@ -1,7 +1,7 @@
 import { useRemoteProjectDevices } from "@/hooks/useRemoteProjectDevices.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useLayoutEffect, useRef } from "react";
-import { FolderPlus, GitBranch, LoaderCircle } from "lucide-react";
+import { FolderPlus, GitBranch, LoaderCircle, Monitor } from "lucide-react";
 import {
   DndContext,
   PointerSensor,
@@ -92,23 +92,26 @@ export function ProjectSourceFolders({
         </span>
         <ProjectFolderHint />
         <div
-          className="col-span-2 ml-auto flex flex-wrap justify-end gap-1 sm:col-span-1"
+          className="col-span-2 grid w-full grid-cols-3 gap-2 sm:col-span-1 sm:ml-auto sm:flex sm:w-auto sm:flex-wrap sm:justify-end"
           data-testid="project-folder-actions"
         >
           {onRemoteFolder ? (
             <Button
               size="sm"
-              variant="ghost"
+              variant="outline"
+              className="min-w-0 max-sm:flex-col max-sm:gap-1 max-sm:py-2 max-sm:whitespace-normal max-sm:text-ui-sm"
               data-testid="project-add-remote-folder"
               disabled={disabled || members.length >= LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT}
               onClick={onRemoteFolder}
             >
+              <Monitor className="size-4 text-foreground-subtle" />
               {locale.startsWith("zh") ? "远程目录" : "Remote folder"}
             </Button>
           ) : null}
           <Button
             size="sm"
-            variant="ghost"
+            variant="outline"
+            className="min-w-0 max-sm:flex-col max-sm:gap-1 max-sm:py-2 max-sm:whitespace-normal max-sm:text-ui-sm"
             data-testid={addTestId}
             disabled={disabled || !ready || members.length >= LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT}
             onClick={onAdd}
@@ -123,7 +126,8 @@ export function ProjectSourceFolders({
           {onGitRepository ? (
             <Button
               size="sm"
-              variant="ghost"
+              variant="outline"
+              className="min-w-0 max-sm:flex-col max-sm:gap-1 max-sm:py-2 max-sm:whitespace-normal max-sm:text-ui-sm"
               data-testid="project-git-repository"
               disabled={disabled || !ready}
               onClick={onGitRepository}

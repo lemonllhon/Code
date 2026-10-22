@@ -2441,7 +2441,16 @@ const enUS: Record<string, string> = {
 
   // Directory browser
   "directoryBrowser.title": "Browse folder",
-  "directoryBrowser.pathPlaceholder": "Enter path",
+  "directoryBrowser.pathLabel": "Folder path or name",
+  "directoryBrowser.home": "Home folder",
+  "directoryBrowser.root": "File system root",
+  "directoryBrowser.parent": "Parent folder",
+  "directoryBrowser.inputHelp":
+    "Enter a path and press Enter to navigate, or type a name to filter this folder",
+  "directoryBrowser.clearInput": "Clear input",
+  "directoryBrowser.count": "{count} folders",
+  "directoryBrowser.noMatches": "No matching folders in this directory",
+  "directoryBrowser.pathPlaceholder": "Enter a path or filter this folder…",
   "directoryBrowser.go": "Go",
   "directoryBrowser.showHidden": "Show hidden directories",
   "directoryBrowser.hideHidden": "Hide hidden directories",

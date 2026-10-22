@@ -238,6 +238,10 @@ export function ChatEmptyWorkspacePreviewMenu({
     allowConversationWorkspaceSelection &&
     allowConversationWorkspaceDetach &&
     !isConversationWorkspace;
+  // 会话已有标签 ×，菜单不再提供重复入口；没有 × 的任务配置仍需显式选择无项目工作区。
+  const showConversationWorkspaceItem =
+    allowConversationWorkspaceSelection && !allowConversationWorkspaceDetach;
+  const showCreateProjectItem = allowOpenWorkspace && Boolean(onCreateLocalProject);
   const homeWorkspacePath = inferWorkspaceHomePath(workspacePath);
   const homeWorkspaceLabel = intl.formatMessage({ id: "chat.empty.home" });
   const isCurrentRemoteWorkspace = hasRemoteWorkspaceIdentity(currentWorkspaceTab ?? {});
@@ -407,14 +411,16 @@ export function ChatEmptyWorkspacePreviewMenu({
             </div>
           ) : null}
 
-          <DropdownMenuSeparator />
-          {allowOpenWorkspace && onCreateLocalProject ? (
+          {showCreateProjectItem || showConversationWorkspaceItem ? (
+            <DropdownMenuSeparator />
+          ) : null}
+          {showCreateProjectItem ? (
             <DropdownMenuItem onSelect={() => setCreateProjectDialogOpen(true)}>
               <FolderPlus className="size-4 text-foreground-subtle" />
               <span>{intl.formatMessage({ id: "chat.empty.createProject.menu" })}</span>
             </DropdownMenuItem>
           ) : null}
-          {allowConversationWorkspaceSelection ? (
+          {showConversationWorkspaceItem ? (
             <DropdownMenuCheckboxItem
               data-testid={TID_COMPOSER_WORK_OUTSIDE_PROJECT}
               checked={isConversationWorkspace}

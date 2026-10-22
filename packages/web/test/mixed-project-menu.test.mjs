@@ -5,6 +5,92 @@ import { startWorkflowProgressBrowser } from "./workflow-execution-progress-brow
 import { buildRemoteWorkspaceIdentity } from "../../shared/src/remote-workspace-identity.ts";
 
 test(
+  "composer uses the project chip X without a duplicate work-outside menu item",
+  { timeout: 120000 },
+  async (t) => {
+    const { browser, port } = await startWorkflowProgressBrowser(t);
+    for (const [width, english] of [
+      [1280, false],
+      [390, true],
+    ]) {
+      const page = await browser.newPage({ viewport: { width, height: 800 } });
+      await page.goto(
+        `http://127.0.0.1:${port}/test/fixtures/project-form.html?mixedMenu${english ? "&english" : ""}`,
+      );
+      const trigger = page.getByTestId("composer-workspace-trigger");
+      await trigger.click();
+      assert.equal(await page.getByTestId("composer-work-outside-project").count(), 0);
+      const search = page.getByPlaceholder(english ? "Search projects" : "搜索项目");
+      await search.fill("no-matching-project");
+      assert.equal(await page.getByTestId("composer-work-outside-project").count(), 0);
+      assert.equal(
+        await page.getByRole("separator").count(),
+        0,
+        "no orphan separator after removing the last menu action",
+      );
+      await search.fill("");
+      await page.getByRole("menuitemcheckbox", { name: /Unified project/ }).click();
+      await page.getByRole("menu").waitFor({ state: "detached" });
+      await trigger.focus();
+      await page.getByTestId("composer-project-detach").click();
+      await page.waitForFunction(
+        (label) =>
+          document
+            .querySelector('[data-testid="composer-workspace-trigger"]')
+            ?.textContent.includes(label),
+        english ? "Select project" : "选择项目",
+      );
+      assert.equal(await page.getByTestId("composer-project-detach").count(), 0);
+      await trigger.click();
+      assert.equal(await page.getByTestId("composer-work-outside-project").count(), 0);
+      if (!english) {
+        await mkdir(".artifacts/project-menu", { recursive: true });
+        await page.getByRole("menu").screenshot({
+          path: ".artifacts/project-menu/no-duplicate-action.png",
+          animations: "disabled",
+        });
+      }
+      await page.getByRole("menuitemcheckbox", { name: /Unified project/ }).click();
+      assert.match(await trigger.innerText(), /Unified project/);
+      assert.equal(
+        JSON.parse(await page.getByTestId("selected-project").innerText()).localProjectId,
+        "mixed",
+      );
+      await page.close();
+    }
+    const page = await browser.newPage();
+    await page.goto(`http://127.0.0.1:${port}/test/fixtures/project-form.html?composer`);
+    await page.getByTestId("composer-workspace-trigger").click();
+    await page.getByPlaceholder("搜索项目").fill("no-matching-project");
+    assert.equal(await page.getByTestId("composer-work-outside-project").count(), 0);
+    await page.getByRole("menuitem", { name: "新建项目", exact: true }).click();
+    await page.getByTestId("create-project-dialog").waitFor();
+    await page.close();
+  },
+);
+
+test(
+  "project menus without the chip X retain their conversation workspace selection",
+  { timeout: 60000 },
+  async (t) => {
+    const { browser, port } = await startWorkflowProgressBrowser(t);
+    const page = await browser.newPage();
+    await page.goto(
+      `http://127.0.0.1:${port}/test/fixtures/project-form.html?mixedMenu&english&noDetach`,
+    );
+    const trigger = page.getByTestId("composer-workspace-trigger");
+    await trigger.click();
+    assert.equal(await page.getByTestId("composer-project-detach").count(), 0);
+    await page.getByTestId("composer-work-outside-project").click();
+    await page.waitForFunction(() =>
+      document
+        .querySelector('[data-testid="composer-workspace-trigger"]')
+        ?.textContent.includes("Select project"),
+    );
+  },
+);
+
+test(
   "explicit remote project removal uses the same registry owner and preserves the local project",
   { timeout: 60000 },
   async (t) => {

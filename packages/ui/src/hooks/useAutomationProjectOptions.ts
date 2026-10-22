@@ -34,7 +34,7 @@ function resolveAutomationProjectOptions(
       }
       // 历史设置可能残留多个 conversation backing path，但它们都表示同一个
       // “无项目会话”逻辑目标。保留 purpose 而不是依赖 default 文案识别，菜单才能复用
-      // 会话侧「不在项目中工作」的固定文案与图标，同时仍只绑定一个 canonical cwd。
+      // 自动化配置中“无项目”的固定文案与图标，同时仍只绑定一个 canonical cwd。
       conversationWorkspaceIncluded = true;
       result.push({
         workspacePath: tab.workspacePath,

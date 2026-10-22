@@ -1,5 +1,6 @@
 import { remoteAgentServiceGeneration } from "@/lib/remoteAgentServiceGeneration.js";
 import { useEffect, useRef, useState } from "react";
+import { Check, LoaderCircle, Monitor, Plug, Settings2 } from "lucide-react";
 import {
   buildRemoteWorkspaceIdentity,
   remoteDeviceAuthorityKey,
@@ -9,6 +10,13 @@ import { useRemoteProjectDevices } from "@/hooks/useRemoteProjectDevices.js";
 import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select.js";
 import { DirectoryBrowser } from "@/DirectoryBrowser.js";
 import { ProjectDialogContent } from "./ProjectDialogContent.js";
 import { DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui/dialog.js";
@@ -93,47 +101,89 @@ export function RemoteProjectFolderPicker({
     }
   };
   return (
-    <ProjectDialogContent data-testid="remote-project-folder-picker">
+    <ProjectDialogContent
+      data-testid="remote-project-folder-picker"
+      className="h-[min(38rem,calc(100dvh-2rem))] max-w-3xl"
+    >
       <DialogHeader>
         <DialogTitle>{t("选择远程目录", "Choose remote folder")}</DialogTitle>
       </DialogHeader>
-      <DialogBody className="space-y-3">
-        <label className="block space-y-2 text-ui-sm">
-          <span>{t("远程设备", "Remote device")}</span>
-          <select
-            className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-ui-sm"
-            value={deviceId}
-            disabled={busy}
-            onChange={(event) => setDeviceId(event.target.value)}
-          >
-            <option value="">{t("选择设备", "Select a device")}</option>
-            {context?.model.devices
-              .filter((item) => item.profile)
-              .map((item) => (
-                <option key={item.key} value={item.key}>
-                  {item.profile!.name}
-                </option>
-              ))}
-          </select>
-        </label>
-        {device && !session ? (
-          <Button
-            disabled={busy}
-            onClick={() => {
-              setBusy(true);
-              void context?.model
-                .onReconnect(device)
-                .catch((failure: unknown) => setError(String(failure)))
-                .finally(() => setBusy(false));
-            }}
-          >
-            {t("连接设备", "Connect device")}
-          </Button>
-        ) : null}
+      <DialogBody className="flex flex-col gap-3 sm:overflow-hidden [@media(max-height:480px)]:block [@media(max-height:480px)]:space-y-3 [@media(max-height:480px)]:overflow-y-auto">
+        <div className="shrink-0 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <label htmlFor="remote-project-device" className="text-ui-sm text-foreground-subtle">
+              {t("远程设备", "Remote device")}
+            </label>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!context || busy}
+              onClick={() => context?.manage()}
+            >
+              <Settings2 className="size-3.5" />
+              {t("管理远程设备", "Manage remote devices")}
+            </Button>
+          </div>
+          {/* 原生 select 与独立连接行导致主题不一致和错位；共享控件在同一 flex 行等高对齐。 */}
+          <div className="flex items-stretch gap-2">
+            <Select value={deviceId} disabled={busy} onValueChange={setDeviceId}>
+              <SelectTrigger id="remote-project-device" size="lg" className="min-h-9 w-full flex-1">
+                <SelectValue placeholder={t("选择设备", "Select a device")} />
+              </SelectTrigger>
+              <SelectContent position="popper" align="start">
+                {context?.model.devices
+                  .filter((item) => item.profile)
+                  .map((item) => (
+                    <SelectItem key={item.key} value={item.key}>
+                      <Monitor className="size-4 text-foreground-subtle" />
+                      <span className="min-w-0 flex-1 truncate">{item.profile!.name}</span>
+                      <span className="text-ui-xs uppercase text-foreground-subtlest">
+                        {item.target.kind}
+                      </span>
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            <Button
+              size="lg"
+              className="min-h-9"
+              variant={session ? "outline" : "default"}
+              disabled={!device || Boolean(session) || busy}
+              onClick={() => {
+                if (!device || !context) return;
+                const token = generation.current;
+                setBusy(true);
+                setError("");
+                void context.model
+                  .onReconnect(device)
+                  .catch((failure: unknown) => {
+                    if (token === generation.current) setError(String(failure));
+                  })
+                  .finally(() => {
+                    if (token === generation.current) setBusy(false);
+                  });
+              }}
+            >
+              {session ? (
+                <Check className="size-4" />
+              ) : busy ? (
+                <LoaderCircle className="size-4 animate-spin" />
+              ) : (
+                <Plug className="size-4" />
+              )}
+              {session
+                ? t("已连接", "Connected")
+                : busy
+                  ? t("连接中", "Connecting")
+                  : t("连接设备", "Connect device")}
+            </Button>
+          </div>
+        </div>
         {session ? (
           <div
             key={`${deviceId}:${session.sessionId}:${remoteAgentServiceGeneration(session.services)}`}
-            className="max-h-80 overflow-y-auto rounded-xl border border-border p-3"
+            // 目录浏览器拥有唯一列表滚动区，外层限高再滚动会把后续目录挤到不可见区域。
+            className="flex min-h-0 flex-1 flex-col [@media(max-height:480px)]:h-80 [@media(max-height:480px)]:flex-none"
           >
             <DirectoryBrowser
               services={session.services}
@@ -145,26 +195,44 @@ export function RemoteProjectFolderPicker({
             />
           </div>
         ) : (
-          <p className="text-ui-sm text-foreground-subtle">
-            {t("连接设备后选择目录", "Connect a device to browse its folders")}
-          </p>
+          <div className="flex min-h-24 flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-surface px-4 py-6 text-center">
+            <Monitor className="size-7 text-foreground-subtlest" />
+            <p className="text-ui-base">
+              {t("连接设备后选择目录", "Connect a device to browse its folders")}
+            </p>
+            <p className="text-ui-sm text-foreground-subtle">
+              {t(
+                "浏览设备上的文件夹，或粘贴目录路径",
+                "Browse folders on the device, or paste a folder path",
+              )}
+            </p>
+          </div>
         )}
-        <Button variant="ghost" disabled={!context || busy} onClick={() => context?.manage()}>
-          {t("没有所需设备？管理远程设备", "Missing a device? Manage remote devices")}
-        </Button>
         {error ? (
           <p role="alert" className="text-ui-sm text-destructive">
             {error}
           </p>
         ) : null}
       </DialogBody>
-      <DialogFooter>
-        <Button variant="ghost" disabled={busy} onClick={onCancel}>
-          {t("返回", "Back")}
-        </Button>
-        <Button disabled={!session || !path || !ready || busy} onClick={() => void add()}>
-          {t("添加目录", "Add folder")}
-        </Button>
+      <DialogFooter className="flex-col items-stretch sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1 text-ui-sm text-foreground-subtle">
+          <span>{t("当前目录", "Current folder")}</span>
+          <p className="truncate font-mono text-foreground" title={path}>
+            {path || "—"}
+          </p>
+        </div>
+        <div className="flex shrink-0 justify-end gap-2">
+          <Button variant="ghost" disabled={busy} onClick={onCancel}>
+            {t("返回", "Back")}
+          </Button>
+          <Button
+            data-testid="remote-folder-confirm"
+            disabled={!session || !path || !ready || busy}
+            onClick={() => void add()}
+          >
+            {t("添加目录", "Add folder")}
+          </Button>
+        </div>
       </DialogFooter>
     </ProjectDialogContent>
   );

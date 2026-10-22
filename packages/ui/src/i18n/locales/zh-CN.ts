@@ -2266,7 +2266,15 @@ const zhCN: Record<string, string> = {
 
   // 目录浏览
   "directoryBrowser.title": "浏览文件夹",
-  "directoryBrowser.pathPlaceholder": "输入路径",
+  "directoryBrowser.pathLabel": "目录路径或名称",
+  "directoryBrowser.home": "主目录",
+  "directoryBrowser.root": "根目录",
+  "directoryBrowser.parent": "返回上级",
+  "directoryBrowser.inputHelp": "输入路径后回车跳转；输入名称筛选当前目录",
+  "directoryBrowser.clearInput": "清除输入",
+  "directoryBrowser.count": "{count} 个目录",
+  "directoryBrowser.noMatches": "当前目录中没有匹配的文件夹",
+  "directoryBrowser.pathPlaceholder": "输入路径，或筛选当前目录…",
   "directoryBrowser.go": "前往",
   "directoryBrowser.showHidden": "显示隐藏目录",
   "directoryBrowser.hideHidden": "收起隐藏目录",

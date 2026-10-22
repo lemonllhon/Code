@@ -116,6 +116,8 @@ nul
 !/packages/web/test/task-handoff-cases.mjs
 !/packages/web/test/context-capsule-composer.test.mjs
 !/packages/web/test/mixed-project-menu.test.mjs
+!/packages/web/test/mixed-project-devices.test.mjs
+!/packages/web/test/remote-directory-picker.test.mjs
 !/packages/web/test/fixtures/
 /packages/web/test/fixtures/*
 !/packages/web/test/fixtures/git-management-service.ts
