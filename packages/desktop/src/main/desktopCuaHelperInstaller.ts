@@ -41,9 +41,8 @@ export function createDesktopCuaHelperInstaller(
 ): CuaHelperInstaller {
   const bundledAppPath = options.bundledHelperAppPath ?? resolvePackagedCuaHelperAppPath(options);
   const env = { ...options.env };
-  // The unsigned-local escape hatch belongs only to unpackaged development.
-  // A signed app with a bundled Helper must be deterministic even when its
-  // LaunchServices environment was polluted by an earlier dev session.
+  // 此旧变量只选择 dev 安装变体；发行包是否要求签名由共享 installer policy 决定。
+  // bundled Helper 不能被早先 dev 会话遗留的 LaunchServices 环境切换到另一 TCC 身份。
   if (bundledAppPath) {
     delete env.LCODE_CUA_HELPER_ALLOW_UNSIGNED_LOCAL;
   }

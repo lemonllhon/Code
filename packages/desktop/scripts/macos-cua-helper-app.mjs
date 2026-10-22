@@ -16,6 +16,7 @@ import {
 import { tmpdir } from "node:os";
 import { isAbsolute, resolve } from "node:path";
 import { promisify } from "node:util";
+import { signMacExecutable } from "./macos-code-signing.mjs";
 import {
   collectWindowsCuaRuntimeManifestFiles,
   requireCanonicalWindowsRuntimePath,
@@ -432,6 +433,7 @@ export async function stageMacCuaHelperApp({
   dependencyPackageRoots,
   readExecutableArchs = defaultReadExecutableArchs,
   prepareSeaExecutable = defaultPrepareSeaExecutable,
+  sealExecutable = signMacExecutable,
   compilePipPresenter = defaultCompilePipPresenter,
 }) {
   if (electronPlatformName !== "darwin") return { staged: false };
@@ -472,6 +474,9 @@ export async function stageMacCuaHelperApp({
       targetPath: executablePath,
       bootstrapSource: createMacCuaSeaBootstrapSource(),
     });
+    // postject 改写 Mach-O 后原签名已失效；未签名发行也必须补齐 Apple Silicon
+    // 执行所需的 ad-hoc 本机封印。先验证再生成清单，失败不替换旧 Helper。
+    await sealExecutable(executablePath);
     await chmod(executablePath, 0o755);
     const presenterPath = resolve(stagingRoot, ...PIP_PRESENTER_RELATIVE_PATH.split("/"));
     const presenterSourcePath = await requirePipPresenterSource();

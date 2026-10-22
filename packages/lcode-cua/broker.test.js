@@ -511,9 +511,25 @@ test("probeHelperHealth calls broker_info and validates the health payload", asy
 test("mintBrokerSocketPath produces a connectable platform socket name", () => {
   const path = mintBrokerSocketPath();
   assert.equal(typeof path, "string");
-  assert.ok(path.includes("lcode-cua-broker-"));
+  assert.ok(path.includes("lcode-"));
   if (process.platform === "win32") assert.ok(path.startsWith("\\\\.\\pipe\\"));
   else assert.ok(path.endsWith(".sock"));
   assert.notEqual(path, mintBrokerSocketPath());
   assert.match(randomUUID(), /^[0-9a-f-]+$/);
+});
+
+test("Unix socket names reserve PiP bytes even with a long multibyte temporary directory", () => {
+  for (const dir of ["/var/folders/" + "a".repeat(40) + "/T", "/tmp/" + "目录".repeat(8)]) {
+    const socket = mintBrokerSocketPath({ platform: "darwin", dir });
+    assert.ok(Buffer.byteLength(`${socket}.pip`) <= 103);
+    assert.notEqual(socket, mintBrokerSocketPath({ platform: "darwin", dir }));
+  }
+  assert.throws(
+    () => mintBrokerSocketPath({ platform: "darwin", dir: "/" + "长".repeat(40) }),
+    /socket.*directory.*too long/i,
+  );
+  assert.match(
+    mintBrokerSocketPath({ platform: "win32", dir: "x".repeat(200) }),
+    /^\\\\\.\\pipe\\/,
+  );
 });

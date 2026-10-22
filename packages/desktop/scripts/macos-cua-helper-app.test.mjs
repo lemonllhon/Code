@@ -101,6 +101,10 @@ async function createFixture(t) {
       await copyFile(sourceNodePath, targetPath);
       await writeFile(targetPath, `${await readFile(targetPath, "utf8")}\nSEA\n`);
     },
+    sealExecutable: async (targetPath) => {
+      assert.match(await readFile(targetPath, "utf8"), /SEA/u, "seal follows injection");
+      await writeFile(targetPath, `${await readFile(targetPath, "utf8")}ad-hoc sealed\n`);
+    },
     compilePipPresenter: async (input) => {
       compileCalls.push(input);
       await writeFile(input.targetPath, `${input.targetArch} PiP presenter fixture`);
@@ -114,6 +118,7 @@ test("stages an open macOS Helper.app with the target xa11y package and full man
   const fixture = await createFixture(t);
   const result = await stageMacCuaHelperApp(fixture);
   assert.equal(result.staged, true);
+  assert.match(await readFile(result.executablePath, "utf8"), /SEA\nad-hoc sealed/u);
   assert.equal(
     result.appRoot,
     resolve(fixture.resourcesDir, "cua-helper", MAC_CUA_HELPER_APP_NAME),
@@ -264,6 +269,22 @@ test("macOS Helper build version is stable, numeric, and changes with build iden
   assert.match(first, /^\d+\.\d+\.\d+$/u);
   assert.equal(first, createMacCuaBuildVersion("commit-a:2026-09-23T00:00:00.000Z"));
   assert.notEqual(first, createMacCuaBuildVersion("commit-b:2026-09-23T00:00:00.000Z"));
+});
+
+test("a failed SEA seal preserves the previously staged Helper", async (t) => {
+  const fixture = await createFixture(t);
+  const installed = await stageMacCuaHelperApp(fixture);
+  const previous = await readFile(installed.executablePath);
+  await assert.rejects(
+    stageMacCuaHelperApp({
+      ...fixture,
+      sealExecutable: async () => {
+        throw new Error("seal rejected");
+      },
+    }),
+    /seal rejected/,
+  );
+  assert.deepEqual(await readFile(installed.executablePath), previous);
 });
 
 test("SEA bootstrap binds the fixed bundle and verifies the runtime before importing it", () => {

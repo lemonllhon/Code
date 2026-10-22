@@ -442,6 +442,12 @@ async function removeInstallScratch(path, installRoot) {
 }
 
 export function createCuaHelperInstaller(options = {}) {
+  if (
+    options.signaturePolicy !== undefined &&
+    !["optional", "required"].includes(options.signaturePolicy)
+  ) {
+    throw helperError("Invalid Helper signature policy.", "invalid_request");
+  }
   const env = options.env ?? process.env;
   const dependencies = {
     ...defaultCuaHelperVerifierDependencies,
@@ -472,7 +478,9 @@ export function createCuaHelperInstaller(options = {}) {
       );
     }
     let teamIdentifier;
-    if (!plan.allowUnsignedLocal) {
+    // 发行流程产出未签名包，产品允许直接使用；显式 required 才启用平台签名校验。
+    // bundle 路径、身份、架构及启动资源完整性仍由原 owner 校验。
+    if (options.signaturePolicy === "required") {
       await dependencies.verifyCodeSignature(identity.appPath);
       teamIdentifier = await dependencies.verifyTeamIdentifier(
         identity.appPath,

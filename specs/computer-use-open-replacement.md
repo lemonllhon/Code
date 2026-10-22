@@ -2,6 +2,10 @@
 
 ## 背景与范围
 
+macOS SEA 完成注入后补充不依赖证书的 ad-hoc 本机封印并验签，再生成资源清单；用户已明确允许此系统执行要求。发行仍不需要 Developer ID 或公证。
+
+2026-10-22 用户确认允许未签名发行包：共享安装器 `signaturePolicy` 默认 `optional`，不将签名、TeamIdentifier 或 Gatekeeper 设为启动前提；显式 `required` 才严格验签。Main 与 Host 共用该策略，身份/架构/资源完整性及 capability/generation 验证保持原有边界。socket 与重连修复的完整规则见 `specs/log-followup-lifecycle-compatibility.md`。
+
 `packages/lcode-cua` 现提供仓库内开放实现：本地输入驱动 seam、官方帧契约、带认证的 PiP 客户端/服务端与 macOS presenter、capability-authenticated Helper broker、xa11y 应用观测及 14 方法产品词表。公开 API、12 条 exports 子路径与既有失败文案保持兼容；产品路径不依赖私有 producer。
 
 实现组成：
@@ -51,7 +55,7 @@
 ### 状态所有者与事件顺序
 
 - **AgentRuntime** 仍是唯一决策循环、取消、工具持久化和重试所有者；UI-TARS 只在模型适配层把一个完整文本 `Action:` 转成一个既有 `node_repl` 工具调用，不引入 SDK 自带 loop/operator。
-- **Desktop Local Host** 拥有 Helper 进程 generation、socket、capability 和 workspace admission；Main 只负责安装、签名校验、系统设置引导和进程转发，不持有会话业务状态。
+- **Desktop Local Host** 拥有 Helper 进程 generation、socket、capability 和 workspace admission；Main 只负责安装、按共享策略校验签名、系统设置引导和进程转发，不持有会话业务状态。
 - **Helper broker** 是权限真值、控制 lease、动作串行队列、应用 snapshot 与元素 index 的唯一所有者。权限不缓存；每个读屏或副作用动作在实际执行位置重新裁决。
 - **Helper PiP coordinator** 是 PiP 生命周期、焦点 revision、turn sequence、可信截图绑定和 presenter 可见性的唯一所有者。Host 只投递产品事实，不持有窗口状态；Main 只产生当前桌面窗口的焦点事实。
 - **runtime** 不保存授权结论、AX tree 或元素表；只保存自己尚未发往 Helper 的排队项和生命周期状态。

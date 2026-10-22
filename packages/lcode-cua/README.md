@@ -23,4 +23,12 @@ See `specs/computer-use-open-replacement.md` for the action surface, the
 wire contracts, permission ownership, model compatibility, and packaging
 constraints.
 
+macOS distributions may be unsigned. The shared Helper installer defaults to
+`signaturePolicy: "optional"`; bundle identity, executable architecture and runtime
+resource integrity are still checked. Set `signaturePolicy: "required"` to require
+code signature, TeamIdentifier and Gatekeeper verification. Main and Host use the
+same installer policy. Unsigned execution does not imply verified signing identity.
+The macOS SEA build adds an offline ad-hoc executable seal after injection, as
+required for local execution; it uses no developer certificate or notarization.
+
 License: Apache-2.0.

@@ -306,6 +306,7 @@ test("installer verifies source, staged copy, and final bundle before returning"
   await mkdir(sourcePath, { recursive: true });
   const calls = [];
   const installer = createCuaHelperInstaller({
+    signaturePolicy: "required",
     env: { LCODE_RUNTIME_ENV: "production", NODE_ENV: "production" },
     platform: "darwin",
     arch: "x64",
@@ -349,6 +350,7 @@ test("installer upgrades changed builds and restores the old bundle after final 
   await writeFile(join(installPath, "build.txt"), "1", "utf8");
   let rejectFinalBundle = false;
   const installer = createCuaHelperInstaller({
+    signaturePolicy: "required",
     env: { LCODE_RUNTIME_ENV: "production", NODE_ENV: "production" },
     platform: "darwin",
     arch: "arm64",
@@ -388,7 +390,7 @@ test("installer upgrades changed builds and restores the old bundle after final 
   assert.equal(await readFile(join(installPath, "build.txt"), "utf8"), "2");
 });
 
-test("unsigned Helper escape is limited to local development", async (t) => {
+test("local unsigned development keeps its separate installation identity", async (t) => {
   const root = await createTemporaryDirectory(t);
   const sourcePath = join(root, "Bundled.app");
   await mkdir(sourcePath, { recursive: true });
@@ -416,6 +418,41 @@ test("unsigned Helper escape is limited to local development", async (t) => {
     },
   });
   assert.match(await installer.ensureInstalled(), /[\\/]dev[\\/]LCode Computer Use Dev\.app$/u);
+});
+
+test("production allows unsigned stable Helper but still rejects wrong bundle and architecture", async (t) => {
+  const root = await createTemporaryDirectory(t);
+  const sourcePath = join(root, "Bundled.app");
+  await mkdir(sourcePath, { recursive: true });
+  let bundleId = HELPER_BUNDLE_ID;
+  let archs = ["arm64"];
+  const installer = createCuaHelperInstaller({
+    env: { NODE_ENV: "production", LCODE_RUNTIME_ENV: "production" },
+    platform: "darwin",
+    arch: "arm64",
+    installRoot: root,
+    bundledAppPath: sourcePath,
+    dependencies: {
+      resolveIdentity: async (appPath) => ({
+        appPath,
+        executablePath: join(appPath, "helper"),
+        displayName: "Computer Use",
+        bundleId,
+      }),
+      readExecutableArchs: async () => archs,
+      verifyCodeSignature: async () => assert.fail("unsigned release must not require signature"),
+      verifyTeamIdentifier: async () => assert.fail("unsigned release must not require team"),
+      verifyGatekeeper: async () => assert.fail("unsigned release must not require Gatekeeper"),
+      copyBundle: (source, destination) => cp(source, destination, { recursive: true }),
+    },
+  });
+  const installed = await installer.ensureInstalled();
+  assert.equal(installed, join(root, "LCode Computer Use.app"));
+  bundleId = "invalid.fixture";
+  await assert.rejects(installer.verifyInstalled(installed), /unexpected bundle/);
+  bundleId = HELPER_BUNDLE_ID;
+  archs = ["x64"];
+  await assert.rejects(installer.verifyInstalled(installed), /architecture/);
 });
 
 test("refresh markers are atomic, private, disposable, and absent for named pipes", async (t) => {

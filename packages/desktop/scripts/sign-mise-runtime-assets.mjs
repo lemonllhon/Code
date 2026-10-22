@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
+import { signMacExecutable } from "./macos-code-signing.mjs";
 import { validateMiseBuildProvenance } from "../../../scripts/mise-build-provenance.mjs";
 import {
   loadBackendArchiveApi,
@@ -53,16 +54,7 @@ export async function signPackagedMiseRuntimeAssets({
   await validateMiseBuildProvenance({ root: input.root, target, backendApi: api, cacheDir });
   const manifestBytes = await readFile(input.manifestPath, "utf8");
   // 修复：tools 被 signIgnore 排除，必须在主 app 签名前单独签 mise。默认 ad-hoc，已有自签身份直接复用。
-  await run("/usr/bin/codesign", [
-    "--force",
-    "--sign",
-    identity?.trim() || "-",
-    "--timestamp=none",
-    "--options",
-    "runtime",
-    input.backendPath,
-  ]);
-  await run("/usr/bin/codesign", ["--verify", "--strict", input.backendPath]);
+  await signMacExecutable(input.backendPath, { identity, hardenedRuntime: true, run });
   if ((await readFile(input.manifestPath, "utf8")) !== manifestBytes) {
     throw new Error("mise manifest changed during codesign");
   }

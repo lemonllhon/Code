@@ -66,6 +66,8 @@ export interface CuaHelperVerifierDependencies {
 }
 
 export interface CuaHelperInstallerOptions {
+  /** Defaults to optional for unsigned distributions; required verifies signature, team and Gatekeeper. */
+  signaturePolicy?: "optional" | "required";
   env?: NodeJS.ProcessEnv;
   logger?: unknown;
   bundledAppPath?: string;

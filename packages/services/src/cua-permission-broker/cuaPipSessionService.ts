@@ -24,7 +24,9 @@ type PipSessionClientResolution =
         | "service-disabled"
         | "service-disposed"
         | "credentials-unavailable"
-        | "transport-disabled";
+        | "transport-disabled"
+        | "reconnect-backoff"
+        | "reconnect-expired";
     };
 
 const MAX_SNAPSHOT_TURNS = 256;
@@ -94,6 +96,8 @@ export function createCuaPipSessionService(options: {
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectDeadline = 0;
   let reconnectExpired = false;
+  let reconnectCredentials: CuaPipPresentationCredentials | null = null;
+  let nextReconnectAttempt = 0;
   let tail: Promise<void> = Promise.resolve();
   let disposed = false;
 
@@ -154,6 +158,18 @@ export function createCuaPipSessionService(options: {
     cancelReconnectRetry();
     reconnectDeadline = 0;
     reconnectExpired = false;
+    nextReconnectAttempt = 0;
+  };
+
+  const recoveryExpired = (): boolean => {
+    if (reconnectDeadline === 0 || Date.now() < reconnectDeadline) return false;
+    if (!reconnectExpired)
+      logger.warn(undefined, "[cua-pip-session] reconnect snapshot expired before transport", {
+        activeTurnCount: activeTurnBySession.size,
+      });
+    reconnectExpired = true;
+    cancelReconnectRetry();
+    return true;
   };
 
   const getClient = async (): Promise<PipSessionClientResolution> => {
@@ -162,13 +178,24 @@ export function createCuaPipSessionService(options: {
     const resolvedCredentials = await options.resolveCredentials();
     // 凭据查询可能晚于 Host/服务关闭；迟到结果不能重新创建已释放的传输。
     if (disposed) return { client: null, skipReason: "service-disposed" };
-    if (!resolvedCredentials) return { client: null, skipReason: "credentials-unavailable" };
+    if (!resolvedCredentials)
+      return {
+        client: null,
+        skipReason: recoveryExpired() ? "reconnect-expired" : "credentials-unavailable",
+      };
     const credentials = copyCredentials(resolvedCredentials);
     lastResolvedCapability = credentials.capability;
     if (sameCredentials(disabledTransportCredentials, credentials)) {
       return { client: null, skipReason: "transport-disabled" };
     }
     disabledTransportCredentials = null;
+    // timer 与 focus 必须走同一准入；旧实现仅限制 timer，焦点风暴仍会无限建连。
+    if (!sameCredentials(reconnectCredentials, credentials)) {
+      finishReconnectEpisode();
+      reconnectCredentials = copyCredentials(credentials);
+    }
+    if (recoveryExpired()) return { client: null, skipReason: "reconnect-expired" };
+    if (Date.now() < nextReconnectAttempt) return { client: null, skipReason: "reconnect-backoff" };
     if (sameCredentials(current?.credentials ?? null, credentials)) {
       const existing = current!;
       try {
@@ -213,17 +240,12 @@ export function createCuaPipSessionService(options: {
   };
 
   const scheduleReconnectRetry = (): void => {
-    if (disposed || activeTurnBySession.size === 0) return;
+    if (disposed) return;
     // 同一次断连只拥有一个期限和一个 timer；focus 风暴不能延长期限或饿死重试。
     if (reconnectDeadline === 0) reconnectDeadline = Date.now() + RECONNECT_DEADLINE_MS;
-    if (Date.now() >= reconnectDeadline) {
-      if (!reconnectExpired)
-        logger.warn(undefined, "[cua-pip-session] reconnect snapshot expired before transport", {
-          activeTurnCount: activeTurnBySession.size,
-        });
-      reconnectExpired = true;
-      return;
-    }
+    if (recoveryExpired()) return;
+    if (nextReconnectAttempt <= Date.now()) nextReconnectAttempt = Date.now() + RECONNECT_RETRY_MS;
+    if (activeTurnBySession.size === 0) return;
     if (reconnectTimer !== null) return;
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
@@ -236,7 +258,11 @@ export function createCuaPipSessionService(options: {
             finishReconnectEpisode();
             return;
           }
-          if (resolution.skipReason === "transport-disabled") return;
+          if (
+            resolution.skipReason === "transport-disabled" ||
+            resolution.skipReason === "reconnect-expired"
+          )
+            return;
         } catch {
           if (disabledTransportCredentials) return;
           // Helper 冷启动期间连接失败是预期竞态；下一次有界轮询仍从同一快照恢复。
@@ -252,8 +278,13 @@ export function createCuaPipSessionService(options: {
     if (disposed) return Promise.resolve();
     // 产品事实先同步写入唯一镜像；网络 IO 仍串行。否则前一条慢请求会让终态滞留，
     // 期间发生的重连握手可能重新展示已经结束的 turn。
+    const wasActive = activeTurnBySession.size > 0;
     updateSnapshot(event);
-    if (activeTurnBySession.size === 0) finishReconnectEpisode();
+    if (
+      (wasActive && activeTurnBySession.size === 0) ||
+      (!wasActive && event.kind === "turn-started")
+    )
+      finishReconnectEpisode();
     const operation = tail.then(async () => {
       if (disposed) return;
       try {
@@ -292,11 +323,7 @@ export function createCuaPipSessionService(options: {
           current.client.close();
           current = null;
         }
-        if (
-          activeTurnBySession.size > 0 &&
-          (error as { code?: unknown }).code !== "version_mismatch"
-        )
-          scheduleReconnectRetry();
+        if ((error as { code?: unknown }).code !== "version_mismatch") scheduleReconnectRetry();
         logger.warn(undefined, "[cua-pip-session] event delivery failed", {
           ...eventLogContext(event),
           errorMessage: redactCapability(
@@ -323,6 +350,7 @@ export function createCuaPipSessionService(options: {
       current?.client.close();
       current = null;
       disabledTransportCredentials = null;
+      reconnectCredentials = null;
       lastResolvedCapability = undefined;
     },
   };

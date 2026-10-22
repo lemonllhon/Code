@@ -1,5 +1,5 @@
 /* oxlint-disable max-lines -- Client framing and server protocol helpers share one public broker contract in this module. */
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -588,7 +588,16 @@ export function mintBrokerSocketPath(options = {}) {
     return `\\\\.\\pipe\\lcode-cua-broker-${randomUUID()}`;
   }
   const dir = typeof options.dir === "string" ? options.dir : tmpdir();
-  return join(dir, `lcode-cua-broker-${randomUUID()}.sock`);
+  // macOS 的临时目录较长；旧 UUID 文件名再追加 .pip 会越过 sockaddr_un 字节上限。
+  // 保留 128 bit 随机性并统一预留 PiP 后缀，避免 broker 可用而 PiP 永久连接失败。
+  const socketPath = join(dir, `lcode-${randomBytes(16).toString("base64url")}.sock`);
+  const maxBytes = (options.platform ?? process.platform) === "darwin" ? 103 : 107;
+  if (Buffer.byteLength(`${socketPath}.pip`) > maxBytes) {
+    throw new Error(
+      `Computer Use socket directory is too long (maximum ${maxBytes} UTF-8 bytes including PiP suffix).`,
+    );
+  }
+  return socketPath;
 }
 
 export function resolveBrokerSocketPath(options = {}) {

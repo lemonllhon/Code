@@ -124,6 +124,54 @@ test("focus traffic cannot extend an unavailable transport recovery episode", as
   assert.equal(logs.filter((args) => String(args[1]).includes("snapshot expired")).length, 2);
 });
 
+test("failed PiP credentials share one event/timer budget and recover after rotation", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 1000 });
+  let generation = 7;
+  let attempts = 0;
+  const seen: PipSessionClientOptions[] = [];
+  const fake = fakeClientFactory(seen);
+  const logs: unknown[][] = [];
+  const service = createCuaPipSessionService({
+    enabled: true,
+    resolveCredentials: async () => ({ ...credentials, generation }),
+    logger: loggerRecording(logs),
+    createClient: (options) => {
+      const client = fake.createClient(options);
+      if (options.generation === 7)
+        client.connect = async () => {
+          attempts++;
+          throw new Error("fixture offline");
+        };
+      return client;
+    },
+  });
+  t.after(() => service.dispose());
+  await service.publishLifecycle({
+    kind: "turn-started",
+    sessionId: "a",
+    turnId: "a",
+    sequenceNumber: 1,
+  });
+  const focus = (revision: number) =>
+    service.publishFocus({ kind: "focus-changed", sessionId: "a", revision, sourceWindowId: "w" });
+  for (let i = 1; i <= 20; i++) await focus(i);
+  assert.equal(attempts, 1, "focus storm must share the timer backoff");
+  t.mock.timers.tick(31_000);
+  await focus(21);
+  const before = attempts;
+  const warnings = logs.filter((args) => String(args[1]).includes("event delivery failed")).length;
+  for (let i = 22; i < 42; i++) await focus(i);
+  assert.equal(attempts, before, "deadline must also gate event connections");
+  assert.equal(
+    logs.filter((args) => String(args[1]).includes("event delivery failed")).length,
+    warnings,
+  );
+  generation = 8;
+  await focus(42);
+  assert.equal(fake.snapshots.at(-1)?.focus?.revision, 42);
+  assert.equal(fake.snapshots.at(-1)?.turns[0]?.turnId, "a");
+});
+
 function loggerRecording(records: unknown[][]): ServiceLogger {
   const record = (...args: unknown[]) => records.push(args);
   return { debug: record, info: record, warn: record, error: record };
