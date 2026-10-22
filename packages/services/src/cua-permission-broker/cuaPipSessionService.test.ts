@@ -16,10 +16,163 @@ const credentials: CuaPipPresentationCredentials = {
   generation: 7,
 };
 
+test("late credentials cannot create a PiP client after service disposal", async () => {
+  const pending = Promise.withResolvers<CuaPipPresentationCredentials | undefined>();
+  let requested = false;
+  const seen: PipSessionClientOptions[] = [];
+  const fake = fakeClientFactory(seen);
+  const service = createCuaPipSessionService({
+    enabled: true,
+    resolveCredentials: () => {
+      requested = true;
+      return pending.promise;
+    },
+    createClient: fake.createClient,
+    logger: loggerRecording([]),
+  });
+  const delivery = service.publishFocus({
+    kind: "focus-changed",
+    sessionId: null,
+    revision: 1,
+    sourceWindowId: "w",
+  });
+  while (!requested) await Promise.resolve();
+  service.dispose();
+  pending.resolve(credentials);
+  await delivery;
+  assert.equal(seen.length, 0);
+  assert.equal(fake.events.length, 0);
+});
+
+test("a connection rejection after disposal cannot leak a retired capability", async () => {
+  const pending = Promise.withResolvers<void>();
+  const logs: unknown[][] = [];
+  let connecting = false;
+  const service = createCuaPipSessionService({
+    enabled: true,
+    resolveCredentials: async () => credentials,
+    logger: loggerRecording(logs),
+    createClient: () => ({
+      enabled: true,
+      connect: () => {
+        connecting = true;
+        return pending.promise;
+      },
+      send: async () => ({ applied: true }),
+      close() {},
+    }),
+  });
+  const delivery = service.publishFocus({
+    kind: "focus-changed",
+    sessionId: null,
+    revision: 1,
+    sourceWindowId: "w",
+  });
+  while (!connecting) await Promise.resolve();
+  service.dispose();
+  pending.reject(new Error(credentials.capability));
+  await delivery;
+  assert.equal(JSON.stringify(logs).includes(credentials.capability), false);
+});
+
+test("focus traffic cannot extend an unavailable transport recovery episode", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 1_000 });
+  const logs: unknown[][] = [];
+  const service = createCuaPipSessionService({
+    enabled: true,
+    resolveCredentials: async () => undefined,
+    logger: loggerRecording(logs),
+  });
+  t.after(() => service.dispose());
+  await service.publishLifecycle({
+    kind: "turn-started",
+    sessionId: "a",
+    turnId: "a",
+    sequenceNumber: 1,
+  });
+  for (let i = 1; i <= 40; i++) {
+    t.mock.timers.tick(1_000);
+    await service.publishFocus({
+      kind: "focus-changed",
+      sessionId: "a",
+      revision: i,
+      sourceWindowId: "w",
+    });
+    await Promise.resolve();
+  }
+  assert.equal(logs.filter((args) => String(args[1]).includes("snapshot expired")).length, 1);
+  await service.publishLifecycle({
+    kind: "turn-ended",
+    sessionId: "a",
+    turnId: "a",
+    sequenceNumber: 2,
+    outcome: "completed",
+  });
+  await service.publishLifecycle({
+    kind: "turn-started",
+    sessionId: "b",
+    turnId: "b",
+    sequenceNumber: 3,
+  });
+  t.mock.timers.tick(30_000);
+  await service.publishFocus({
+    kind: "focus-changed",
+    sessionId: "b",
+    revision: 41,
+    sourceWindowId: "w",
+  });
+  assert.equal(logs.filter((args) => String(args[1]).includes("snapshot expired")).length, 2);
+});
+
 function loggerRecording(records: unknown[][]): ServiceLogger {
   const record = (...args: unknown[]) => records.push(args);
   return { debug: record, info: record, warn: record, error: record };
 }
+
+test("an incompatible PiP generation does not poll and a new generation can recover", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 1000 });
+  let generation = 7;
+  const seen: PipSessionClientOptions[] = [];
+  const fake = fakeClientFactory(seen);
+  const service = createCuaPipSessionService({
+    enabled: true,
+    resolveCredentials: async () => ({ ...credentials, generation }),
+    logger: loggerRecording([]),
+    createClient: (options) => {
+      const client = fake.createClient(options);
+      if (options.generation === 7)
+        client.connect = async () => {
+          throw Object.assign(new Error("fixture incompatible"), { code: "version_mismatch" });
+        };
+      return client;
+    },
+  });
+  t.after(() => service.dispose());
+  await service.publishLifecycle({
+    kind: "turn-started",
+    sessionId: "a",
+    turnId: "a",
+    sequenceNumber: 1,
+  });
+  t.mock.timers.tick(30_000);
+  await Promise.resolve();
+  await service.publishFocus({
+    kind: "focus-changed",
+    sessionId: "a",
+    revision: 1,
+    sourceWindowId: "w",
+  });
+  assert.equal(seen.length, 1);
+  generation = 8;
+  await service.publishFocus({
+    kind: "focus-changed",
+    sessionId: "a",
+    revision: 2,
+    sourceWindowId: "w",
+  });
+  assert.equal(seen.length, 2);
+  assert.equal(fake.snapshots[0]?.turns[0]?.turnId, "a");
+});
 
 function fakeClientFactory(optionsSeen: PipSessionClientOptions[]): {
   createClient: (options: PipSessionClientOptions) => PipSessionClient;
