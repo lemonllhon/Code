@@ -256,13 +256,25 @@ export async function runWorktreeManagementCases({
       );
       await management.getByTestId("worktree-open-commit-review").click();
       await management.waitFor({ state: "hidden" });
-      const review = page.getByTestId("git-commit-dialog");
-      await review.getByTestId("git-scope-open-files").waitFor();
+      // 审核入口已经改为侧栏面板，旧弹框与旧 scope 按钮标识已退役。
+      const review = page.getByTestId("git-commit-review-pane");
+      await review
+        .getByTestId("git-commit-scope-counts")
+        .waitFor()
+        .catch(async (error) => {
+          process.stderr.write(
+            `Review navigation state: ${(await page.locator("body").innerText()).slice(0, 3000)}\n`,
+          );
+          throw error;
+        });
       assert.equal(
         await page.evaluate(() => globalThis.__worktreeFixture.lastReviewNavigation.sessionId),
         "orphan",
       );
-      assert.equal(await page.getByRole("dialog").count(), 1);
+      assert.ok(
+        (await page.getByRole("dialog").count()) <= 1,
+        "the review pane must not stack over the management dialog",
+      );
       assert.equal(await review.getByTestId("worktree-management-content").count(), 0);
       assert.deepEqual(
         (await calls()).filter((call) =>
@@ -270,7 +282,7 @@ export async function runWorktreeManagementCases({
         ),
         before,
       );
-      await page.getByTestId("git-review-dismiss").click();
+      await review.getByTestId("git-commit-close").click();
     }
   });
   await t.test(

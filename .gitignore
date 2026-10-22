@@ -115,6 +115,7 @@ nul
 !/packages/web/test/multi-session-send-cases.mjs
 !/packages/web/test/task-handoff-cases.mjs
 !/packages/web/test/context-capsule-composer.test.mjs
+!/packages/web/test/mixed-project-menu.test.mjs
 !/packages/web/test/fixtures/
 /packages/web/test/fixtures/*
 !/packages/web/test/fixtures/git-management-service.ts
@@ -122,6 +123,8 @@ nul
 !/packages/web/test/fixtures/composer-prediction.html
 !/packages/web/test/fixtures/composer-prediction.tsx
 !/packages/web/test/fixtures/task-handoff.tsx
+!/packages/web/test/fixtures/mixed-project-menu.tsx
+!/packages/web/test/fixtures/mixed-project-devices.tsx
 # 七色全局主题、生产 timeline 和独立窗口的永久品控回归。
 !/packages/web/test/sidebar-animation.test.mjs
 !/packages/web/test/fixtures/sidebar-animation.html
@@ -470,3 +473,11 @@ nul
 !/packages/web/test/fixtures/automatic-backup.tsx
 !/packages/ui/src/lib/remoteTaskExecutionState.ts
 !/packages/ui/src/lib/remoteTaskExecutionState.test.ts
+!/packages/ui/src/lib/remoteDevices.ts
+!/packages/ui/src/lib/remoteDevices.test.ts
+!/packages/web/test/remote-devices.test.mjs
+!/packages/web/test/fixtures/remote-devices.html
+!/packages/web/test/fixtures/remote-devices.tsx
+!/packages/web/test/remote-connection-switches.test.mjs
+!/packages/web/test/project-source-interaction.test.mjs
+!/packages/services/src/setting/remoteDeviceMutations.test.ts

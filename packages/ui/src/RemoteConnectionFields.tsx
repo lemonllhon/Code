@@ -237,10 +237,9 @@ export function RemoteConnectionFields({
     case "ssh":
       return (
         <div className="space-y-2">
-          <SshProxyModeField value={sshProxySelection} onChange={setSshProxySelection} />
-          {/* 别名和下载方式原先分占首尾两行，低窗口必须滚动；同排并收紧留白，优先露出下载选择。 */}
-          <div className="grid gap-2 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
-            <div className="space-y-1">
+          {/* 别名与下载方式共用顶部网格，标签和控件同排对齐；窄屏纵排以保留操作空间。 */}
+          <div className="grid items-start gap-2 sm:grid-cols-2">
+            <div className="min-w-0 space-y-1">
               <label className="mb-1 block text-ui-base text-foreground-subtle">
                 {intl.formatMessage({ id: "ssh.configAlias" })}
               </label>
@@ -346,14 +345,14 @@ export function RemoteConnectionFields({
                 </p>
               ) : null}
             </div>
-            <div>
+            <div className="min-w-0 space-y-1">
               <label className="mb-1 block text-ui-base text-foreground-subtle">
                 {intl.formatMessage({ id: "ssh.assetInstallMode" })}
               </label>
               <div
                 role="group"
                 aria-label={intl.formatMessage({ id: "ssh.assetInstallMode" })}
-                className="inline-flex w-full max-w-md flex-col items-stretch rounded-lg border border-input-border bg-input p-[3px] sm:flex-row"
+                className="flex w-fit max-w-full items-stretch rounded-lg border border-input-border bg-input p-[3px]"
               >
                 {(["local-download-upload", "remote-download"] as const).map((value) => {
                   const selected = assetInstallMode === value;
@@ -364,8 +363,14 @@ export function RemoteConnectionFields({
                       type="button"
                       onClick={() => setAssetInstallMode(value)}
                       aria-pressed={selected}
+                      title={intl.formatMessage({
+                        id:
+                          value === "local-download-upload"
+                            ? "ssh.assetInstallMode.localUploadDescription"
+                            : "ssh.assetInstallModeDescription",
+                      })}
                       className={cn(
-                        "inline-flex min-h-7 min-w-0 flex-1 items-center justify-center rounded-md px-3 py-1 text-center text-ui-base font-medium transition-colors",
+                        "inline-flex min-h-7 min-w-0 flex-1 items-center justify-center rounded-md px-3 py-0.5 text-center text-ui-base font-medium transition-colors",
                         SSH_SWITCH_BASE,
                         selected ? SSH_SWITCH_SELECTED : SSH_SWITCH_INACTIVE,
                       )}
@@ -379,9 +384,6 @@ export function RemoteConnectionFields({
                   );
                 })}
               </div>
-              <p className="mt-1 text-ui-base text-foreground-subtle">
-                {intl.formatMessage({ id: "ssh.assetInstallModeDescription" })}
-              </p>
             </div>
           </div>
 
@@ -392,7 +394,8 @@ export function RemoteConnectionFields({
               这里把宽度限制在字段语义范围内，只收窄建议列表，不改变原输入框布局。 */}
           {/* 示例值直接作为 placeholder 会被误认为已有默认值。
               这里改成“输入提示 + 示例”，让用户知道仍需手动填写必填字段。 */}
-          <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_6.5rem]">
+          {/* 端口只需容纳五位数字，窄屏同样保留紧凑列，把剩余宽度交给主机。 */}
+          <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-2">
             <RemoteConnectionHistoryInput
               className="h-9 text-ui-base"
               label={intl.formatMessage({ id: "ssh.host" })}
@@ -546,6 +549,8 @@ export function RemoteConnectionFields({
               />
             </div>
           )}
+          {/* 代理继续在主表单直接显示，选择与提交沿用原路径。 */}
+          <SshProxyModeField value={sshProxySelection} onChange={setSshProxySelection} />
         </div>
       );
     case "wsl":

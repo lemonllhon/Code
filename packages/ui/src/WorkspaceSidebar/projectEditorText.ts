@@ -11,12 +11,21 @@ const labels = {
   add: ["添加目录", "Add folder"],
   gitRepository: ["Git 仓库", "Git repository"],
   setPrimary: ["设为主文件夹", "Set as primary"],
-  gitDirectoryHint: [
-    "可关联多个仓库和普通目录；移除或取消不会删除磁盘文件。",
-    "Combine repositories and other folders. Removing a folder or cancelling keeps its files on disk.",
+  reorder: ["拖拽排序（也可按空格和方向键）", "Reorder (or use Space and arrow keys)"],
+  primaryFirstHint: ["主要目录始终排在第一行", "The primary folder stays first"],
+  identityHint: [
+    "此目录关联项目历史身份，不能在普通编辑中移除。可将其它目录设为主要。",
+    "This folder anchors the project's history. Keep it here; another folder can be primary.",
   ],
-  dropHint: ["可将多个文件夹拖入此弹框", "Drop multiple folders into this dialog"],
-  addHint: ["点击添加目录", "Choose Add folder"],
+  addHint: ["添加源目录，开始配置项目", "Add source folders to configure this project"],
+  folderHint: [
+    "多目录协作 · 拖拽排序 · 移除不删文件 · 保存后生效",
+    "Multiple folders · Drag to reorder · Files are kept · Save to apply",
+  ],
+  folderHintFull: [
+    "可关联仓库和普通目录；主要目录默认执行，其余可拖拽排序。移除或取消不删文件。保存仅影响后续输入，已接受的输入及已有工作树、工作集保留原范围。",
+    "Combine repositories and other folders. The primary folder is the default execution directory; drag others to reorder. Removing a folder or cancelling keeps its files. Saving applies to future inputs. Accepted inputs, existing worktrees and collaboration sets retain their scope.",
+  ],
   chooseFolder: ["选择此目录", "Choose this folder"],
   fromProject: ["从已有项目选择", "From projects"],
   noAvailableFolders: ["没有可选择的其它项目目录", "No other project folders available"],
@@ -32,6 +41,8 @@ const labels = {
   docs: ["文档", "Docs"],
   unspecified: ["未设置", "Not set"],
   purpose: ["用途和说明", "Purpose"],
+  purposeEmpty: ["点击填写用途和说明", "Click to add a purpose"],
+  purposeEditHint: ["点击编辑用途和说明", "Click to edit the purpose and description"],
   purposePlaceholder: [
     "例如：前端页面与交互，或后端接口与数据存储。",
     "For example: frontend pages and interactions, or backend APIs and storage.",
@@ -39,10 +50,6 @@ const labels = {
   defaultMember: ["默认参与", "Include by default"],
   included: ["参与", "Included"],
   excluded: ["不参与", "Excluded"],
-  scopeHint: [
-    "普通会话的下一轮输入使用保存后的范围。已接受的输入和已有工作树、工作集保留原范围。",
-    "The next input in a regular chat uses the saved scope. Accepted inputs and existing worktrees or collaboration sets retain their scope.",
-  ],
   local: ["本地", "Local"],
   remote: ["远程", "Remote"],
   disconnected: ["尚未连接，已保留目录配置", "Disconnected; saved folders are retained"],

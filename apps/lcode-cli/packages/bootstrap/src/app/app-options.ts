@@ -88,6 +88,8 @@ export type LCodeAppRuntimeConfigInput = AgentRuntimeConfig;
 
 export interface LCodeAppOptions {
   resolveGitContext?: AgentRuntimeDeps["resolveGitContext"];
+  projectNativeCall?: AgentRuntimeDeps["projectNativeCall"];
+  resolveGitAccount?: AgentRuntimeDeps["resolveGitAccount"];
   /** 受信宿主把跨会话 run 操作送回原执行 App；不接受客户端设置 owner。 */
   withWorkflowRunOwner?: import("./workflow-run-owner-router.js").WithWorkflowRunOwner;
   sessionId?: SessionId;

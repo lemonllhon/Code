@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { Emitter } from "@lcode/rpc";
+import { Emitter, Event } from "@lcode/rpc";
 import { ISettingService, type IServiceAccessor } from "@lcode/services";
 import { setDataBaseDir, disposeServiceResourcesAndWait } from "@lcode/services/node";
 import type {
@@ -52,6 +52,7 @@ test(
     const connectionServices = {
       ...Object.fromEntries(required.map((key) => [key, {}])),
       lcodeAgentService: {
+        onDynamicProjectNativeRequest: () => Event.None,
         onDynamicSessionRuntimePreferencesRequest: () => requests.event,
         respondSessionRuntimePreferences: async (response: Response) => receive(response),
         disposeAllAndWait: async () => {},

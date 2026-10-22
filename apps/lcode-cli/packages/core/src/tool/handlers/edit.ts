@@ -1,9 +1,9 @@
+import { projectPathApi } from "../project-routing.js";
 /* eslint-disable max-lines -- Edit 工具需要集中维护文本匹配、read-before-edit 与写回状态，避免 bugfix 期间拆分扩大行为面。 */
 // ============================================================
 // Edit Tool Handler
 // ============================================================
 
-import { basename, dirname, extname } from "node:path";
 import type {
   ReadFileStateEntry,
   ReadFileStateMap,
@@ -374,6 +374,7 @@ async function findSimilarFilename(
   if (!fileSystemPort) return undefined;
 
   try {
+    const { dirname, basename, extname } = projectPathApi(filePath);
     const parent = dirname(filePath);
     const targetName = basename(filePath);
     const targetStem = basename(filePath, extname(filePath));

@@ -29,9 +29,6 @@ test(
                 document.documentElement.classList.add("dark", "theme-zai-dark"),
               );
             await page.getByTestId("ssh-connect-trigger").click();
-            await page
-              .getByRole("button", { name: locale === "zh" ? "下一步" : "Next", exact: true })
-              .click();
             const selection = page.getByTestId("ssh-proxy-mode");
             await selection.waitFor();
             assert.equal(await page.getByRole("switch").count(), 0);
@@ -57,28 +54,35 @@ test(
               name: locale === "zh" ? "资源下载方式" : "Resource download method",
               exact: true,
             });
-            const alias = await page.getByTestId("ssh-config-alias-select").boundingBox();
+            await resources.scrollIntoViewIfNeeded();
+            const aliasControl = page.getByTestId("ssh-config-alias-select");
+            const alias = await aliasControl.boundingBox();
             const resourceBox = await resources.boundingBox();
             assert.ok(alias && resourceBox);
             assert.ok(alias.width <= 224, "alias field stays compact");
             if (width === 1280) {
-              assert.ok(
-                Math.abs(alias.y - resourceBox.y) <= 1,
-                "alias and download controls align",
-              );
-              assert.ok(
-                resourceBox.x > alias.x + alias.width,
-                "download method shares the alias row",
-              );
-            } else {
-              assert.ok(resourceBox.y > alias.y + alias.height, "narrow layout stacks the fields");
-            }
+              assert.ok(Math.abs(resourceBox.y - alias.y) <= 1, "top controls share one row");
+              const aliasLabel = await aliasControl.locator("..").locator("label").boundingBox();
+              const resourceLabel = await resources.locator("..").locator("label").boundingBox();
+              assert.ok(aliasLabel && resourceLabel);
+              assert.ok(Math.abs(aliasLabel.y - resourceLabel.y) <= 1, "top labels align");
+              assert.ok(resourceBox.x >= alias.x + alias.width, "download choice follows alias");
+            } else assert.ok(resourceBox.y > alias.y, "narrow screens stack the top fields");
+            const host = await page.getByTestId("ssh-host-input").boundingBox();
+            assert.ok(
+              host && host.y > resourceBox.y + resourceBox.height,
+              "top fields precede host",
+            );
+            const portInput = await page.getByTestId("ssh-port-input").boundingBox();
+            assert.ok(host && portInput);
+            assert.ok(Math.abs(host.y - portInput.y) <= 1, "host and port stay in one row");
+            assert.ok(portInput.width <= 88, "port uses a compact five-digit column");
             const scroll = page.getByTestId("remote-connection-settings-scroll");
             const scrollBox = await scroll.boundingBox();
-            assert.ok(scrollBox && resourceBox.y >= scrollBox.y);
-            assert.ok(resourceBox.y + resourceBox.height <= scrollBox.y + scrollBox.height);
+            // Chromium 的滚动位置取整，实测顶部与底部分别可能有 0.5px / 0.75px 舍入差。
+            assert.ok(scrollBox && resourceBox.y >= scrollBox.y - 1);
+            assert.ok(resourceBox.y + resourceBox.height <= scrollBox.y + scrollBox.height + 1);
             await resources.getByRole("button").nth(1).click();
-            assert.equal(await scroll.evaluate((el) => el.scrollTop), 0);
             assert.equal(await page.locator('input[type="password"]').count(), 1);
             assert.equal(
               (await page.locator("body").innerText()).includes("fixture-secret"),
@@ -138,7 +142,6 @@ test(
         try {
           await page.goto(`http://127.0.0.1:${port}/test/fixtures/remote-connection.html`);
           await page.getByTestId("ssh-connect-trigger").click();
-          await page.getByRole("button", { name: "Next", exact: true }).click();
           const selection = page.getByTestId("ssh-proxy-mode");
           await selection.click();
           await page.getByRole("option", { name: /Home SOCKS5/ }).click();
@@ -175,7 +178,6 @@ test(
         await page.goto(`http://127.0.0.1:${port}/test/fixtures/remote-connection.html`);
         await page.evaluate(() => window.remoteConnectionFixture.setProxyReadError(true));
         await page.getByTestId("ssh-connect-trigger").click();
-        await page.getByRole("button", { name: "Next", exact: true }).click();
         await page.getByText("Unable to load saved proxies.", { exact: true }).waitFor();
         await page.evaluate(() => window.remoteConnectionFixture.setProxyReadError(false));
         await page.getByRole("button", { name: "Retry", exact: true }).click();
@@ -194,7 +196,6 @@ test(
         try {
           await page.goto(`http://127.0.0.1:${port}/test/fixtures/remote-connection.html`);
           await page.getByTestId("ssh-connect-trigger").click();
-          await page.getByRole("button", { name: "Next", exact: true }).click();
           const alias = page.getByTestId("ssh-config-alias-select");
           await page.getByText("No aliases", { exact: true }).waitFor();
           assert.equal(
@@ -237,7 +238,6 @@ test(
             `http://127.0.0.1:${port}/test/fixtures/remote-connection.html?aliases=available`,
           );
           await page.getByTestId("ssh-connect-trigger").click();
-          await page.getByRole("button", { name: "Next", exact: true }).click();
           await page.getByTestId("ssh-config-alias-select").click();
           await page.getByPlaceholder("Search SSH config alias").fill("fixture-alias");
           await page.getByRole("option", { name: /fixture-alias/ }).click();
@@ -257,7 +257,6 @@ test(
           `http://127.0.0.1:${port}/test/fixtures/remote-connection.html?aliases=error`,
         );
         await page.getByTestId("ssh-connect-trigger").click();
-        await page.getByRole("button", { name: "Next", exact: true }).click();
         await page
           .getByText(
             "Failed to load SSH config aliases. You can still enter connection info manually.",

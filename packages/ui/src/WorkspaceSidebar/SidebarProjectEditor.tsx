@@ -1,10 +1,12 @@
+import { buildRemoteWorkspaceIdentity } from "@lcode/shared";
+import { projectMemberKey } from "@lcode/shared";
+import { projectImportCandidates } from "./projectImportCandidates.js";
+import { useRemoteProjectDevices } from "@/hooks/useRemoteProjectDevices.js";
+import { RemoteProjectFolderPicker } from "./RemoteProjectFolderPicker.js";
+import { projectMemberIsInOrigin } from "@lcode/shared";
 import { useState } from "react";
 import { Folder, LoaderCircle } from "lucide-react";
-import {
-  isSameLocalProjectPath,
-  LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT,
-  type ProjectMember,
-} from "@lcode/shared";
+import { isSameLocalProjectPath, LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT } from "@lcode/shared";
 import {
   useSidebarOrganization,
   type SidebarProjectEditorTarget,
@@ -47,6 +49,8 @@ export function SidebarProjectEditor({ target }: { target: SidebarProjectEditorT
   const [folderTab, setFolderTab] = useState("folders");
   const [selecting, setSelecting] = useState(false);
   const [gitWizard, setGitWizard] = useState(false);
+  const [remotePicker, setRemotePicker] = useState(false);
+  const remoteDevices = useRemoteProjectDevices();
   // 中文依据：旧远端项目可能只有 attachment/target；不能因缺少 identity 就把仓库向导发到 Base Host。
   const remote = Boolean(
     target.workspaceIdentity?.trim() || target.remoteSessionId?.trim() || target.remoteTarget,
@@ -54,7 +58,7 @@ export function SidebarProjectEditor({ target }: { target: SidebarProjectEditorT
   const drop = useProjectFolderDrop({
     enabled: !gitWizard && !remote && folderTab === "folders" && editor.ready,
     busy: editor.checking || editor.saving || selecting,
-    services: editor.services,
+    services: editor.baseServices,
     onFolders: async (paths) => {
       await editor.addFolders(paths);
     },
@@ -65,39 +69,15 @@ export function SidebarProjectEditor({ target }: { target: SidebarProjectEditorT
     // 中文依据：取消明确表示丢弃草稿，不再增加确认层；已发送命令的迟到回执仍由原 owner 处理。
     organization.editProject(null);
   };
-  const setMembers = (members: ProjectMember[]) => {
-    if (!draft) return;
-    setDraft({
-      ...draft,
-      members,
-      memberOrder: members.map((member) => member.id),
-      sourceFolderPaths: [
-        draft.primaryFolderPath,
-        ...members
-          .filter((member) => !isSameLocalProjectPath(member.path, draft.primaryFolderPath))
-          .map((member) => member.path),
-      ],
-    });
-  };
-  const members = draft?.members
-    ? [...draft.members].sort(
-        (a, b) => draft.memberOrder!.indexOf(a.id) - draft.memberOrder!.indexOf(b.id),
-      )
-    : [];
-  const availableFolders = editor.projects
-    .filter(
-      (project) =>
-        project.id !== draft?.id && project.workspaceIdentity === draft?.workspaceIdentity,
-    )
-    .flatMap((project) =>
-      project.sourceFolderPaths.map((path) => ({
-        projectId: project.id,
-        name: project.name,
-        path,
-      })),
-    );
+  const setMembers = editor.setMembers;
+  const members = editor.orderedMembers;
+  const availableFolders = projectImportCandidates(
+    editor.projects,
+    draft?.id,
+    remoteDevices?.model.devices,
+  );
   const add = async () => {
-    if (remote || !platform.canSelectFilePath) {
+    if (!platform.canSelectFilePath) {
       setBrowserPath("");
       setBrowsing(true);
     } else {
@@ -116,7 +96,7 @@ export function SidebarProjectEditor({ target }: { target: SidebarProjectEditorT
   };
   return (
     <Dialog
-      open
+      open={!remoteDevices?.suspended}
       onOpenChange={(open) => {
         if (!open) {
           if (gitWizard) setGitWizard(false);
@@ -124,7 +104,14 @@ export function SidebarProjectEditor({ target }: { target: SidebarProjectEditorT
         }
       }}
     >
-      {gitWizard && draft ? (
+      {remotePicker ? (
+        <RemoteProjectFolderPicker
+          onCancel={() => setRemotePicker(false)}
+          onAdd={(member) => {
+            if (editor.addMember(member)) setRemotePicker(false);
+          }}
+        />
+      ) : gitWizard && draft ? (
         <GitRepositoryWizard
           useBaseHost={!remote}
           workspaceIdentity={target.workspaceIdentity}
@@ -132,14 +119,38 @@ export function SidebarProjectEditor({ target }: { target: SidebarProjectEditorT
           initialDirectory={draft.primaryFolderPath}
           onClose={() => setGitWizard(false)}
           canAddPath={(path) =>
-            draft.sourceFolderPaths.length < LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT ||
+            members.length < LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT ||
             draft.sourceFolderPaths.some((existing) => isSameLocalProjectPath(existing, path))
           }
           onImported={async (path) => {
             // 中文依据：初始化已关联源目录只复用原成员，不能覆盖用途、参与状态或主目录身份。
             if (draft.sourceFolderPaths.some((existing) => isSameLocalProjectPath(existing, path)))
               return true;
-            return editor.addFolder(path);
+            if (!remote) return editor.addFolder(path);
+            const device = remoteDevices?.model.devices.find(
+              (item) =>
+                item.profile &&
+                item.target &&
+                buildRemoteWorkspaceIdentity(draft.primaryFolderPath, item.target) ===
+                  draft.workspaceIdentity,
+            );
+            if (!device?.profile) {
+              editor.reportFolderError("Remote device configuration is missing");
+              return false;
+            }
+            return editor.importMember({
+              id: crypto.randomUUID(),
+              path,
+              role: "",
+              label: "",
+              description: "",
+              enabled: true,
+              source: {
+                kind: "remote",
+                deviceId: device.profile.id,
+                workspaceIdentity: buildRemoteWorkspaceIdentity(path, device.target),
+              },
+            });
           }}
         />
       ) : (
@@ -192,7 +203,15 @@ export function SidebarProjectEditor({ target }: { target: SidebarProjectEditorT
                     <ProjectSourceFolders
                       members={members}
                       primaryPath={draft.primaryFolderPath}
-                      primaryLocked
+                      primaryMemberId={draft.primaryMemberId}
+                      identityAnchorMemberId={
+                        members.find(
+                          (member) =>
+                            projectMemberIsInOrigin(member, draft.workspaceIdentity) &&
+                            isSameLocalProjectPath(member.path, draft.primaryFolderPath),
+                        )?.id
+                      }
+                      primaryLocked={false}
                       disabled={busy}
                       checking={busy && !editor.saving}
                       remote={remote}
@@ -200,8 +219,11 @@ export function SidebarProjectEditor({ target }: { target: SidebarProjectEditorT
                       errors={editor.folderErrors}
                       dragging={drop.dragging}
                       canDrop={drop.canDrop}
+                      onRemoteFolder={() => setRemotePicker(true)}
                       onAdd={() => void add()}
                       onGitRepository={() => setGitWizard(true)}
+                      onSetPrimary={editor.setPrimaryMember}
+                      onReorder={editor.reorderMembers}
                       onChange={(next) =>
                         setMembers(members.map((member) => (member.id === next.id ? next : member)))
                       }
@@ -217,7 +239,7 @@ export function SidebarProjectEditor({ target }: { target: SidebarProjectEditorT
                       <div className="max-h-80 space-y-3 overflow-y-auto rounded-xl border border-border p-3">
                         {/* 中文依据：嵌入式浏览器只报告成功浏览的路径，由本编辑器显式确认，不能把未读取的输入路径当成已选择目录。 */}
                         <DirectoryBrowser
-                          services={editor.services}
+                          services={editor.baseServices}
                           embedded
                           onPathChange={setBrowserPath}
                           onCancel={() => setBrowsing(false)}
@@ -243,21 +265,23 @@ export function SidebarProjectEditor({ target }: { target: SidebarProjectEditorT
                   <TabsContent value="projects" className="min-w-0">
                     <div className="h-48 space-y-1 overflow-y-auto overscroll-contain rounded-xl border border-border bg-surface p-2">
                       {availableFolders.length ? (
-                        availableFolders.map(({ projectId, name, path }) => (
+                        availableFolders.map(({ projectId, name, path, member }) => (
                           <Button
-                            key={`${projectId}:${path}`}
+                            key={`${projectId}:${projectMemberKey(member)}`}
                             variant="ghost"
                             className="h-auto w-full justify-start py-2 text-left"
                             disabled={
                               busy ||
                               !editor.ready ||
-                              draft.sourceFolderPaths.some((existing) =>
-                                isSameLocalProjectPath(existing, path),
+                              draft.members?.some(
+                                (existing) =>
+                                  projectMemberKey(existing, draft.workspaceIdentity) ===
+                                  projectMemberKey(member),
                               )
                             }
                             onClick={async () => {
                               // 中文依据：目录校验由同一草稿 owner 完成，成功后才切回设置页；失败不隐藏错误或丢失已有草稿。
-                              if (await editor.addFolder(path)) setFolderTab("folders");
+                              if (await editor.importMember(member)) setFolderTab("folders");
                             }}
                           >
                             <span className="min-w-0">
@@ -276,9 +300,6 @@ export function SidebarProjectEditor({ target }: { target: SidebarProjectEditorT
                     </div>
                   </TabsContent>
                 </Tabs>
-                <p className="rounded-lg bg-surface p-3 text-ui-sm text-foreground-subtle">
-                  {text("scopeHint")}
-                </p>
               </>
             ) : null}
             {editor.error ? (

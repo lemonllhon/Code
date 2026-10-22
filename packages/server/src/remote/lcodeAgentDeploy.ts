@@ -33,6 +33,11 @@ import {
   checkRemoteAssetComponentIdentity,
   writeRemoteAssetComponentMeta,
 } from "@lcode/server/remote/remoteAssetLiveIdentity.js";
+import {
+  assertRemoteBundleCapabilities,
+  checkRemoteBundleCapabilities,
+  PROJECT_NATIVE_AGENT_MARKERS,
+} from "./remoteBundleCapabilityCheck.js";
 
 const REMOTE_AGENT_RUNTIME_BASE = `${REMOTE_BASE}/agents`;
 
@@ -125,6 +130,16 @@ async function shouldSkipLCodeAgentDeploy(params: {
     return false;
   }
 
+  const capabilities = await checkRemoteBundleCapabilities(
+    params.backend,
+    `${REMOTE_BASE}/node`,
+    params.remoteBundlePath,
+    PROJECT_NATIVE_AGENT_MARKERS,
+  );
+  if (capabilities.shouldDeploy) {
+    params.loggers.logWarn(`[remote-assets] ${params.componentId}: ${capabilities.reason}`);
+    return false;
+  }
   params.loggers.log(
     `[lcode-agent-deploy] ${LCODE_AGENT_PROVIDER}: 制品 SHA ${params.expectedArtifactSha256} 已部署，跳过`,
   );
@@ -266,6 +281,12 @@ export async function deployLCodeAgentRuntime(
     // 2) packages 替换成功后再安装编译产物 lcode.cjs（跨平台同一份，glm 组件里就是它）。
     await installBundle();
   }
+  await assertRemoteBundleCapabilities(
+    backend,
+    `${REMOTE_BASE}/node`,
+    remoteBundlePath,
+    PROJECT_NATIVE_AGENT_MARKERS,
+  );
   // 3) 写入 wrapper（即 resolver 期望的 lcode-agent），用远端已部署的 node 执行 lcode.cjs。
   await deployRemoteAgentWrapper({
     backend,

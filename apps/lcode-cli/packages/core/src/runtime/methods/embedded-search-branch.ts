@@ -9,6 +9,7 @@ import {
 import { isToolNameDisallowed } from "../../tool/tool-visibility.js";
 
 export function resolveRuntimeEmbeddedSearchEnabled(runtime: AgentRuntimeInternal): boolean {
+  if (runtime.projectContextForTools?.members.some((member) => member.routeToken)) return false;
   const builtInToolAllowlist = resolveBuiltInToolAllowlist(runtime.config);
   const decision = resolveEmbeddedSearchBranchCapability({
     bashAvailable:
@@ -26,6 +27,7 @@ export function refreshBranchAwareBuiltInTools(runtime: AgentRuntimeInternal): v
   }
 
   registerBuiltInTools(runtime.registry, {
+    resolveGitAccount: runtime.resolveGitAccount,
     bashTimeoutPolicy: runtime.config.bashTimeoutPolicy,
     includeSkill: Boolean(runtime.skillPort),
     includeAgent: Boolean(runtime.subagentPort),

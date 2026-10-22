@@ -1,8 +1,8 @@
+import { projectPathApi } from "../project-routing.js";
 // ============================================================
 // Read Tool Handler
 // ============================================================
 
-import { basename, dirname, extname } from "node:path";
 import type {
   ReadFileStateEntry,
   ReadFileStateMap,
@@ -281,6 +281,7 @@ async function findSimilarFilename(
   if (!fileSystemPort) return undefined;
 
   try {
+    const { dirname, basename, extname } = projectPathApi(filePath);
     const parent = dirname(filePath);
     const targetName = basename(filePath);
     const targetStem = basename(filePath, extname(filePath));

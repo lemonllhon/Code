@@ -2,6 +2,7 @@ export const LOCAL_PROJECT_NAME_MAX_LENGTH = 100;
 export const LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT = 20;
 
 export interface LocalProject {
+  primaryMemberId?: string;
   id: string;
   name: string;
   primaryFolderPath: string;
@@ -19,6 +20,8 @@ export interface CreateLocalProjectInput {
 }
 
 export interface LocalProjectCreateRequest {
+  workspaceIdentity?: string;
+  primaryMemberId?: string;
   /** 同一新建表单重试项目保存时沿用，不用于复用其他项目。 */
   projectId?: string;
   sidebarSectionId?: string;

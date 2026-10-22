@@ -1,3 +1,8 @@
+export {
+  installProjectNativeRoutingOwner,
+  prepareNativeProjectContext,
+  getProjectNativeRoutingOwner,
+} from "./lcode-agent/projectNativeOwner.js";
 /* eslint-disable max-lines -- host process 服务注册和启动装配需要集中维护，拆散后会更难追踪依赖注入顺序 */
 // Node.js service implementations — NOT safe to import in browser code
 import { readFileSync } from "node:fs";
@@ -39,6 +44,7 @@ import { createManagedGitCommand } from "./git-management/managedGitCommand.js";
 import { withGitAuthenticationScope } from "./git-management/gitAuthenticationScope.js";
 import { createHostGitCredentialResolver } from "./git-management/gitCredentialHost.js";
 import { createHostGitContextProvider } from "./git-management/gitContextHost.js";
+import { createHostGitAccountOperator } from "./git-management/gitAccountHost.js";
 import { IGitManagementService } from "./git-management/contract.js";
 export { createWorktreeService, createCheckoutCoordinator } from "./worktree/node.js";
 import {
@@ -1396,7 +1402,7 @@ export function createLocalServices(options: {
   forwardSessionMessageSendRequested?: (
     request: SessionMessageSendRequested,
   ) => Promise<void> | void;
-  /** desktop local host 在 manual run 落库后直接派发，不经过 scheduler 正常路径。 */
+  /** desktop local host 在 manual run 落库后直���派发，不经过 scheduler 正常路径。 */
   onAutomationManualRunRequested?: (params: {
     automation: LCodeAutomation;
     run: LCodeAutomationRun;
@@ -2359,6 +2365,7 @@ export function createLocalServices(options: {
   const lcodeAgentService = createLCodeAgentService({
     resolveGitCredential: createHostGitCredentialResolver(gitManagementOwner, gitSourceDirectories),
     resolveGitContext: createHostGitContextProvider(gitManagementOwner, gitSourceDirectories),
+    resolveGitAccount: createHostGitAccountOperator(gitManagementOwner, gitSourceDirectories),
     resolveOAuthRequestAuth: async ({
       channelId,
       providerId,

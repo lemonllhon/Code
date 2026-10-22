@@ -1,3 +1,13 @@
+import {
+  gitAuthenticationUrl,
+  peers,
+  hints,
+  bindingKey,
+  matchesBinding,
+  type Repository,
+} from "./gitAuthenticationTarget.js";
+export { gitAuthenticationUrl } from "./gitAuthenticationTarget.js";
+import { readSystemGitCredential } from "./gitSystemCredential.js";
 import { createHash, randomUUID } from "node:crypto";
 import { realpath, lstat } from "node:fs/promises";
 import { z } from "zod";
@@ -34,20 +44,14 @@ type Profile = {
 };
 type Auth = { account: Account | null; secret?: string };
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
-const matchesBinding = (b: Binding, repo: { scope: string; bindingRoot: string }, url: string) =>
-  b.scope === repo.scope && b.root === repo.bindingRoot && b.url === url;
-export function gitAuthenticationUrl(value: string): URL {
-  const scp = value.match(/^(?:([^@/:]+)@)?([^/:]+):(.+)$/);
-  const result = new URL(
-    value.includes("://")
-      ? value
-      : scp
-        ? `ssh://${scp[1] ? scp[1] + "@" : ""}${scp[2]}/${scp[3]}`
-        : value,
-  );
-  if (result.password || result.search || result.hash) throw new Error("git-account-invalid-url");
-  return result;
-}
+const findBinding = (profile: Profile, repo: Repository, url: string) => {
+  const found = profile.bindings.filter((b) => matchesBinding(b, repo, url));
+  // 中文依据：旧版按带用户名 URL 分别保存；归并后有冲突必须停止，不能按数组顺序串号。
+  return {
+    binding: found[0],
+    conflict: new Set(found.map((b) => JSON.stringify([b.id, b.revision]))).size > 1,
+  };
+};
 const canonical = (url: string) => {
   try {
     return gitAuthenticationUrl(url).href.replace(/\/$/, "");
@@ -79,6 +83,16 @@ export function gitAccountMatches(
     return false;
   }
 }
+
+// 中文依据：任何一端改了用户名提示，Fetch 也必须核对整个共享目标，不能继续静默使用旧账号。
+const matchesTarget = (
+  account: Pick<GitAccountInput, "serverUrl" | "username">,
+  repo: Repository,
+  url: string,
+) =>
+  peers(repo, url)
+    .filter((u) => bindingKey(repo, u) === bindingKey(repo, url))
+    .every((u) => gitAccountMatches(account, u));
 
 export function createGitAccountRouting(options: {
   read(): Promise<Profile>;
@@ -171,24 +185,30 @@ export function createGitAccountRouting(options: {
       remotes: repo.remotes.map((remote) => ({
         ...remote,
         urls: remote.urls.map((url) => {
-          const binding = profile.bindings.find((b) => matchesBinding(b, repo, url));
+          const state = findBinding(profile, repo, url),
+            binding = state.conflict ? undefined : state.binding;
           // 兼容账号仅属于原 clone 的 origin，UI 必须展示与执行端一致的有效选择。
           const legacy =
-            !binding && repo.remotes.some((r) => r.name === "origin" && r.urls.includes(url))
+            !state.conflict &&
+            !binding &&
+            repo.remotes.some((r) => r.name === "origin" && r.urls.includes(url))
               ? legacyId
               : "";
           const account = profile.accounts.find((a) => a.id === legacy);
-          const selection = binding?.id
-            ? `saved:${binding.id}:${binding.revision}`
-            : legacy
-              ? `saved:${legacy}:${account?.revision ?? "missing"}`
-              : null;
+          const selection = state.conflict
+            ? "conflict"
+            : binding?.id
+              ? `saved:${binding.id}:${binding.revision}`
+              : legacy
+                ? `saved:${legacy}:${account?.revision ?? "missing"}`
+                : null;
           return {
             url,
             selection,
+            ...(hints(repo, url).length === 1 ? { usernameHint: hints(repo, url)[0] } : {}),
             stale: Boolean(
               selection &&
-              !available.some((c) => c.key === selection && gitAccountMatches(c.account, url)),
+              !available.some((c) => c.key === selection && matchesTarget(c.account, repo, url)),
             ),
           };
         }),
@@ -258,7 +278,9 @@ export function createGitAccountRouting(options: {
     }
     if (!repo.remotes.some((remote) => remote.urls.includes(url)))
       throw new Error("git-account-remote-changed");
-    const binding = profile.bindings.find((b) => matchesBinding(b, repo, url));
+    const state = findBinding(profile, repo, url);
+    if (state.conflict) throw new Error("git-account-binding-conflict");
+    const binding = state.binding;
     // 中文依据：远端 URL 绑定优先，旧的仓库全局 ID 不能让另一个 remote 串用身份。
     const legacy =
       binding || !repo.remotes.some((r) => r.name === "origin" && r.urls.includes(url))
@@ -269,9 +291,19 @@ export function createGitAccountRouting(options: {
         authenticationTarget(value),
         binding?.id ? { id: binding.id, revision: binding.revision ?? undefined } : { id: legacy },
       );
-      if (!auth.account || !gitAccountMatches(auth.account, value))
+      if (!auth.account || !matchesTarget(auth.account, repo, value))
         throw new Error("git-account-binding-stale");
       return auth;
+    }
+    // 中文依据：Fetch/Push 同一目标只有一个显式用户名时应一致；不从仓库 owner 或 GCM 默认项猜账号。
+    const usernames = hints(repo, value);
+    if (
+      !target.username &&
+      usernames.length === 1 &&
+      ["http:", "https:"].includes(target.protocol)
+    ) {
+      target.username = usernames[0]!;
+      return automatic(profile, target.href);
     }
     return automatic(profile, value);
   };
@@ -279,7 +311,7 @@ export function createGitAccountRouting(options: {
     async getRepositoryAuthentication(input: GitRepositoryAuthenticationRequest) {
       return (await view(gitRepositoryAuthenticationRequestSchema.parse(input))).snapshot;
     },
-    async bindRepositoryAuthentication(input: unknown) {
+    async bindRepositoryAuthentication(input: unknown, isActive: () => boolean = () => true) {
       const request = gitRepositoryAccountBindingSchema.parse(input),
         current = await view(request),
         url = canonical(request.url);
@@ -288,9 +320,10 @@ export function createGitAccountRouting(options: {
       if (!current.repo.remotes.some((remote) => remote.urls.includes(url)))
         throw new Error("git-account-remote-changed");
       const selected = current.available.find((c) => c.key === request.selection);
-      if (request.selection && (!selected || !gitAccountMatches(selected.account, url)))
+      if (request.selection && (!selected || !matchesTarget(selected.account, current.repo, url)))
         throw new Error("git-account-selection-unavailable");
       await options.update(current.profile.revision, (profile) => {
+        if (!isActive()) throw new Error("git-account-scope-unavailable");
         profile.bindings = profile.bindings.filter((b) => !matchesBinding(b, current.repo, url));
         if (selected) {
           let account = selected.account as Account;
@@ -306,7 +339,7 @@ export function createGitAccountRouting(options: {
           profile.bindings.push({
             root: current.repo.bindingRoot,
             scope: current.repo.scope,
-            url,
+            url: bindingKey(current.repo, url),
             id: account.id,
             revision: account.revision,
           });
@@ -315,7 +348,7 @@ export function createGitAccountRouting(options: {
           profile.bindings.push({
             root: current.repo.bindingRoot,
             scope: current.repo.scope,
-            url,
+            url: bindingKey(current.repo, url),
             id: null,
             revision: null,
           });
@@ -349,54 +382,12 @@ export function createGitAccountRouting(options: {
               : auth.account.username,
           password: auth.secret,
         };
-      const result = await options.command.run({
-        cwd: request.workspacePath,
-        args: [
-          "-c",
-          "credential.trace=false",
-          "-c",
-          "credential.traceSecrets=false",
-          "credential",
-          "fill",
-        ],
-        maxOutputBytes: 65536,
-        timeoutMs: 60000,
-        stdin: `url=${value}\n${auth.account ? `username=${auth.account.username}\n` : ""}\n`,
-        env: {
-          GIT_TERMINAL_PROMPT: "0",
-          GCM_INTERACTIVE: "Never",
-          GIT_TRACE: "0",
-          GIT_TRACE_CURL: "0",
-          GIT_CURL_VERBOSE: undefined,
-          GCM_TRACE: "0",
-          GCM_TRACE_SECRETS: "0",
-          GIT_TRACE_REDACT: "1",
-          GIT_ASKPASS: "",
-          LCODE_GIT_HELPER_ENDPOINT: undefined,
-          LCODE_GIT_HELPER_CAPABILITY: undefined,
-          ...(process.env.LCODE_GIT_HELPER_ENDPOINT ? { GIT_CONFIG_COUNT: "0" } : {}),
-          GIT_TRACE2: "0",
-          GIT_TRACE2_EVENT: "0",
-          GIT_TRACE2_PERF: "0",
-        },
-      });
-      const lines = Object.fromEntries(
-        result.stdout
-          .split(/\r?\n/)
-          .filter((l) => l.includes("="))
-          .map((l) => {
-            const at = l.indexOf("=");
-            return [l.slice(0, at), l.slice(at + 1)];
-          }),
+      return readSystemGitCredential(
+        options.command,
+        request.workspacePath,
+        value,
+        auth.account?.username,
       );
-      if (
-        result.exitCode !== 0 ||
-        !lines.password ||
-        !lines.username ||
-        (auth.account && lines.username !== auth.account.username)
-      )
-        throw new Error("git-account-credential-unavailable");
-      return { kind: "http", username: lines.username, password: lines.password };
     },
   };
 }

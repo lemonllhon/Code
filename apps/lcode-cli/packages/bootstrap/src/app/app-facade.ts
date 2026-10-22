@@ -40,6 +40,7 @@ interface AppFacadeDeps {
   scriptWorkflowFacade: ReturnType<typeof createScriptWorkflowBridge>;
   resumeBoundary: ReturnType<typeof createAppSessionResume>;
   closeNodeReplBrowserBroker(): Promise<void>;
+  closeProjectNativeResources?(): Promise<void>;
   closeModelAdapter?: () => Promise<void>;
 }
 
@@ -210,7 +211,11 @@ export function createAppFacade(input: AppFacadeDeps): LCodeApp {
     ...sessionFacade,
     close: async (context) => {
       try {
-        await closeSession?.(context);
+        try {
+          await closeSession?.(context);
+        } finally {
+          await input.closeProjectNativeResources?.();
+        }
       } finally {
         try {
           providerModelRuntime.dispose();

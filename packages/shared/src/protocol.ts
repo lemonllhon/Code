@@ -241,6 +241,15 @@ export interface AppSettings {
   /** 项目命令 owner 的唯一可写定义；localProjects 是同次提交生成的本地兼容投影。 */
   projectDefinitions?: import("./projectDefinitions.js").ProjectRegistry;
   projectMutationReceipts?: import("./projectDefinitions.js").ProjectMutationReceipt[];
+  remoteDevices?: {
+    version: 1;
+    devices: import("./remoteDeviceDefinitions.js").RemoteDeviceDefinition[];
+  };
+  remoteDeviceMutationReceipts?: Array<{
+    operationId: string;
+    request: string;
+    result: import("./remoteDeviceDefinitions.js").RemoteDeviceMutationResult;
+  }>;
   locale: Locale; // 界面语言
   /**
    * 用户覆盖的快捷键绑定（命令 ID → 绑定串数组，格式见 shortcutCommands.ts）。

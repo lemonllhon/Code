@@ -1,6 +1,6 @@
 import {
-  localProjectPathKey,
-  type LocalProject,
+  projectMemberWorkspaceIdentity,
+  type ProjectDefinition,
   type RemoteTarget,
   type WorkspacePurpose,
 } from "@lcode/shared";
@@ -14,29 +14,28 @@ export interface WorkspaceProjectMenuTab {
   workspaceIdentity?: string;
   workspacePurpose?: WorkspacePurpose;
   localProjectId?: string;
-}
-
-function isRemoteWorkspaceTab(tab: WorkspaceProjectMenuTab): boolean {
-  return Boolean(tab.workspaceIdentity || tab.remoteSessionId || tab.remoteTarget);
+  projectSourceKind?: "local" | "remote" | "mixed";
 }
 
 export function buildWorkspaceProjectMenuTabs({
   localProjects,
   workspaceTabs,
 }: {
-  localProjects: readonly LocalProject[];
+  localProjects: readonly ProjectDefinition[];
   workspaceTabs: readonly WorkspaceProjectMenuTab[];
 }): WorkspaceProjectMenuTab[] {
-  const explicitFolderKeys = new Set(
-    localProjects.flatMap((project) => project.sourceFolderPaths.map(localProjectPathKey)),
-  );
   const explicitProjectTabs = localProjects.map((project) => {
     const openedTab = workspaceTabs.find((tab) => {
-      if (isRemoteWorkspaceTab(tab) || tab.workspacePurpose === "conversation") {
+      if (tab.workspacePurpose === "conversation") {
         return false;
       }
       return isWorkspaceReferenceForLocalProject(project, tab);
     });
+    const environments = new Set(
+      project.members?.map((member) =>
+        projectMemberWorkspaceIdentity(member, project.workspaceIdentity) ? "remote" : "local",
+      ) ?? [project.workspaceIdentity ? "remote" : "local"],
+    );
     // 启动门禁、延迟恢复或关闭 tab 不代表项目已删除；菜单始终从注册表投影。
     return {
       ...(openedTab ?? {
@@ -47,19 +46,19 @@ export function buildWorkspaceProjectMenuTabs({
       workspacePath: project.primaryFolderPath,
       label: project.name,
       localProjectId: project.id,
+      ...(project.workspaceIdentity ? { workspaceIdentity: project.workspaceIdentity } : {}),
+      projectSourceKind: (environments.size > 1
+        ? "mixed"
+        : environments.has("remote")
+          ? "remote"
+          : "local") as "local" | "remote" | "mixed",
     };
   });
   const remainingTabs = workspaceTabs.filter((tab) => {
     if (tab.workspacePurpose === "conversation") {
       return false;
     }
-    if (isRemoteWorkspaceTab(tab)) {
-      return true;
-    }
-    if (tab.localProjectId && localProjects.some((project) => project.id === tab.localProjectId)) {
-      return false;
-    }
-    return !explicitFolderKeys.has(localProjectPathKey(tab.workspacePath));
+    return !localProjects.some((project) => isWorkspaceReferenceForLocalProject(project, tab));
   });
   return [...explicitProjectTabs, ...remainingTabs];
 }

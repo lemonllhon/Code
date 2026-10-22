@@ -33,6 +33,10 @@ import {
 } from "./browser-use/command-metadata.js";
 import { providerFamilyConnectionSelectionSettingsSchema } from "./provider-family-connection-selection.js";
 import { startupAnimationSettingsSchema } from "./startupAnimation.js";
+import {
+  remoteDeviceRegistrySchema,
+  remoteDeviceMutationReceiptsSchema,
+} from "./remoteDeviceDefinitions.js";
 
 export const memoryStorageLocationSchema = z.enum(["profile", "workspace"]);
 export const memoryStorageRevisionSchema = z
@@ -479,6 +483,8 @@ const appSettingsObjectSchema = z.object({
   recentProjects: z.array(z.string()).default([]),
   localProjects: localProjectsSchema.default([]),
   projectDefinitions: projectRegistrySchema.optional(),
+  remoteDevices: remoteDeviceRegistrySchema.optional(),
+  remoteDeviceMutationReceipts: remoteDeviceMutationReceiptsSchema.optional(),
   projectMutationReceipts: projectMutationReceiptsSchema.optional(),
   locale: localeSchema.default("zh-CN"),
   // 快捷键用户覆盖（语义校验在 ui/src/shortcuts 生效表阶段容错，schema 只管形状）
@@ -563,6 +569,8 @@ export const appSettingsSchema = z.preprocess(
 );
 
 export const appSettingsPatchSchema = z.object({
+  remoteDevices: remoteDeviceRegistrySchema.optional(),
+  remoteDeviceMutationReceipts: remoteDeviceMutationReceiptsSchema.optional(),
   tokenUsageStatusBar: tokenUsageStatusBarSettingsSchema.optional(),
   recentProjects: z.array(z.string()).optional(),
   localProjects: localProjectsSchema.optional(),

@@ -45,6 +45,7 @@ export interface RootProps {
 }
 
 export interface WorkspaceSettingsLayerProps {
+  remoteDevices?: import("@/hooks/useRemoteDeviceManagement.js").RemoteDeviceManagement;
   workspaceScopedServices?: IServiceAccessor;
   isDesktop?: boolean;
   isMacDesktop?: boolean;

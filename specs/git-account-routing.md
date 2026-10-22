@@ -2,6 +2,33 @@
 
 ## 问题与产品规则
 
+### 账号约定落地与网络操作结果（2026-10-22）
+
+- 用户明确指定的仓库/远端账号及已确认的长期账号偏好可作为选择意图。Agent 通过 `Git` 工具先 inspect 当前 URL 的匹配账号和 revision，再 bind 用户名与认证方式；Host 重新核对 session、identity、真实 cwd、远端 URL、唯一候选和 CAS，沿原 profile owner 保存。不能从仓库 owner、提交作者或候选顺序推断账号；记忆文本不能直接注入凭据或批准 Git 写入。
+- `git/account` 是无秘密的私有请求，inspect/bind 均限定实际远端和当前授权目录；返回匹配账号元信息、revision 和派生仓库摘要。bind 是原配置 CAS 命令，不执行 Git 网络或改动仓库配置。旧 client 在 profile 锁内提交前拒绝；执行器取消停止等待，已提交命令不回滚，响应丢失通过重新 inspect 收敛，不自动重放。
+- HTTP(S) 同一服务器、端口、路径的 Fetch/Push URL 仅用户名提示不同时，共享明确绑定；没有绑定时可复用该目标唯一的显式用户名提示。路径、协议、端口不同仍独立。若同一目标有不同显式用户名提示，继续按完整 URL 独立选择；旧 URL 绑定归并发现冲突必须停止认证，不能取第一条。查询仍返回 stale 选择及最新 revision，允许用户通过原 CAS 明确重选来修复，不要求手动编辑凭据文件。修改账号或清除自动状态仍沿原 CAS/tombstone 边界。
+- `Git` 网络动作仅支持参数化 fetch/push/ls-remote，复用原 ExecutionPort、认证 helper、权限、checkout admission 和恢复。输出保留 stdout/stderr、实际 exitCode、status；大输出沿原 artifact 预算保存，无管道、Shell 串接或隐式重试。不能用再 Push 代替失败 Fetch 的验收。
+- Bash 中可静态识别的网络 Git 若包含管道、重定向丢输出、OR 或后续顺序命令，执行前返回明确错误，要求使用 `Git` 独立调用；不改写 Shell、不执行其中任一步、不全局启用 errexit/pipefail。普通单次命令和本地 Git 行为保持兼容。未知 Shell 语法不宣称能恢复被用户脚本主动吞掉的状态。
+- Git 实时摘要提示 Agent 比较记忆意图和实际绑定；不一致时走 inspect/bind，不能静默改用默认账号。长期记忆保存期望用户名/目标约定而非账号 ID、token 或实时绑定快照；实际选择仍以 Host 为准。用户的本机映射通过原服务命令配置，不在产品代码硬编码个人账号。
+
+```mermaid
+sequenceDiagram
+  participant M as 用户指示/项目记忆意图
+  participant A as Agent Git 工具
+  participant H as Host Git owner
+  participant X as 原 ExecutionPort/写入与恢复
+  M->>A: 目标 URL 与期望用户名
+  A->>H: inspect（当前 session/identity/cwd）
+  H-->>A: 匹配候选与 revision（无秘密）
+  A->>H: bind（用户名/auth/expectedRevision）
+  H->>H: scope 重验、原 profile 锁/CAS
+  A->>X: 独立 argv Fetch/Push
+  X->>H: 执行时原 credential 核验
+  X-->>A: 完整错误、实际退出码
+```
+
+新增验收：双账号无绑定但 Push 带用户名时 Fetch 一致；共享目标绑定/清除/旧冲突、多远端独立账号；记忆约定经 inspect/bind 后 UI/Agent 一致；过期 revision、旧 client、越界 cwd、同名不同认证拒绝；管道/后续命令吞失败的复现执行前阻断；真实隔离 HTTP Git 推送/Fetch/失败退出码、完整错误与零重放；原写入、journal、lease/恢复测试。
+
 旧代码只给经过仓库向导且保存了 `lcode.accountId` 的 UI Git 注入认证；Agent Shell 绕过该适配器。本轮统一认证解析，不改变 Git 写入、checkout writer、journal、审批和恢复语义。
 
 - 检测账号在仓库向导和右侧 Git「远端」页直接选择，无须先去设置导入。明确选择后由 Host 原 profile CAS 保存账号和绑定；系统账号不复制令牌。
@@ -64,6 +91,17 @@ sequenceDiagram
 7. 执行目标服务/协议/CLI/UI 回归、typecheck、lint、架构和定向格式检查；安装版及其他平台真机留待用户构建。
 
 ## 实施记录
+
+2026-10-22 本批已实现账号意图到 Host 绑定的通道、Fetch/Push 目标统一、旧冲突显式修复，以及独立 Git 网络结果和 Bash 吞错写法拦截。用户指定的两个本机账号选择已通过原服务配置并回读；个人映射保存在本机 profile/项目记忆，未写入产品源码，也未执行外部仓库 Fetch/Push。
+
+- 账号/平台适配/私有协议/真实隔离 HTTP Git/执行器与 Bash：106 项通过。
+- 全部 core memory、真实 Runtime/SQLite 记忆召回与偏好学习、inspect/bind、子 Agent/工作流接线：193 项通过。
+- 原 Git writer、并行发布检查、journal、lease/reservation 与恢复：100 项通过。
+- 远端账号浏览器交互 3 项、手动/自动审核与发布刷新浏览器回归 22 项、生成输入校验 7 项通过。合计 **431 项通过，0 失败、0 跳过**。
+- 根目录 typecheck、lint，core/bootstrap/CLI 独立类型检查与 core/bootstrap lint 均已执行；架构 0 基线/新增违规，定向格式与空白检查完成。日志、并行改动排除记录和检查详情在忽略目录 `artifacts/git-account-selection-analysis/`。
+- 修正一个旧测试对并发 realpath 内部调用顺序的假设，同时保留返回顺序、目录授权和四并发上界的断言；生产并发语义未修改。
+
+验证环境为 Windows、Node 24.21.0；平台适配沿原注入接口测试。未构建或安装桌面/SEA 客户端，macOS/Linux 真机及安装版验收等用户构建后进行。真实系统凭据只保存账号引用，本轮未调用实际用户的 credential fill 或向外部仓库发布。
 
 已实现以上规则。验证环境为 Windows、Node 24.21.0；实际命令、输出和审计文件保存在本机忽略目录 `artifacts/git-account-routing-investigation/`。
 

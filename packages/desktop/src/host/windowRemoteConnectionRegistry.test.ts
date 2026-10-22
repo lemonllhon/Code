@@ -9,6 +9,47 @@ const targets: RemoteTarget[] = [
   { kind: "docker", container: "test-container" },
 ];
 
+test("native IO holds the original WSL transport until release and rejects stale device generations", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const services = { marker: "original-device" };
+  let disposed = 0;
+  const registry = createWindowRemoteConnectionRegistry({
+    createId: () => "native-device",
+    wslIdleTtlMs: 100,
+    connect: async () => ({
+      services,
+      dispose: () => {
+        disposed++;
+      },
+    }),
+  });
+  t.after(() => registry.dispose());
+  const session = await registry.connect({
+    requestId: "native-request",
+    target: targets[1]!,
+    remoteAssets: {},
+  });
+  const generation = registry.getSession(session.remoteSessionId)!.generation;
+  assert.equal(registry.resolveDeviceServices(session.remoteSessionId, generation), services);
+  assert.throws(
+    () => registry.resolveDeviceServices(session.remoteSessionId, generation + 1),
+    /changed/,
+  );
+  const release = registry.retainNativeOperation(session.remoteSessionId, generation);
+  await registry.disposeSession(session.remoteSessionId);
+  t.mock.timers.tick(1000);
+  assert.equal(disposed, 0);
+  assert.throws(
+    () => registry.resolveDeviceServices(session.remoteSessionId, generation),
+    /changed/,
+  );
+  release();
+  release();
+  t.mock.timers.tick(100);
+  await Promise.resolve();
+  assert.equal(disposed, 1);
+});
+
 test("cached SSH connection releases only its last idle workspace owner", async () => {
   const releases: string[] = [];
   let id = 0;

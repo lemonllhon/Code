@@ -1,8 +1,8 @@
+import { projectPathApi } from "../project-routing.js";
 // ============================================================
 // Glob Tool Handler
 // ============================================================
 
-import { isAbsolute, relative, sep } from "node:path";
 import {
   CoreErrorType,
   GlobInputJsonSchema,
@@ -156,6 +156,7 @@ function formatGlobModelContent(output: unknown): string {
 }
 
 function toDisplayPath(filePath: string, workingDirectory: string): string {
+  const { relative, isAbsolute, sep } = projectPathApi(workingDirectory);
   const relativePath = relative(workingDirectory, filePath);
   if (relativePath && !relativePath.startsWith("..") && !isAbsolute(relativePath)) {
     return relativePath.split(sep).join("/");

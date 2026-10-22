@@ -46,6 +46,14 @@ export function ProjectDialogContent({
         isolateFiles(event);
       }}
       onEscapeKeyDown={(event) => {
+        // 键盘拖拽时 Escape 由排序 owner 取消手势，不能同时关闭项目草稿。
+        if (
+          event.target instanceof Element &&
+          event.target.closest('[data-project-sort-handle][data-dragging="true"]')
+        ) {
+          event.preventDefault();
+          return;
+        }
         // 中文依据：Radix 在 document capture 阶段处理 Escape，先阻止弹框关闭，再由目录行收起输入和还焦。
         if (event.target instanceof Element && event.target.hasAttribute("data-project-purpose")) {
           event.preventDefault();

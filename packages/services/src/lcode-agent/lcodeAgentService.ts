@@ -1,7 +1,19 @@
+import { ProjectNativeBridge } from "./projectNativeBridge.js";
+import { getProjectNativeRoutingOwner } from "./projectNativeOwner.js";
+import {
+  PROJECT_NATIVE_ROUTE_METHOD,
+  PROJECT_NATIVE_METHOD,
+  projectNativeRequestSchema,
+  projectNativeResultSchema,
+  decodeProjectNativeValue,
+  encodeProjectNativeValue,
+  gitAccountOperationSchema,
+} from "@lcode/shared";
 import { requestPluginReferenceCatalog } from "#src/lcode-agent/pluginReferenceCatalogRequest.js";
 import { type GitCredentialRequest, type GitCredentialResult } from "@lcode/shared";
 import { handleGitCredentialRequest } from "./gitCredentialRequest.js";
 import { handleGitContextRequest } from "./gitContextRequest.js";
+import { handleGitAccountRequest } from "./gitAccountRequest.js";
 import type { GitAgentContext } from "@lcode/shared";
 import { providerUsageRequestSchema, providerUsageSnapshotSchema } from "@lcode/shared";
 import { handleWorktreeRequest, isWorktreeRequest } from "./worktreeRequests.js";
@@ -901,6 +913,9 @@ interface CreateLCodeAgentServiceOptions extends Omit<
     request: GitCredentialRequest,
   ) => Promise<GitCredentialResult>;
   resolveGitContext?: (workspace: LCodeWorkspaceRef, sessionId: string) => Promise<GitAgentContext>;
+  resolveGitAccount?: ReturnType<
+    typeof import("../git-management/gitAccountHost.js").createHostGitAccountOperator
+  >;
   resolveOAuthRequestAuth?: (input: {
     routingInvocation?: import("@lcode/shared").RoutingInvocation;
     channelId: string;
@@ -1284,6 +1299,11 @@ export function createLCodeAgentService(
     pendingUserInputs: pendingUserInputs.size,
   }));
   const pendingProviderRuntimeHeaders = new Map<string, PendingProviderRuntimeHeadersRequest>();
+  const projectNativeBridge = new ProjectNativeBridge();
+  const nativeLeasesByClient = new WeakMap<
+    LCodeProtocolClient,
+    Map<string, import("@lcode/shared").ProjectNativeRequest>
+  >();
   const pendingSessionRuntimePreferences = new Map<
     string,
     PendingSessionRuntimePreferencesRequest
@@ -1318,6 +1338,24 @@ export function createLCodeAgentService(
   const resolveSessionRuntimePreferences = options?.resolveSessionRuntimePreferences;
 
   function invalidateWorkspaceClient(workspaceKey: string, client: LCodeProtocolClient): void {
+    const nativeLeases = nativeLeasesByClient.get(client);
+    if (nativeLeases) {
+      nativeLeasesByClient.delete(client);
+      projectNativeBridge.cancelOwners(
+        new Set([...nativeLeases.values()].map((request) => request.ownerId)),
+      );
+      for (const request of nativeLeases.values()) {
+        const close = {
+          ...request,
+          callId: randomUUID(),
+          operation: { port: "execution" as const, method: "close" as const, args: [] },
+        };
+        const owner = getProjectNativeRoutingOwner();
+        void (
+          owner ? owner.call(close, workspaceKey) : projectNativeBridge.call(close, workspaceKey)
+        ).catch(() => logger.debug(undefined, "原设备资源租约已失效，无需转移清理"));
+      }
+    }
     for (const [key, pending] of pendingPermissions) {
       if (pending.client === client) {
         pendingPermissions.delete(key);
@@ -1517,7 +1555,7 @@ export function createLCodeAgentService(
     const previous = accountConfigSyncByClient.get(params.client) ?? Promise.resolve();
     const current = previous
       .catch(() => {
-        // 前一次失败不能阻断后续较新的 Account Config；当前调用会重新尝试。
+        // 前一次失败不能阻断后续���新的 Account Config；当前调用会重新尝试。
       })
       .then(async () => {
         // 排队前异步读取可能晚返回，把旧结果排在新结果之后。读取与交付
@@ -2226,6 +2264,18 @@ export function createLCodeAgentService(
         }
       }),
       client.onRequest((request) => {
+        if (request.method === lcodeProtocolMethods.gitAccount) {
+          void handleGitAccountRequest(request.params, workspace, {
+            isActive: () =>
+              lane === "chat" && !exitedWorktreeClients.has(client) && !client.isDisposed,
+            resolve: options?.resolveGitAccount,
+            worktrees: options?.worktreeService,
+            executionSets: options?.projectExecutionSetService,
+          })
+            .then((result) => client.respond(request.id, result))
+            .catch(() => logger.debug(undefined, "Git 账号响应通道已关闭"));
+          return;
+        }
         if (request.method === lcodeProtocolMethods.gitContext) {
           void handleGitContextRequest(request.params, workspace, {
             isActive: () =>
@@ -2370,6 +2420,39 @@ export function createLCodeAgentService(
                 error: error instanceof Error ? error.message : String(error),
               }),
             );
+          return;
+        }
+        if (request.method === PROJECT_NATIVE_ROUTE_METHOD) {
+          void (async () => {
+            if (lane !== "chat" || exitedWorktreeClients.has(client) || client.isDisposed)
+              throw new Error("Project source owner is no longer active");
+            const parsed = projectNativeRequestSchema.parse(
+              (({ workspace: _workspace, ...native }) => native)(
+                request.params as import("@lcode/shared").ProjectNativeRequest & {
+                  workspace: unknown;
+                },
+              ),
+            );
+            const leases = nativeLeasesByClient.get(client) ?? new Map();
+            nativeLeasesByClient.set(client, leases);
+            const leaseKey = `${parsed.ownerId}:${parsed.routeToken}`;
+            leases.set(leaseKey, parsed);
+            const owner = getProjectNativeRoutingOwner();
+            const result = owner
+              ? await owner.call(parsed, resolveWorkspaceKey(workspace))
+              : await projectNativeBridge.call(parsed, resolveWorkspaceKey(workspace));
+            if (parsed.operation.method === "close") leases.delete(leaseKey);
+            if (client.isDisposed || exitedWorktreeClients.has(client))
+              throw new Error("Project source owner changed during execution");
+            await client.respond(request.id, result);
+          })()
+            .catch((error: unknown) =>
+              client.respondError(request.id, {
+                code: -32603,
+                message: error instanceof Error ? error.message : String(error),
+              }),
+            )
+            .catch(() => undefined);
           return;
         }
         if (request.method === lcodeProtocolMethods.sessionRequestRuntimePreferences) {
@@ -3529,6 +3612,7 @@ export function createLCodeAgentService(
     pendingPermissions.clear();
     pendingUserInputs.clear();
     pendingProviderRuntimeHeaders.clear();
+    projectNativeBridge.dispose();
     for (const pending of pendingSessionRuntimePreferences.values()) {
       clearTimeout(pending.timeout);
     }
@@ -5153,6 +5237,75 @@ export function createLCodeAgentService(
         },
         lcodeSessionStateSnapshotSchema,
       );
+    },
+
+    async executeProjectNative(params) {
+      const request = projectNativeRequestSchema.parse(params.request);
+      if (request.operation.port === "gitContext") {
+        if (!options?.resolveGitContext) return { status: "unavailable" };
+        return encodeProjectNativeValue(
+          await options.resolveGitContext(
+            {
+              workspacePath: params.workspacePath,
+              workspaceIdentity: params.workspaceIdentity,
+              workspaceKey: resolveWorkspaceKey(params),
+            },
+            request.ownerId,
+          ),
+        );
+      }
+      if (request.operation.port === "gitAccount") {
+        if (!options?.resolveGitAccount) throw new Error("Git account scope unavailable on target");
+        const operation = gitAccountOperationSchema.parse(
+          decodeProjectNativeValue(request.operation.args[0]!),
+        );
+        return encodeProjectNativeValue(
+          await options.resolveGitAccount(
+            { ...params, workspaceKey: resolveWorkspaceKey(params) },
+            {
+              sessionId: request.ownerId,
+              workspace: { ...params, workspaceKey: resolveWorkspaceKey(params) },
+              operation,
+            },
+            () => true,
+          ),
+        );
+      }
+      const client =
+        (request.operation.port === "filesystem" &&
+          [
+            "stat",
+            "readTextFile",
+            "readBinaryFile",
+            "readTextFileRange",
+            "listDirectory",
+            "searchFiles",
+            "searchText",
+          ].includes(request.operation.method)) ||
+        request.operation.method === "close" ||
+        request.operation.method === "cancelCall"
+          ? await getReadOnlyClient(params)
+          : await getClient(params);
+      return client.request(
+        PROJECT_NATIVE_METHOD,
+        {
+          request,
+          workspace: {
+            workspacePath: params.workspacePath,
+            workspaceIdentity: params.workspaceIdentity,
+            workspaceKey: resolveWorkspaceKey(params),
+          },
+        },
+        projectNativeResultSchema,
+        { timeoutMs: 3_660_000 },
+      );
+    },
+    // 返回 Event 的方法必须使用 onDynamic 前缀，否则 RPC 会把订阅句柄当作 Event 再调用，导致建连失败。
+    onDynamicProjectNativeRequest() {
+      return (listener) => projectNativeBridge.subscribe(listener);
+    },
+    async respondProjectNative(params) {
+      projectNativeBridge.respond(params.requestId, params.result);
     },
 
     async respondSessionRuntimePreferences(

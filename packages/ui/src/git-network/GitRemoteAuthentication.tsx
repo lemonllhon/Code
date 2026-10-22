@@ -42,6 +42,7 @@ export function GitRemoteAuthentication(
                 url.protocol === server.protocol &&
                 url.host === server.host &&
                 (!url.username || decodeURIComponent(url.username) === account.username) &&
+                (!target.usernameHint || target.usernameHint === account.username) &&
                 (url.pathname === prefix || url.pathname.startsWith(prefix + "/"))
               );
             } catch {

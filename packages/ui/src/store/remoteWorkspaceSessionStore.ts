@@ -7,6 +7,7 @@ import { createRemoteWorkspaceDisconnectedError } from "@/lib/remoteWorkspaceSer
 export interface RemoteWorkspaceSession {
   sessionId: string;
   target?: RemoteTarget;
+  deviceId?: string;
   workspacePath?: string;
   workspaceIdentity?: string;
   services: IServiceAccessor;
@@ -42,7 +43,10 @@ export const useRemoteWorkspaceSessionStore = create<RemoteWorkspaceSessionState
     set((state) => ({
       sessionsById: {
         ...state.sessionsById,
-        [session.sessionId]: session,
+        [session.sessionId]:
+          session.deviceId || !state.sessionsById[session.sessionId]?.deviceId
+            ? session
+            : { ...session, deviceId: state.sessionsById[session.sessionId]?.deviceId },
       },
     })),
   unregisterSession: (sessionId) =>
@@ -164,6 +168,15 @@ export function unbindRemoteWorkspaceIdentity(workspaceIdentity: string): void {
 
 export function getRemoteWorkspaceSession(sessionId: string): RemoteWorkspaceSession | null {
   return useRemoteWorkspaceSessionStore.getState().sessionsById[sessionId] ?? null;
+}
+
+/** 仅更新已在册 attachment 的设备归属，不重注册或释放当前 transport。 */
+export function associateRemoteDeviceSession(sessionId: string, deviceId: string): void {
+  useRemoteWorkspaceSessionStore.setState((state) => {
+    const session = state.sessionsById[sessionId];
+    if (!session) throw new Error("Remote device disconnected before it could be saved");
+    return { sessionsById: { ...state.sessionsById, [sessionId]: { ...session, deviceId } } };
+  });
 }
 
 /** 当前在册代理的远程 session 身份；旧代代理不匹配，仅用于 scope 诊断。 */

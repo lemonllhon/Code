@@ -5,7 +5,7 @@ import {
   type ExecutionSetSnapshot,
 } from "@lcode/shared";
 import type { IServiceAccessor, WorktreeBinding } from "@lcode/services";
-import type { LCodeTaskMeta } from "@lcode/shared";
+import type { SidebarFixtureTask } from "./worktree-sidebar-menu-service.js";
 
 export function sidebarExecutionSetFixture(
   origin: string,
@@ -184,7 +184,7 @@ export function sidebarExecutionSetFixture(
 export function installSidebarExecutionSets(
   services: IServiceAccessor,
   remoteServices: IServiceAccessor,
-  tasks: LCodeTaskMeta[],
+  tasks: SidebarFixtureTask[],
   origin: string,
   identity: string,
   calls: Array<{ method: string; params: unknown }>,
@@ -193,8 +193,8 @@ export function installSidebarExecutionSets(
   const localSet = sidebarExecutionSetFixture(origin, undefined, calls);
   const remoteSet = sidebarExecutionSetFixture(origin, identity, calls);
   if (!enabled) return { localSet, remoteSet, tasks };
-  services.projectExecutionSetService = localSet.service;
-  remoteServices.projectExecutionSetService = remoteSet.service;
+  Object.assign(services, { projectExecutionSetService: localSet.service });
+  Object.assign(remoteServices, { projectExecutionSetService: remoteSet.service });
   for (const [service, fixture] of [
     [services, localSet],
     [remoteServices, remoteSet],
@@ -209,14 +209,12 @@ export function installSidebarExecutionSets(
     executionSetId: fixture.snapshot().id,
     projectId: fixture.snapshot().projectContext.projectId,
     origin: fixture.snapshot().origin,
-    bindings: fixture
-      .bindings()
-      .map((binding, index) => ({
-        repositoryId: fixture.snapshot().repositories[index]!.id,
-        bindingId: binding.id,
-        workspacePath: binding.workspacePath,
-        ...(binding.workspaceIdentity ? { workspaceIdentity: binding.workspaceIdentity } : {}),
-      })),
+    bindings: fixture.bindings().map((binding, index) => ({
+      repositoryId: fixture.snapshot().repositories[index]!.id,
+      bindingId: binding.id,
+      workspacePath: binding.workspacePath,
+      ...(binding.workspaceIdentity ? { workspaceIdentity: binding.workspaceIdentity } : {}),
+    })),
   });
   const nextTasks = [
     ...tasks,

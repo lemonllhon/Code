@@ -1,3 +1,4 @@
+import { replaceRemoteWorkspaceIdentityPath } from "./remote-workspace-identity.js";
 import { z } from "zod";
 import { projectContextSnapshotSchema } from "./projectContext.js";
 const text = z.string().trim().min(1).max(32768);
@@ -76,13 +77,30 @@ export const executionSetSnapshotSchema = z.strictObject({
   updatedAt: text,
 });
 export type ExecutionSetSnapshot = z.infer<typeof executionSetSnapshotSchema>;
-export const executionSetPrepareRequestSchema = z.strictObject({
-  operationId: text,
-  name: z.string().trim().min(1).max(120),
-  projectContext: projectContextSnapshotSchema,
-  baseRefs: z.record(z.string(), text).optional(),
-  forkSource: executionSetRefSchema.optional(),
-});
+export const executionSetPrepareRequestSchema = z
+  .strictObject({
+    operationId: text,
+    name: z.string().trim().min(1).max(120),
+    projectContext: projectContextSnapshotSchema,
+    baseRefs: z.record(z.string(), text).optional(),
+    forkSource: executionSetRefSchema.optional(),
+  })
+  .superRefine((request, context) => {
+    const environment = (identity?: string) =>
+      identity ? replaceRemoteWorkspaceIdentityPath(identity, "/") : "local";
+    if (
+      request.projectContext.members.some(
+        (member) =>
+          environment(member.workspaceIdentity) !==
+          environment(request.projectContext.origin.workspaceIdentity),
+      )
+    )
+      context.addIssue({
+        code: "custom",
+        message:
+          "Mixed device projects execute directly in source folders; a worktree execution set cannot span devices",
+      });
+  });
 export type ExecutionSetPrepareRequest = z.infer<typeof executionSetPrepareRequestSchema>;
 export const executionSetPrepareExecutionParamsSchema = executionSetScopeSchema.extend({
   requestId: text,

@@ -1,3 +1,4 @@
+export * from "./projectNative.js";
 export * from "./composer-predictions.js";
 export * from "./wallpaperMarket.js";
 export type {
@@ -31,6 +32,8 @@ export type {
 export type { WorkspacePurpose } from "./workspacePurpose.js";
 export * from "./localProjects.js";
 export * from "./projectDefinitions.js";
+export * from "./projectMemberSources.js";
+export * from "./remoteDeviceDefinitions.js";
 export * from "./projectContext.js";
 export * from "./projectExecutionSet.js";
 export * from "./projectExecutionSetView.js";
@@ -352,3 +355,4 @@ export * from "./legacy-session-recovery.js";
 export * from "./gitManagement.js";
 export * from "./gitAuthentication.js";
 export * from "./gitAgentContext.js";
+export * from "./gitAccountOperation.js";

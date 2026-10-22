@@ -1,5 +1,6 @@
 import type { IRemoteBackend, StdioStream } from "@lcode/server/remote/backend.js";
 import { quotePosixPathArg, quotePosixShellArg } from "@lcode/server/remote/posixShell.js";
+import { PROJECT_NATIVE_SERVER_MARKERS } from "./remoteBundleCapabilityCheck.js";
 
 const REQUIRED_SERVER_BUNDLE_MARKERS = [
   "skill-sync",
@@ -8,6 +9,7 @@ const REQUIRED_SERVER_BUNDLE_MARKERS = [
   "__lcode_rpc_nested_uint8array_v1",
   "exportMarketplaceSourceArchive",
   "importMarketplaceSourceArchive",
+  ...PROJECT_NATIVE_SERVER_MARKERS,
 ];
 
 export type ServerBundleDeployDecision =

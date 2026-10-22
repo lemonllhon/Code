@@ -13,6 +13,7 @@ import { LocalProjectsProvider } from "@/LocalProjectsContext.js";
 const StableWorkspaceApp = memo(App);
 
 interface RootWorkspaceContentProps {
+  remoteDevices: import("@/hooks/useRemoteDeviceManagement.js").RemoteDeviceManagement | undefined;
   workspaceScopedServices: IServiceAccessor;
   baseFeedbackService: IFeedbackService;
   workspaceShellPath: string;
@@ -54,6 +55,7 @@ interface RootWorkspaceContentProps {
 }
 
 export function RootWorkspaceContent({
+  remoteDevices,
   workspaceScopedServices,
   baseFeedbackService,
   workspaceShellPath,
@@ -198,6 +200,8 @@ export function RootWorkspaceContent({
           className="absolute inset-0 z-10"
         >
           <WorkspaceSettingsLayer
+            // 设备管理归 Root；有项目的设置分支也必须传递，不能退化成禁用的新建按钮。
+            remoteDevices={remoteDevices}
             workspaceScopedServices={workspaceScopedServices}
             isDesktop={isDesktop}
             isMacDesktop={isMacDesktop}

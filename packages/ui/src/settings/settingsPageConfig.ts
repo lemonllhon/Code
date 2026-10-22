@@ -20,6 +20,7 @@ import {
   FileSearch,
   HardDriveUpload,
   Smartphone,
+  Server,
   GitBranch,
   Boxes,
 } from "lucide-react";
@@ -179,6 +180,7 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     titleId: "settings.remoteControl.title",
     groupId: "basics",
   },
+  { id: "remoteDevices", icon: Server, titleId: "settings.remoteDevices.title", groupId: "basics" },
   // 键盘快捷键同属基础设置中的本机操控/效率配置。
   {
     id: "shortcuts",
@@ -214,6 +216,7 @@ export const SETTINGS_SECTIONS = BASE_SETTINGS_SECTIONS.filter(
     section.id !== "computerUse" &&
     // 远程控制依赖桌面 Main 的 IPC（配对/出站连接），Web 视图不提供。
     section.id !== "remoteControl" &&
+    section.id !== "remoteDevices" &&
     isSettingsSectionEnabled(section.id),
 );
 
@@ -243,6 +246,7 @@ export function createSettingsPageConfig(options: SettingsPageConfigOptions = {}
   const settingsSections = BASE_SETTINGS_SECTIONS.filter((section) => {
     if (section.id === "computerUse" && !showComputerUse) return false;
     if (section.id === "remoteControl" && !showRemoteControl) return false;
+    if (section.id === "remoteDevices" && !showRemoteControl) return false;
     return isSettingsSectionEnabled(section.id);
   });
   // 只重排当前语言的可见菜单，不改注册顺序或导航 id；等长项使用稳定排序。
@@ -260,14 +264,15 @@ export function createSettingsPageConfig(options: SettingsPageConfigOptions = {}
       .filter((section) => section.groupId === group.id)
       .toSorted((left, right) => titleLengths.get(left.id)! - titleLengths.get(right.id)!),
   })).filter((group) => group.sections.length > 0);
-  // 供应商管理有明确的产品相邻规则；长度排序完成后移动一次，其他项的相对顺序不变。
+  // 远程设备紧随远程控制，供应商管理随后；先移出整组再插入，避免语言排序改变相邻关系。
   for (const group of settingsSectionGroups) {
-    const providerIndex = group.sections.findIndex((section) => section.id === "modelProvider");
-    if (providerIndex < 0 || !group.sections.some((section) => section.id === "remoteControl"))
-      continue;
-    const [provider] = group.sections.splice(providerIndex, 1);
+    if (!group.sections.some((section) => section.id === "remoteControl")) continue;
+    const following = ["remoteDevices", "modelProvider"].flatMap((id) => {
+      const index = group.sections.findIndex((section) => section.id === id);
+      return index >= 0 ? group.sections.splice(index, 1) : [];
+    });
     const remoteIndex = group.sections.findIndex((section) => section.id === "remoteControl");
-    group.sections.splice(remoteIndex + 1, 0, provider!);
+    group.sections.splice(remoteIndex + 1, 0, ...following);
   }
 
   return { settingsSectionGroups, settingsSections };

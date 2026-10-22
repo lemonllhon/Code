@@ -253,6 +253,7 @@ import { createCommandEnvelope } from "@/v4/commandFactory.js";
 import { createConfigCommandBarrier } from "@/v4/configCommandBarrier.js";
 import { usePermissionModeSwitch } from "@/v4/composer/usePermissionModeSwitch.js";
 import { recordV4CommandAck } from "@/v4/commandAckObservability.js";
+import { createCommandFailure } from "@/v4/commandFailure.js";
 import { pendingCommandRegistry } from "@/v4/pendingCommandRegistry.js";
 import type {
   ChatSearchResultHighlightRequest,
@@ -3655,7 +3656,7 @@ export function SessionPane({
             logger.warn(
               `[v4-draft-prewarm] 预热会话首发未 accepted（${ack.reasonCode ?? ack.status}），禁止自动重发`,
             );
-            throw new Error(ack.reasonCode ?? "预热会话首发未 accepted");
+            throw createCommandFailure(ack, "预热会话首发未 accepted");
           } catch (error) {
             if (isProviderNotReadyError(error)) throw error;
             if (readyAttachments.length > 0) throw error;
@@ -3697,7 +3698,7 @@ export function SessionPane({
             createSourceAtSend,
           );
           if (ack.status !== "accepted") {
-            throw new Error(ack.reasonCode ?? "createSession 被拒绝");
+            throw createCommandFailure(ack, "createSession 被拒绝");
           }
           const result = ack.result;
           if (!result || result.type !== "createSession") {
@@ -3718,7 +3719,7 @@ export function SessionPane({
           null,
         );
         if (createAck.status !== "accepted") {
-          throw new Error(createAck.reasonCode ?? "createSession 被拒绝");
+          throw createCommandFailure(createAck, "createSession 被拒绝");
         }
         const createResult = createAck.result;
         if (!createResult || createResult.type !== "createSession") {
@@ -3739,7 +3740,7 @@ export function SessionPane({
           options?.telemetrySeed,
         );
         if (sendAck.status !== "accepted") {
-          throw new Error(sendAck.reasonCode ?? "sendText 被拒绝");
+          throw createCommandFailure(sendAck, "sendText 被拒绝");
         }
         handleDraftSessionCreated(
           newSessionId,
@@ -3777,7 +3778,7 @@ export function SessionPane({
         return "confirmationRequired" as const;
       }
       if (ack.status !== "accepted") {
-        throw new Error(ack.reasonCode ?? "sendText 被拒绝");
+        throw createCommandFailure(ack, "sendText 被拒绝");
       }
       if (heldQueueDisposition === "clearQueueAndSend") {
         settleCurrentQueueInputs(sessionId);
@@ -4705,7 +4706,7 @@ export function SessionPane({
       ? snapshot.sharedContextImport
       : null;
   // 导入的分享对话：读取落盘的公开 rows 用于会话顶部的只读块。
-  // 分享页可能过期或未上线，所以只读本地副本，不回源。
+  // 分享页可能过期或未上线，所以只��本地副本，不回源。
   const [importedShare, setImportedShare] = useState<ImportedConversationShare | null>(null);
   const importedShareContextId =
     shareHandoverContext && shareHandoverContext.status !== "discarded"

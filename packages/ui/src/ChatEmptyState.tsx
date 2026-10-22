@@ -27,22 +27,17 @@ import {
   X,
 } from "lucide-react";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
-import { useRemoteConnectionEntryVisibility } from "@/hooks/useRemoteConnectionEntryVisibility.js";
 import { cn } from "@/components/lib/utils.js";
 import { getPathLeaf } from "@/lib/path.js";
 import {
   formatRemoteWorkspaceTargetSubtitle,
   hasRemoteWorkspaceIdentity,
 } from "@/lib/remoteWorkspaceHistory.js";
-import { logger } from "@/logger.js";
-import { SSHDialog } from "@/SSHDialog.js";
 import {
   TID_COMPOSER_PROJECT_DETACH,
-  TID_COMPOSER_REMOTE_CONNECTION,
   TID_COMPOSER_WORK_OUTSIDE_PROJECT,
   TID_COMPOSER_WORKSPACE_TRIGGER,
   resolveWorkspaceKey,
-  findLocalProjectForWorkspace,
   type LocalProject,
   type LocalProjectCreateRequest,
   type RemoteTarget,
@@ -54,6 +49,7 @@ import {
   buildWorkspaceProjectMenuTabs,
   type WorkspaceProjectMenuTab,
 } from "@/workspaceProjectMenu.js";
+import { isWorkspaceReferenceForLocalProject } from "@/localProjectLifecycle.js";
 export {
   getScratchWorkspaceLocationHint,
   getScratchWorkspaceNameErrorKind,
@@ -169,7 +165,6 @@ function filterVisibleWorkspaceMenuTabs({
 export function ChatEmptyWorkspacePreviewMenu({
   workspacePath,
   workspaceIdentity,
-  isWindowsDesktop = false,
   workspaceTabs,
   localProjects = [],
   allowConversationWorkspaceSelection = true,
@@ -178,11 +173,6 @@ export function ChatEmptyWorkspacePreviewMenu({
   onSelectConversationWorkspace,
   onCreateLocalProject,
   allowOpenWorkspace = true,
-  allowRemoteWorkspace = true,
-  remoteWorkspaceSessions = [],
-  onConnectRemote,
-  onSelectRemoteProject,
-  onCancelRemoteProject,
   containerClassName,
   triggerClassName,
   triggerIndicator,
@@ -216,48 +206,38 @@ export function ChatEmptyWorkspacePreviewMenu({
   triggerIndicator?: ReactNode;
 }) {
   const { intl } = useLCodeIntl();
-  const [sshDialogOpen, setSshDialogOpen] = useState(false);
   const [createProjectDialogOpen, setCreateProjectDialogOpen] = useState(false);
   const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState("");
-  const showRemoteConnectionEntry = useRemoteConnectionEntryVisibility();
-  // Web 普通模式没有完整远程 workspace 会话链路，不能只依赖全局 feature visibility。
-  // 这里叠加壳层能力开关，确保本地 Web 模式的空态菜单不会露出必然失败的远程连接入口。
-  const canUseRemoteWorkspace = allowRemoteWorkspace && showRemoteConnectionEntry;
   const projectMenuTabs = useMemo(
     () => buildWorkspaceProjectMenuTabs({ localProjects, workspaceTabs }),
     [localProjects, workspaceTabs],
   );
   const currentWorkspaceTab =
-    workspaceTabs.find((workspaceTab) =>
-      isWorkspaceMenuTabSelected(workspaceTab, {
-        workspacePath,
-        workspaceIdentity,
-      }),
-    ) ??
     projectMenuTabs.find((workspaceTab) =>
       isWorkspaceMenuTabSelected(workspaceTab, {
         workspacePath,
         workspaceIdentity,
       }),
     ) ??
+    workspaceTabs.find((workspaceTab) =>
+      isWorkspaceMenuTabSelected(workspaceTab, {
+        workspacePath,
+        workspaceIdentity,
+      }),
+    ) ??
     null;
-  const currentLocalProject = findLocalProjectForWorkspace(
-    localProjects,
-    workspacePath,
-    currentWorkspaceTab?.localProjectId,
+  const currentLocalProject = localProjects.find((project) =>
+    isWorkspaceReferenceForLocalProject(project, {
+      workspacePath,
+      workspaceIdentity,
+      localProjectId: currentWorkspaceTab?.localProjectId,
+    }),
   );
   const isConversationWorkspace = currentWorkspaceTab?.workspacePurpose === "conversation";
   const canDetachProject =
     allowConversationWorkspaceSelection &&
     allowConversationWorkspaceDetach &&
     !isConversationWorkspace;
-  const localWorkspacePathForRemoteConnection =
-    isConversationWorkspace ||
-    currentWorkspaceTab?.remoteSessionId ||
-    currentWorkspaceTab?.remoteTarget ||
-    currentWorkspaceTab?.workspaceIdentity
-      ? undefined
-      : workspacePath;
   const homeWorkspacePath = inferWorkspaceHomePath(workspacePath);
   const homeWorkspaceLabel = intl.formatMessage({ id: "chat.empty.home" });
   const isCurrentRemoteWorkspace = hasRemoteWorkspaceIdentity(currentWorkspaceTab ?? {});
@@ -273,11 +253,16 @@ export function ChatEmptyWorkspacePreviewMenu({
   const currentWorkspaceTitle = isConversationWorkspace
     ? intl.formatMessage({ id: "chat.empty.selectProject" })
     : (currentLocalProject?.name ?? getWorkspaceTriggerTitle(workspacePath, homeWorkspaceLabel));
-  const CurrentWorkspaceIcon = isCurrentRemoteWorkspace
-    ? Cloud
-    : homeWorkspacePath === workspacePath
-      ? House
-      : Folder;
+  const currentSourceKind = currentWorkspaceTab?.projectSourceKind;
+  const currentSourceLabel = currentSourceKind
+    ? intl.formatMessage({ id: `project.source.${currentSourceKind}` })
+    : null;
+  const CurrentWorkspaceIcon =
+    isCurrentRemoteWorkspace && currentSourceKind !== "mixed"
+      ? Cloud
+      : homeWorkspacePath === workspacePath
+        ? House
+        : Folder;
 
   return (
     <DropdownMenu>
@@ -324,6 +309,11 @@ export function ChatEmptyWorkspacePreviewMenu({
             )}
             aria-label={intl.formatMessage({ id: "chat.empty.workspaceMenu" })}
             data-testid={TID_COMPOSER_WORKSPACE_TRIGGER}
+            title={
+              currentSourceLabel
+                ? `${currentWorkspaceTitle} · ${currentSourceLabel}`
+                : currentWorkspaceTitle
+            }
           >
             <CurrentWorkspaceIcon
               className={cn(
@@ -335,6 +325,11 @@ export function ChatEmptyWorkspacePreviewMenu({
               )}
             />
             <span className="block max-w-full truncate">{currentWorkspaceTitle}</span>
+            {currentSourceLabel ? (
+              <span className="shrink-0 text-ui-xs text-foreground-subtle">
+                {currentSourceLabel}
+              </span>
+            ) : null}
             {triggerIndicator ?? <ChevronDownIcon className="size-3.5 text-foreground-subtle" />}
           </Button>
         </DropdownMenuTrigger>
@@ -366,11 +361,12 @@ export function ChatEmptyWorkspacePreviewMenu({
               ? workspaceTab.label
               : getWorkspaceListTitle(workspaceTab.workspacePath, homeWorkspaceLabel);
             const isRemoteWorkspace = hasRemoteWorkspaceIdentity(workspaceTab);
-            const WorkspaceIcon = isRemoteWorkspace
-              ? Cloud
-              : inferWorkspaceHomePath(workspaceTab.workspacePath) === workspaceTab.workspacePath
-                ? House
-                : Folder;
+            const WorkspaceIcon =
+              isRemoteWorkspace && workspaceTab.projectSourceKind !== "mixed"
+                ? Cloud
+                : inferWorkspaceHomePath(workspaceTab.workspacePath) === workspaceTab.workspacePath
+                  ? House
+                  : Folder;
 
             return (
               <DropdownMenuCheckboxItem
@@ -397,6 +393,11 @@ export function ChatEmptyWorkspacePreviewMenu({
               >
                 <WorkspaceIcon className="size-4 text-foreground-subtle" />
                 <span className="min-w-0 flex-1 truncate">{workspaceTitle}</span>
+                {workspaceTab.projectSourceKind ? (
+                  <span className="shrink-0 text-ui-xs text-foreground-subtle">
+                    {intl.formatMessage({ id: `project.source.${workspaceTab.projectSourceKind}` })}
+                  </span>
+                ) : null}
               </DropdownMenuCheckboxItem>
             );
           })}
@@ -411,32 +412,6 @@ export function ChatEmptyWorkspacePreviewMenu({
             <DropdownMenuItem onSelect={() => setCreateProjectDialogOpen(true)}>
               <FolderPlus className="size-4 text-foreground-subtle" />
               <span>{intl.formatMessage({ id: "chat.empty.createProject.menu" })}</span>
-            </DropdownMenuItem>
-          ) : null}
-          {canUseRemoteWorkspace ? (
-            <DropdownMenuItem
-              data-testid={TID_COMPOSER_REMOTE_CONNECTION}
-              onSelect={() => {
-                // 打开远程弹窗时必须让 DropdownMenu 执行默认关闭流程。
-                // 阻止默认 select 会让父菜单与 modal 同时保持打开，浮层层级调整后父菜单会覆盖弹窗。
-                logger.info(
-                  `[ChatEmptyWorkspacePreviewMenu] open remote dialog from workspace menu workspace=${workspacePath}`,
-                );
-                runUserAction({
-                  input: {
-                    featureId: "workspace.remote.lifecycle",
-                    action: "open_dialog",
-                    trigger: "menu",
-                    workspaceKind: "remote",
-                  },
-                  operation: () => setSshDialogOpen(true),
-                  completed: { resultSource: "local_commit" },
-                  failureStage: "dialog_open",
-                });
-              }}
-            >
-              <Cloud className="size-4 text-foreground-subtle" />
-              <span>{intl.formatMessage({ id: "remote.trigger" })}</span>
             </DropdownMenuItem>
           ) : null}
           {allowConversationWorkspaceSelection ? (
@@ -462,19 +437,6 @@ export function ChatEmptyWorkspacePreviewMenu({
           ) : null}
         </div>
       </DropdownMenuContent>
-      {canUseRemoteWorkspace ? (
-        <SSHDialog
-          onConnect={onConnectRemote}
-          onSelectProject={onSelectRemoteProject}
-          onCancelSession={onCancelRemoteProject}
-          localWorkspacePath={localWorkspacePathForRemoteConnection}
-          isWindowsDesktop={isWindowsDesktop}
-          remoteWorkspaceSessions={remoteWorkspaceSessions}
-          open={sshDialogOpen}
-          onOpenChange={setSshDialogOpen}
-          hideTriggerWhenClosed
-        />
-      ) : null}
       {onCreateLocalProject ? (
         <ChatEmptyCreateProjectDialog
           open={createProjectDialogOpen}

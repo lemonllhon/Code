@@ -3,6 +3,10 @@ import { ServiceChannels } from "@lcode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 
 export interface ISettingService {
+  /** 新设备配置由 profile 设置 owner 原子提交；旧 Host 缺失时调用方明确提示升级。 */
+  mutateRemoteDevice?(
+    request: import("@lcode/shared").RemoteDeviceMutationRequest,
+  ): Promise<import("@lcode/shared").RemoteDeviceMutationResult>;
   get(): Promise<AppSettings>;
   mutateProject(request: ProjectMutationRequest): Promise<ProjectMutationResult>;
   update(

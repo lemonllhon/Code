@@ -58,19 +58,16 @@ export async function runWorktreeReviewSettingsCases({
     async () => {
       await load();
       const mode = page.getByTestId("draft-execution-mode");
-      assert.equal(await mode.innerText(), "本地目录");
+      assert.equal(await mode.innerText(), "源目录");
       assert.equal(await page.getByTestId("project-policy-executionMode").count(), 0);
       await mode.click();
-      assert.deepEqual(await page.getByRole("option").allTextContents(), [
-        "本地目录",
-        "独立工作树",
-      ]);
+      assert.deepEqual(await page.getByRole("option").allTextContents(), ["源目录", "独立工作树"]);
       assert.match(await page.getByTestId("draft-execution-mode-source").innerText(), /全局默认/);
       await page.keyboard.press("Escape");
       await configure({ failSave: true });
       await select("draft-execution-mode", "独立工作树");
       await page.getByRole("alert").getByText("fixture-save-failed", { exact: true }).waitFor();
-      assert.equal(await mode.innerText(), "本地目录");
+      assert.equal(await mode.innerText(), "源目录");
       assert.equal(
         (await fixture("settings")).projectExecutionPreferences["/fixture/repo"],
         undefined,
@@ -102,7 +99,7 @@ export async function runWorktreeReviewSettingsCases({
       await fixture("fail");
       assert.equal(await mode.isDisabled(), true);
       await fixture("resetDraft");
-      assert.equal(await mode.innerText(), "本地目录");
+      assert.equal(await mode.innerText(), "源目录");
       assert.equal(
         (await calls()).some(({ method }) => ["prepare", "switchBranch"].includes(method)),
         false,
@@ -122,7 +119,7 @@ export async function runWorktreeReviewSettingsCases({
       () => !document.querySelector('[data-testid="draft-execution-mode"]').disabled,
     );
     assert.equal(await page.getByText("fixture-save-failed", { exact: true }).count(), 0);
-    assert.equal(await mode.innerText(), "本地目录");
+    assert.equal(await mode.innerText(), "源目录");
     assert.equal((await fixture("settings")).projectExecutionPreferences["remote-b"], undefined);
   });
   await t.test("项目、执行方式与基线靠左，仅设置靠右；双语、主题和窄屏支持长基线", async () => {

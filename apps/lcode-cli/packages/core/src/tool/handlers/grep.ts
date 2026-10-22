@@ -1,8 +1,8 @@
+import { projectPathApi } from "../project-routing.js";
 // ============================================================
 // Grep Tool Handler
 // ============================================================
 
-import { isAbsolute, relative, sep } from "node:path";
 import {
   CoreErrorType,
   GrepInputJsonSchema,
@@ -247,6 +247,7 @@ function formatContentEntry(
 }
 
 function toDisplayPath(filePath: string, workingDirectory: string): string {
+  const { relative, isAbsolute, sep } = projectPathApi(workingDirectory);
   const relativePath = relative(workingDirectory, filePath);
   if (relativePath && !relativePath.startsWith("..") && !isAbsolute(relativePath)) {
     return relativePath.split(sep).join("/");

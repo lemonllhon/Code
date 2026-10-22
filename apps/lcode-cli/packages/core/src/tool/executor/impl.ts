@@ -20,6 +20,8 @@ export class ToolExecutorImpl implements ToolExecutor {
 
   constructor(options: ToolExecutorOptions) {
     this.deps = {
+      resolveProjectToolScope: options.resolveProjectToolScope,
+      resolveProjectGitAccount: options.resolveProjectGitAccount,
       executionPermits: new ToolExecutionPermits(options.maxConcurrency ?? 10),
       toolOperationAdmission: options.toolOperationAdmission,
       agentTelemetry: options.agentTelemetry,

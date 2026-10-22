@@ -9,6 +9,7 @@ import type { IRemoteBackend } from "@lcode/server/remote/backend.js";
 import {
   buildRemoteExecutableReplaceCommand,
   buildRemoteMoveCommand,
+  REMOTE_BASE,
   type DeployLoggers,
   waitForClose,
 } from "@lcode/server/remote/deployShared.js";
@@ -22,6 +23,10 @@ import {
   isRemoteAgentBundleWrapperCurrent,
   REMOTE_AGENT_BUNDLE_NAME,
 } from "@lcode/server/remote/lcodeAgentBundleWrapper.js";
+import {
+  assertRemoteBundleCapabilities,
+  PROJECT_NATIVE_AGENT_MARKERS,
+} from "./remoteBundleCapabilityCheck.js";
 import {
   deployRemoteAgentWrapper,
   isWslBackend,
@@ -381,6 +386,12 @@ export async function deployDevelopmentLCodeAgentRuntime(
       loggers,
     })
   ) {
+    await assertRemoteBundleCapabilities(
+      backend,
+      `${REMOTE_BASE}/node`,
+      remoteBundlePath,
+      PROJECT_NATIVE_AGENT_MARKERS,
+    );
     return true;
   }
 
@@ -407,6 +418,12 @@ export async function deployDevelopmentLCodeAgentRuntime(
     loggers,
   });
 
+  await assertRemoteBundleCapabilities(
+    backend,
+    `${REMOTE_BASE}/node`,
+    remoteBundlePath,
+    PROJECT_NATIVE_AGENT_MARKERS,
+  );
   const wrapperContent = buildRemoteAgentBundleWrapper(params.runtimeResourceDir);
   const markerCommands = [
     buildWriteLiteralFileCommand(remoteDevVersionFile, devVersion),

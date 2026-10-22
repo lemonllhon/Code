@@ -50,12 +50,14 @@ export function DirectoryBrowser({
   onSelect,
   onCancel,
   onPathChange,
+  onReadyChange,
   embedded = false,
 }: {
   services: IServiceAccessor;
   onSelect: (path: string) => void;
   onCancel: () => void;
   onPathChange?: (path: string) => void;
+  onReadyChange?: (ready: boolean) => void;
   embedded?: boolean;
 }) {
   const [currentPath, setCurrentPath] = useState("");
@@ -71,16 +73,22 @@ export function DirectoryBrowser({
 
   // 初始化：获取 homedir 作为起始路径
   useEffect(() => {
+    let active = true;
     services.systemService
       .info()
       .then((info) => {
-        navigateTo(info.homedir);
+        if (active) navigateTo(info.homedir);
       })
       .catch((err) => {
+        if (!active) return;
         logger.error("[DirectoryBrowser] 获取系统信息失败:", err);
         setError(intl.formatMessage({ id: "directoryBrowser.errorSystem" }));
         setLoading(false);
       });
+    return () => {
+      active = false;
+      requestGuardRef.current.begin();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -89,6 +97,8 @@ export function DirectoryBrowser({
     nextShowHiddenDirectories = showHiddenDirectoriesRef.current,
   ) => {
     const requestId = requestGuardRef.current.begin();
+    // 导航期间原目录不再是可确认目标；失败或旧响应不能让外层提交旧路径。
+    onReadyChange?.(false);
     setLoading(true);
     setError("");
     try {
@@ -103,6 +113,7 @@ export function DirectoryBrowser({
       setCurrentPath(path);
       setInputPath(path);
       onPathChange?.(path);
+      onReadyChange?.(true);
       // 滚动到顶部
       listRef.current?.scrollTo(0, 0);
     } catch (err) {

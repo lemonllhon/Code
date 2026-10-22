@@ -21,6 +21,14 @@ import { runTaskHandoffCases } from "./task-handoff-cases.mjs";
 
 // 使用真实共享组件和真实 hook，只有 Host 边界替换为确定性服务桩。
 test("工作树选择、策略、生命周期与实际文件目录交互", { timeout: 240_000 }, async (t) => {
+  const caseFilter = process.env.LCODE_WORKTREE_CASE_FILTER?.trim();
+  if (caseFilter) {
+    const runCase = t.test.bind(t);
+    t.test = (name, ...args) =>
+      name.includes(caseFilter)
+        ? runCase(name, ...args)
+        : runCase(name, { skip: "focused regression" }, async () => {});
+  }
   const socket = createServer();
   socket.listen(0, "127.0.0.1");
   await once(socket, "listening");
@@ -172,7 +180,7 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
 
   await t.test("模式保存项目值、基线保存草稿，不创建树、不切分支；读取失败可重试", async () => {
     await load();
-    assert.match(await page.getByTestId("draft-execution-mode").innerText(), /本地/);
+    assert.match(await page.getByTestId("draft-execution-mode").innerText(), /源目录/);
     await select("draft-execution-mode", "独立工作树");
     await configure({ failBranches: true });
     await page.getByTestId("worktree-base-trigger").click();
@@ -187,9 +195,7 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
     );
     await fixture("chooseScope", "remote-b");
     await page.waitForFunction(() =>
-      document
-        .querySelector('[data-testid="draft-execution-mode"]')
-        .textContent.includes("本地目录"),
+      document.querySelector('[data-testid="draft-execution-mode"]').textContent.includes("源目录"),
     );
     await fixture("chooseScope");
     await page.getByTestId("worktree-base-trigger").waitFor();
@@ -211,7 +217,7 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
       await load("?legacySetup");
       await select("global-execution-mode", "独立工作树");
       await page.getByTestId("worktree-base-trigger").waitFor();
-      await select("draft-execution-mode", "本地目录");
+      await select("draft-execution-mode", "源目录");
       await page.getByTestId("worktree-base-trigger").waitFor({ state: "hidden" });
       await select("project-policy-gitCommitReviewMode", "仅生成草稿");
       assert.equal(await page.getByText("工作树准备与验证", { exact: true }).count(), 0);
@@ -228,7 +234,7 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
       await configure({ failSave: false });
       await select("project-policy-gitCommitReviewMode", "生成并打开审核");
       const settings = await fixture("settings");
-      assert.match(await page.getByTestId("draft-execution-mode").innerText(), /本地目录/);
+      assert.match(await page.getByTestId("draft-execution-mode").innerText(), /源目录/);
       assert.match(
         await page.getByTestId("project-policy-effective-gitCommitReviewMode").innerText(),
         /生成并打开审核/,

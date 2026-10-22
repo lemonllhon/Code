@@ -39,11 +39,13 @@ export function useRemoteConnectionForm({
   isWindowsDesktop,
   preferredKind,
   preferredWslDistro,
+  preferredTarget,
 }: {
   open: boolean;
   isWindowsDesktop: boolean;
   preferredKind?: RemoteKind;
   preferredWslDistro?: string;
+  preferredTarget?: RemoteTarget;
 }) {
   const platform = usePlatform();
   const [kind, setKind] = useState<RemoteKind>("ssh");
@@ -328,6 +330,42 @@ export function useRemoteConnectionForm({
   const clearSelectedSshConfigAlias = () => {
     setSelectedSshConfigAlias(null);
   };
+
+  const appliedPreferredTargetRef = useRef<RemoteTarget | null>(null);
+  useEffect(() => {
+    if (!open) {
+      appliedPreferredTargetRef.current = null;
+      return;
+    }
+    if (!preferredTarget || appliedPreferredTargetRef.current === preferredTarget) return;
+    if (!availableKinds.includes(preferredTarget.kind)) return;
+    appliedPreferredTargetRef.current = preferredTarget;
+    setKind(preferredTarget.kind);
+    if (preferredTarget.kind === "ssh") {
+      setHostState(preferredTarget.host);
+      setPortState(String(preferredTarget.port ?? 22));
+      setUsernameState(preferredTarget.username);
+      setSelectedSshConfigAlias(preferredTarget.sshConfigAlias ?? null);
+      setPassword(preferredTarget.password ?? "");
+      setPrivateKeyPathState(preferredTarget.privateKeyPath ?? "");
+      setPrivateKeyPassphrase(preferredTarget.privateKeyPassphrase ?? "");
+      setSshAuthMethod(preferredTarget.privateKeyPath ? "privateKey" : "password");
+      setAssetInstallMode(preferredTarget.assetInstallMode ?? DEFAULT_REMOTE_ASSET_INSTALL_MODE);
+      setSshProxySelection(
+        preferredTarget.useProxy
+          ? preferredTarget.proxyProfileId
+            ? { kind: "profile", profileId: preferredTarget.proxyProfileId }
+            : { kind: "default" }
+          : { kind: "direct" },
+      );
+    } else if (preferredTarget.kind === "wsl") {
+      setWslDistro(preferredTarget.distro ?? "");
+      setWslUser(preferredTarget.user ?? "");
+    } else {
+      setDockerContainer(preferredTarget.container);
+      setManualDockerContainer(preferredTarget.container);
+    }
+  }, [open, preferredTarget, availableKinds]);
 
   return {
     kind,

@@ -3794,6 +3794,8 @@ export const lcodeOffPeakListResultSchema = z
 export type LCodeOffPeakListProtocolResult = z.infer<typeof lcodeOffPeakListResultSchema>;
 
 export const lcodeProtocolMethods = {
+  projectNative: "project/native",
+  projectRouteNative: "project/routeNative",
   runtimeCapabilities: "runtime/capabilities",
   computerUseOperationEvent: "computer-use/operation-event",
   sessionCreate: "session/create",
@@ -3807,6 +3809,7 @@ export const lcodeProtocolMethods = {
   checkoutReleaseWriter: "checkout/releaseWriter",
   gitCredential: "git/credential",
   gitContext: "git/context",
+  gitAccount: "git/account",
   sessionResume: "session/resume",
   sessionList: "session/list",
   sessionSubagents: "session/subagents",

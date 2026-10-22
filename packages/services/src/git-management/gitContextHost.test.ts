@@ -44,8 +44,13 @@ test("Host context enumerates only authorized sources, isolates missing folders 
     ["available", "unavailable", "available"],
   );
   assert.deepEqual(
-    calls.map((c) => c.workspacePath),
-    [await realpath(paths[0]!), await realpath(paths[2]!)],
+    context.repositories.map((r) => r.workspacePath),
+    [await realpath(paths[0]!), paths[1], await realpath(paths[2]!)],
+  );
+  // realpath 并发完成顺序不确定；契约保证返回顺序，不保证内部 IO 的开始/完成顺序。
+  assert.deepEqual(
+    new Set(calls.map((c) => c.workspacePath)),
+    new Set([await realpath(paths[0]!), await realpath(paths[2]!)]),
   );
   assert.ok(calls.every((c) => c.workspaceIdentity === "remote-fixture"));
   sources = Array.from({ length: 22 }, (_, i) => join(root, `offline-${i}`));

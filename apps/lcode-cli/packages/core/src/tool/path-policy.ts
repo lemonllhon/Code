@@ -2,7 +2,7 @@
 // Tool Path Policy
 // ============================================================
 
-import { isAbsolute, normalize, resolve } from "node:path";
+import { projectPathApi } from "./project-routing.js";
 import { CoreErrorType, createCoreError } from "@lcode/contracts";
 
 interface ToolWorkspacePathOptions {
@@ -13,10 +13,7 @@ interface ToolWorkspacePathOptions {
 }
 
 export function resolveWorkspacePath(options: ToolWorkspacePathOptions): string {
-  const workingDirectory = normalizeAbsoluteDirectory(
-    options.workingDirectory,
-    "workingDirectory",
-  );
+  const workingDirectory = normalizeAbsoluteDirectory(options.workingDirectory, "workingDirectory");
   normalizeAbsoluteDirectory(options.workspaceRoot, "workspaceRoot");
   const requestedPath = options.inputPath;
 
@@ -29,9 +26,10 @@ export function resolveWorkspacePath(options: ToolWorkspacePathOptions): string 
     });
   }
 
-  const resolvedPath = isAbsolute(requestedPath)
-    ? normalize(requestedPath)
-    : resolve(workingDirectory, requestedPath);
+  const api = projectPathApi(workingDirectory);
+  const resolvedPath = api.isAbsolute(requestedPath)
+    ? api.normalize(requestedPath)
+    : api.resolve(workingDirectory, requestedPath);
 
   // Current release intentionally does not hard-block paths outside workspaceRoot.
   // Cause: subagents may need to inspect user-requested sibling repos or external files
@@ -59,8 +57,9 @@ export function resolveToolWorkingDirectory(
 }
 
 function normalizeAbsoluteDirectory(value: string, label: string): string {
-  const normalized = normalize(value);
-  if (!isAbsolute(normalized)) {
+  const api = projectPathApi(value);
+  const normalized = api.normalize(value);
+  if (!api.isAbsolute(normalized)) {
     throw createCoreError(
       CoreErrorType.ConfigurationError,
       `${label} must be an absolute path for tool execution`,

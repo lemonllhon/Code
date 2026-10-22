@@ -1,7 +1,9 @@
 /** English translations */
 import { backupEnUS } from "./backup.js";
+import { remoteDevicesEnUS } from "./remoteDevices.js";
 const enUS: Record<string, string> = {
   ...backupEnUS,
+  ...remoteDevicesEnUS,
   "git.workspace.error.ssh-key-unavailable":
     "The SSH private key path is unavailable. Check Git management settings.",
   "settings.gitManagement.title": "Git management",
@@ -2618,8 +2620,10 @@ const enUS: Record<string, string> = {
   "ssh.auth.password": "Password",
   "ssh.auth.privateKey": "Private key",
   "ssh.assetInstallMode": "Resource download method",
-  "ssh.assetInstallMode.local-download-upload": "Download locally, then upload",
-  "ssh.assetInstallMode.remote-download": "Download on remote server",
+  "ssh.assetInstallMode.local-download-upload": "Local upload",
+  "ssh.assetInstallMode.remote-download": "Remote download",
+  "ssh.assetInstallMode.localUploadDescription":
+    "Download resources locally, then upload them to the remote server.",
   "ssh.assetInstallModeDescription":
     "Remote server download reduces upload waiting, but the server must reach the LCode CDN and have download, extract, and checksum tools.",
   "ssh.password": "Password",
@@ -2647,16 +2651,11 @@ const enUS: Record<string, string> = {
   "common.back": "Back",
   "common.next": "Next",
   "remote.trigger": "Remote connection",
-  "remote.wizard": "Remote connect",
   "remoteConnection.feedback": "Feedback",
-  "remote.step.kind": "Choose method",
-  "remote.step.settings": "Fill settings",
-  "remote.step.connecting": "Connecting",
-  "remote.step.directory": "Choose directory",
   "remote.kindStepTitle": "Choose method",
   "remote.kindStepDescription":
     "Choose how you want to access this workspace, then continue with the matching connection settings.",
-  "remote.settingsStepTitle": "Connection settings",
+  "remote.settingsStepTitle": "New connection",
   "remote.settingsStepDescription":
     "Enter the details needed for your {method} connection so we can prepare the remote session.",
   "remote.history.empty": "No matching saved connections",
@@ -2666,8 +2665,6 @@ const enUS: Record<string, string> = {
   "remote.title": "Connect remote environment",
   "remote.description":
     "Connect to a remote workspace over SSH, Server, WSL, or Docker, then choose a directory in the current window.",
-  "remote.step.connect": "Connect",
-  "remote.step.selectDirectory": "Choose directory",
   "remote.selectDirectoryTitle": "Choose remote directory",
   "remote.selectDirectoryDescription":
     "Choose which directory to open in this window after the remote connection is ready.",
@@ -8606,7 +8603,7 @@ const enUS: Record<string, string> = {
   "worktree.projectSettings": "Project commit review settings",
   "worktree.projectSettingsDescription":
     "Configure commit review after task completion here. Choose the execution location above the composer. The project remembers it; existing chats keep their location.",
-  "worktree.mode.local": "Local directory",
+  "worktree.mode.local": "Source folders",
   "worktree.mode.worktree": "Worktree",
   "worktree.mode.inherit": "Inherit global",
   "worktree.mode.enabled": "Enabled",
@@ -8674,7 +8671,7 @@ const enUS: Record<string, string> = {
   "worktree.preparation.waiting": "Waiting for preparation details from the Host…",
   "worktree.preparation.cancelling":
     "Cancellation requested. Waiting for the current step to finish; this input will not run.",
-  "worktree.preparation.local": "Use local directory",
+  "worktree.preparation.local": "Use source folders",
   "worktree.preparation.cancel": "Cancel",
   "worktree.preparation.retry": "Retry preparation",
   "worktree.preparation.automaticValidation":

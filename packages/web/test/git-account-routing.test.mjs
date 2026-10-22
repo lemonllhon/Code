@@ -3,6 +3,30 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { startWorkflowProgressBrowser } from "./workflow-execution-progress-browser.mjs";
 
+test("远端候选遵循 Fetch/Push 共用用户名提示", { timeout: 90000 }, async (t) => {
+  const { browser, port } = await startWorkflowProgressBrowser(t),
+    page = await browser.newPage();
+  await page.goto(`http://127.0.0.1:${port}/test/fixtures/git-workspace.html?authentication`);
+  await page.getByTestId("git-remote-authentication").getByRole("combobox").first().waitFor();
+  await page.evaluate(() => globalThis.__gitWorkspace.management.usernameHint("bob"));
+  await page
+    .getByTestId("git-remote-authentication")
+    .getByRole("button", { name: "重新读取", exact: true })
+    .click();
+  const select = page.getByTestId("git-remote-authentication").getByRole("combobox").first();
+  await page.waitForFunction(
+    () => !document.querySelector('[data-testid="git-remote-authentication"] select')?.disabled,
+  );
+  assert.equal(await select.locator('option[value="detected:gcm-alice"]').count(), 0);
+  assert.equal(await select.locator('option[value="detected:gcm-bob"]').count(), 1);
+  await select.selectOption("detected:gcm-bob");
+  await page.waitForFunction(() =>
+    document
+      .querySelector('[data-testid="git-remote-authentication"] select')
+      ?.value.startsWith("saved:"),
+  );
+});
+
 test("项目向导可直接选用检测账号，无须先打开设置导入", { timeout: 90000 }, async (t) => {
   const { browser, port } = await startWorkflowProgressBrowser(t),
     page = await browser.newPage({ viewport: { width: 1100, height: 850 } });

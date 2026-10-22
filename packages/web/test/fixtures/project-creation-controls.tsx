@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ChatEmptyCreateProjectDialog } from "@/ChatEmptyCreateProjectDialog.js";
+import { ChatEmptyWorkspacePreviewMenu } from "@/ChatEmptyState.js";
 import { Button } from "@/components/ui/button.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
@@ -69,8 +70,26 @@ export function ProjectCreationControls() {
     setUser: () => {},
   });
   Object.assign(globalThis, {
-    __projectCreationActions: { create: actions.handleCreateLocalProject },
+    __projectCreationActions: {
+      create: actions.handleCreateLocalProject,
+      remove: actions.handleRemoveLocalProject,
+    },
   });
+  if (new URLSearchParams(location.search).has("composer"))
+    return (
+      <div className="fixed bottom-4 right-4">
+        <ChatEmptyWorkspacePreviewMenu
+          workspacePath="/fixture/repo"
+          workspaceTabs={[]}
+          onCreateLocalProject={actions.handleCreateLocalProject}
+          onSelectWorkspace={() => {}}
+          onSelectConversationWorkspace={() => {}}
+          onConnectRemote={async () => ""}
+          onSelectRemoteProject={async () => {}}
+          onCancelRemoteProject={async () => {}}
+        />
+      </div>
+    );
   return (
     <div className="fixed bottom-4 right-4">
       <Button onClick={() => setOpen(true)}>

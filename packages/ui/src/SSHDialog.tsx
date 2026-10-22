@@ -16,6 +16,7 @@ import { useRemoteConnectionForm } from "@/hooks/useRemoteConnectionForm.js";
 import { useRemoteConnectionLogs } from "@/hooks/useRemoteConnectionLogs.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { getErrorMessage } from "@/lib/errorMessage.js";
+import { formatRemoteWorkspaceTargetSubtitle } from "@/lib/remoteWorkspaceHistory.js";
 import {
   buildRemoteTarget,
   getRemoteWizardStepCopy,
@@ -32,12 +33,11 @@ import { startUserAction } from "@/lib/userActionTelemetry.js";
 import {
   RemoteConnectionConnectingStep,
   RemoteConnectionDirectoryStep,
-  RemoteConnectionKindStep,
+  RemoteConnectionKindTabs,
   RemoteConnectionSettingsStep,
 } from "@/RemoteConnectionDialogContent.js";
 import {
   RemoteConnectionWizardHeader,
-  RemoteConnectionWizardSidebar,
   type RemoteWizardStep,
 } from "@/RemoteConnectionWizardChrome.js";
 import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
@@ -48,6 +48,7 @@ interface RemoteConnectionDialogProps {
   onConnect: (options: RemoteTarget, requestId?: string) => Promise<string>;
   onSelectProject: (sessionId: string, path: string, localWorkspacePath?: string) => Promise<void>;
   onCancelSession: (sessionId: string) => Promise<void>;
+  onDeviceConnected?: (sessionId: string, target: RemoteTarget) => Promise<void>;
   localWorkspacePath?: string;
   trigger?: ReactNode;
   triggerVariant?: VariantProps<typeof buttonVariants>["variant"];
@@ -62,12 +63,15 @@ interface RemoteConnectionDialogProps {
   onFlowRequestIdChange?: (requestId: string | null) => void;
   preferredKind?: RemoteTarget["kind"];
   preferredWslDistro?: string;
+  preferredTarget?: RemoteTarget;
+  connectOnOpen?: boolean;
 }
 
 export function RemoteConnectionDialog({
   onConnect,
   onSelectProject,
   onCancelSession,
+  onDeviceConnected,
   localWorkspacePath,
   trigger,
   triggerVariant = "outline",
@@ -82,6 +86,8 @@ export function RemoteConnectionDialog({
   onFlowRequestIdChange,
   preferredKind,
   preferredWslDistro,
+  preferredTarget,
+  connectOnOpen = false,
 }: RemoteConnectionDialogProps) {
   const { intl } = useLCodeIntl();
   const confirmDialog = useConfirmDialog();
@@ -90,8 +96,10 @@ export function RemoteConnectionDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [validationMessage, setValidationMessage] = useState("");
-  const [currentStep, setCurrentStep] = useState<RemoteWizardStep>("kind");
+  const [currentStep, setCurrentStep] = useState<RemoteWizardStep>("settings");
   const [connectedSessionId, setConnectedSessionId] = useState<string | null>(null);
+  const connectedSessionIdRef = useRef(connectedSessionId);
+  connectedSessionIdRef.current = connectedSessionId;
   const [connectingRequestId, setConnectingRequestId] = useState<string | null>(null);
   const activeConnectionRequestIdRef = useRef<string | null>(null);
   const [pendingRemoteTarget, setPendingRemoteTarget] = useState<RemoteTarget | null>(null);
@@ -146,6 +154,7 @@ export function RemoteConnectionDialog({
     isWindowsDesktop,
     preferredKind,
     preferredWslDistro,
+    preferredTarget,
   });
   const directoryBrowserServices = useRemoteWorkspaceSessionStore((state) =>
     connectedSessionId ? (state.sessionsById[connectedSessionId]?.services ?? null) : null,
@@ -160,6 +169,13 @@ export function RemoteConnectionDialog({
     [connectedSessionId, currentStep, loading],
   );
   const flowActive = isRemoteConnectionFlowActive(flowSnapshot);
+  useEffect(() => {
+    // 收起中的连接仍需要本次凭据；完成或取消后不在常驻表单内保留明文。
+    if (!open && !flowActive) {
+      setPassword("");
+      setPrivateKeyPassphrase("");
+    }
+  }, [open, flowActive, setPassword, setPrivateKeyPassphrase]);
 
   useEffect(
     () => () => {
@@ -189,6 +205,24 @@ export function RemoteConnectionDialog({
     }
   };
 
+  useEffect(() => {
+    if (!connectedSessionId) return;
+    return useRemoteWorkspaceSessionStore.subscribe((state, previous) => {
+      if (
+        connectedSessionIdRef.current !== connectedSessionId ||
+        !previous.sessionsById[connectedSessionId] ||
+        state.sessionsById[connectedSessionId]
+      )
+        return;
+      // 设备管理可在目录弹窗收起时释放连接；同步结束本地流程，避免恢复到已失效的目录页。
+      connectedSessionIdRef.current = null;
+      setConnectedSessionId(null);
+      setCurrentStep("settings");
+      setPendingRemoteTarget(null);
+      updateConnectingRequestId(null);
+    });
+  }, [connectedSessionId, updateConnectingRequestId]);
+
   const resetFeedback = () => {
     setError("");
     setValidationMessage("");
@@ -215,10 +249,11 @@ export function RemoteConnectionDialog({
 
   const closeDialog = useCallback(
     (options?: { preserveSession?: boolean }) => {
-      const sessionId = connectedSessionId;
+      const sessionId = connectedSessionIdRef.current;
       const requestId = activeConnectionRequestIdRef.current;
       // 先使尝试失效再通知后端取消，防止取消的迟到结果重开弹窗或覆盖新连接。
       activeConnectionRequestIdRef.current = null;
+      connectedSessionIdRef.current = null;
       if (!options?.preserveSession && sessionId) {
         void handleCancelSession(sessionId);
       } else if (!options?.preserveSession && requestId) {
@@ -228,7 +263,7 @@ export function RemoteConnectionDialog({
       setLoading(false);
       resetDirectorySelectionState();
       resetConnectionLogs();
-      setCurrentStep("kind");
+      setCurrentStep("settings");
       setConnectedSessionId(null);
       setPendingRemoteTarget(null);
       updateConnectingRequestId(null);
@@ -302,7 +337,8 @@ export function RemoteConnectionDialog({
       remoteKind: nextTarget.kind,
     });
     try {
-      const sessionId = await onConnect(nextTarget, requestId);
+      // 保存失败时复用已经握手的 attachment，重试保存不能重复部署或新建连接。
+      const sessionId = connectedSessionIdRef.current ?? (await onConnect(nextTarget, requestId));
       if (activeConnectionRequestIdRef.current !== requestId) {
         trace.cancel();
         await handleCancelSession(sessionId);
@@ -310,6 +346,22 @@ export function RemoteConnectionDialog({
       }
       const completionState = getRemoteConnectionCompletionDialogState("success");
       setConnectedSessionId(sessionId);
+      connectedSessionIdRef.current = sessionId;
+      if (onDeviceConnected) {
+        await onDeviceConnected(sessionId, nextTarget);
+        if (activeConnectionRequestIdRef.current !== requestId) {
+          trace.cancel();
+          return;
+        }
+        connectedSessionIdRef.current = null;
+        setConnectedSessionId(null);
+        setPendingRemoteTarget(null);
+        setCurrentStep("settings");
+        updateConnectingRequestId(null);
+        applyOpenState(false);
+        trace.complete({ resultSource: "platform_result" });
+        return;
+      }
       setCurrentStep(completionState.step);
       applyOpenState(completionState.open);
       trace.complete({ resultSource: "platform_result" });
@@ -386,6 +438,7 @@ export function RemoteConnectionDialog({
     try {
       await onCancelSession(connectedSessionId);
       setConnectedSessionId(null);
+      connectedSessionIdRef.current = null;
       updateConnectingRequestId(null);
       resetConnectionLogs();
       setCurrentStep("settings");
@@ -408,7 +461,7 @@ export function RemoteConnectionDialog({
       try {
         await onSelectProject(connectedSessionId, path, localWorkspacePath);
         resetConnectionLogs();
-        setCurrentStep("kind");
+        setCurrentStep("settings");
         setConnectedSessionId(null);
         setPendingRemoteTarget(null);
         updateConnectingRequestId(null);
@@ -445,7 +498,7 @@ export function RemoteConnectionDialog({
       if (shouldResetRemoteConnectionOnOpen(flowSnapshot)) {
         resetFeedback();
         resetConnectionLogs();
-        setCurrentStep("kind");
+        setCurrentStep("settings");
         setPendingRemoteTarget(null);
       }
       applyOpenState(true);
@@ -454,6 +507,22 @@ export function RemoteConnectionDialog({
 
     void handleCloseRequest();
   };
+
+  const startConnectionRef = useRef(startRemoteConnection);
+  startConnectionRef.current = startRemoteConnection;
+  const autoStartedTargetRef = useRef<RemoteTarget | null>(null);
+  useEffect(() => {
+    if (
+      !open ||
+      !preferredTarget ||
+      !connectOnOpen ||
+      autoStartedTargetRef.current === preferredTarget
+    )
+      return;
+    // 从设备打开目录同样走原连接 owner，新 logical session 的取消不影响原项目 attachment。
+    autoStartedTargetRef.current = preferredTarget;
+    void startConnectionRef.current(preferredTarget);
+  }, [open, preferredTarget, connectOnOpen]);
 
   const stepCopy = getRemoteWizardStepCopy(intl, currentStep, kind);
 
@@ -468,7 +537,7 @@ export function RemoteConnectionDialog({
             if (shouldResetRemoteConnectionOnOpen(flowSnapshot)) {
               resetFeedback();
               resetConnectionLogs();
-              setCurrentStep("kind");
+              setCurrentStep("settings");
               setPendingRemoteTarget(null);
             }
             applyOpenState(true);
@@ -482,19 +551,21 @@ export function RemoteConnectionDialog({
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent
           showCloseButton={false}
-          className="h-[calc(100dvh-1rem)] max-h-168 w-[calc(100vw-1rem)] max-w-4xl overflow-hidden rounded-2xl p-0 md:h-[calc(100vh-6rem)]"
+          className="h-[calc(100dvh-1rem)] max-h-168 w-[calc(100vw-1rem)] max-w-2xl overflow-hidden rounded-2xl p-0 md:h-[calc(100vh-6rem)]"
         >
           <div
             data-testid={TID_SSH_DIALOG}
             className="flex h-full min-h-0 flex-col overflow-hidden md:flex-row"
           >
-            <RemoteConnectionWizardSidebar currentStep={currentStep} />
-
             <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-hidden p-4 sm:gap-4 sm:p-6">
               <DialogHeader className="space-y-2">
                 <RemoteConnectionWizardHeader
                   title={stepCopy.title}
-                  description={stepCopy.description}
+                  description={
+                    currentStep !== "settings" && pendingRemoteTarget
+                      ? formatRemoteWorkspaceTargetSubtitle(pendingRemoteTarget)
+                      : stepCopy.description
+                  }
                   onMinimize={
                     flowActive
                       ? () => {
@@ -524,71 +595,64 @@ export function RemoteConnectionDialog({
               ) : null}
 
               <div className="w-full min-h-0 flex-1">
-                {currentStep === "kind" ? (
-                  <RemoteConnectionKindStep
+                {currentStep === "settings" ? (
+                  <RemoteConnectionKindTabs
                     kind={kind}
                     availableKinds={availableKinds}
-                    onKindChange={setKind}
-                    onCancel={() => closeDialog()}
-                    onNext={() => {
+                    onKindChange={(value) => {
                       resetFeedback();
-                      setCurrentStep("settings");
+                      setKind(value);
                     }}
-                  />
-                ) : null}
-
-                {currentStep === "settings" ? (
-                  <RemoteConnectionSettingsStep
-                    kind={kind}
-                    host={host}
-                    port={port}
-                    username={username}
-                    sshAuthMethod={sshAuthMethod}
-                    sshProxySelection={sshProxySelection}
-                    onSshProxySelectionChange={setSshProxySelection}
-                    assetInstallMode={assetInstallMode}
-                    password={password}
-                    privateKeyPath={privateKeyPath}
-                    privateKeyPassphrase={privateKeyPassphrase}
-                    wslDistro={wslDistro}
-                    wslUser={wslUser}
-                    wslDistros={wslDistros}
-                    dockerContainer={dockerContainer}
-                    manualDockerContainer={manualDockerContainer}
-                    dockerContainers={dockerContainers}
-                    dockerAvailable={dockerAvailable}
-                    sshConfigAliases={sshConfigAliases}
-                    sshConfigAliasesLoading={sshConfigAliasesLoading}
-                    sshConfigAliasesError={sshConfigAliasesError}
-                    selectedSshConfigAlias={selectedSshConfigAlias}
-                    currentRuntimeOptionsLoading={currentRuntimeOptionsLoading}
-                    currentRuntimeOptionsError={currentRuntimeOptionsError}
-                    remoteWorkspaceSessions={remoteWorkspaceSessions}
-                    validationMessage={validationMessage}
-                    loading={loading}
-                    onBack={() => {
-                      resetFeedback();
-                      setCurrentStep("kind");
-                    }}
-                    onHostChange={setHost}
-                    onPortChange={setPort}
-                    onUsernameChange={setUsername}
-                    onSshAuthMethodChange={setSshAuthMethod}
-                    onAssetInstallModeChange={setAssetInstallMode}
-                    onPasswordChange={setPassword}
-                    onPrivateKeyPathChange={setPrivateKeyPath}
-                    onPrivateKeyPassphraseChange={setPrivateKeyPassphrase}
-                    onWslDistroChange={setWslDistro}
-                    onWslUserChange={setWslUser}
-                    onDockerContainerChange={setDockerContainer}
-                    onManualDockerContainerChange={setManualDockerContainer}
-                    onDockerContainersRefresh={refreshDockerContainers}
-                    onApplySshConfigAlias={applySshConfigAlias}
-                    onClearSelectedSshConfigAlias={clearSelectedSshConfigAlias}
-                    onConnect={() => {
-                      void handleConnect();
-                    }}
-                  />
+                  >
+                    <RemoteConnectionSettingsStep
+                      kind={kind}
+                      host={host}
+                      port={port}
+                      username={username}
+                      sshAuthMethod={sshAuthMethod}
+                      sshProxySelection={sshProxySelection}
+                      onSshProxySelectionChange={setSshProxySelection}
+                      assetInstallMode={assetInstallMode}
+                      password={password}
+                      privateKeyPath={privateKeyPath}
+                      privateKeyPassphrase={privateKeyPassphrase}
+                      wslDistro={wslDistro}
+                      wslUser={wslUser}
+                      wslDistros={wslDistros}
+                      dockerContainer={dockerContainer}
+                      manualDockerContainer={manualDockerContainer}
+                      dockerContainers={dockerContainers}
+                      dockerAvailable={dockerAvailable}
+                      sshConfigAliases={sshConfigAliases}
+                      sshConfigAliasesLoading={sshConfigAliasesLoading}
+                      sshConfigAliasesError={sshConfigAliasesError}
+                      selectedSshConfigAlias={selectedSshConfigAlias}
+                      currentRuntimeOptionsLoading={currentRuntimeOptionsLoading}
+                      currentRuntimeOptionsError={currentRuntimeOptionsError}
+                      remoteWorkspaceSessions={remoteWorkspaceSessions}
+                      validationMessage={validationMessage}
+                      loading={loading}
+                      onBack={() => closeDialog()}
+                      onHostChange={setHost}
+                      onPortChange={setPort}
+                      onUsernameChange={setUsername}
+                      onSshAuthMethodChange={setSshAuthMethod}
+                      onAssetInstallModeChange={setAssetInstallMode}
+                      onPasswordChange={setPassword}
+                      onPrivateKeyPathChange={setPrivateKeyPath}
+                      onPrivateKeyPassphraseChange={setPrivateKeyPassphrase}
+                      onWslDistroChange={setWslDistro}
+                      onWslUserChange={setWslUser}
+                      onDockerContainerChange={setDockerContainer}
+                      onManualDockerContainerChange={setManualDockerContainer}
+                      onDockerContainersRefresh={refreshDockerContainers}
+                      onApplySshConfigAlias={applySshConfigAlias}
+                      onClearSelectedSshConfigAlias={clearSelectedSshConfigAlias}
+                      onConnect={() => {
+                        void handleConnect();
+                      }}
+                    />
+                  </RemoteConnectionKindTabs>
                 ) : null}
 
                 {currentStep === "connecting" ? (
@@ -597,6 +661,10 @@ export function RemoteConnectionDialog({
                     logs={connectionLogs}
                     errorMessage={error}
                     loading={loading}
+                    onMinimize={() => applyOpenState(false)}
+                    onCancel={() => {
+                      void handleCloseRequest();
+                    }}
                     onBack={() => {
                       void (async () => {
                         const confirmed = await confirmRemoteFlowDiscard();
@@ -610,6 +678,10 @@ export function RemoteConnectionDialog({
                           if (requestId) void cancelPendingRemoteConnection(requestId);
                           setLoading(false);
                         }
+                        const sessionId = connectedSessionIdRef.current;
+                        connectedSessionIdRef.current = null;
+                        setConnectedSessionId(null);
+                        if (sessionId) await handleCancelSession(sessionId);
                         resetFeedback();
                         updateConnectingRequestId(null);
                         setCurrentStep("settings");

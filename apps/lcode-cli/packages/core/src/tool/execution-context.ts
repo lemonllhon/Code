@@ -68,6 +68,7 @@ export interface BackgroundTaskControlPort {
 }
 
 export interface ToolExecutionContext {
+  resolveProjectGitAccount?: import("../runtime/types.js").AgentRuntimeDeps["resolveGitAccount"];
   /** 仅记录无正文的用量偏差；不是审批、消费或重试入口。 */
   observeMemoryReviewDiagnostic?: (diagnostic: {
     phase: "generation" | "verification";

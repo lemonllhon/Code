@@ -23,6 +23,8 @@ import { videoInspectToolEntry } from "./video-inspect.js";
 import { writeToolEntry } from "./write.js";
 import { editToolEntry } from "./edit.js";
 import { bashToolEntry, createBashToolEntry } from "./bash.js";
+import { createGitToolEntry } from "./git.js";
+import type { AgentRuntimeDeps } from "../../runtime/types.js";
 import type { BashTimeoutPolicy } from "../bash-timeout-policy.js";
 import { createJsToolEntry, jsToolEntry } from "./node-repl.js";
 import { globToolEntry } from "./glob.js";
@@ -84,6 +86,7 @@ export const builtInTools: ToolEntry[] = [
   editToolEntry,
   // applyPatchToolEntry,
   bashToolEntry,
+  createGitToolEntry(),
   globToolEntry,
   grepToolEntry,
   webFetchToolEntry,
@@ -166,6 +169,7 @@ const DYNAMIC_WORKFLOW_TOOL_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 interface RegisterBuiltInToolsOptions {
+  resolveGitAccount?: AgentRuntimeDeps["resolveGitAccount"];
   bashTimeoutPolicy?: BashTimeoutPolicy;
   includeSkill?: boolean;
   includeAgent?: boolean;
@@ -281,6 +285,7 @@ function resolveBuiltInToolEntryForBranch(
   entry: ToolEntry,
   options: RegisterBuiltInToolsOptions,
 ): ToolEntry {
+  if (entry.metadata.name === "Git") return createGitToolEntry(options.resolveGitAccount);
   if (entry.metadata.name === "Bash") {
     return createBashToolEntry({
       bashTimeoutPolicy: options.bashTimeoutPolicy,

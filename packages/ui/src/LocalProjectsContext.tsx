@@ -10,7 +10,15 @@ export function LocalProjectsProvider({
   projects: readonly LocalProject[];
   children: ReactNode;
 }) {
-  return <LocalProjectsContext.Provider value={projects}>{children}</LocalProjectsContext.Provider>;
+  // 菜单改读完整项目注册表后，本机文件提及搜索仍只能消费本机 origin 的兼容投影，不能按同路径误选远端项目。
+  const localProjects = useMemo(
+    () =>
+      projects.filter((project) => !("workspaceIdentity" in project && project.workspaceIdentity)),
+    [projects],
+  );
+  return (
+    <LocalProjectsContext.Provider value={localProjects}>{children}</LocalProjectsContext.Provider>
+  );
 }
 
 export function useLocalProjectForWorkspace(

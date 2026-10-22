@@ -26,6 +26,7 @@ import {
 } from "./bash-output.js";
 import { applyBashReadFileStateEffects } from "./bash-read-file-state.js";
 import { attachToolExecutionTelemetry } from "./tool-perf.js";
+import { assertGitNetworkResultVisible } from "./bash-git-result-policy.js";
 import {
   createExecutionRunOptions,
   startBashCommandTelemetry,
@@ -41,6 +42,7 @@ export async function executeBashHandler(
   timeoutPolicy: BashTimeoutPolicy,
 ): Promise<BashOutput> {
   const parsed = BashInputSchema.parse(input) as BashInput;
+  assertGitNetworkResultVisible(parsed.command);
   const executionPort = context.executionPort;
 
   if (!executionPort) {

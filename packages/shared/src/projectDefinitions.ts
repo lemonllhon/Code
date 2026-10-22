@@ -1,5 +1,11 @@
 import { z } from "zod";
 import {
+  projectMemberSourceSchema,
+  projectMemberKey,
+  projectMemberIsInOrigin,
+} from "./projectMemberSources.js";
+import { replaceRemoteWorkspaceIdentityPath } from "./remote-workspace-identity.js";
+import {
   LOCAL_PROJECT_NAME_MAX_LENGTH,
   LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT,
   isSameLocalProjectPath,
@@ -16,9 +22,12 @@ export const projectMemberSchema = z.strictObject({
   label: z.string().trim().max(80).default(""),
   description: z.string().trim().max(PROJECT_MEMBER_PURPOSE_MAX_LENGTH).default(""),
   enabled: z.boolean().default(true),
+  source: projectMemberSourceSchema.optional(),
 });
 export type ProjectMember = z.infer<typeof projectMemberSchema>;
 export const projectMetadataShape = {
+  /** 默认执行成员与历史身份锚点分离；旧项目缺省时使用原主目录。 */
+  primaryMemberId: z.string().trim().min(1).max(200).optional(),
   revision: z.number().int().positive().optional(),
   description: z.string().trim().max(4000).optional(),
   members: z
@@ -51,13 +60,30 @@ export const projectDefinitionSchema = z
         message: "Project source folders must be unique with the primary folder first",
       });
     if (project.members) {
-      const memberKeys = project.members.map((member) => localProjectPathKey(member.path));
+      const memberKeys = project.members.map((member) =>
+        projectMemberKey(member, project.workspaceIdentity),
+      );
+      const originKeys = project.members
+        .filter((member) => projectMemberIsInOrigin(member, project.workspaceIdentity))
+        .map((member) => localProjectPathKey(member.path));
       const ids = project.members.map((member) => member.id);
+      for (const member of project.members)
+        if (
+          member.source?.kind === "remote" &&
+          replaceRemoteWorkspaceIdentityPath(member.source.workspaceIdentity, member.path) !==
+            member.source.workspaceIdentity
+        )
+          context.addIssue({
+            code: "custom",
+            message: "Remote member identity must name its canonical folder",
+          });
+      if (project.primaryMemberId && !ids.includes(project.primaryMemberId))
+        context.addIssue({ code: "custom", message: "Primary member must belong to the project" });
       if (
-        memberKeys.length !== keys.length ||
+        originKeys.length !== keys.length ||
         new Set(ids).size !== ids.length ||
         new Set(memberKeys).size !== memberKeys.length ||
-        keys.some((key) => !memberKeys.includes(key))
+        keys.some((key) => !originKeys.includes(key))
       )
         context.addIssue({ code: "custom", message: "Project members must match source folders" });
       if (!project.members.some((member) => member.enabled))
@@ -75,6 +101,43 @@ export const projectDefinitionSchema = z
     }
   });
 export type ProjectDefinition = z.infer<typeof projectDefinitionSchema>;
+
+/** 标记、首行与保存共用这一排序，不能由展示列表反推主目录或改变历史身份路径。 */
+export function orderProjectMembers(
+  members: readonly ProjectMember[],
+  order: readonly string[] | undefined,
+  primaryMemberId: string | undefined,
+): ProjectMember[] {
+  const rank = (id: string) => {
+    const index = order?.indexOf(id) ?? -1;
+    return index < 0 ? members.length : index;
+  };
+  return [...members].sort(
+    (left, right) =>
+      (left.id === primaryMemberId ? -1 : rank(left.id)) -
+      (right.id === primaryMemberId ? -1 : rank(right.id)),
+  );
+}
+
+export function reorderProjectMembers(
+  members: readonly ProjectMember[],
+  primaryMemberId: string | undefined,
+  activeId: string,
+  overId: string,
+): ProjectMember[] {
+  const next = orderProjectMembers(
+    members,
+    members.map((member) => member.id),
+    primaryMemberId,
+  );
+  const from = next.findIndex((member) => member.id === activeId);
+  const target = next.findIndex((member) => member.id === overId);
+  if (from < 0 || target < 0 || activeId === primaryMemberId) return next;
+  const to = primaryMemberId ? Math.max(1, target) : target;
+  const [member] = next.splice(from, 1);
+  next.splice(to, 0, member!);
+  return next;
+}
 export const projectRegistrySchema = z
   .strictObject({ version: z.literal(1), projects: z.array(projectDefinitionSchema) })
   .superRefine((registry, context) => {

@@ -135,6 +135,22 @@ test("bundled source survives startup validation and deploys to a fixture SSH ho
   const path = join(fixture.sourceDir, "releases", LCODE_VERSION, "manifest-linux-x64.json");
   const manifest = JSON.parse(await readFile(path, "utf8"));
   const sources = (id) => join(root, "sources", "linux-x64", id);
+  // 此夹具验证安装与能力探测，源码文字需显式声明当前接口；不启动假 server 或模型进程。
+  await writeFile(
+    join(sources("server-bundle"), "lcode-server.cjs"),
+    [
+      "skill-sync",
+      "mcp-sync",
+      "plugin-sync",
+      "__lcode_rpc_nested_uint8array_v1",
+      "exportMarketplaceSourceArchive",
+      "importMarketplaceSourceArchive",
+      "executeProjectNative",
+      "onDynamicProjectNativeRequest",
+      "respondProjectNative",
+    ].join("\n"),
+  );
+  await writeFile(join(sources("glm"), "lcode.cjs"), "project/native\nproject/routeNative\n");
   await writeFile(
     join(sources("node-runtime"), "node"),
     `#!/bin/sh\nexec '${process.execPath.replaceAll("\\", "/")}' "$@"\n`,

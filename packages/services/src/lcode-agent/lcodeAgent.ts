@@ -1,3 +1,5 @@
+import type { ProjectNativeRequest, ProjectNativeResult } from "@lcode/shared";
+import type { ProjectNativeBridgeRequest } from "./projectNativeBridge.js";
 import type { BackgroundBashOutputResult, SessionDebugSnapshot } from "@lcode/shared";
 import type { GitFileMutationJournal } from "@lcode/shared";
 /* eslint-disable max-lines -- LCode agent service 接口集中声明 protocol/session/workspace 方法，拆分会增加 service descriptor 迁移成本。 */
@@ -576,6 +578,16 @@ export interface LCodeAgentStorageStartupSnapshot {
 }
 
 export interface ILCodeAgentService {
+  executeProjectNative(params: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+    request: ProjectNativeRequest;
+  }): Promise<ProjectNativeResult>;
+  onDynamicProjectNativeRequest(): Event<ProjectNativeBridgeRequest>;
+  respondProjectNative(params: {
+    requestId: string;
+    result: { value?: ProjectNativeResult; error?: string };
+  }): Promise<void>;
   /** 控制面不需要账号或模型，且不发送普通协议请求。 */
   prepareStorage(params: LCodeAgentWorkspaceTarget): Promise<void>;
   getStorageStartupState(

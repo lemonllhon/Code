@@ -1,3 +1,4 @@
+import type { ProjectNativeRequest, ProjectNativeResult } from "@lcode/shared";
 import type { RuntimeInputPresentation, ToolOperationAdmissionPort } from "@lcode/contracts";
 /* eslint-disable max-lines -- Runtime 类型集中承载 core/runtime 对外结构，拆分需要单独迁移。 */
 import { PermissionService, ToolScheduler } from "./deps.js";
@@ -326,6 +327,14 @@ export interface MemoryRuntimeConfig {
 }
 
 export interface AgentRuntimeDeps {
+  onProjectExecutionPortReady?: (port: ExecutionPort) => void;
+  /** 派生 actor 只继承父轮已固定的范围，不读取项目最新定义。 */
+  inheritedProjectContext?: import("@lcode/shared").ProjectContextSnapshot;
+  projectNativeCall?: (request: ProjectNativeRequest) => Promise<ProjectNativeResult>;
+  resolveGitAccount?: (
+    operation: import("@lcode/shared").GitAccountOperation,
+    signal: AbortSignal,
+  ) => Promise<import("@lcode/shared").GitAccountOperationResult>;
   /** Host 提供当前仓库无秘密摘要；只供本次请求，不构成认证或审批。 */
   resolveGitContext?: (signal: AbortSignal) => Promise<import("@lcode/shared").GitAgentContext>;
   /** 由宿主解析当前 Shell；Runtime 只在独立任务执行边界读取，任务内保持固定。 */

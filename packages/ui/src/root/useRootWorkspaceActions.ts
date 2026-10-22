@@ -566,11 +566,18 @@ export function useRootWorkspaceActions({
           name: request.name,
           sourceFolderPaths: request.sourceFolderPaths,
         }),
+        workspaceIdentity: request.workspaceIdentity,
+        primaryMemberId: request.primaryMemberId,
         description: request.description,
         members: request.members,
       });
-      const conflictingProject = settings.localProjects.find((candidate) =>
-        isSameLocalProjectPath(candidate.primaryFolderPath, project.primaryFolderPath),
+      const conflictingProject = (
+        settings.projectDefinitions?.projects ?? settings.localProjects
+      ).find(
+        (candidate) =>
+          ("workspaceIdentity" in candidate ? candidate.workspaceIdentity : undefined) ===
+            project.workspaceIdentity &&
+          isSameLocalProjectPath(candidate.primaryFolderPath, project.primaryFolderPath),
       );
       // 已保存但未打开的项目仍有效，不能根据窗口 tab 自动删除并替换它。
       if (conflictingProject && conflictingProject.id !== request.projectId) {
@@ -660,6 +667,7 @@ export function useRootWorkspaceActions({
         if (result.status !== "applied")
           throw new Error(intl.formatMessage({ id: "git.repositoryWizard.groupConflict" }));
       }
+      if (project.workspaceIdentity) return;
       await handleSelectProject(project.primaryFolderPath, {
         workspacePurpose: "project",
         localProjectId: project.id,
@@ -687,7 +695,11 @@ export function useRootWorkspaceActions({
       }
 
       const settings = await services.settingService.get();
-      const project = settings.localProjects.find((item) =>
+      // 项目 ID 属于统一注册表；远端 origin 的混合项目不在旧 localProjects 投影中。
+      const candidates = request.projectId
+        ? (settings.projectDefinitions?.projects ?? settings.localProjects)
+        : settings.localProjects;
+      const project = candidates.find((item) =>
         request.projectId
           ? item.id === request.projectId
           : isSameLocalProjectPath(item.primaryFolderPath, request.workspacePath),
@@ -703,6 +715,8 @@ export function useRootWorkspaceActions({
           throw new Error(result.reason ?? "Project could not be removed");
         return;
       }
+      // 已删除 ID 的重试必须幂等；不能退回路径匹配而误删另一设备的同名目录。
+      if (request.projectId) return;
       const patch = buildLocalProjectRemovalPatch(settings, request);
       if (!patch) {
         return;

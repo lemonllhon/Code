@@ -65,6 +65,10 @@ for (const kind of ["local", "remote", "memory-identity", "worktree"] as const) 
       partial: false,
       repositories: [],
     });
+    const resolveGitAccount = async () => ({
+      status: "error" as const,
+      error: "git-account-scope-unavailable" as const,
+    });
     const parent = new AgentRuntime(
       parentId,
       {
@@ -94,12 +98,14 @@ for (const kind of ["local", "remote", "memory-identity", "worktree"] as const) 
         } as never,
         modelFactory: () => model,
         resolveGitContext,
+        resolveGitAccount,
       },
     );
     let childConfig: AgentRuntimeConfig | undefined;
     const original = AgentRuntime.prototype.executeTurn;
     AgentRuntime.prototype.executeTurn = async function () {
       const child = this as unknown as AgentRuntimeInternal;
+      assert.equal(child.resolveGitAccount, resolveGitAccount);
       assert.equal(
         child.resolveGitContext,
         resolveGitContext,

@@ -106,6 +106,7 @@ export interface AgentRuntimeInternal
   browserControlPort?: AgentRuntimeDeps["browserControlPort"];
   checkoutExecutionPort?: AgentRuntimeDeps["checkoutExecutionPort"];
   resolveGitContext?: AgentRuntimeDeps["resolveGitContext"];
+  resolveGitAccount?: AgentRuntimeDeps["resolveGitAccount"];
   resolveSessionShellSelection?: AgentRuntimeDeps["resolveSessionShellSelection"];
   sessionShellPreparationRevision: number;
   modelRequestAdmission?: AgentRuntimeDeps["modelRequestAdmission"];
@@ -137,6 +138,9 @@ export interface AgentRuntimeInternal
   artifactStore?: ToolArtifactStorePort;
   executionPort?: ExecutionPort;
   fileSystemPort?: FileSystemPort;
+  inheritedProjectContext?: import("@lcode/shared").ProjectContextSnapshot;
+  resolveProjectToolScope?: import("../tool/executor/types.js").ToolExecutorOptions["resolveProjectToolScope"];
+  projectContextForTools?: import("@lcode/shared").ProjectContextSnapshot;
   imageProcessorPort?: ImageProcessorPort;
   pdfDocumentPort?: PdfDocumentPort;
   videoProcessorPort?: VideoProcessorPort;

@@ -4,11 +4,14 @@ import {
   type AppSettings,
   type RemoteTarget,
   type IPlatformService,
+  type ProjectMutationRequest,
+  type ProjectMutationResult,
 } from "@lcode/shared";
 import type { IServiceAccessor } from "@lcode/services";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useRemoteWorkspaceHistory } from "@/root/useRemoteWorkspaceHistory.js";
+import { useRootWorkspaceActions } from "@/root/useRootWorkspaceActions.js";
 import { useTabStoreApi } from "@/store/TabStoreProvider.js";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
 
@@ -79,6 +82,12 @@ export function createHistoryRemovalFixture({
       Object.assign(settings, patch);
       localStorage.setItem("sidebar-fixture-projects", JSON.stringify(settings));
     },
+    mutateProject:
+      (mutate: (request: ProjectMutationRequest) => Promise<ProjectMutationResult>) =>
+      async (request: ProjectMutationRequest) => {
+        if (enabled && rejectSave) throw new Error("Fixture project save failed");
+        return mutate(request);
+      },
     services: enabled
       ? {
           credentialService: {
@@ -164,10 +173,26 @@ export function SavedHistoryFixture({
   );
   const addTab = useCallback(
     (...args: Parameters<ReturnType<typeof api.getState>["addTab"]>) => {
-      api.getState().addTab(...args);
+      return api.getState().addTab(...args);
     },
     [api],
   );
+  const { handleRemoveLocalProject } = useRootWorkspaceActions({
+    intl,
+    services,
+    platform,
+    tabStoreApi: api,
+    addTab,
+    activeWorkspacePath: null,
+    activeWorkspaceIdentity: null,
+    supportsSettings: true,
+    allowOpenWorkspace: true,
+    preferDirectoryBrowser: false,
+    refreshProviderState: async () => {},
+    updateAppSettings: async () => {},
+    setOAuthError: () => {},
+    setUser: () => {},
+  });
   const { restorePersistedSession, handleRemoveRemoteProject, handleReconnectRemoteWorkspace } =
     useRemoteWorkspaceHistory({
       intl,
@@ -177,6 +202,7 @@ export function SavedHistoryFixture({
       tabStoreApi: api,
       activateTabByPath,
       addTab,
+      onRemoveProjectDefinition: handleRemoveLocalProject,
     });
   useEffect(() => {
     let cancelled = false;

@@ -81,7 +81,7 @@ test(
       await choose("reasoning", "低");
       await choose("speed", "标准");
       await choose("approval", "变更前确认");
-      await choose("execution", "本地目录");
+      await choose("execution", "源目录");
       await choose("review", "关闭");
       await page.evaluate(() => window.__sessionConfiguration.resetDraft());
       await page.waitForFunction(

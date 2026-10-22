@@ -350,6 +350,16 @@ export async function deployServer(
       // 判断 server-bundle 可复用；与 GLM 一致，必须重新下载并校验当前 manifest 制品。
       forceRefresh: shouldForceRefreshContentAddressedAssets,
     });
+    // 同版本旧资源即使 SHA 正确也可能缺接口；安装能力校验必须先于成功 marker。
+    const installedCapabilities = await checkServerBundleRequiredMarkers(
+      backend,
+      `${REMOTE_BASE}/node`,
+      `${REMOTE_BASE}/lcode-server.cjs`,
+    );
+    if (installedCapabilities.shouldDeploy)
+      throw new Error(
+        `Remote server resources are incompatible: ${installedCapabilities.reason}. Rebuild and publish matching remote resources or use current bundled remote assets.`,
+      );
     if (expectedServerBundleSha256) {
       // App/version 相同不代表 server-bundle 制品相同。安装成功后才写
       // manifest SHA marker，避免失败重试把旧 server 误判成当前制品。

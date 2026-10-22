@@ -1,5 +1,5 @@
 /* eslint-disable max-lines -- 远程连接向导的多个步骤暂集中在同一文件，避免拆分时扩大 SSH/Docker/WSL 回归面。 */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type {
   DockerContainerInfo,
   RemoteAssetInstallMode,
@@ -18,7 +18,6 @@ import type {
 } from "@lcode/services";
 import {
   AlertTriangleIcon,
-  ChevronRightIcon,
   LoaderIcon,
   MonitorCogIcon,
   ServerIcon,
@@ -28,6 +27,7 @@ import { DirectoryBrowser } from "@/DirectoryBrowser.js";
 import { RemoteConnectionFields } from "@/RemoteConnectionFields.js";
 import type { SSHAuthMethod, SshProxySelection } from "@/hooks/useRemoteConnectionForm.js";
 import { Button } from "@/components/ui/button.js";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { cn } from "@/components/lib/utils.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
@@ -48,33 +48,34 @@ function getKindIcon(kind: RemoteTarget["kind"]) {
   }
 }
 
-export function RemoteConnectionKindStep({
+export function RemoteConnectionKindTabs({
   kind,
   availableKinds,
   onKindChange,
-  onCancel,
-  onNext,
+  children,
 }: {
   kind: RemoteTarget["kind"];
   availableKinds: RemoteTarget["kind"][];
-  onKindChange: (value: RemoteTarget["kind"]) => void;
-  onCancel: () => void;
-  onNext: () => void;
+  onKindChange: (kind: RemoteTarget["kind"]) => void;
+  children: ReactNode;
 }) {
   const { intl } = useLCodeIntl();
-
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6 h-full">
-      <div className="flex-1 min-h-0 grid content-start gap-3 md:grid-cols-2">
+    <Tabs
+      value={kind}
+      onValueChange={(value) => onKindChange(value as RemoteTarget["kind"])}
+      className="h-full min-h-0 gap-4"
+    >
+      <TabsList
+        aria-label={intl.formatMessage({ id: "remote.kindStepTitle" })}
+        className="w-full justify-start bg-input sm:w-fit"
+      >
         {availableKinds.map((value) => {
           const Icon = getKindIcon(value);
-          const selected = kind === value;
-
           return (
-            <button
+            <TabsTrigger
               key={value}
-              type="button"
-              onClick={() => onKindChange(value)}
+              value={value}
               data-testid={
                 value === "ssh"
                   ? TID_REMOTE_KIND_SSH
@@ -82,54 +83,18 @@ export function RemoteConnectionKindStep({
                     ? TID_REMOTE_KIND_WSL
                     : TID_REMOTE_KIND_DOCKER
               }
-              className={cn(
-                "flex min-h-32 flex-col items-start gap-4 rounded-2xl border p-4 text-left transition-colors",
-                selected
-                  ? "border-border-hover bg-selected"
-                  : "border-border bg-card hover:border-border-hover hover:bg-surface",
-              )}
+              className="min-h-9 flex-1 gap-2 px-4 text-ui-base data-active:bg-selected data-active:text-foreground sm:flex-none"
             >
-              <div
-                className={cn(
-                  "flex size-10 items-center justify-center rounded-xl border",
-                  selected
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background-alt text-foreground-subtle",
-                )}
-              >
-                <Icon className="size-5" />
-              </div>
-              <div className="min-w-0 space-y-1">
-                <p className="text-ui-lg font-medium text-foreground">
-                  {intl.formatMessage({ id: `remote.kind.${value}` })}
-                </p>
-                <p className="text-ui-base leading-5 text-foreground-subtle">
-                  {intl.formatMessage({
-                    id: `remote.kind.${value}.wizardDescription`,
-                  })}
-                </p>
-              </div>
-            </button>
+              <Icon className="size-4" />
+              {intl.formatMessage({ id: `remote.kind.${value}` })}
+            </TabsTrigger>
           );
         })}
-      </div>
-
-      <div className="flex gap-3 justify-end">
-        <Button
-          type="button"
-          variant="secondary"
-          size="lg"
-          className="h-10 min-w-0 px-5"
-          onClick={onCancel}
-        >
-          {intl.formatMessage({ id: "common.cancel" })}
-        </Button>
-        <Button type="button" size="lg" className="h-10 min-w-0 px-5" onClick={onNext}>
-          {intl.formatMessage({ id: "common.next" })}
-          <ChevronRightIcon className="size-4" />
-        </Button>
-      </div>
-    </div>
+      </TabsList>
+      <TabsContent value={kind} className="min-h-0 flex-1">
+        {children}
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -300,7 +265,7 @@ export function RemoteConnectionSettingsStep({
             onClick={onBack}
             disabled={loading}
           >
-            {intl.formatMessage({ id: "common.back" })}
+            {intl.formatMessage({ id: "common.cancel" })}
           </Button>
           <Button
             type="button"

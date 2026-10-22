@@ -31,6 +31,7 @@ function harness() {
     agentTelemetry: { captureCausation: () => undefined },
     appOptions: {
       resolveGitContext: async () => ({ status: "available", partial: false, repositories: [] }),
+      resolveGitAccount: async () => ({ status: "error", error: "git-account-scope-unavailable" }),
       executionPort: {},
       fileSystemPort: optionPort,
       contextSourcePort: {},
@@ -80,6 +81,10 @@ for (const withOptionPort of [true, false]) {
     assert.equal(childPort(child), h.sharedPort);
     assert.equal(childPort(child)?.projectMemory, h.sharedPort.projectMemory);
     assert.equal(
+      (child as unknown as { resolveGitAccount: unknown }).resolveGitAccount,
+      h.deps.appOptions.resolveGitAccount,
+    );
+    assert.equal(
       (child as unknown as { resolveGitContext: unknown }).resolveGitContext,
       h.deps.appOptions.resolveGitContext,
     );
@@ -91,6 +96,7 @@ function interceptLegacyChild(t: TestContext) {
   const signals: Array<AbortSignal | undefined> = [];
   const closed: AgentRuntime[] = [];
   const gitContexts: unknown[] = [];
+  const gitAccounts: unknown[] = [];
   t.mock.method(
     AgentRuntime.prototype,
     "executeTurn",
@@ -101,6 +107,7 @@ function interceptLegacyChild(t: TestContext) {
       options: { abortSignal?: AbortSignal },
     ) {
       ports.push(childPort(this));
+      gitAccounts.push((this as unknown as { resolveGitAccount: unknown }).resolveGitAccount);
       gitContexts.push((this as unknown as { resolveGitContext: unknown }).resolveGitContext);
       signals.push(options.abortSignal);
       return { response: "fixture", traceId: "trace-fixture", turnId: "turn-fixture" };
@@ -125,7 +132,7 @@ function interceptLegacyChild(t: TestContext) {
       } as Parameters<WorkflowAgentRunner["run"]>[0]);
     },
   );
-  return { ports, signals, closed, gitContexts };
+  return { ports, signals, closed, gitContexts, gitAccounts };
 }
 
 test("legacy workflow prefers the assembled port and keeps cancellation/cleanup wiring", async (t) => {
@@ -138,6 +145,7 @@ test("legacy workflow prefers the assembled port and keeps cancellation/cleanup 
   assert.deepEqual(observed.signals, [controller.signal]);
   assert.equal(observed.closed.length, 1);
   assert.deepEqual(observed.gitContexts, [h.deps.appOptions.resolveGitContext]);
+  assert.deepEqual(observed.gitAccounts, [h.deps.appOptions.resolveGitAccount]);
 });
 
 test("legacy workflow keeps appOptions and default adapter fallback for old callers", async (t) => {

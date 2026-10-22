@@ -160,7 +160,7 @@ function semanticExitOneInterpretation(commandName: string): string | undefined 
   return undefined;
 }
 
-function gitSemanticSubcommandName(argv: readonly string[]): string | undefined {
+export function gitSemanticSubcommandName(argv: readonly string[]): string | undefined {
   for (let index = 1; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === undefined) continue;

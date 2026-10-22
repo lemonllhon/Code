@@ -1,4 +1,5 @@
-import { buildRemoteWorkspaceIdentity, type LCodeTaskMeta } from "@lcode/shared";
+import { buildRemoteWorkspaceIdentity } from "@lcode/shared";
+import type { SidebarFixtureTask } from "./worktree-sidebar-menu-service.js";
 import type { WorktreeBinding } from "@lcode/services";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
 import { binding as template } from "./sidebar-file-tree-service.js";
@@ -31,13 +32,14 @@ export function createSidebarFixtureData(
     { taskId: "independent", title: "独立讨论", workspacePath: "/fixture/conversations" },
   ].map((task) => ({
     workspacePath: origin,
-    provider: "lcode",
-    mode: "agent",
+    provider: "glm",
+    mode: "edit",
     status: "completed",
     createdAt: now - 86400000,
     updatedAt: now,
+    traceId: `fixture-${task.taskId}`,
     ...task,
-  })) as LCodeTaskMeta[];
+  })) as SidebarFixtureTask[];
   const bindings: WorktreeBinding[] = [
     {
       ...template,

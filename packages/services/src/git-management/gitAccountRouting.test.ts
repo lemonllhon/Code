@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { createGitManagementService } from "./gitManagementService.js";
 import { createGitCommandProvider } from "../git/providers/gitCommandProvider.js";
 import { buildRemoteWorkspaceIdentity, replaceRemoteWorkspaceIdentityPath } from "@lcode/shared";
+import { createHostGitAccountOperator } from "./gitAccountHost.js";
 
 async function fixture() {
   const home = await mkdtemp(join(tmpdir(), "lcode-account-routing-")),
@@ -43,6 +44,215 @@ async function fixture() {
   });
   return { home, repo, values, owner, git };
 }
+
+test("Same-target fetch/push share a single username hint, binding and automatic tombstone", async () => {
+  const f = await fixture(),
+    scope = { workspacePath: f.repo };
+  const fetch = "https://github.com/fixture/original.git",
+    push = "https://bob@github.com/fixture/original.git";
+  await f.git(f.repo, ["remote", "set-url", "--push", "origin", push]);
+  assert.equal(
+    (await f.owner.resolveRepositoryAuthentication(scope, fetch)).account?.username,
+    "bob",
+  );
+  let view = await f.owner.getRepositoryAuthentication!(scope);
+  assert.equal(
+    (await f.owner.readRepositoryContext(scope)).remotes.find((r) => r.url === fetch)!
+      .authentication.account?.username,
+    "bob",
+  );
+  view = await f.owner.bindRepositoryAuthentication({
+    ...scope,
+    url: push,
+    selection: view.choices.find((c) => c.username === "bob")!.key,
+    expectedRevision: view.revision,
+  });
+  assert.ok(view.remotes.find((r) => r.name === "origin")!.urls.every((u) => u.selection));
+  assert.equal(
+    (await f.owner.resolveRepositoryAuthentication(scope, fetch)).account?.username,
+    "bob",
+  );
+  await f.owner.bindRepositoryAuthentication({
+    ...scope,
+    url: fetch,
+    selection: null,
+    expectedRevision: view.revision,
+  });
+  view = await f.owner.getRepositoryAuthentication!(scope);
+  assert.ok(view.remotes.find((r) => r.name === "origin")!.urls.every((u) => u.selection === null));
+  assert.equal(
+    (await f.owner.resolveRepositoryAuthentication(scope, push)).account?.username,
+    "bob",
+  );
+});
+
+test("A remembered username is bound through the original Host CAS and reused by every matching URL", async () => {
+  const f = await fixture(),
+    scope = { workspacePath: f.repo, workspaceKey: f.repo };
+  const url = "https://github.com/fixture/original.git";
+  const operate = createHostGitAccountOperator(f.owner, async () => [f.repo]);
+  const inspect = await operate(
+    scope,
+    { workspace: scope, sessionId: "fixture", operation: { action: "inspect", cwd: f.repo, url } },
+    () => true,
+  );
+  assert.equal(inspect.status, "ok");
+  if (inspect.status !== "ok") return;
+  assert.deepEqual(
+    inspect.choices.map((c) => c.username),
+    ["alice", "bob"],
+  );
+  const request = {
+    workspace: scope,
+    sessionId: "fixture",
+    operation: {
+      action: "bind" as const,
+      cwd: f.repo,
+      url,
+      username: "bob",
+      expectedRevision: inspect.revision,
+    },
+  };
+  const result = await operate(scope, request, () => true);
+  assert.equal(result.status, "ok");
+  assert.equal(
+    (await f.owner.resolveRepositoryAuthentication(scope, url)).account?.username,
+    "bob",
+  );
+  assert.equal(
+    (await operate(scope, request, () => true)).status,
+    "error",
+    "Old inspection cannot replace a newer profile",
+  );
+  assert.equal(
+    (
+      await operate(
+        scope,
+        { ...request, operation: { ...request.operation, cwd: f.home } },
+        () => true,
+      )
+    ).status,
+    "error",
+  );
+  await f.git(f.repo, [
+    "remote",
+    "set-url",
+    "--push",
+    "origin",
+    "https://bob@github.com/fixture/original.git",
+  ]);
+  const noUsernameSnapshot = await operate(
+    scope,
+    { workspace: scope, sessionId: "fixture", operation: { action: "inspect", cwd: f.repo, url } },
+    () => true,
+  );
+  assert.equal(noUsernameSnapshot.status, "ok");
+});
+
+test("Different explicit account hints remain isolated and late clients cannot commit account changes", async () => {
+  const f = await fixture(),
+    scope = { workspacePath: f.repo };
+  const fetch = "https://alice@github.com/fixture/original.git",
+    push = "https://bob@github.com/fixture/original.git";
+  await f.git(f.repo, ["remote", "set-url", "origin", fetch]);
+  await f.git(f.repo, ["remote", "set-url", "--push", "origin", push]);
+  let view = await f.owner.getRepositoryAuthentication!(scope);
+  const request = {
+    ...scope,
+    url: fetch,
+    selection: view.choices.find((c) => c.username === "alice")!.key,
+    expectedRevision: view.revision,
+  };
+  await assert.rejects(
+    f.owner.bindRepositoryAuthentication(request, () => false),
+    /scope-unavailable/,
+  );
+  assert.equal((await f.owner.getSnapshot()).accounts.length, 0);
+  await f.owner.bindRepositoryAuthentication(request);
+  assert.equal(
+    (await f.owner.resolveRepositoryAuthentication(scope, fetch)).account?.username,
+    "alice",
+  );
+  assert.equal(
+    (await f.owner.resolveRepositoryAuthentication(scope, push)).account?.username,
+    "bob",
+  );
+});
+
+test("A changed Push username cannot silently leave Fetch using the previous shared account", async () => {
+  const f = await fixture(),
+    scope = { workspacePath: f.repo },
+    url = "https://github.com/fixture/original.git";
+  const view = await f.owner.getRepositoryAuthentication(scope);
+  await f.owner.bindRepositoryAuthentication({
+    ...scope,
+    url,
+    selection: view.choices.find((c) => c.username === "alice")!.key,
+    expectedRevision: view.revision,
+  });
+  await f.git(f.repo, [
+    "remote",
+    "set-url",
+    "--push",
+    "origin",
+    "https://bob@github.com/fixture/original.git",
+  ]);
+  await assert.rejects(f.owner.resolveRepositoryAuthentication(scope, url), /binding-stale/);
+  const stale = await f.owner.getRepositoryAuthentication(scope);
+  assert.ok(stale.remotes.find((r) => r.name === "origin")!.urls.every((u) => u.stale));
+  await f.owner.bindRepositoryAuthentication({
+    ...scope,
+    url,
+    selection: stale.choices.find((c) => c.username === "bob")!.key,
+    expectedRevision: stale.revision,
+  });
+  assert.equal(
+    (await f.owner.resolveRepositoryAuthentication(scope, url)).account?.username,
+    "bob",
+  );
+});
+
+test("Conflicting old username URL bindings refuse to silently choose the first account", async () => {
+  const f = await fixture(),
+    scope = { workspacePath: f.repo };
+  let view = await f.owner.getRepositoryAuthentication!(scope);
+  await f.owner.bindRepositoryAuthentication({
+    ...scope,
+    url: "https://github.com/fixture/original.git",
+    selection: view.choices[0]!.key,
+    expectedRevision: view.revision,
+  });
+  const key = "git-management:v1",
+    profile = JSON.parse(f.values.get(key)!);
+  profile.bindings.push({
+    ...profile.bindings[0],
+    url: "https://alice@github.com/fixture/original.git",
+    id: null,
+    revision: null,
+  });
+  f.values.set(key, JSON.stringify(profile));
+  await assert.rejects(
+    f.owner.resolveRepositoryAuthentication(scope, "https://github.com/fixture/original.git"),
+    /binding-conflict/,
+  );
+  const conflicted = await f.owner.getRepositoryAuthentication(scope);
+  assert.equal(conflicted.remotes.find((r) => r.name === "origin")!.urls[0]!.stale, true);
+  await f.owner.bindRepositoryAuthentication({
+    ...scope,
+    url: "https://github.com/fixture/original.git",
+    selection: conflicted.choices.find((c) => c.username === "bob")!.key,
+    expectedRevision: conflicted.revision,
+  });
+  assert.equal(
+    (
+      await f.owner.resolveRepositoryAuthentication(
+        scope,
+        "https://github.com/fixture/original.git",
+      )
+    ).account?.username,
+    "bob",
+  );
+});
 test("Detected accounts can be selected and atomically bound without a separate import", async () => {
   const f = await fixture(),
     request = { workspacePath: f.repo };

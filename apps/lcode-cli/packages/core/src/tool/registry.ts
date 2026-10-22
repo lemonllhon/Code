@@ -1,3 +1,4 @@
+import { PROJECT_NATIVE_TOOLS } from "./project-routing.js";
 // ============================================================
 // Tool Registry - Tool registration and lookup
 // ============================================================
@@ -110,7 +111,9 @@ export class ToolRegistryImpl implements ToolRegistry {
         capability: entry.capability,
         executionMode: entry.executionMode,
         providerNative: entry.providerNative,
-        inputSchema: entry.inputSchema,
+        inputSchema: PROJECT_NATIVE_TOOLS.has(entry.metadata.name)
+          ? withProjectMemberSelector(entry.inputSchema)
+          : entry.inputSchema,
         outputSchema: entry.outputSchema,
         ...(entry.strict === undefined ? {} : { strict: entry.strict }),
         readOnly: entry.metadata.readOnly,
@@ -144,4 +147,25 @@ function toolDescriptionForProvider(metadata: ToolMetadata): string | undefined 
 
 export function createToolRegistry(): ToolRegistry {
   return new ToolRegistryImpl();
+}
+
+export function withProjectMemberSelector(
+  schema: import("@lcode/contracts").JsonSchema,
+): import("@lcode/contracts").JsonSchema {
+  const result = { ...schema } as Record<string, unknown>;
+  for (const union of ["anyOf", "oneOf"])
+    if (Array.isArray(result[union]))
+      result[union] = (result[union] as import("@lcode/contracts").JsonSchema[]).map(
+        withProjectMemberSelector,
+      );
+  if (result.type === "object" || result.properties)
+    result.properties = {
+      ...((result.properties as object) ?? {}),
+      projectMemberId: {
+        type: "string",
+        description:
+          "Target folder memberId from the frozen project scope. Omit to use the primary folder; required for ambiguous paths across devices.",
+      },
+    };
+  return result as import("@lcode/contracts").JsonSchema;
 }

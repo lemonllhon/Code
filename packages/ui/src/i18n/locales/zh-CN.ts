@@ -1,7 +1,9 @@
 /** 中文翻译 */
 import { backupZhCN } from "./backup.js";
+import { remoteDevicesZhCN } from "./remoteDevices.js";
 const zhCN: Record<string, string> = {
   ...backupZhCN,
+  ...remoteDevicesZhCN,
   "git.workspace.error.ssh-key-unavailable": "SSH 私钥路径不存在或不可用，请在 Git 管理中检查。",
   "settings.gitManagement.title": "Git 管理",
   "settings.gitManagement.configuration": "Git 配置",
@@ -2441,8 +2443,9 @@ const zhCN: Record<string, string> = {
   "ssh.auth.password": "密码",
   "ssh.auth.privateKey": "私钥",
   "ssh.assetInstallMode": "资源下载方式",
-  "ssh.assetInstallMode.local-download-upload": "本地下载后上传",
-  "ssh.assetInstallMode.remote-download": "远端服务器下载",
+  "ssh.assetInstallMode.local-download-upload": "本地上传",
+  "ssh.assetInstallMode.remote-download": "远端下载",
+  "ssh.assetInstallMode.localUploadDescription": "在本地下载资源后，上传到远端服务器。",
   "ssh.assetInstallModeDescription":
     "远端服务器下载可减少上传等待，但服务器需要能访问 LCode CDN，并具备下载、解压和校验工具。",
   "ssh.password": "密码",
@@ -2469,15 +2472,10 @@ const zhCN: Record<string, string> = {
   "common.back": "上一步",
   "common.next": "下一步",
   "remote.trigger": "远程连接",
-  "remote.wizard": "远程连接",
   "remoteConnection.feedback": "去反馈",
-  "remote.step.kind": "选择方式",
-  "remote.step.settings": "填写配置",
-  "remote.step.connecting": "连接中",
-  "remote.step.directory": "选择目录",
   "remote.kindStepTitle": "选择连接方式",
   "remote.kindStepDescription": "选择进入当前工作区的连接方式，然后继续填写对应的连接配置。",
-  "remote.settingsStepTitle": "填写连接配置",
+  "remote.settingsStepTitle": "新建连接",
   "remote.settingsStepDescription": "填写建立 {method} 连接所需的信息，我们会据此准备远程会话。",
   "remote.history.empty": "没有匹配的历史连接",
   "remote.connectingStepTitle": "正在建立连接",
@@ -2485,8 +2483,6 @@ const zhCN: Record<string, string> = {
   "remote.title": "连接远程环境",
   "remote.description":
     "通过 SSH、Server、WSL 或 Docker 连接远程工作区，并在当前窗口中继续选择目录。",
-  "remote.step.connect": "连接环境",
-  "remote.step.selectDirectory": "选择目录",
   "remote.selectDirectoryTitle": "选择远程目录",
   "remote.selectDirectoryDescription": "远程连接就绪后，选择要在当前窗口中打开的目录。",
   "remote.backToConnection": "返回连接配置",
@@ -8163,7 +8159,7 @@ const zhCN: Record<string, string> = {
   "worktree.projectSettings": "项目提交审核设置",
   "worktree.projectSettingsDescription":
     "这里可设置任务完成后的提交审核。执行方式在输入框上方选择，项目会记住该选择，已有会话保持原执行位置。",
-  "worktree.mode.local": "本地目录",
+  "worktree.mode.local": "源目录",
   "worktree.mode.worktree": "独立工作树",
   "worktree.mode.inherit": "继承全局",
   "worktree.mode.enabled": "开启",
@@ -8221,7 +8217,7 @@ const zhCN: Record<string, string> = {
   "worktree.preparation.truncated": "日志较长，仅显示最近的内容。",
   "worktree.preparation.waiting": "等待 Host 返回准备详情…",
   "worktree.preparation.cancelling": "已请求取消，等待当前步骤收尾；不会执行本次输入。",
-  "worktree.preparation.local": "改用本地目录",
+  "worktree.preparation.local": "改用源目录",
   "worktree.preparation.cancel": "取消",
   "worktree.preparation.retry": "重试准备",
   "worktree.preparation.automaticValidation":

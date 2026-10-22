@@ -1,3 +1,10 @@
+import { useRemoteProjectDevices } from "@/hooks/useRemoteProjectDevices.js";
+import { RemoteProjectFolderPicker } from "@/WorkspaceSidebar/RemoteProjectFolderPicker.js";
+import {
+  projectMemberKey,
+  projectMemberWorkspaceIdentity,
+  projectOriginFolderPaths,
+} from "@lcode/shared";
 import { useRef, useState } from "react";
 import {
   LOCAL_PROJECT_NAME_MAX_LENGTH,
@@ -7,7 +14,7 @@ import {
   TID_CREATE_PROJECT_DIALOG,
   TID_CREATE_PROJECT_NAME,
   TID_CREATE_PROJECT_SUBMIT,
-  isSameLocalProjectPath,
+  reorderProjectMembers,
   type LocalProjectCreateRequest,
   type ProjectMember,
 } from "@lcode/shared";
@@ -52,6 +59,8 @@ export function ChatEmptyCreateProjectDialog({
   const [selecting, setSelecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [gitWizard, setGitWizard] = useState(false);
+  const [remotePicker, setRemotePicker] = useState(false);
+  const remoteDevices = useRemoteProjectDevices();
   const [projectId, setProjectId] = useState(createUuid);
   const generation = useRef(0);
   const sourceFolderPaths = members.map((member) => member.path);
@@ -64,6 +73,7 @@ export function ChatEmptyCreateProjectDialog({
     setSelecting(false);
     setError(null);
     setGitWizard(false);
+    setRemotePicker(false);
     setProjectId(createUuid());
   };
   const handleOpenChange = (nextOpen: boolean) => {
@@ -75,25 +85,47 @@ export function ChatEmptyCreateProjectDialog({
     if (!nextOpen) reset();
     onOpenChange(nextOpen);
   };
+  const addMembers = (added: ProjectMember[]) => {
+    setMembers((current) => {
+      const combined = [...current];
+      for (const member of added) {
+        if (combined.some((item) => projectMemberKey(item) === projectMemberKey(member))) continue;
+        if (combined.length >= LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT) {
+          setError(text("limit"));
+          break;
+        }
+        combined.push(member);
+      }
+      return combined;
+    });
+    if (!nameTouched && !name.trim() && added.length) setName(getPathLeaf(added[0]!.path));
+  };
   const mergeFolders = (paths: string[]) => {
-    const merged = mergeLocalProjectFolderPaths(sourceFolderPaths, paths);
-    setMembers(
-      merged.paths.map(
-        (path) =>
-          members.find((member) => isSameLocalProjectPath(member.path, path)) ?? {
-            id: crypto.randomUUID(),
-            path,
-            role: "",
-            label: "",
-            description: "",
-            enabled: true,
-          },
-      ),
+    const merged = mergeLocalProjectFolderPaths([], paths);
+    addMembers(
+      merged.paths.map((path) => ({
+        id: crypto.randomUUID(),
+        path,
+        source: { kind: "local" },
+        role: "",
+        label: "",
+        description: "",
+        enabled: true,
+      })),
     );
-    if (!nameTouched && !name.trim() && merged.addedPaths.length)
-      setName(getPathLeaf(merged.addedPaths[0]!));
     if (merged.discardedForLimitCount) setError(text("limit"));
-    return merged.discardedForLimitCount === 0;
+    return (
+      !merged.discardedForLimitCount &&
+      members.length +
+        merged.addedPaths.filter(
+          (path) =>
+            !members.some(
+              (member) =>
+                projectMemberKey(member) === projectMemberKey({ path, source: { kind: "local" } }),
+            ),
+        ).length <=
+        LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT
+    );
   };
   const drop = useProjectFolderDrop({
     enabled: open && !gitWizard,
@@ -127,7 +159,16 @@ export function ChatEmptyCreateProjectDialog({
     setSubmitting(true);
     setError(null);
     try {
-      await onCreate({ projectId, name, sourceFolderPaths, members });
+      const primary = members[0]!;
+      const workspaceIdentity = projectMemberWorkspaceIdentity(primary);
+      await onCreate({
+        projectId,
+        name,
+        sourceFolderPaths: projectOriginFolderPaths(members, primary.path, workspaceIdentity),
+        members,
+        workspaceIdentity,
+        primaryMemberId: primary.id,
+      });
       reset();
       onOpenChange(false);
     } catch (failure) {
@@ -136,15 +177,28 @@ export function ChatEmptyCreateProjectDialog({
     }
   };
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      {gitWizard ? (
+    <Dialog open={open && !remoteDevices?.suspended} onOpenChange={handleOpenChange}>
+      {remotePicker ? (
+        <RemoteProjectFolderPicker
+          onCancel={() => setRemotePicker(false)}
+          onAdd={(member) => {
+            addMembers([member]);
+            setRemotePicker(false);
+          }}
+        />
+      ) : gitWizard ? (
         <GitRepositoryWizard
           useBaseHost
-          initialDirectory={sourceFolderPaths[0]}
+          initialDirectory={
+            members.find((member) => !member.source || member.source.kind === "local")?.path
+          }
           onClose={() => setGitWizard(false)}
           canAddPath={(path) =>
             sourceFolderPaths.length < LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT ||
-            sourceFolderPaths.some((existing) => isSameLocalProjectPath(existing, path))
+            members.some(
+              (member) =>
+                projectMemberKey(member) === projectMemberKey({ path, source: { kind: "local" } }),
+            )
           }
           onImported={async (path) => mergeFolders([path])}
         />
@@ -184,12 +238,14 @@ export function ChatEmptyCreateProjectDialog({
             <ProjectSourceFolders
               members={members}
               primaryPath={sourceFolderPaths[0]}
+              primaryMemberId={members[0]?.id}
               primaryLocked={false}
               disabled={busy}
               checking={selecting || drop.checking}
               dragging={drop.dragging}
               canDrop={drop.canDrop}
               addTestId={TID_CREATE_PROJECT_ADD_FOLDER}
+              onRemoteFolder={() => setRemotePicker(true)}
               onAdd={() => void handleAddFolders()}
               onGitRepository={() => setGitWizard(true)}
               onSetPrimary={(id) =>
@@ -197,6 +253,11 @@ export function ChatEmptyCreateProjectDialog({
                   ...current.filter((member) => member.id === id),
                   ...current.filter((member) => member.id !== id),
                 ])
+              }
+              onReorder={(activeId, overId) =>
+                setMembers((current) =>
+                  reorderProjectMembers(current, current[0]?.id, activeId, overId),
+                )
               }
               onChange={(next) =>
                 setMembers((current) =>

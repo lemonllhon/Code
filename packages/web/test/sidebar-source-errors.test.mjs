@@ -53,6 +53,21 @@ test(
       await row.waitFor({ state: "hidden" });
       await page.getByRole("button", { name: "另一台远程项目", exact: true }).waitFor();
       await page.getByRole("button", { name: "网站项目", exact: true }).waitFor();
+      assert.deepEqual(
+        await page.evaluate(() =>
+          globalThis.__sidebarOrganization.settings().projectDefinitions.projects.map((p) => p.id),
+        ),
+        ["project", "saved-1"],
+      );
+      assert.equal(
+        await page.evaluate(
+          () =>
+            globalThis.__sidebarOrganization.calls.filter(
+              (call) => call.method === "project" && call.params.type === "remove",
+            ).length,
+        ),
+        1,
+      );
       assert.equal(
         await page.evaluate(
           () =>

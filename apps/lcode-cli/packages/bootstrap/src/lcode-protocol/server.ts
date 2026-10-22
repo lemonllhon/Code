@@ -1,3 +1,6 @@
+import { gitCredentialResultSchema, lcodeProtocolMethods } from "@lcode/shared";
+import { ProjectNativeServer } from "./project-native-server.js";
+import { PROJECT_NATIVE_METHOD } from "@lcode/shared";
 import {
   requestClient,
   resolveClientRequest,
@@ -266,8 +269,11 @@ export class LCodeProtocolAgentServer {
       phase: "quiescing",
       sessionCount: this.context.sessions.size,
     });
-    this.shutdownPromise = this.runtimeResources
-      .close(closeContext)
+    this.shutdownPromise = Promise.all([
+      this.runtimeResources.close(closeContext),
+      this.projectNativeServer.close(),
+    ])
+      .then(() => undefined)
       .catch((error) => {
         this.shutdownPromise = undefined;
         throw error;
@@ -379,7 +385,17 @@ export class LCodeProtocolAgentServer {
     }
   }
 
+  private readonly projectNativeServer = new ProjectNativeServer((workspace, sessionId, request) =>
+    this.context.requestClient(
+      lcodeProtocolMethods.gitCredential,
+      { workspace, sessionId, ...request },
+      gitCredentialResultSchema,
+    ),
+  );
+
   private dispatchRequest(request: LCodeProtocolRequest) {
+    if (request.method === PROJECT_NATIVE_METHOD)
+      return this.projectNativeServer.call(request.params);
     return dispatchRequest(
       {
         context: this.context,

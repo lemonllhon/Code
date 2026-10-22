@@ -55,6 +55,12 @@ const storeSchema = z
   .strict();
 type Store = z.infer<typeof storeSchema>;
 export type GitManagementOwner = IGitManagementService & {
+  getRepositoryAuthentication: ReturnType<
+    typeof createGitAccountRouting
+  >["getRepositoryAuthentication"];
+  bindRepositoryAuthentication: ReturnType<
+    typeof createGitAccountRouting
+  >["bindRepositoryAuthentication"];
   dispose(): void;
   authentication(
     url: string,

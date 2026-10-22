@@ -27,7 +27,11 @@ export function projectGitRepositoryContext(
         // 无效网络 URL 不能被当成本地路径回显，避免异常配置把凭据带入模型。
         if (url.includes("://")) throw new Error("git-context-unavailable");
       }
-      const matches = snapshot.choices.filter((c) => gitAccountMatches(c, target.url));
+      const matches = snapshot.choices.filter(
+        (c) =>
+          gitAccountMatches(c, target.url) &&
+          (!target.usernameHint || c.username === target.usernameHint),
+      );
       const selected = target.selection
         ? matches.find((c) => c.key === target.selection)
         : matches.length === 1

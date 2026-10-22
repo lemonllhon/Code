@@ -1,6 +1,7 @@
 import {
   projectMutationRequestSchema,
   projectDefinitionKey,
+  buildRemoteWorkspaceIdentity,
   type AppSettings,
   type ProjectDefinition,
   type ProjectMutationRequest,
@@ -15,7 +16,8 @@ export function createSidebarProjectCommands(
   return async (input: ProjectMutationRequest): Promise<ProjectMutationResult> => {
     const request = projectMutationRequestSchema.parse(input);
     calls.push({ method: "project", params: request });
-    const projects = settings.projectDefinitions?.projects ?? settings.localProjects ?? [];
+    const projects: ProjectDefinition[] =
+      settings.projectDefinitions?.projects ?? settings.localProjects ?? [];
     const existing = projects.find((project) => project.id === request.projectId);
     const receipt = settings.projectMutationReceipts?.find(
       (item) => item.operationId === request.operationId,
@@ -58,7 +60,19 @@ export function createSidebarProjectCommands(
     const next = projects.filter((item) => item.id !== request.projectId);
     if (project) next.unshift(project);
     settings.projectDefinitions = { version: 1, projects: next };
-    settings.localProjects = next.filter((item) => !item.workspaceIdentity);
+    settings.localProjects = next.filter(
+      (item) => !("workspaceIdentity" in item && item.workspaceIdentity),
+    );
+    // 与 SettingService 同一提交边界：远端定义移除同步清理恢复历史，窗口无需再次保存。
+    if (request.type === "remove" && existing?.workspaceIdentity?.trim()) {
+      settings.lastWorkspaceSession = settings.lastWorkspaceSession?.filter(
+        (entry) =>
+          entry.kind !== "remote" ||
+          (entry.workspaceIdentity?.trim() ||
+            buildRemoteWorkspaceIdentity(entry.workspacePath, entry.target)) !==
+            existing.workspaceIdentity?.trim(),
+      );
+    }
     const result = { status: "applied" as const, project };
     settings.projectMutationReceipts = [
       ...(settings.projectMutationReceipts ?? []),

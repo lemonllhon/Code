@@ -76,6 +76,7 @@ interface ConnectionEntry<TServices, TCapabilities> {
   idleTimer?: ReturnType<typeof setTimeout>;
   idleReason: string;
   workspaceKeys: Set<string>;
+  nativeOperationCount?: number;
   runningTaskCountByWorkspaceKey: Map<string, number>;
   workspaceRuntimeByKey: Map<string, WorkspaceRuntimeState>;
 }
@@ -180,7 +181,10 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
   }
 
   function hasRunningTasks(entry: ConnectionEntry<TServices, TCapabilities>): boolean {
-    return Array.from(entry.runningTaskCountByWorkspaceKey.values()).some((count) => count > 0);
+    return (
+      (entry.nativeOperationCount ?? 0) > 0 ||
+      Array.from(entry.runningTaskCountByWorkspaceKey.values()).some((count) => count > 0)
+    );
   }
 
   function sessionOwnsWorkspace(
@@ -725,6 +729,33 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
     getSession(remoteSessionId: string): WindowRemoteLogicalSessionSnapshot | null {
       const session = sessionsById.get(remoteSessionId);
       return session ? toSessionSnapshot(session) : null;
+    },
+    retainNativeOperation(remoteSessionId: string, generation: number): () => void {
+      const session = sessionsById.get(remoteSessionId);
+      if (!session || session.generation !== generation || session.state !== "online")
+        throw new Error("Project target connection changed");
+      const entry = session.entry;
+      entry.nativeOperationCount = (entry.nativeOperationCount ?? 0) + 1;
+      clearIdleTimer(entry);
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        entry.nativeOperationCount = Math.max(0, (entry.nativeOperationCount ?? 1) - 1);
+        scheduleWslIdleDispose(entry, "native-operation-finished");
+      };
+    },
+    resolveDeviceServices(remoteSessionId: string, generation: number): TServices {
+      const session = sessionsById.get(remoteSessionId);
+      if (
+        !session ||
+        session.generation !== generation ||
+        session.state !== "online" ||
+        session.sourceAvailability !== "online" ||
+        !session.entry.handle
+      )
+        throw new Error("Project target device connection changed or disconnected");
+      return session.entry.handle.services;
     },
     listSessions(): WindowRemoteLogicalSessionSnapshot[] {
       return Array.from(sessionsById.values(), toSessionSnapshot);

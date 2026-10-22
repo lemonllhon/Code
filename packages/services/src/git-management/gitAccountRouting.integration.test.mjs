@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { createGitManagementService } from "./gitManagementService.js";
 import { createManagedGitCommand } from "./managedGitCommand.js";
 import { createHostGitCredentialResolver } from "./gitCredentialHost.js";
+import { createHostGitAccountOperator } from "./gitAccountHost.js";
+import { createGitToolEntry } from "../../../../apps/lcode-cli/packages/core/src/tool/handlers/git.js";
 import { createGitHttpFixture } from "./gitHttpFixture.js";
 import { createGitCommandProvider } from "../git/providers/gitCommandProvider.js";
 import { createGitCredentialExecutionPort } from "../../../../apps/lcode-cli/packages/bootstrap/src/app/git-credential-execution.js";
@@ -65,13 +67,34 @@ test("UI and Agent reuse URL-bound credentials for real fetch and branch/Tag pus
   await git(repo, ["init", "--template=", "--initial-branch=main"]);
   await git(repo, ["remote", "add", "origin", server.url + "/remote.git"]);
   const scope = { workspacePath: repo };
+  const pushUrl = new URL(server.url + "/remote.git");
+  pushUrl.username = "bob";
+  await git(repo, ["remote", "set-url", "--push", "origin", pushUrl.href]);
+  assert.equal(
+    (await owner.resolveRepositoryAuthentication(scope, server.url + "/remote.git")).account
+      .username,
+    "bob",
+  );
   let view = await owner.getRepositoryAuthentication(scope);
-  await owner.bindRepositoryAuthentication({
-    ...scope,
-    url: server.url + "/remote.git",
-    selection: view.choices.find((c) => c.username === "bob").key,
-    expectedRevision: view.revision,
-  });
+  const operate = createHostGitAccountOperator(owner, async () => [repo]);
+  const workspace = { ...scope, workspaceKey: repo };
+  const bind = await operate(
+    workspace,
+    {
+      workspace,
+      sessionId: "fixture-session",
+      operation: {
+        action: "bind",
+        cwd: repo,
+        url: server.url + "/remote.git",
+        username: "bob",
+        auth: "token",
+        expectedRevision: view.revision,
+      },
+    },
+    () => true,
+  );
+  assert.equal(bind.status, "ok");
   await writeFile(join(repo, "README.md"), "fixture\n");
   await git(repo, ["add", "README.md"]);
   await git(repo, [
@@ -99,13 +122,35 @@ test("UI and Agent reuse URL-bound credentials for real fetch and branch/Tag pus
       ),
   );
   t.after(() => port.close?.());
+  const gitTool = createGitToolEntry();
+  const toolContext = {
+    workingDirectory: repo,
+    workspaceRoot: repo,
+    abortSignal: t.signal,
+    executionPort: port,
+  };
+  for (const action of ["fetch", "ls-remote"]) {
+    const output = await gitTool.handler({ action, remote: "origin" }, toolContext);
+    assert.equal(output.exitCode, 0, JSON.stringify(output));
+    assert.ok(!JSON.stringify(output).includes("fixture-bob-secret"));
+  }
+  const failedFetch = await gitTool.handler(
+    { action: "fetch", refs: ["refs/heads/missing-fixture"] },
+    toolContext,
+  );
+  assert.equal(failedFetch.exitCode, 128);
+  assert.match(failedFetch.stderr, /couldn't find remote ref/);
+  assert.match(String(gitTool.formatModelContent(failedFetch)), /Exit code 128/);
   for (const args of [
     ["fetch", "origin"],
     ["push", "origin", "HEAD:refs/heads/agent"],
     ["tag", "v-fixture"],
     ["push", "origin", "refs/tags/v-fixture"],
   ]) {
-    const execution = await port.run({ cwd: repo, command: { mode: "argv", file: binary, args } });
+    const execution =
+      args[0] === "push"
+        ? await gitTool.handler({ action: "push", refs: args.slice(2) }, toolContext)
+        : await port.run({ cwd: repo, command: { mode: "argv", file: binary, args } });
     assert.equal(execution.exitCode, 0, JSON.stringify(execution));
     assert.ok(!JSON.stringify(execution).includes("fixture-bob-secret"));
   }
@@ -131,9 +176,10 @@ test("UI and Agent reuse URL-bound credentials for real fetch and branch/Tag pus
   assert.ok(
     server.requests
       .filter((r) => r.authorization)
-      .every(
-        (r) =>
-          r.authorization === "Basic " + Buffer.from("bob:fixture-bob-secret").toString("base64"),
+      .every((r) =>
+        ["bob:fixture-bob-secret", "bob:"].some(
+          (value) => r.authorization === "Basic " + Buffer.from(value).toString("base64"),
+        ),
       ),
   );
   view = await owner.getRepositoryAuthentication(scope);

@@ -17,6 +17,17 @@ export function createObservableSettingService(base: ISettingService): Observabl
   const listeners = new Set<(event: SettingServiceUpdatedEvent) => void>();
   return {
     ...base,
+    ...(base.mutateRemoteDevice
+      ? {
+          async mutateRemoteDevice(request: import("@lcode/shared").RemoteDeviceMutationRequest) {
+            const result = await base.mutateRemoteDevice!(request);
+            if (result.status === "applied")
+              for (const listener of listeners)
+                listener(Object.freeze({ keys: Object.freeze(["remoteDevices"] as const) }));
+            return result;
+          },
+        }
+      : {}),
     onDidUpdate(listener): () => void {
       listeners.add(listener);
       return () => listeners.delete(listener);

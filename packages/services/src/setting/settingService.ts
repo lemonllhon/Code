@@ -22,7 +22,9 @@ import { maybeThrowInjectedFsFault } from "../fs/fsFaultInjection.js";
 import { atomicWriteText } from "../fs/atomicFileUtils.js";
 import { withSettingsWriteQueueTimeout } from "./settingsWriteQueue.js";
 import { applyProjectMutation } from "./projectMutations.js";
+import { applyRemoteDeviceMutation, migrateRemoteDeviceSettings } from "./remoteDeviceMutations.js";
 import { readProjectSettings } from "./projectSettingsRead.js";
+import { assertRegistryPatch } from "./settingRegistryPatch.js";
 import {
   migrateLegacyAccountConnectionSettings,
   needsLegacyAccountConnectionMigration,
@@ -159,9 +161,10 @@ async function readSettingsWithMeta(): Promise<ReadSettingsResult> {
       };
     }
     debugLog("read result:", JSON.stringify(result.data));
+    const settings = migrateRemoteDeviceSettings(result.data);
     return {
-      settings: result.data,
-      needsMigrationPersist: shouldPersistSettingsMigrations(rawValue),
+      settings,
+      needsMigrationPersist: settings !== result.data || shouldPersistSettingsMigrations(rawValue),
     };
   } catch (err) {
     if (
@@ -277,26 +280,34 @@ export function createSettingServiceWithMigrations(): {
     await queued;
   };
 
+  // 两类注册表共用原文件锁与提交顺序，不能为设备另建设置写入者。
+  async function mutateRegistry<T>(
+    apply: (
+      settings: AppSettings,
+    ) => { next?: AppSettings; result: T } | Promise<{ next?: AppSettings; result: T }>,
+  ): Promise<T> {
+    let result: T | undefined;
+    await enqueueSettingsWrite(async (shouldCommit, enterCommitPhase) => {
+      const current = await readProjectSettings(getSettingsFile());
+      const mutation = await apply(current.settings);
+      if (mutation.next) {
+        await current.backupBeforeMigration();
+        await writeSettings(
+          appSettingsSchema.parse(mutation.next),
+          shouldCommit,
+          runSettingsCommit,
+          enterCommitPhase,
+        );
+      }
+      result = mutation.result;
+    });
+    if (result === undefined) throw new Error("Settings command did not complete");
+    return result;
+  }
   const service: ISettingService = {
-    async mutateProject(request) {
-      let result: Awaited<ReturnType<typeof applyProjectMutation>>["result"] | undefined;
-      await enqueueSettingsWrite(async (shouldCommit, enterCommitPhase) => {
-        const current = await readProjectSettings(getSettingsFile());
-        const mutation = await applyProjectMutation(current.settings, request);
-        if (mutation.next) {
-          await current.backupBeforeMigration();
-          await writeSettings(
-            appSettingsSchema.parse(mutation.next),
-            shouldCommit,
-            runSettingsCommit,
-            enterCommitPhase,
-          );
-        }
-        result = mutation.result;
-      });
-      if (!result) throw new Error("Project command did not complete");
-      return result;
-    },
+    mutateRemoteDevice: (request) =>
+      mutateRegistry((current) => applyRemoteDeviceMutation(current, request)),
+    mutateProject: (request) => mutateRegistry((current) => applyProjectMutation(current, request)),
     async get(): Promise<AppSettings> {
       // 设置切换后可能立即创建或冷恢复 Session；读取若越过已入队写入，
       // runtime 会固定旧开关值。先等待现有写队列，保证启动偏好读取到已提交的选择。
@@ -324,13 +335,7 @@ export function createSettingServiceWithMigrations(): {
       const runUpdate = async (shouldCommit: () => boolean, enterCommitPhase: () => void) => {
         const validatedPatch = appSettingsPatchSchema.parse(normalizeSettingsPatch(patch));
         const current = await readSettings();
-        // 中文依据：迁移后的兼容数组只能由项目命令生成，阻止旧窗口整数组覆盖新成员及其它项目。
-        if (
-          Object.hasOwn(patch, "projectDefinitions") ||
-          Object.hasOwn(patch, "projectMutationReceipts") ||
-          (current.projectDefinitions && Object.hasOwn(patch, "localProjects"))
-        )
-          throw new Error("Use the project command to update project definitions");
+        assertRegistryPatch(current, patch);
         if (expectedAccountSettings) {
           // 账号查询期间用户可能已手动切换。必须在同一写队列内校验，不能靠调用方先读再写。
           const expected = appSettingsPatchSchema.parse(expectedAccountSettings);

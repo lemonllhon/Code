@@ -78,7 +78,7 @@ test(
           await choose("reasoning", width === 390 ? "Low" : "低");
           await choose("speed", width === 390 ? "Standard" : "标准");
           await choose("approval", width === 390 ? "Ask before changes" : "变更前确认");
-          await choose("execution", width === 390 ? "Local directory" : "本地目录");
+          await choose("execution", width === 390 ? "Source folders" : "源目录");
           await choose("review", width === 390 ? "Off" : "关闭");
           const settings = await page.evaluate(() => window.__remoteSessionConfiguration.settings);
           const entry = Object.values(settings.projectExecutionPreferences)[0];

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Folder, X } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, Folder, Pencil, X } from "lucide-react";
 import { PROJECT_MEMBER_PURPOSE_MAX_LENGTH, type ProjectMember } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Checkbox } from "@/components/ui/checkbox.js";
@@ -17,11 +17,14 @@ export function ProjectMemberRow({
   member,
   primary,
   primaryLocked = true,
+  identityAnchor = false,
+  sortHandle,
   first,
   last,
   disabled,
   error,
   remote,
+  deviceLabel,
   ready,
   onChange,
   onRemove,
@@ -31,11 +34,14 @@ export function ProjectMemberRow({
   member: ProjectMember;
   primary: boolean;
   primaryLocked?: boolean;
+  identityAnchor?: boolean;
+  sortHandle?: ReactNode;
   first?: boolean;
   last?: boolean;
   disabled: boolean;
   error?: string;
   remote: boolean;
+  deviceLabel?: string;
   ready: boolean;
   onChange(member: ProjectMember): void;
   onRemove(): void;
@@ -88,6 +94,7 @@ export function ProjectMemberRow({
   return (
     <div className="min-w-0 px-3 py-2" data-project-member={member.path}>
       <div className="flex min-w-0 items-center gap-2">
+        {sortHandle}
         <Folder className="size-4 shrink-0 text-foreground-subtle" />
         <span className="min-w-0 flex-1 truncate text-ui-base font-medium" title={name}>
           {name}
@@ -116,7 +123,7 @@ export function ProjectMemberRow({
             <Button
               variant="ghost"
               size="icon-sm"
-              disabled={disabled || first}
+              disabled={disabled || primary || first}
               aria-label={`${name} · ${sidebar("up")}`}
               onClick={() => onMove(-1)}
             >
@@ -125,7 +132,7 @@ export function ProjectMemberRow({
             <Button
               variant="ghost"
               size="icon-sm"
-              disabled={disabled || last}
+              disabled={disabled || primary || last}
               aria-label={`${name} · ${sidebar("down")}`}
               onClick={() => onMove(1)}
             >
@@ -136,8 +143,14 @@ export function ProjectMemberRow({
         <Button
           variant="ghost"
           size="icon-sm"
-          disabled={disabled || (primary && primaryLocked)}
-          title={primary && primaryLocked ? text("primaryHint") : text("remove")}
+          disabled={disabled || identityAnchor || (primary && primaryLocked)}
+          title={
+            identityAnchor
+              ? text("identityHint")
+              : primary && primaryLocked
+                ? text("primaryHint")
+                : text("remove")
+          }
           aria-label={`${name} · ${text("remove")}`}
           onClick={onRemove}
         >
@@ -152,7 +165,7 @@ export function ProjectMemberRow({
           {member.path}
         </p>
         <span className="shrink-0 text-ui-xs text-foreground-subtlest">
-          {text(remote ? "remote" : "local")}
+          {deviceLabel ?? text(remote ? "remote" : "local")}
           {!ready ? ` · ${text("disconnected")}` : ""}
         </span>
       </div>
@@ -166,12 +179,16 @@ export function ProjectMemberRow({
             className="-ml-2 h-auto min-h-6 min-w-0 flex-1 flex-col items-start gap-1 whitespace-normal px-2 py-1 text-left font-normal"
             disabled={disabled}
             aria-label={`${name} · ${text("purpose")}`}
+            title={text("purposeEditHint")}
             onClick={() => {
               setEditing(true);
               input.current?.focus();
             }}
           >
-            <span className="text-ui-xs text-foreground-subtle">{text("purpose")}</span>
+            <span className="flex items-center gap-1 text-ui-xs text-foreground-subtle">
+              <Pencil className="size-3 shrink-0" aria-hidden="true" />
+              {purpose || editing ? text("purpose") : text("purposeEmpty")}
+            </span>
             {!editing && purpose ? (
               <span className="line-clamp-2 break-words whitespace-pre-wrap text-ui-sm">
                 {purpose}

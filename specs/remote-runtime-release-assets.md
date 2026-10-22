@@ -19,6 +19,7 @@
   归档 SHA 和必需成员。缺失、重复组件、路径越界、摘要错误、缺少必需文件均失败；
   不发布只有安装包或只有 manifest 的半成品版本。
 - 旧版本 CDN 缺失不通过跳过 SHA、复制旧 manifest 或重新请求不同制品绕过。
+- 混合项目需要 server 的 `executeProjectNative`、动态原生请求/响应接口及 Agent 的 `project/native`、`project/routeNative`。同版本资源也按能力检查；缺失触发既有组件部署，安装后的能力检查通过后才写成功 SHA marker。下载源仍提供旧制品时明确报资源不兼容，不把连接标记为可用后才在发送阶段报通用失败。当前源码的配套远程制品须与桌面一起构建发布；不擅自切换用户的资源下载方式。
 
 ## 所有者与接口
 
@@ -93,3 +94,10 @@ Windows 写入失败和源文件截断，已恢复对应源文件及本次改动
 不计文档和工作区其他改动。改动涉及 legacy desktop / server 及非 managed 构建脚本，
 没有新增运行时状态所有者；发布 staging 是资源输出的唯一写入方，事件顺序见上图。
 未构建安装包、未触发 tag Actions、未修改或部署 Worker、未连接真实 SSH 主机。
+
+## 混合项目运行资源验证（2026-10-22）
+
+- 从安装日志确认旧远端资源缺少 `executeProjectNative`，并用同版本/旧能力夹具复现“SHA 与版本匹配却跳过更新”。补齐 server 与 Agent 能力检查，安装完成后检查通过才写成功 marker；不兼容下载源在建连阶段明确失败。
+- `pnpm test:remote-assets` 最终 38/38。新增检查覆盖缺少任一 server 方法、Agent 路由接口、安装前/安装后校验，以及保留远端下载选择时的显式内置资源路径。
+- `pnpm build:remote-release` 实际完成，生成并验证 `3.20.3` 的四平台 manifest 和完整组件集合，32 个平铺资产位于 `packages/desktop/dist/remote-release-assets/`。构建复用原 server、Agent 和插件 producer；没有新增发布或下载源。
+- 上述为源码、隔离安装/下载测试和本地资源构建；没有替换 `D:\LCode` 安装版，没有上传 CDN/Release，也没有更新真实远端设备。实际使用必须让桌面和远端加载本次配套资源，不能继续使用旧版本号下的旧制品。

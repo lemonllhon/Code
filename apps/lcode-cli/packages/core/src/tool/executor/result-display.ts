@@ -104,7 +104,7 @@ export function createToolResultDisplay(
     };
   },
 ): ToolResultDisplayPayload | undefined {
-  if (toolName === "Bash") return createBashResultDisplay(output);
+  if (toolName === "Bash" || toolName === "Git") return createBashResultDisplay(output);
 
   const cuaToolName = readCuaToolName(toolName);
   if (cuaToolName) {

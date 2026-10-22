@@ -16,6 +16,7 @@ const tokens = new Map<string, string>();
 const routingBindings = new Map<string, string>();
 let heldAuthentication: Promise<void> | null = null,
   releaseAuthentication: (() => void) | null = null;
+let usernameHint: string | undefined;
 const routingCalls: unknown[] = [];
 const authorizations = new Map<
   string,
@@ -93,6 +94,9 @@ if (new URLSearchParams(location.search).has("systems")) {
 }
 let systemUnavailable = false;
 export const gitManagementControls = {
+  usernameHint: (value: string) => {
+    usernameHint = value;
+  },
   routingCalls: () => structuredClone(routingCalls),
   holdNextAuthentication: () => {
     heldAuthentication = new Promise<void>((done) => {
@@ -200,6 +204,7 @@ export const gitManagementService: IGitManagementService = {
         return {
           url,
           selection,
+          ...(usernameHint ? { usernameHint } : {}),
           stale: Boolean(selection && !choices.some((c) => c.key === selection)),
         };
       }),

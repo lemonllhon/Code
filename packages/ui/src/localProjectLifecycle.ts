@@ -8,13 +8,21 @@ import {
 
 export interface LocalProjectWorkspaceReference {
   workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  remoteTarget?: unknown;
   localProjectId?: string;
 }
 
 export function isWorkspaceReferenceForLocalProject(
-  project: LocalProject,
+  project: LocalProject & { workspaceIdentity?: string },
   reference: LocalProjectWorkspaceReference,
 ): boolean {
+  // 相同路径可能属于本机或不同远端，项目 ID 不能绕过执行环境匹配。
+  if ((project.workspaceIdentity?.trim() || "") !== (reference.workspaceIdentity?.trim() || ""))
+    return false;
+  if (!project.workspaceIdentity && (reference.remoteSessionId || reference.remoteTarget))
+    return false;
   if (reference.localProjectId?.trim() === project.id) return true;
   return project.sourceFolderPaths.some((path) =>
     isSameLocalProjectPath(path, reference.workspacePath),

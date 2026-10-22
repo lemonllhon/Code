@@ -1,3 +1,5 @@
+import { RemoteProjectDevicesProvider } from "@/hooks/useRemoteProjectDevices.js";
+import { createRemoteTargetFromSnapshot as targetFromDeviceSnapshot } from "@/lib/remoteWorkspaceHistory.js";
 /* eslint-disable max-lines -- Root 当前集中编排启动和 workspace shell wiring，先保持入口收口避免跨层状态拆散。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LucideProvider } from "lucide-react";
@@ -47,6 +49,8 @@ import { OccupationOnboarding } from "@/onboarding/OccupationOnboarding.js";
 import { OnboardingDialog } from "@/onboarding/OnboardingDialog.js";
 import { GitBackupWelcomeDialog } from "@/GitBackupWelcomeDialog.js";
 import { useRemoteWorkspaceHistory } from "@/root/useRemoteWorkspaceHistory.js";
+import { useRemoteDeviceManagement } from "@/hooks/useRemoteDeviceManagement.js";
+import type { RemoteDeviceConnectionIntent } from "@/hooks/useRemoteDeviceProfiles.js";
 import { useWindowWorkspaceReconnect } from "@/hooks/useWindowWorkspaceReconnect.js";
 import { useRemoteWorkspaceTabLifecycle } from "@/root/useRemoteWorkspaceTabLifecycle.js";
 import { useRootProviderStateRefresh } from "@/root/useRootProviderStateRefresh.js";
@@ -95,6 +99,9 @@ const DEFAULT_LUCIDE_STROKE_WIDTH = 1.5;
 interface RemoteConnectionOpenPreference {
   preferredKind?: RemoteTarget["kind"];
   preferredWslDistro?: string;
+  preferredTarget?: RemoteTarget;
+  connectOnOpen?: boolean;
+  deviceIntent?: RemoteDeviceConnectionIntent;
 }
 
 type WelcomeScreenOpenReason =
@@ -241,6 +248,7 @@ function RootInner({
     [services.modelSelectionService],
   );
   const [remoteConnectionDialogOpen, setRemoteConnectionDialogOpen] = useState(false);
+  const [projectReturnTabId, setProjectReturnTabId] = useState<string | null>(null);
   const [remoteConnectionOpenPreference, setRemoteConnectionOpenPreference] =
     useState<RemoteConnectionOpenPreference | null>(null);
   const [directoryBrowserOpen, setDirectoryBrowserOpen] = useState(false);
@@ -479,10 +487,13 @@ function RootInner({
     registerBaseWorkspaceServices(services);
   }, [services]);
 
-  const handleOpenRemoteConnection = useCallback((preference?: RemoteConnectionOpenPreference) => {
-    setRemoteConnectionOpenPreference(preference ?? null);
-    setRemoteConnectionDialogOpen(true);
-  }, []);
+  const handleOpenRemoteConnection = useCallback(
+    (preference?: RemoteConnectionOpenPreference) => {
+      if (!remoteConnectionInProgress) setRemoteConnectionOpenPreference(preference ?? null);
+      setRemoteConnectionDialogOpen(true);
+    },
+    [remoteConnectionInProgress],
+  );
   const handleOpenDirectoryBrowser = useCallback(() => {
     setDirectoryBrowserOpen(true);
   }, []);
@@ -554,6 +565,8 @@ function RootInner({
     handleReconnectRemoteWorkspace,
     handleRemoteWorkspaceTabsClosed,
     handleRemoveRemoteProject,
+    handleOpenRemoteWorkspaceFromHistory,
+    retainRemoteDeviceConnection,
   } = useRemoteWorkspaceHistory({
     intl,
     services,
@@ -569,6 +582,18 @@ function RootInner({
     activateTabByPath,
     addTab,
     onWorkspaceActivated: handleRemoteWorkspaceActivated,
+    onRemoveProjectDefinition: handleRemoveLocalProject,
+  });
+
+  const remoteDevices = useRemoteDeviceManagement({
+    history: remoteWorkspaceSessions,
+    connectingKeys: reconnectingRemoteWorkspaceKeys,
+    logs: reconnectingRemoteWorkspaceLogsByWorkspaceKey,
+    open: handleOpenRemoteConnection,
+    reconnect: handleReconnectRemoteWorkspace,
+    disconnect: handleCancelRemoteProject,
+    openProject: handleOpenRemoteWorkspaceFromHistory,
+    retain: retainRemoteDeviceConnection,
   });
 
   const windowWorkspaceReconnect = useWindowWorkspaceReconnect({
@@ -978,16 +1003,28 @@ function RootInner({
   );
   const handleRemoteConnectionDialogOpenChange = useCallback((open: boolean) => {
     setRemoteConnectionDialogOpen(open);
-    if (!open) {
-      setRemoteConnectionOpenPreference(null);
-    }
   }, []);
+  useEffect(() => {
+    // 收起仍属于同一连接流程，必须保留设备保存意图；流程真正结束后才清理临时凭据。
+    if (!remoteConnectionDialogOpen && !remoteConnectionInProgress)
+      setRemoteConnectionOpenPreference(null);
+  }, [remoteConnectionDialogOpen, remoteConnectionInProgress]);
 
   const remoteConnectionDialog = allowRemoteWorkspace ? (
     <SSHDialog
       onConnect={handleConnectRemote}
       onSelectProject={handleSelectRemoteProject}
       onCancelSession={handleCancelRemoteProject}
+      onDeviceConnected={
+        remoteConnectionOpenPreference?.deviceIntent
+          ? (sessionId, target) =>
+              remoteDevices.saveConnected(
+                sessionId,
+                target,
+                remoteConnectionOpenPreference.deviceIntent!,
+              )
+          : undefined
+      }
       localWorkspacePath={localWorkspacePathForRemoteConnection}
       isWindowsDesktop={isWindowsDesktop}
       remoteWorkspaceSessions={remoteWorkspaceSessions}
@@ -997,6 +1034,8 @@ function RootInner({
       onFlowRequestIdChange={setRemoteConnectionRequestId}
       preferredKind={remoteConnectionOpenPreference?.preferredKind}
       preferredWslDistro={remoteConnectionOpenPreference?.preferredWslDistro}
+      preferredTarget={remoteConnectionOpenPreference?.preferredTarget}
+      connectOnOpen={remoteConnectionOpenPreference?.connectOnOpen}
       hideTriggerWhenClosed
     />
   ) : null;
@@ -1026,6 +1065,7 @@ function RootInner({
   }, [remoteConnectionInProgress, resetRemoteConnectionLogs]);
 
   const settingsLayerProps = {
+    remoteDevices: allowRemoteWorkspace ? remoteDevices : undefined,
     isDesktop,
     isMacDesktop,
     isWindowsDesktop,
@@ -1098,101 +1138,157 @@ function RootInner({
     <RootStartupLoading label={intl.formatMessage({ id: "common.loading" })} />
   ) : null;
 
+  const createMixedProject: typeof handleCreateLocalProject = async (request) => {
+    await handleCreateLocalProject(request);
+    if (!request.workspaceIdentity) return;
+    const source = request.members?.find((member) => member.id === request.primaryMemberId)?.source;
+    if (source?.kind !== "remote") throw new Error("Remote primary folder requires a saved device");
+    const profile = (await services.settingService.get()).remoteDevices?.devices.find(
+      (device) => device.id === source.deviceId,
+    );
+    if (!profile) throw new Error("Remote device was removed. Select a device again.");
+    const snapshot = profile.target;
+    const target = targetFromDeviceSnapshot(snapshot, {
+      password:
+        snapshot.kind === "ssh" && snapshot.passwordCredentialKey
+          ? await services.credentialService.load(snapshot.passwordCredentialKey)
+          : null,
+      privateKeyPassphrase:
+        snapshot.kind === "ssh" && snapshot.privateKeyPassphraseCredentialKey
+          ? await services.credentialService.load(snapshot.privateKeyPassphraseCredentialKey)
+          : null,
+    });
+    const sessionId = await handleConnectRemote(target);
+    try {
+      await handleSelectRemoteProject(sessionId, request.sourceFolderPaths[0]!);
+    } catch (error) {
+      await handleCancelRemoteProject(sessionId);
+      throw error;
+    }
+  };
   return (
-    <RootShell>
-      {rootModelSelectionErrorNode}
-      {remoteConnectionDialog}
-      {directoryBrowserDialog}
-      <OccupationOnboarding
-        showWindowControls={Boolean(isWindowsDesktop || (isDesktop && !isMacDesktop))}
-        // Web 兜底 loading 也要在 onboarding 状态加载期间可见,否则 children 被隐藏、整页仍为空壳。
-        showChildrenWhileLoading={
-          !workspaceShellPath && (isSettingsTabActive || webStartupFallbackVisible)
-        }
-        isMacDesktop={isMacDesktop}
-        isWindowsDesktop={isWindowsDesktop}
-      >
-        {/* 新引导属于应用级偏好;无项目时也要挂载,才能响应设置页的手动打开请求。 */}
-        {!workspaceShellPath ? (
-          isSettingsTabActive ? (
-            <ScopedErrorBoundary
-              scope="settings-page"
-              resetKeys={["settings-root"]}
-              variant="panel"
-              className="h-full"
+    <RemoteProjectDevicesProvider
+      value={{
+        model: remoteDevices,
+        suspended: isSettingsTabActive || remoteConnectionDialogOpen,
+        manage: () => {
+          setProjectReturnTabId(tabStoreApi.getState().activeTabId);
+          setPendingSettingsSection("remoteDevices");
+          tabStoreApi.getState().openSettingsTab();
+        },
+      }}
+    >
+      <RootShell>
+        {projectReturnTabId && isSettingsTabActive ? (
+          <div className="absolute left-1/2 top-2 z-50 -translate-x-1/2">
+            <button
+              className="rounded-lg border border-border bg-surface px-3 py-1.5 text-ui-sm shadow-sm"
+              onClick={() => {
+                tabStoreApi.getState().activateTab(projectReturnTabId);
+                setProjectReturnTabId(null);
+              }}
             >
-              <SettingsPage {...settingsLayerProps} />
-            </ScopedErrorBoundary>
-          ) : (
-            webStartupFallbackNode
-          )
-        ) : (
-          <RootWorkspaceContent
-            workspaceScopedServices={workspaceScopedServices}
-            baseFeedbackService={services.feedbackService}
-            workspaceShellPath={workspaceShellPath}
-            workspaceIdentity={workspaceShellIdentity}
-            workspaceRemoteSessionId={workspaceShellRemoteSessionId}
-            activeWorkspacePath={activeWorkspacePath}
-            isSettingsTabActive={isSettingsTabActive}
-            handleConnectRemote={handleConnectRemote}
-            handleSelectRemoteProject={handleSelectRemoteProject}
-            handleCancelRemoteProject={handleCancelRemoteProject}
-            handleReconnectRemoteWorkspace={windowWorkspaceReconnect.reconnect}
-            handleCreateTask={handleCreateTask}
-            handleCreateConversationTask={handleCreateConversationTask}
-            handleResolveConversationWorkspace={handleResolveConversationWorkspace}
-            handleOpenWorkspace={handleOpenWorkspace}
-            handleCreateLocalProject={handleCreateLocalProject}
-            handleRemoveLocalProject={handleRemoveLocalProject}
-            handleRemoveRemoteProject={
-              remoteBrowserNavigationScope ? undefined : handleRemoveRemoteProject
-            }
-            localProjects={appSettings?.localProjects ?? []}
-            handleOpenRemoteWorkspace={
-              allowRemoteWorkspace ? handleOpenRemoteConnection : undefined
-            }
-            handleCreateScratchWorkspace={handleCreateScratchWorkspace}
-            remoteConnectionInProgress={remoteConnectionInProgress}
-            remoteWorkspaceSessions={remoteWorkspaceSessions}
-            allowRemoteWorkspace={allowRemoteWorkspace}
-            handleBackFromSettings={handleBackFromSettings}
-            handleLogout={user ? handleLogout : undefined}
-            onLogin={!user ? handleOpenLoginEntry : undefined}
-            user={user}
-            reconnectingRemoteWorkspaceKeys={workspaceReconnectPendingKeys}
-            remoteWorkspaceErrorByWorkspaceKey={workspaceReconnectErrors}
-            reconnectingRemoteWorkspaceLogsByWorkspaceKey={
-              reconnectingRemoteWorkspaceLogsByWorkspaceKey
-            }
-            remoteConnectionLogs={remoteConnectionLogs}
-            allowOpenWorkspace={allowOpenWorkspace}
-            isDesktop={isDesktop}
-            isMacDesktop={isMacDesktop}
-            isWindowsDesktop={isWindowsDesktop}
-            supportsEmbeddedBrowser={supportsEmbeddedBrowser}
-          />
-        )}
-        <ScopedErrorBoundary
-          scope="onboarding-dialog"
-          resetKeys={[workspaceShellIdentity?.trim() || workspaceShellPath]}
-          variant="silent"
+              {locale.startsWith("zh") ? "返回项目配置" : "Return to project setup"}
+            </button>
+          </div>
+        ) : null}
+        {rootModelSelectionErrorNode}
+        {remoteConnectionDialog}
+        {directoryBrowserDialog}
+        <OccupationOnboarding
+          showWindowControls={Boolean(isWindowsDesktop || (isDesktop && !isMacDesktop))}
+          // Web 兜底 loading 也要在 onboarding 状态加载期间可见,否则 children 被隐藏、整页仍为空壳。
+          showChildrenWhileLoading={
+            !workspaceShellPath && (isSettingsTabActive || webStartupFallbackVisible)
+          }
+          isMacDesktop={isMacDesktop}
+          isWindowsDesktop={isWindowsDesktop}
         >
-          <OnboardingDialog
-            workspacePath={workspaceShellPath || undefined}
+          {/* 新引导属于应用级偏好;无项目时也要挂载,才能响应设置页的手动打开请求。 */}
+          {!workspaceShellPath ? (
+            isSettingsTabActive ? (
+              <ScopedErrorBoundary
+                scope="settings-page"
+                resetKeys={["settings-root"]}
+                variant="panel"
+                className="h-full"
+              >
+                <SettingsPage {...settingsLayerProps} />
+              </ScopedErrorBoundary>
+            ) : (
+              webStartupFallbackNode
+            )
+          ) : (
+            <RootWorkspaceContent
+              remoteDevices={allowRemoteWorkspace ? remoteDevices : undefined}
+              workspaceScopedServices={workspaceScopedServices}
+              baseFeedbackService={services.feedbackService}
+              workspaceShellPath={workspaceShellPath}
+              workspaceIdentity={workspaceShellIdentity}
+              workspaceRemoteSessionId={workspaceShellRemoteSessionId}
+              activeWorkspacePath={activeWorkspacePath}
+              isSettingsTabActive={isSettingsTabActive}
+              handleConnectRemote={handleConnectRemote}
+              handleSelectRemoteProject={handleSelectRemoteProject}
+              handleCancelRemoteProject={handleCancelRemoteProject}
+              handleReconnectRemoteWorkspace={windowWorkspaceReconnect.reconnect}
+              handleCreateTask={handleCreateTask}
+              handleCreateConversationTask={handleCreateConversationTask}
+              handleResolveConversationWorkspace={handleResolveConversationWorkspace}
+              handleOpenWorkspace={handleOpenWorkspace}
+              handleCreateLocalProject={createMixedProject}
+              handleRemoveLocalProject={handleRemoveLocalProject}
+              handleRemoveRemoteProject={
+                remoteBrowserNavigationScope ? undefined : handleRemoveRemoteProject
+              }
+              localProjects={
+                appSettings?.projectDefinitions?.projects ?? appSettings?.localProjects ?? []
+              }
+              handleOpenRemoteWorkspace={
+                allowRemoteWorkspace ? handleOpenRemoteConnection : undefined
+              }
+              handleCreateScratchWorkspace={handleCreateScratchWorkspace}
+              remoteConnectionInProgress={remoteConnectionInProgress}
+              remoteWorkspaceSessions={remoteWorkspaceSessions}
+              allowRemoteWorkspace={allowRemoteWorkspace}
+              handleBackFromSettings={handleBackFromSettings}
+              handleLogout={user ? handleLogout : undefined}
+              onLogin={!user ? handleOpenLoginEntry : undefined}
+              user={user}
+              reconnectingRemoteWorkspaceKeys={workspaceReconnectPendingKeys}
+              remoteWorkspaceErrorByWorkspaceKey={workspaceReconnectErrors}
+              reconnectingRemoteWorkspaceLogsByWorkspaceKey={
+                reconnectingRemoteWorkspaceLogsByWorkspaceKey
+              }
+              remoteConnectionLogs={remoteConnectionLogs}
+              allowOpenWorkspace={allowOpenWorkspace}
+              isDesktop={isDesktop}
+              isMacDesktop={isMacDesktop}
+              isWindowsDesktop={isWindowsDesktop}
+              supportsEmbeddedBrowser={supportsEmbeddedBrowser}
+            />
+          )}
+          <ScopedErrorBoundary
+            scope="onboarding-dialog"
+            resetKeys={[workspaceShellIdentity?.trim() || workspaceShellPath]}
+            variant="silent"
+          >
+            <OnboardingDialog
+              workspacePath={workspaceShellPath || undefined}
+              workspaceIdentity={workspaceShellIdentity}
+              isDesktop={isDesktop}
+            />
+          </ScopedErrorBoundary>
+          <GitBackupWelcomeDialog
+            workspacePath={workspaceShellPath}
             workspaceIdentity={workspaceShellIdentity}
-            isDesktop={isDesktop}
+            remoteSessionId={workspaceShellRemoteSessionId}
+            remoteTarget={workspaceShellRemoteTarget}
+            allowLegacyMigration
+            onOpenSettings={handleOpenGitBackupSettings}
           />
-        </ScopedErrorBoundary>
-        <GitBackupWelcomeDialog
-          workspacePath={workspaceShellPath}
-          workspaceIdentity={workspaceShellIdentity}
-          remoteSessionId={workspaceShellRemoteSessionId}
-          remoteTarget={workspaceShellRemoteTarget}
-          allowLegacyMigration
-          onOpenSettings={handleOpenGitBackupSettings}
-        />
-      </OccupationOnboarding>
-    </RootShell>
+        </OccupationOnboarding>
+      </RootShell>
+    </RemoteProjectDevicesProvider>
   );
 }

@@ -284,7 +284,7 @@ test("真实 ConversationComposer 的新旧会话回车及按钮发送", { timeo
     await editor.press("Enter");
     const card = page.getByTestId("worktree-preparation-card");
     await card.locator('[data-step="environment"][data-state="running"]').waitFor();
-    await card.getByRole("button", { name: "改用本地目录", exact: true }).click();
+    await card.getByRole("button", { name: "改用源目录", exact: true }).click();
     await page.waitForFunction(() => globalThis.__sendFixture.updates.length === 1);
     await page.evaluate(() => globalThis.__sendFixture.release());
     await page.getByRole("alert").waitFor();

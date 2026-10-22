@@ -12,7 +12,7 @@ import {
   prepareInitialToolExecutionInput,
 } from "../input-normalization.js";
 import type { ExecutableToolCall, ToolExecutionResult } from "../types.js";
-import type { BackgroundTaskTracker } from "./background-tasks.js";
+import { BackgroundTaskTracker } from "./background-tasks.js";
 import {
   createErrorResult,
   createPermissionErrorResult,
@@ -33,6 +33,7 @@ import {
 } from "./call-result-policy.js";
 import { executeAdmittedToolHandler } from "./call-handler-execution.js";
 import { sourceInputDiagnostic } from "../source-input-diagnostic.js";
+import { PROJECT_NATIVE_TOOLS } from "../project-routing.js";
 
 export async function executeToolCall(
   deps: ToolExecutorDeps,
@@ -42,7 +43,7 @@ export async function executeToolCall(
 ): Promise<ToolExecutionResult> {
   const totalStartedAt = Date.now();
   const entry = isEmptyToolName(toolCall.name) ? undefined : deps.registry.get(toolCall.name);
-  const canonicalToolCall =
+  let canonicalToolCall =
     entry && toolCall.name !== entry.metadata.name
       ? { ...toolCall, name: entry.metadata.name }
       : toolCall;
@@ -75,7 +76,7 @@ async function executeToolCallImpl(
         model,
       })
     : undefined;
-  const canonicalToolCall =
+  let canonicalToolCall =
     entry && toolCall.name !== entry.metadata.name
       ? { ...toolCall, name: entry.metadata.name }
       : toolCall;
@@ -133,6 +134,43 @@ async function executeToolCallImpl(
     );
     telemetry?.finishCancelled("abort_signal");
     return result;
+  }
+
+  // 设备选择先于输入归一化、权限、hook 和 handler；权限窗和实际端口使用同一份目标事实。
+  if (
+    canonicalToolCall.input &&
+    typeof canonicalToolCall.input === "object" &&
+    !Array.isArray(canonicalToolCall.input)
+  ) {
+    const { projectMemberId, ...nativeInput } = canonicalToolCall.input as Record<string, unknown>;
+    try {
+      const scope = deps.resolveProjectToolScope?.(
+        canonicalToolCall.name,
+        canonicalToolCall.input as Record<string, unknown>,
+      );
+      if (projectMemberId !== undefined && projectMemberId !== null && !scope)
+        throw new Error("Target folder routing is unavailable for this tool");
+      if (scope) {
+        deps = { ...deps, ...scope };
+        backgroundTasks = new BackgroundTaskTracker(deps);
+        canonicalToolCall = { ...canonicalToolCall, input: nativeInput };
+      } else if (projectMemberId === null && PROJECT_NATIVE_TOOLS.has(canonicalToolCall.name)) {
+        // strict provider 将可选参数补为 null；无项目的 CLI 也必须继续使用原端口，不能被新选择器阻断。
+        canonicalToolCall = { ...canonicalToolCall, input: nativeInput };
+      }
+    } catch (error) {
+      const result = createErrorResult(
+        canonicalToolCall,
+        createCoreError(
+          CoreErrorType.ToolExecutionFailed,
+          error instanceof Error ? error.message : String(error),
+          { recoverable: true },
+        ),
+      );
+      await emitToolCallError(deps, canonicalToolCall.id, traceContext, turnId, result.error);
+      telemetry?.finishFailed("validation", "parse", result.error);
+      return result;
+    }
   }
 
   // 解析失败的 {} 只是安全占位；不得让 runtime schema 默认值/preprocess 将它接纳。

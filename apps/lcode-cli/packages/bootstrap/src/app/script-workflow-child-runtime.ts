@@ -206,6 +206,8 @@ function createRuntimeDeps(
     agentTelemetryCausationMode: "linked_root",
     appVersion: deps.appVersion,
     resolveGitContext: deps.appOptions.resolveGitContext,
+    projectNativeCall: deps.appOptions.projectNativeCall,
+    resolveGitAccount: deps.appOptions.resolveGitAccount,
     artifactStore: deps.artifactStore,
     contextSourcePort:
       deps.contextSourcePort ??

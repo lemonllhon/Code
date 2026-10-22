@@ -19,6 +19,8 @@ export function RemoteConnectionConnectingStep({
   loading,
   onBack,
   onRetry,
+  onCancel,
+  onMinimize,
 }: {
   kind: RemoteTarget["kind"];
   logs: RemoteConnectionLogEntry[];
@@ -26,6 +28,8 @@ export function RemoteConnectionConnectingStep({
   loading: boolean;
   onBack: () => void;
   onRetry: () => void;
+  onCancel?: () => void;
+  onMinimize?: () => void;
 }) {
   const { intl } = useLCodeIntl();
   const openFeedbackSubmit = useFeedbackStore((state) => state.openSubmit);
@@ -148,27 +152,40 @@ export function RemoteConnectionConnectingStep({
       </div>
 
       <div className="flex justify-end gap-3">
-        <Button
-          type="button"
-          variant="secondary"
-          size="lg"
-          className="h-10 min-w-0 px-5"
-          onClick={onBack}
-          disabled={loading}
-        >
-          {intl.formatMessage({ id: "common.back" })}
-        </Button>
-        <Button
-          type="button"
-          size="lg"
-          className="h-10 min-w-0 px-5"
-          onClick={onRetry}
-          disabled={loading}
-        >
-          {loading
-            ? intl.formatMessage({ id: "remote.connecting" })
-            : intl.formatMessage({ id: "remote.retryConnection" })}
-        </Button>
+        {loading ? (
+          <>
+            <Button variant="secondary" onClick={onMinimize}>
+              {intl.formatMessage({ id: "remote.connectionBackground" })}
+            </Button>
+            <Button variant="outline" onClick={onCancel}>
+              {intl.formatMessage({ id: "common.cancel" })}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              size="lg"
+              className="h-10 min-w-0 px-5"
+              onClick={onBack}
+              disabled={loading}
+            >
+              {intl.formatMessage({ id: "common.back" })}
+            </Button>
+            <Button
+              type="button"
+              size="lg"
+              className="h-10 min-w-0 px-5"
+              onClick={onRetry}
+              disabled={loading}
+            >
+              {loading
+                ? intl.formatMessage({ id: "remote.connecting" })
+                : intl.formatMessage({ id: "remote.retryConnection" })}
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );

@@ -126,6 +126,26 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
     if (adapters.ownsExecutionPort)
       closeOwnedStartupExecution = () => adapters.executionPort.close?.();
     if (adapters.ownsMcpPort) closeOwnedStartupMcp = () => adapters.mcpPort?.close();
+    const nativeLeases = new Map<string, import("@lcode/shared").ProjectNativeRequest>();
+    const projectNativeCall: typeof options.projectNativeCall = options.projectNativeCall
+      ? async (request) => {
+          nativeLeases.set(`${request.ownerId}:${request.routeToken}`, request);
+          return options.projectNativeCall!(request);
+        }
+      : undefined;
+    const closeProjectNativeResources = async () => {
+      const leases = [...nativeLeases.values()];
+      nativeLeases.clear();
+      await Promise.allSettled(
+        leases.map((request) =>
+          options.projectNativeCall!({
+            ...request,
+            callId: crypto.randomUUID(),
+            operation: { port: "execution", method: "close", args: [] },
+          }),
+        ),
+      );
+    };
     const {
       permissionService,
       artifactStore,
@@ -260,6 +280,11 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
       permissionBroker: options.permissionBroker,
       checkoutExecutionPort: options.checkoutExecutionPort,
       resolveGitContext: options.resolveGitContext,
+      projectNativeCall,
+      onProjectExecutionPortReady: (port) => {
+        adapters.executionPort = port;
+      },
+      resolveGitAccount: options.resolveGitAccount,
       resolveSessionShellSelection,
       permissionService,
       workflowPort: scriptWorkflowFacade.workflowPort,
@@ -303,6 +328,7 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
         resumeFromStore,
         resolveSessionShellSelection,
       },
+      closeProjectNativeResources,
       closeNodeReplBrowserBroker: async () => {
         await ownedNodeReplBrowserBroker?.close();
       },

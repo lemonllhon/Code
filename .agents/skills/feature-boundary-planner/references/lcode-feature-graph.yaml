@@ -42,6 +42,34 @@ nodes:
       - "Remote blank drafts do not prewarm execution; trusted builtin tools remain discoverable before their first process starts."
       - "Memory reservations belong to existing process/Worker owners until confirmed cleanup, and never become another accepted command queue."
       - "Cached SSH transport does not retain an idle workspace Agent after its last logical owner; running tasks and reattach generations preserve existing release fences."
+  - id: capability.remote-device-management
+    kind: capability
+    label: Remote devices, mixed project folders and native execution routing
+    aliases:
+      [远程设备, 新建远程连接, 多设备混合目录, 执行路由, remote devices, remote connection tabs]
+    codeSeeds:
+      - file: packages/ui/src/hooks/useRemoteDeviceManagement.ts
+        symbol: useRemoteDeviceManagement
+      - file: packages/ui/src/settings/RemoteDevicesSection.tsx
+        symbol: RemoteDevicesSection
+      - file: packages/ui/src/RemoteConnectionDialogContent.tsx
+        symbol: RemoteConnectionKindTabs
+      - file: packages/services/src/setting/remoteDeviceMutations.ts
+        symbol: applyRemoteDeviceMutation
+      - file: packages/shared/src/remoteDeviceDefinitions.ts
+        symbol: remoteDeviceDefinitionSchema
+      - file: packages/ui/src/WorkspaceSidebar/RemoteProjectFolderPicker.tsx
+        symbol: RemoteProjectFolderPicker
+      - file: packages/desktop/src/host/windowProjectNativeRouter.ts
+        symbol: createWindowProjectNativeRouter
+      - file: apps/lcode-cli/packages/core/src/tool/project-routing.ts
+        symbol: createProjectToolRouting
+    invariants:
+      - "SettingService owns revisioned device profiles and one-time history migration; only current window attachments prove online state."
+      - "Connection, reconnect and cancellation reuse Root/window Host owners. Device-profile completion needs no directory, project or tab. Secrets remain in CredentialService."
+      - "Removing a profile retains project history and active attachments; an address change creates another profile instead of retargeting existing members. Mixed members retain individual device identities; compatibility paths describe the origin only."
+      - "Native Read/Write/Edit/Glob/Grep/Bash/Git choose the accepted primary or explicit projectMemberId before permission and execution. Ambiguous cross-device paths fail closed."
+      - "The window Host signs frozen attachment generations; protocol native adapters own IO resources, not accepted inputs. Background reads/cancel retain the original target; remote reconnect groups freeze current saved profiles."
   - id: capability.ssh-settings-proxy
     kind: capability
     label: SSH proxy selection reuses the local Settings proxy library
@@ -564,6 +592,8 @@ nodes:
         Agent Git 认证,
         仓库远端账号绑定,
         Git 项目记忆,
+        Git 账号偏好落地,
+        Git 网络操作退出码,
       ]
     codeSeeds:
       - file: packages/ui/src/settings/GitManagementSection.tsx
@@ -612,6 +642,14 @@ nodes:
         symbol: handleGitContextRequest
       - file: apps/lcode-cli/packages/core/src/runtime/methods/turn-git-context.ts
         symbol: appendGitContextForModelStep
+      - file: packages/services/src/git-management/gitAccountHost.ts
+        symbol: createHostGitAccountOperator
+      - file: packages/services/src/lcode-agent/gitAccountRequest.ts
+        symbol: handleGitAccountRequest
+      - file: apps/lcode-cli/packages/core/src/tool/handlers/git.ts
+        symbol: createGitToolEntry
+      - file: apps/lcode-cli/packages/core/src/tool/handlers/bash-git-result-policy.ts
+        symbol: assertGitNetworkResultVisible
     invariants:
       - "One Host owns encrypted configuration; CAS updates never expose stored tokens through snapshots, normal settings, URLs or command arguments."
       - "The repository wizard passes account ID/revision only; Host validates protocol, server and path before acquisition and preserves existing write coordination and recovery."
@@ -622,6 +660,7 @@ nodes:
       - "Fetch and Push resolve profile bindings per canonical Git common-dir, normalized workspace identity and actual remote URL. Linked worktrees share repository choices while independent clones and remote authorities stay isolated. Multiple push URLs resolve separately; stale accounts never silently switch identities. Explicit automatic selection suppresses the legacy clone binding."
       - "UI Git and Agent execution reuse one Host credential resolver and provider-node private helper. Agent requests retain current runtime/worktree authorization; helpers expose no credentials to model events, argv, persistent config or logs, and never replay Git writes. Standalone external terminals remain separately owned."
       - "Private git/context projects current effective metadata without resolving credentials. Each model step replaces its request-only overlay; memory stores adopted Git conventions and verified lessons, never live bindings or approval state. Child runtimes reuse the parent's scoped provider."
+      - "User-approved remembered account preferences use Git inspect/bind and private git/account to reach the original Host CAS owner. Same-target HTTP Fetch/Push share a consistent username hint and binding; conflicting explicit hints stay isolated. Independent argv network operations preserve actual errors/exit codes and never replay writes."
   - id: capability.git-network-operations
     kind: capability
     label: Remote configuration, branch tracking, explicit Fetch and reviewed fast-forward updates

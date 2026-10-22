@@ -46,6 +46,7 @@ test("the mobile remote collection registers only the connected Host environment
     const connectionServices = {
       ...Object.fromEntries(required.map((key) => [key, {}])),
       lcodeAgentService: {
+        onDynamicProjectNativeRequest: () => Event.None,
         onDynamicSessionRuntimePreferencesRequest: () => Event.None,
         disposeAllAndWait: async () => {},
         disposeAll: () => {},

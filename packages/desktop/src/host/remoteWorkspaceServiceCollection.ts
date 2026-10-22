@@ -1,3 +1,5 @@
+import { prepareNativeProjectContext } from "@lcode/services/node";
+import { getProjectNativeRoutingOwner } from "@lcode/services/node";
 /* eslint-disable max-lines -- 远程 workspace 服务注册需集中维护，以保持依赖注入顺序 */
 import {
   ServiceCollection,
@@ -210,6 +212,25 @@ export function createRemoteWorkspaceServiceCollection(params: {
   const remoteProviderProvisioningService =
     createRemoteProviderProvisioningExecutorFromWorkspace(params);
 
+  params.connectionServices.lcodeAgentService.onDynamicProjectNativeRequest()((request) => {
+    void (async () => {
+      const owner = getProjectNativeRoutingOwner();
+      try {
+        if (!owner) throw new Error("Window project router unavailable");
+        const value = await owner.call(request.request, request.originKey);
+        await params.connectionServices.lcodeAgentService.respondProjectNative({
+          requestId: request.requestId,
+          result: { value },
+        });
+      } catch (error) {
+        await params.connectionServices.lcodeAgentService.respondProjectNative({
+          requestId: request.requestId,
+          result: { error: error instanceof Error ? error.message : String(error) },
+        });
+      }
+    })().catch(params.runtimePreferencesBridge.onError);
+  });
+
   // desktop-attached remote 的 Agent 运行在远端，但 app-global 设置权威仍在
   // desktop shared Host。通过窄化的 runtime-preferences 请求原路返回；
   // 只传可跨机器的全局偏好，Shell 可执行路径由远端解析。
@@ -270,9 +291,8 @@ export function createRemoteWorkspaceServiceCollection(params: {
             preferences: {
               ...(request.scope === "project-admission" && request.projectContext
                 ? {
-                    projectContext: buildProjectContextSnapshot(
-                      settings,
-                      request.projectContext.workspace,
+                    projectContext: await prepareNativeProjectContext(
+                      buildProjectContextSnapshot(settings, request.projectContext.workspace),
                     ),
                   }
                 : {}),

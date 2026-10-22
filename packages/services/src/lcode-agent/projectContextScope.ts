@@ -1,3 +1,4 @@
+import { prepareNativeProjectContext } from "./projectNativeOwner.js";
 import { stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import {
@@ -92,6 +93,17 @@ export async function materializeProjectContext(
       : workspace);
   if (resolveWorkspaceKey(origin) !== resolveWorkspaceKey(next.origin))
     throw new Error("scope-mismatch: project definition belongs to another source");
+  if (
+    workspace.executionBindingId &&
+    next.members.some((member) => {
+      const key = (identity?: string) =>
+        identity ? replaceRemoteWorkspaceIdentityPath(identity, "/") : "local";
+      return key(member.workspaceIdentity) !== key(next.origin.workspaceIdentity);
+    })
+  )
+    throw new Error(
+      "Mixed device projects use their source folders; a single worktree cannot span devices",
+    );
   if (workspace.executionBindingId) {
     const binding = await worktrees?.getBinding({ ...origin, taskId: sessionId });
     if (
@@ -116,21 +128,42 @@ export async function materializeProjectContext(
     next.executionBindingId = binding.id;
   } else if (workspace.workspaceIdentity) {
     for (const member of next.members)
-      member.workspaceIdentity =
-        replaceRemoteWorkspaceIdentityPath(workspace.workspaceIdentity, member.workspacePath) ??
-        workspace.workspaceIdentity;
+      if (!member.source)
+        member.workspaceIdentity =
+          replaceRemoteWorkspaceIdentityPath(workspace.workspaceIdentity, member.workspacePath) ??
+          workspace.workspaceIdentity;
   }
-  next.execution = {
-    workspacePath: workspace.workspacePath,
-    ...(workspace.workspaceIdentity ? { workspaceIdentity: workspace.workspaceIdentity } : {}),
-  };
+  // 中文依据：历史身份路径仅负责会话隔离，普通输入的默认 cwd 必须来自本次 admission 固定的主要成员。
+  // 工作树/工作集保留原执行绑定，不能因后来编辑项目而切回源目录。
+  next.execution =
+    !workspace.executionBindingId && !workspace.executionSetRef
+      ? next.execution
+      : {
+          workspacePath: workspace.workspacePath,
+          ...(workspace.workspaceIdentity
+            ? { workspaceIdentity: workspace.workspaceIdentity }
+            : {}),
+        };
+  const routed = await prepareNativeProjectContext(next);
+  if (routed?.members.every((member) => member.routeToken)) return routed;
   // 中文依据：新增/排队输入固定范围前检查目标 Host 的真实目录；缺失成员必须明确失败，不静默降成主目录。
   for (let offset = 0; offset < next.members.length; offset += 4)
     await Promise.all(
       next.members.slice(offset, offset + 4).map(async (member) => {
+        if (
+          member.source &&
+          (member.workspaceIdentity ?? "") !==
+            (replaceRemoteWorkspaceIdentityPath(
+              workspace.workspaceIdentity ?? "",
+              member.workspacePath,
+            ) ?? "")
+        )
+          throw new Error("Mixed device execution requires the window project router");
         if (!(await stat(member.workspacePath)).isDirectory())
           throw new Error(`${member.workspacePath}: Not a directory`);
       }),
     );
+  if (!(await stat(next.execution.workspacePath)).isDirectory())
+    throw new Error(`${next.execution.workspacePath}: Not a directory`);
   return next;
 }

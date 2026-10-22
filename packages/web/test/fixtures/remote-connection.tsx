@@ -19,7 +19,19 @@ const attempts: {
 }[] = [];
 const cancelled: (string | undefined)[] = [];
 const disposed: string[] = [];
+const savedDevices: string[] = [];
+let saveFailures = 0;
 const aliasFixture = new URLSearchParams(location.search).get("aliases");
+const connectionParams = new URLSearchParams(location.search);
+const savedTarget: RemoteTarget = {
+  kind: "ssh",
+  host: "saved.invalid",
+  username: "fixture",
+  port: 2222,
+  password: "fixture-password",
+  useProxy: true,
+  proxyProfileId: "fixture-http",
+};
 const platform = {
   listSSHConfigAliases: async () => {
     if (aliasFixture === "error") throw new Error("fixture alias read failure");
@@ -42,6 +54,9 @@ const platform = {
 let proxyReadError = false;
 let proxyView = {
   revision: 1,
+  providerTemplates: [],
+  providerOrder: [],
+  providers: [],
   proxyProfiles: [
     {
       id: "fixture-http",
@@ -84,6 +99,10 @@ Object.assign(window, {
     attempts,
     cancelled,
     disposed,
+    savedDevices,
+    failNextSave() {
+      saveFailures++;
+    },
     setProxies(proxyProfiles: readonly ProxyProfile[]) {
       proxyView = { ...proxyView, revision: proxyView.revision + 1, proxyProfiles };
       for (const listener of proxyListeners) listener(proxyView);
@@ -92,7 +111,19 @@ Object.assign(window, {
       proxyReadError = value;
     },
     succeed(index: number) {
+      useRemoteWorkspaceSessionStore.getState().registerSession({
+        sessionId: `session-${index}`,
+        target: attempts[index]!.target,
+        services: {
+          ...services,
+          systemService: { info: async () => ({ homedir: "/fixture" }) },
+          fileService: { readdir: async () => [] },
+        } as unknown as IServiceAccessor,
+      });
       attempts[index]!.resolve(`session-${index}`);
+    },
+    dropSession(index: number) {
+      useRemoteWorkspaceSessionStore.getState().unregisterSession(`session-${index}`);
     },
     fail(index: number) {
       attempts[index]!.reject(new Error(`fixture failure ${index}`));
@@ -101,7 +132,7 @@ Object.assign(window, {
 });
 
 function Fixture() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(connectionParams.has("auto"));
   return (
     <PlatformProvider platform={platform}>
       <ServiceProvider services={remoteServices}>
@@ -112,7 +143,13 @@ function Fixture() {
               <RemoteConnectionDialog
                 open={open}
                 onOpenChange={setOpen}
-                isWindowsDesktop
+                isWindowsDesktop={!connectionParams.has("unix")}
+                preferredTarget={
+                  connectionParams.has("prefill") || connectionParams.has("auto")
+                    ? savedTarget
+                    : undefined
+                }
+                connectOnOpen={connectionParams.has("auto")}
                 onConnect={(target, requestId) =>
                   new Promise((resolve, reject) => {
                     attempts.push({ target, requestId, resolve, reject });
@@ -120,7 +157,19 @@ function Fixture() {
                 }
                 onCancelSession={async (sessionId) => {
                   disposed.push(sessionId);
+                  useRemoteWorkspaceSessionStore.getState().unregisterSession(sessionId);
                 }}
+                onDeviceConnected={
+                  connectionParams.has("device")
+                    ? async (sessionId) => {
+                        if (saveFailures > 0) {
+                          saveFailures--;
+                          throw new Error("fixture device save failed");
+                        }
+                        savedDevices.push(sessionId);
+                      }
+                    : undefined
+                }
                 onSelectProject={async () => {}}
               />
               <ConfirmDialogHost />

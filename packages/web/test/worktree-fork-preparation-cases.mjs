@@ -50,7 +50,7 @@ export async function runForkPreparationCases({ t, page, url, calls }) {
       await page.getByTestId("worktree-preparation-log").innerText(),
       /Checking out files/,
     );
-    await card.getByRole("button", { name: "改用本地目录" }).click();
+    await card.getByRole("button", { name: "改用源目录" }).click();
     await card.getByText("已请求取消，等待当前步骤收尾；不会执行本次输入。").waitFor();
     assert.equal((await calls()).filter((call) => call.method === "prepare").length, 1);
     assert.equal((await calls()).filter((call) => call.method === "settings.update").length, 0);
@@ -102,7 +102,7 @@ export async function runForkPreparationCases({ t, page, url, calls }) {
     assert.equal(await card.locator('[data-step="tools"]').getAttribute("data-state"), "done");
     await card.getByText("工具版本来自项目声明。").waitFor();
     // 卡片隐藏走既有取消链路：先点改用本地（登记 intent），Host 结算后草稿重置。
-    await card.getByRole("button", { name: "改用本地目录" }).click();
+    await card.getByRole("button", { name: "改用源目录" }).click();
     await fixture("finishCancel");
     await card.waitFor({ state: "hidden" });
   });
@@ -115,14 +115,14 @@ export async function runForkPreparationCases({ t, page, url, calls }) {
     const card = page.getByTestId("worktree-preparation-card");
     await card.getByText("项目未声明工具版本，使用应用默认版本。").waitFor();
     // 卡片隐藏走既有取消链路：先点改用本地（登记 intent），Host 结算后草稿重置。
-    await card.getByRole("button", { name: "改用本地目录" }).click();
+    await card.getByRole("button", { name: "改用源目录" }).click();
     await fixture("finishCancel");
     await card.waitFor({ state: "hidden" });
     await page.evaluate(() => {
       globalThis.__forkPreparationFixture.beginManagedPreparation("partial-host");
     });
     await card.getByText("部分资源沿用本机环境，未完全隔离。").waitFor();
-    await card.getByRole("button", { name: "改用本地目录" }).click();
+    await card.getByRole("button", { name: "改用源目录" }).click();
     await fixture("finishCancel");
     await card.waitFor({ state: "hidden" });
   });
@@ -159,14 +159,25 @@ export async function runForkPreparationCases({ t, page, url, calls }) {
           });
         });
         await page.getByTestId(`sidebar-row-${kind}`).click({ button: "right" });
+        // 普通/置顶/时间线使用复制子菜单；分组列表在根菜单直接提供相同路径操作。
+        if (kind !== "grouped")
+          await page.getByRole("menuitem", { name: "复制信息", exact: true }).hover();
         await page
           .getByRole("menuitem", { name: "复制工作树路径", exact: true, disabled: false })
-          .click();
+          .click()
+          .catch(async (error) => {
+            process.stderr.write(
+              `Task path menu (${kind}, ${width}): ${(await page.locator("body").innerText()).slice(-3000)}\n`,
+            );
+            throw error;
+          });
         assert.equal(
           await page.evaluate(() => globalThis.__copiedTaskPath),
           "/fixture/worktrees/task",
         );
         await page.getByTestId(`sidebar-row-${kind}`).click({ button: "right" });
+        if (kind !== "grouped")
+          await page.getByRole("menuitem", { name: "复制信息", exact: true }).hover();
         assert.equal(
           await page.getByRole("menuitem", { name: "复制会话文件路径", exact: true }).count(),
           0,

@@ -3,15 +3,22 @@ import type { IServiceAccessor } from "@lcode/services";
 import type { LCodeTaskMeta } from "@lcode/shared";
 import { V4_WIRE_PROTOCOL_VERSION, type CommandEnvelope } from "@lcode/shared/lcode-protocol-v4";
 
+/** 夹具同时模拟 task 元数据与列表目录持有的归档/置顶事实，不向生产元数据添加字段。 */
+export type SidebarFixtureTask = LCodeTaskMeta & { pinnedAt?: number; archivedAt?: number };
+
 export function installSidebarMenuServices(
   services: IServiceAccessor,
   calls: { method: string; params: unknown }[],
-  getTasks: () => LCodeTaskMeta[],
-  setTasks: (tasks: LCodeTaskMeta[]) => void,
+  getTasks: () => SidebarFixtureTask[],
+  setTasks: (tasks: SidebarFixtureTask[]) => void,
 ) {
   const control = { sessionFileExists: true, failExecutionRead: false };
   const event = () => ({ dispose() {} });
-  const update = (method: string, params: { taskId: string }, patch: Partial<LCodeTaskMeta>) => {
+  const update = (
+    method: string,
+    params: { taskId: string },
+    patch: Partial<SidebarFixtureTask>,
+  ) => {
     calls.push({ method, params });
     const next = { ...getTasks().find((task) => task.taskId === params.taskId)!, ...patch };
     setTasks(getTasks().map((task) => (task.taskId === next.taskId ? next : task)));
@@ -36,12 +43,12 @@ export function installSidebarMenuServices(
     archiveTask: async (params: { taskId: string }) =>
       update("archive-task", params, { archivedAt: Date.now() }),
   });
-  services.lcodeSessionService = {
+  const sessionService = {
     readSession: async ({ sessionId }: { sessionId: string }) => {
       if (control.failExecutionRead) throw new Error("fixture-session-unavailable");
       const task = getTasks().find((task) => task.taskId === sessionId)!;
       const binding = task.executionBindingId
-        ? await services.worktreeService.getBinding({
+        ? await services.worktreeService?.getBinding({
             workspacePath: task.workspacePath,
             taskId: sessionId,
           })
@@ -56,7 +63,7 @@ export function installSidebarMenuServices(
       };
     },
   } as unknown as IServiceAccessor["lcodeSessionService"];
-  services.lcodeAgentService = {
+  const agentService = {
     ...runtimeServices.lcodeAgentService,
     helloConversationV4: async () => ({
       kind: "hello",
@@ -94,5 +101,6 @@ export function installSidebarMenuServices(
       };
     },
   } as unknown as IServiceAccessor["lcodeAgentService"];
+  Object.assign(services, { lcodeSessionService: sessionService, lcodeAgentService: agentService });
   return control;
 }

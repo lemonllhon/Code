@@ -62,6 +62,8 @@ import { GitManagementSection } from "@/settings/GitManagementSection.js";
 import { WorktreeSettingsSection } from "@/settings/WorktreeSettingsSection.js";
 import { SessionConfigurationSection } from "@/settings/SessionConfigurationSection.js";
 import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
+import { RemoteDevicesSection } from "@/settings/RemoteDevicesSection.js";
+import type { RemoteDeviceManagement } from "@/hooks/useRemoteDeviceManagement.js";
 import {
   SettingsBreadcrumbProvider,
   SettingsHeaderBreadcrumb,
@@ -166,6 +168,7 @@ function SettingsSidebarButton({
 }
 
 export function SettingsPage({
+  remoteDevices,
   isDesktop,
   isWindowsDesktop,
   isMacDesktop,
@@ -177,6 +180,7 @@ export function SettingsPage({
   onLogout,
   user,
 }: {
+  remoteDevices?: RemoteDeviceManagement;
   isDesktop?: boolean;
   isWindowsDesktop?: boolean;
   isMacDesktop?: boolean;
@@ -1630,6 +1634,8 @@ export function SettingsPage({
                             remoteTarget={activeWorkspaceTab?.remoteTarget}
                             localWorkspacePath={activeWorkspaceTab?.localWorkspacePath}
                           />
+                        ) : activeSection === "remoteDevices" ? (
+                          <RemoteDevicesSection management={remoteDevices} />
                         ) : activeSection === "remoteControl" ? (
                           <RemoteControlSettingsSection />
                         ) : activeSection === "gitManagement" ? (

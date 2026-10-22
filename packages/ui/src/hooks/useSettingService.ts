@@ -6,6 +6,7 @@ import {
   APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL,
   type AppSettings,
   type ProjectMutationRequest,
+  type RemoteDeviceMutationRequest,
 } from "@lcode/shared";
 import type { ISettingService, IServiceAccessor } from "@lcode/services";
 import { useServices } from "./useServices.js";
@@ -214,12 +215,27 @@ export function useSettings(servicesOverride?: IServiceAccessor) {
     },
     [settingService, refresh, settingsStore, platform],
   );
+  const mutateRemoteDevice = useCallback(
+    async (request: RemoteDeviceMutationRequest) => {
+      if (!settingService.mutateRemoteDevice)
+        throw new Error("This Host does not support remote device profiles");
+      const result = await settingService.mutateRemoteDevice(request);
+      if (result.status === "applied") {
+        await refresh({ afterPending: true, throwOnError: true });
+        const latest = settingsStore.snapshot.settings;
+        if (latest) platform.syncAppSettings?.({ remoteDevices: latest.remoteDevices });
+      }
+      return result;
+    },
+    [settingService, refresh, settingsStore, platform],
+  );
   return {
     settings: snapshot.settings,
     loading: snapshot.loading,
     error: snapshot.error,
     update,
     mutateProject,
+    mutateRemoteDevice,
     refresh,
   };
 }

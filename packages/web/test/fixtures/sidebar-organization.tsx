@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- 隔离 IO 夹具集中维护项目、远端历史及目录错误，保持真实 Root hook 的状态流转路径。 */
 import { useLCodeStore } from "@/store/StoreProvider.js";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -118,7 +119,7 @@ const services = {
     ...defaults.settingService,
     get: async () => ({ ...(await defaults.settingService.get()), ...settings }),
     update: historyFixture.update,
-    mutateProject: projectCommands.mutateProject,
+    mutateProject: historyFixture.mutateProject(projectCommands.mutateProject),
   },
   ...historyFixture.services,
   fileService: {
@@ -126,7 +127,7 @@ const services = {
     stat: async ({ path }: { path: string }) => {
       calls.push({ method: "localStat", params: { path } });
       if (path.includes("missing")) throw new Error("Fixture directory not found");
-      return { type: "directory" };
+      return { type: "directory", path };
     },
   },
   worktreeService: {
@@ -138,7 +139,13 @@ const services = {
           binding.taskId === taskId ||
           binding.id === tasks.find((task) => task.taskId === taskId)?.executionBindingId,
       ) ?? null,
-    getCapabilities: async () => ({ supported: true, create: true, archive: true }),
+    getCapabilities: async () => ({
+      supported: true,
+      create: true,
+      integrate: true,
+      archive: true,
+      restore: true,
+    }),
   },
   lcodeTaskService: {
     ...defaults.lcodeTaskService,
@@ -158,7 +165,15 @@ const services = {
             ? task.archivedAt
             : !task.archivedAt && (kind === "pinned" ? task.pinnedAt : !task.pinnedAt)),
       );
-      return { items: structuredClone(items), total: items.length, hasMore: false };
+      return {
+        items: structuredClone(items).map((task) => ({
+          ...task,
+          sourceAvailability: "online" as const,
+          liveStatus: "completed" as const,
+        })),
+        total: items.length,
+        hasMore: false,
+      };
     },
   },
 } as IServiceAccessor;

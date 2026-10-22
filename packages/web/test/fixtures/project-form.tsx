@@ -1,3 +1,5 @@
+import { MixedProjectDevicesFixture } from "./mixed-project-devices.js";
+import { MixedProjectMenuFixture } from "./mixed-project-menu.js";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { AppSettings, SidebarOrganization } from "@lcode/shared";
@@ -88,6 +90,7 @@ const services = {
         throw new Error("fixture-folder-unavailable");
       }
       return {
+        path,
         type: path.endsWith(".txt") ? ("file" as const) : ("directory" as const),
       };
     },
@@ -132,6 +135,7 @@ function Fixture() {
     api.setState({ tabs, activeTabId: tabs[0]?.id, activeWorkspacePath: tabs[0]?.workspacePath });
     setReady(true);
   }, [api, setTheme]);
+  if (params.has("mixedMenu")) return <MixedProjectMenuFixture />;
   if (params.has("registration"))
     return (
       <main>
@@ -162,7 +166,7 @@ function Fixture() {
             onCreateTask={noop}
             onCreateConversationTask={noop}
             onOpenFolderFromWorkspaceMenu={noop}
-            onConnectRemote={async () => undefined}
+            onConnectRemote={async () => "fixture-session"}
             onSelectRemoteProject={async () => {}}
             onCancelRemoteProject={async () => {}}
             onReconnectRemoteWorkspace={async () => {}}
@@ -184,7 +188,7 @@ createRoot(document.getElementById("root")!).render(
       canSelectFilePath: true,
       selectDirectory: creation.selectDirectory,
       selectDirectories: creation.selectDirectories,
-      getPathForFile: (file) => `/fixture/${file.name}`,
+      getPathForFile: (file) => (file instanceof File ? `/fixture/${file.name}` : ""),
     }}
   >
     <ServiceProvider services={services}>
@@ -192,7 +196,13 @@ createRoot(document.getElementById("root")!).render(
         <TabStoreProvider>
           <LCodeIntlProvider initialLocale={params.has("english") ? "en-US" : "zh-CN"}>
             <TooltipProvider>
-              <Fixture />
+              {params.has("mixed") ? (
+                <MixedProjectDevicesFixture services={services as never}>
+                  <Fixture />
+                </MixedProjectDevicesFixture>
+              ) : (
+                <Fixture />
+              )}
               <ConfirmDialogHost />
             </TooltipProvider>
           </LCodeIntlProvider>

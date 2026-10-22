@@ -21,10 +21,15 @@ test("各组按当前语言名称从短到长排列，等长保留注册顺序�
     for (const group of sorted.settingsSectionGroups) {
       const previous = original.settingsSectionGroups.find((entry) => entry.id === group.id)!;
       const remoteIndex = group.sections.findIndex((section) => section.id === "remoteControl");
-      if (remoteIndex >= 0) assert.equal(group.sections[remoteIndex + 1]?.id, "modelProvider");
+      if (remoteIndex >= 0) {
+        assert.equal(group.sections[remoteIndex + 1]?.id, "remoteDevices");
+        assert.equal(group.sections[remoteIndex + 2]?.id, "modelProvider");
+      }
       const comparable =
         remoteIndex >= 0
-          ? group.sections.filter((section) => section.id !== "modelProvider")
+          ? group.sections.filter(
+              (section) => section.id !== "modelProvider" && section.id !== "remoteDevices",
+            )
           : group.sections;
       for (let index = 1; index < comparable.length; index++) {
         const current = comparable[index]!;
@@ -51,8 +56,22 @@ test("标题空白不影响长度，同长度稳定排序，Web 平台继续隐�
   assert.deepEqual(sorted.settingsSectionGroups, original.settingsSectionGroups);
   assert.equal(
     sorted.settingsSections.some(
-      (entry) => entry.id === "remoteControl" || entry.id === "computerUse",
+      (entry) =>
+        entry.id === "remoteControl" || entry.id === "computerUse" || entry.id === "remoteDevices",
     ),
     false,
   );
+});
+
+test("远程设备在三种桌面平台的基础设置中注册，与手机远程控制保持独立", () => {
+  for (const platform of [
+    { isDesktop: true },
+    { isMacDesktop: true },
+    { isWindowsDesktop: true },
+  ]) {
+    const config = createSettingsPageConfig(platform);
+    const basics = config.settingsSectionGroups.find((group) => group.id === "basics")!;
+    assert.equal(basics.sections.filter((section) => section.id === "remoteDevices").length, 1);
+    assert.equal(basics.sections.filter((section) => section.id === "remoteControl").length, 1);
+  }
 });

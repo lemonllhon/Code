@@ -1,9 +1,15 @@
+import {
+  remoteDeviceAuthorityKey,
+  type RemoteDeviceDefinition,
+  type RemoteTarget,
+} from "@lcode/shared";
 /* eslint-disable max-lines -- 远端 workspace 历史目前需要在一个 hook 内同时收口恢复、重连、持久化和清理流程，先保留同文件协作边界，避免为过 lint 临时拆分后引入状态回归。*/
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type {
   AppSettings,
   IPlatformService,
+  LocalProjectRemoveRequest,
   RemoteSessionClosedEvent,
   RemoteWorkspaceSessionEntry,
 } from "@lcode/shared";
@@ -617,6 +623,7 @@ export function useRemoteWorkspaceHistory({
   activateTabByPath,
   addTab,
   onWorkspaceActivated,
+  onRemoveProjectDefinition,
 }: {
   intl: ReturnType<typeof import("@/i18n/IntlProvider.js").useLCodeIntl>["intl"];
   services: IServiceAccessor;
@@ -639,6 +646,7 @@ export function useRemoteWorkspaceHistory({
     },
   ) => void;
   onWorkspaceActivated?: (target: { workspacePath: string; workspaceIdentity: string }) => void;
+  onRemoveProjectDefinition: (request: LocalProjectRemoveRequest) => Promise<void>;
 }) {
   const showRemoteConnectionEntry = useRemoteConnectionEntryVisibility();
   const canUseRemoteWorkspace = allowRemoteWorkspace && showRemoteConnectionEntry;
@@ -677,13 +685,13 @@ export function useRemoteWorkspaceHistory({
   });
 
   const syncPersistedWorkspaceSession = useCallback(
-    async (nextRemoteSessions: readonly RemoteWorkspaceSessionEntry[]) => {
+    async (nextRemoteSessions: readonly RemoteWorkspaceSessionEntry[], persist = true) => {
       const previous = remoteWorkspaceSessionsRef.current;
       const next = [...nextRemoteSessions];
       setRemoteWorkspaceSessions(next);
       remoteWorkspaceSessionsRef.current = next;
 
-      if (!supportsSettings) {
+      if (!supportsSettings || !persist) {
         return;
       }
 
@@ -704,7 +712,19 @@ export function useRemoteWorkspaceHistory({
 
   const commitRemoteWorkspaceSessionMutation = useCallback(
     async (mutation: ReturnType<typeof buildRemoteWorkspaceSessionMutation>) => {
+      const profiles = (await services.settingService.get()).remoteDevices?.devices ?? [];
+      const retained = new Set(
+        profiles.flatMap((profile) =>
+          profile.target.kind === "ssh"
+            ? [
+                profile.target.passwordCredentialKey,
+                profile.target.privateKeyPassphraseCredentialKey,
+              ]
+            : [],
+        ),
+      );
       for (const credentialKey of mutation.credentialKeysToDelete) {
+        if (retained.has(credentialKey)) continue;
         try {
           await services.credentialService.delete(credentialKey);
         } catch (error) {
@@ -722,7 +742,7 @@ export function useRemoteWorkspaceHistory({
       await syncPersistedWorkspaceSession(mutation.nextRemoteSessions);
       return mutation.entry;
     },
-    [services.credentialService, syncPersistedWorkspaceSession],
+    [services.credentialService, services.settingService, syncPersistedWorkspaceSession],
   );
 
   const waitForRemoteWorkspaceSessionReady = useCallback(async (sessionId: string) => {
@@ -915,24 +935,43 @@ export function useRemoteWorkspaceHistory({
     ],
   );
 
+  const freezeDeviceProfiles = (
+    entries: RemoteWorkspaceSessionEntry[],
+    devices: RemoteDeviceDefinition[] | undefined,
+  ) =>
+    entries.map((entry) => {
+      const profile = devices?.find(
+        (device) =>
+          remoteDeviceAuthorityKey(device.target as RemoteTarget) ===
+          remoteDeviceAuthorityKey(entry.target as RemoteTarget),
+      );
+      return profile ? { ...entry, target: { ...profile.target } } : entry;
+    });
+
   const runReconnectRemoteWorkspace = useCallback(
     async (
       sessionEntry: RemoteWorkspaceSessionEntry,
       options?: ReconnectRemoteWorkspaceOptions,
     ) => {
+      const profiles = (await services.settingService.get()).remoteDevices?.devices;
+      const frozen = freezeDeviceProfiles(
+        [sessionEntry, ...remoteWorkspaceSessionsRef.current],
+        profiles,
+      );
+      const selected = frozen[0]!;
       const reconnectGroup = collectSshReconnectGroup({
-        selected: sessionEntry,
-        sessions: remoteWorkspaceSessionsRef.current,
+        selected,
+        sessions: frozen.slice(1),
         tabs: tabStoreApi.getState().tabs,
       });
       await reconnectRemoteWorkspaceGroup({
-        selected: sessionEntry,
+        selected,
         reconnectGroup,
         reconnectEntry: runReconnectRemoteWorkspaceEntry,
         options,
       });
     },
-    [runReconnectRemoteWorkspaceEntry, tabStoreApi],
+    [runReconnectRemoteWorkspaceEntry, tabStoreApi, services.settingService],
   );
 
   useEffect(() => {
@@ -1086,10 +1125,19 @@ export function useRemoteWorkspaceHistory({
 
       // 远程历史入口与侧栏重连都可能命中“重连中被用户移除”的竞态。
       // 这里抽成统一入口，确保两条路径共享相同的并发保护、保留校验与错误处理语义。
+      const frozenSessions = freezeDeviceProfiles(
+        remoteWorkspaceSessionsRef.current,
+        (await services.settingService.get()).remoteDevices?.devices,
+      );
       await openRemoteWorkspaceFromHistoryEntry({
         workspaceKey,
         tabStoreApi,
-        getRemoteSessions: () => remoteWorkspaceSessionsRef.current,
+        getRemoteSessions: () =>
+          frozenSessions.filter((entry) =>
+            remoteWorkspaceSessionsRef.current.some(
+              (current) => buildWorkspaceSessionKey(current) === buildWorkspaceSessionKey(entry),
+            ),
+          ),
         inflightReconnectWorkspaceKeys: inflightReconnectWorkspaceKeysRef.current,
         activateTabByPath,
         setReconnectingRemoteWorkspaceKeys,
@@ -1117,6 +1165,7 @@ export function useRemoteWorkspaceHistory({
       resetLogsForWorkspaceKey,
       onWorkspaceActivated,
       services.credentialService,
+      services.settingService,
       tabStoreApi,
       canUseRemoteWorkspace,
     ],
@@ -1231,7 +1280,7 @@ export function useRemoteWorkspaceHistory({
   }, [handleRemoteWorkspaceSessionClosed, platform]);
 
   const handleRemoteWorkspaceTabsClosed = useCallback(
-    async (workspaceKeys: string[]) => {
+    async (workspaceKeys: string[], options?: { historyAlreadyCommitted?: boolean }) => {
       if (workspaceKeys.length === 0) {
         return;
       }
@@ -1268,10 +1317,25 @@ export function useRemoteWorkspaceHistory({
       // remoteWorkspaceSessionsRef 仍被持久化补丁合并回 setting.json，
       // 所以下次启动又会恢复同一个断连项。这里把显式移除视为删除远程历史，
       // 同时清理该历史独占的 SSH 凭据，避免留下不可达的 credential key。
-      await syncPersistedWorkspaceSession(removal.nextRemoteSessions);
+      await syncPersistedWorkspaceSession(
+        removal.nextRemoteSessions,
+        !options?.historyAlreadyCommitted,
+      );
+      const profiles = (await services.settingService.get()).remoteDevices?.devices ?? [];
+      const retained = new Set(
+        profiles.flatMap((profile) =>
+          profile.target.kind === "ssh"
+            ? [
+                profile.target.passwordCredentialKey,
+                profile.target.privateKeyPassphraseCredentialKey,
+              ]
+            : [],
+        ),
+      );
       // 凭据回收不控制菜单完成；离线平台的凭据 API 也可能暂时不可用。
       void Promise.all(
         removal.credentialKeysToDelete.map(async (credentialKey) => {
+          if (retained.has(credentialKey)) return;
           try {
             await services.credentialService.delete(credentialKey);
           } catch (error) {
@@ -1283,12 +1347,26 @@ export function useRemoteWorkspaceHistory({
         }),
       );
     },
-    [platform, services.credentialService, syncPersistedWorkspaceSession],
+    [platform, services.credentialService, services.settingService, syncPersistedWorkspaceSession],
   );
 
   const handleRemoveRemoteProject = useCallback(
-    (workspaceKey: string) => handleRemoteWorkspaceTabsClosed([workspaceKey]),
-    [handleRemoteWorkspaceTabsClosed],
+    async (workspaceKey: string) => {
+      // 显式移除按设置 owner 的最新定义处理，不能依赖可能尚未刷新的 sidebar 投影。
+      const settings = await services.settingService.get();
+      const project = settings.projectDefinitions?.projects.find(
+        (item) => item.workspaceIdentity?.trim() === workspaceKey,
+      );
+      if (project) {
+        await onRemoveProjectDefinition({
+          projectId: project.id,
+          workspacePath: project.primaryFolderPath,
+        });
+      }
+      // 已保存项目的历史由 registry mutation 原子提交；窗口只清理投影，不再发第二次写入。
+      await handleRemoteWorkspaceTabsClosed([workspaceKey], { historyAlreadyCommitted: !!project });
+    },
+    [handleRemoteWorkspaceTabsClosed, onRemoveProjectDefinition, services.settingService],
   );
 
   const remoteWorkspaceErrorByWorkspaceKey = useMemo(
@@ -1304,6 +1382,11 @@ export function useRemoteWorkspaceHistory({
   );
 
   return {
+    retainRemoteDeviceConnection: (sessionId: string) => {
+      if (!getRemoteWorkspaceSession(sessionId))
+        throw new Error("Remote connection is no longer available");
+      pendingConnectionTargetsBySessionIdRef.current.delete(sessionId);
+    },
     remoteWorkspaceSessions,
     reconnectingRemoteWorkspaceKeys,
     remoteWorkspaceErrorByWorkspaceKey,

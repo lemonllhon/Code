@@ -1,3 +1,5 @@
+import { withProjectMemberSelector } from "./registry.js";
+import { PROJECT_NATIVE_TOOLS } from "./project-routing.js";
 import type { ModelToolContract } from "@lcode/contracts";
 import type { ToolEntry, ToolExecutionModelContext } from "./types.js";
 
@@ -9,7 +11,13 @@ export function resolveToolEntryModelContract(
   if (!projection) return entry;
   return {
     ...entry,
-    ...(projection.inputSchema ? { inputSchema: projection.inputSchema } : {}),
+    ...(projection.inputSchema
+      ? {
+          inputSchema: PROJECT_NATIVE_TOOLS.has(entry.metadata.name)
+            ? withProjectMemberSelector(projection.inputSchema)
+            : projection.inputSchema,
+        }
+      : {}),
     metadata: {
       ...entry.metadata,
       ...(projection.description !== undefined ? { description: projection.description } : {}),
@@ -28,6 +36,12 @@ export function projectToolModelContract(
   return {
     ...contract,
     ...(projection.description !== undefined ? { description: projection.description } : {}),
-    ...(projection.inputSchema ? { inputSchema: projection.inputSchema } : {}),
+    ...(projection.inputSchema
+      ? {
+          inputSchema: PROJECT_NATIVE_TOOLS.has(entry.metadata.name)
+            ? withProjectMemberSelector(projection.inputSchema)
+            : projection.inputSchema,
+        }
+      : {}),
   };
 }

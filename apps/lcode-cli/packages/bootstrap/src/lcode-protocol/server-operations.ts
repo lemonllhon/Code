@@ -1,3 +1,4 @@
+import { PROJECT_NATIVE_ROUTE_METHOD, projectNativeResultSchema } from "@lcode/shared";
 import {
   withSessionResumeFlight,
   type ActivatedSessionForResume,
@@ -137,7 +138,11 @@ import {
 import { originWorkspaceRef } from "./workspace.js";
 import type { PreparedSessionTitle } from "@lcode/core";
 import { createProtocolCheckoutExecutionPort } from "./checkout-execution-port.js";
-import { gitCredentialResultSchema, gitAgentContextSchema } from "@lcode/shared";
+import {
+  gitCredentialResultSchema,
+  gitAgentContextSchema,
+  gitAccountOperationResultSchema,
+} from "@lcode/shared";
 
 const PLAN_MODE_GOAL_CONTINUATION_SKIPPED_MESSAGE = "Plan mode 下已记录 goal，但不会自动继续。";
 const SLOW_SNAPSHOT_LOG_THRESHOLD_MS = 1000;
@@ -3594,6 +3599,20 @@ async function createRecord(
         { sessionId, workspace },
         gitAgentContextSchema,
         { signal, timeoutMs: 5_000 },
+      ),
+    projectNativeCall: (request) =>
+      context.requestClient(
+        PROJECT_NATIVE_ROUTE_METHOD,
+        { ...request, workspace },
+        projectNativeResultSchema,
+        { timeoutMs: 3_660_000 },
+      ),
+    resolveGitAccount: (operation, signal) =>
+      context.requestClient(
+        lcodeProtocolMethods.gitAccount,
+        { sessionId, workspace, operation },
+        gitAccountOperationResultSchema,
+        { signal },
       ),
     checkoutExecutionPort: createProtocolCheckoutExecutionPort(
       context,

@@ -25,6 +25,7 @@ export type SettingsSectionId =
   | "workspaceFileSearch"
   | "computerUse"
   | "remoteControl"
+  | "remoteDevices"
   | "automations"
   | "shortcuts"
   | "gitBackup";
@@ -91,6 +92,7 @@ function isSettingsSectionId(value: string): value is SettingsSectionId {
     value === "workspaceFileSearch" ||
     value === "computerUse" ||
     value === "remoteControl" ||
+    value === "remoteDevices" ||
     value === "automations" ||
     value === "shortcuts" ||
     value === "gitBackup"

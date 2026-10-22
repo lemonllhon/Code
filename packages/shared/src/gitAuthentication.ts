@@ -37,7 +37,14 @@ export const gitRepositoryAuthenticationSchema = z
         .object({
           name: z.string(),
           urls: z.array(
-            z.object({ url, selection: z.string().nullable(), stale: z.boolean() }).strict(),
+            z
+              .object({
+                url,
+                selection: z.string().nullable(),
+                stale: z.boolean(),
+                usernameHint: z.string().optional(),
+              })
+              .strict(),
           ),
         })
         .strict(),

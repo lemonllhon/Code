@@ -1,3 +1,6 @@
+import { createWindowProjectNativeRouter } from "./windowProjectNativeRouter.js";
+import { installProjectNativeRoutingOwner } from "@lcode/services/node";
+import { replaceRemoteWorkspaceIdentityPath } from "@lcode/shared";
 /* eslint-disable max-lines -- Host 入口集中编排 local/remote service wiring，本次退出保护需要在同一处桥接 host 上报。 */
 /* eslint-disable max-lines -- host process 入口集中维护 local/remote 初始化和资源回收，realtime bridge 接入后先保持同文件收口。 */
 /**
@@ -1796,6 +1799,83 @@ const windowRemoteConnectionRegistry = createWindowRemoteConnectionRegistry<
     logWindowHostTopology("remote-connection-closed");
   },
 });
+
+const projectNativeOwner = createWindowProjectNativeRouter({
+  async resolveTarget(member) {
+    if (!member.workspaceIdentity) return { workspacePath: member.workspacePath };
+    if (member.source?.kind === "remote") {
+      const deviceId = member.source.deviceId;
+      const profile = (
+        await activeServices?.get(ISettingService).get()
+      )?.remoteDevices?.devices.find((device) => device.id === deviceId);
+      if (
+        !profile ||
+        buildRemoteWorkspaceIdentity("/", profile.target as RemoteTarget) !==
+          replaceRemoteWorkspaceIdentityPath(member.workspaceIdentity, "/")
+      )
+        throw new Error(
+          "Project device configuration is missing or changed; select its device again in Edit project",
+        );
+    }
+    const authority = replaceRemoteWorkspaceIdentityPath(member.workspaceIdentity, "/");
+    const sessions = windowRemoteConnectionRegistry
+      .listSessions()
+      .filter(
+        (session) =>
+          session.state === "online" &&
+          session.sourceAvailability === "online" &&
+          buildRemoteWorkspaceIdentity("/", session.target) === authority,
+      )
+      .sort(
+        (left, right) =>
+          Number(Boolean(left.workspacePath)) - Number(Boolean(right.workspacePath)) ||
+          left.remoteSessionId.localeCompare(right.remoteSessionId),
+      );
+    const session = sessions[0];
+    if (!session)
+      throw new Error(
+        `${member.sourcePath}: remote device is disconnected; connect it in Remote devices`,
+      );
+    return {
+      workspacePath: member.workspacePath,
+      workspaceIdentity: member.workspaceIdentity,
+      remoteSessionId: session.remoteSessionId,
+      generation: session.generation,
+    };
+  },
+  async execute(endpoint, request) {
+    const services = endpoint.remoteSessionId
+      ? windowRemoteConnectionRegistry.resolveDeviceServices(
+          endpoint.remoteSessionId,
+          endpoint.generation!,
+        )
+      : activeServices;
+    if (!services) throw new Error("Local project execution Host is unavailable");
+    const release = endpoint.remoteSessionId
+      ? windowRemoteConnectionRegistry.retainNativeOperation(
+          endpoint.remoteSessionId,
+          endpoint.generation!,
+        )
+      : undefined;
+    try {
+      const value = await services.get(ILCodeAgentService).executeProjectNative({
+        workspacePath: endpoint.workspacePath,
+        workspaceIdentity: endpoint.workspaceIdentity,
+        request,
+      });
+      // 同一次异步操作也要在返回时验证代次，旧连接的迟到结果不能成为新范围的事实。
+      if (endpoint.remoteSessionId)
+        windowRemoteConnectionRegistry.resolveDeviceServices(
+          endpoint.remoteSessionId,
+          endpoint.generation!,
+        );
+      return value;
+    } finally {
+      release?.();
+    }
+  },
+});
+installProjectNativeRoutingOwner(projectNativeOwner);
 
 const windowHostControllerRuntime = createWindowHostControllerRuntime({
   createId: randomUUID,

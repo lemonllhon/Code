@@ -76,6 +76,11 @@ export type ShouldEnqueueBackgroundTaskNotification = (
 ) => boolean;
 
 export interface ToolExecutorOptions {
+  resolveProjectToolScope?: (
+    toolName: string,
+    input: Record<string, unknown>,
+  ) => Partial<ToolExecutorDeps> | undefined;
+  resolveProjectGitAccount?: import("../../runtime/types.js").AgentRuntimeDeps["resolveGitAccount"];
   toolOperationAdmission?: ToolOperationAdmissionPort;
   agentTelemetry?: AgentExecutionTelemetryPort;
   agentTelemetryActorKind?: AgentTelemetryActorKind;
@@ -187,6 +192,8 @@ export interface ToolBatchExecuteOptions extends ToolExecuteOptions {
 }
 
 export interface ToolExecutorDeps {
+  resolveProjectToolScope?: ToolExecutorOptions["resolveProjectToolScope"];
+  resolveProjectGitAccount?: ToolExecutorOptions["resolveProjectGitAccount"];
   executionPermits: ToolExecutionPermits;
   toolOperationAdmission?: ToolOperationAdmissionPort;
   agentTelemetry?: AgentExecutionTelemetryPort;

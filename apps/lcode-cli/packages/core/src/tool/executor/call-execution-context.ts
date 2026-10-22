@@ -48,6 +48,7 @@ export function createToolExecutionContext(input: {
     abortSignal,
     backgroundTaskControlPort: deps.backgroundTaskControlPort,
     emitEvent,
+    resolveProjectGitAccount: deps.resolveProjectGitAccount,
     executionPort: deps.executionPort,
     browserControlPort: deps.browserControlPort,
     browserDocumentationRoot: deps.browserDocumentationRoot,

@@ -1,3 +1,5 @@
+import { gitAgentContextSchema, decodeProjectNativeValue } from "@lcode/shared";
+import { createProjectToolRouting } from "../../tool/project-routing.js";
 import {
   createConfiguredHookRunner,
   createInMemoryHookRunner,
@@ -47,6 +49,7 @@ function registerRuntimeBuiltInTools(runtime: AgentRuntimeInternal, deps: AgentR
   const nodeReplEnabled = runtime.config.runtimeFeatures?.nodeRepl === true;
   const browserUseEnabled = resolveRuntimeBrowserUseEnabled(runtime, deps);
   registerBuiltInTools(runtime.registry, {
+    resolveGitAccount: runtime.resolveGitAccount,
     bashTimeoutPolicy: runtime.config.bashTimeoutPolicy,
     includeSkill: Boolean(runtime.skillPort),
     includeAgent: Boolean(runtime.subagentPort),
@@ -151,7 +154,41 @@ function createRuntimeToolExecutor(
   hookRunner: HookRunner | undefined,
 ): ToolExecutor {
   const browserUseEnabled = resolveRuntimeBrowserUseEnabled(runtime, deps);
+  const projectRouting = deps.projectNativeCall
+    ? createProjectToolRouting({
+        ownerId: `${runtime.sessionId}:native:${crypto.randomUUID()}`,
+        call: deps.projectNativeCall,
+        snapshot: () => runtime.projectContextForTools,
+        baseExecution: deps.executionPort,
+      })
+    : undefined;
+  if (projectRouting) {
+    runtime.executionPort = projectRouting.backgroundExecution;
+    deps.onProjectExecutionPortReady?.(projectRouting.backgroundExecution);
+  }
+  if (deps.projectNativeCall) {
+    runtime.resolveGitContext = async (signal) => {
+      const routeToken = runtime.projectContextForTools?.execution.routeToken;
+      if (!routeToken)
+        return deps.resolveGitContext ? deps.resolveGitContext(signal) : { status: "unavailable" };
+      signal.throwIfAborted();
+      const result = gitAgentContextSchema.parse(
+        decodeProjectNativeValue(
+          await deps.projectNativeCall!({
+            routeToken,
+            ownerId: String(runtime.sessionId),
+            callId: crypto.randomUUID(),
+            operation: { port: "gitContext", method: "resolve", args: [] },
+          }),
+        ),
+      );
+      signal.throwIfAborted();
+      return result;
+    };
+  }
+  runtime.resolveProjectToolScope = projectRouting?.resolve;
   return createToolExecutor({
+    resolveProjectToolScope: projectRouting?.resolve,
     agentTelemetry: runtime.agentTelemetry.port,
     agentTelemetryActorKind: runtime.agentTelemetry.actorKind,
     registry: runtime.registry,
@@ -170,7 +207,7 @@ function createRuntimeToolExecutor(
     backgroundTaskControlPort: {
       stopBackgroundTask: runtime.stopBackgroundTask.bind(runtime),
     },
-    executionPort: deps.executionPort,
+    executionPort: projectRouting?.backgroundExecution ?? deps.executionPort,
     browserControlPort: browserUseEnabled ? deps.browserControlPort : undefined,
     browserDocumentationRoot: browserUseEnabled
       ? runtime.config.runtimeFeatures?.browserDocumentationRoot
