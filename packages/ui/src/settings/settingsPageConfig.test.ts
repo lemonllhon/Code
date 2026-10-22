@@ -20,9 +20,15 @@ test("各组按当前语言名称从短到长排列，等长保留注册顺序�
     );
     for (const group of sorted.settingsSectionGroups) {
       const previous = original.settingsSectionGroups.find((entry) => entry.id === group.id)!;
-      for (let index = 1; index < group.sections.length; index++) {
-        const current = group.sections[index]!;
-        const preceding = group.sections[index - 1]!;
+      const remoteIndex = group.sections.findIndex((section) => section.id === "remoteControl");
+      if (remoteIndex >= 0) assert.equal(group.sections[remoteIndex + 1]?.id, "modelProvider");
+      const comparable =
+        remoteIndex >= 0
+          ? group.sections.filter((section) => section.id !== "modelProvider")
+          : group.sections;
+      for (let index = 1; index < comparable.length; index++) {
+        const current = comparable[index]!;
+        const preceding = comparable[index - 1]!;
         const currentLength = Array.from(
           getSectionTitle(current.titleId).replace(/\s/gu, ""),
         ).length;

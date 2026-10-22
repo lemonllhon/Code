@@ -19,6 +19,7 @@ interface FileStamp {
   mtimeMs: number;
   ctimeMs: number;
   directory: boolean;
+  mode: number;
 }
 
 function stamp(path: string, stats: Stats): FileStamp {
@@ -30,6 +31,7 @@ function stamp(path: string, stats: Stats): FileStamp {
     mtimeMs: stats.mtimeMs,
     ctimeMs: stats.ctimeMs,
     directory: stats.isDirectory(),
+    mode: stats.mode & 0o777,
   };
 }
 
@@ -160,6 +162,7 @@ export async function captureGitSnapshot(
         path: file.path,
         size: content.length,
         sha256: createHash("sha256").update(content).digest("hex"),
+        mode: file.mode,
       });
     } finally {
       await handle.close();

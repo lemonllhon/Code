@@ -7,7 +7,11 @@ import {
   type ProviderConfigLayerSnapshot,
   type ProviderConfigLayerUpdate,
 } from "@lcode/provider";
-import { atomicWritePrivateTextFile, withFileLock } from "@lcode/shared/node";
+import {
+  atomicWritePrivateTextFile,
+  withFileLock,
+  withProviderMutationBarrier,
+} from "@lcode/shared/node";
 import {
   decodeProviderConfigFile,
   encodeProviderConfigFile,
@@ -58,6 +62,9 @@ export class NodePersonalProviderConfigRepository implements PersonalProviderCon
   }
 
   async read(): Promise<ProviderConfigLayerSnapshot> {
+    return withProviderMutationBarrier(this.#filePath, () => this.#readSnapshot());
+  }
+  async #readSnapshot(): Promise<ProviderConfigLayerSnapshot> {
     this.#assertNotDisposed();
     try {
       const snapshot = await this.#snapshotCache.read(() => this.#readCurrent(), true);
@@ -73,6 +80,11 @@ export class NodePersonalProviderConfigRepository implements PersonalProviderCon
   }
 
   async update(
+    transform: (current: ProviderConfigLayerSnapshot) => ProviderConfigLayerUpdate,
+  ): Promise<ProviderConfigLayerSnapshot> {
+    return withProviderMutationBarrier(this.#filePath, () => this.#updateSnapshot(transform));
+  }
+  async #updateSnapshot(
     transform: (current: ProviderConfigLayerSnapshot) => ProviderConfigLayerUpdate,
   ): Promise<ProviderConfigLayerSnapshot> {
     this.#assertNotDisposed();

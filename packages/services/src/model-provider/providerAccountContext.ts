@@ -11,6 +11,7 @@ export function createProviderAccountContext(
   ownerActive: () => boolean = () => true,
 ): AuthDriverContext & { isCurrent(current: StoredAccount): boolean } {
   let generation = account.generation;
+  const restoreEpoch = account.restoreEpoch;
   const writeGrant = async (
     grant: AuthGrant,
     rotating: boolean,
@@ -25,7 +26,8 @@ export function createProviderAccountContext(
         !ownerActive() ||
         !current ||
         !current.enabled ||
-        current.generation !== expectedGeneration
+        current.generation !== expectedGeneration ||
+        current.restoreEpoch !== restoreEpoch
       )
         throw new Error("Stale account credential update");
       current.grant = grantSchema.parse(grant);
@@ -35,7 +37,8 @@ export function createProviderAccountContext(
     });
   };
   return {
-    isCurrent: (current) => current.enabled && current.generation === generation,
+    isCurrent: (current) =>
+      current.enabled && current.generation === generation && current.restoreEpoch === restoreEpoch,
     signal,
     connectionId: account.connectionId,
     read: async () => {
@@ -43,7 +46,8 @@ export function createProviderAccountContext(
       const current = (await store.read()).find(
         (item) => item.connectionId === account.connectionId,
       );
-      if (!current || !current.enabled) throw new Error("Account unavailable");
+      if (!current || !current.enabled || current.restoreEpoch !== restoreEpoch)
+        throw new Error("Account unavailable");
       generation = current.generation;
       return current.grant as AuthGrant;
     },
@@ -57,7 +61,12 @@ export function createProviderAccountContext(
       await store.mutate((accounts) => {
         signal?.throwIfAborted();
         const current = accounts.find((item) => item.connectionId === account.connectionId);
-        if (!current || !current.enabled || current.generation !== generation)
+        if (
+          !current ||
+          !current.enabled ||
+          current.generation !== generation ||
+          current.restoreEpoch !== restoreEpoch
+        )
           throw new Error("Stale account sign-in report");
         current.authorizationStatus = status;
       });

@@ -62,11 +62,13 @@ export function useGitBackup({
   target,
   connectionKind,
   workspaceCandidates = NO_WORKSPACE_CANDIDATES,
+  destinationOnly = false,
 }: {
   service: IGitBackupService | null;
   target: GitBackupWorkspaceTarget | null;
   connectionKind: "local-ready" | "remote-ready" | "remote-waiting";
   workspaceCandidates?: readonly GitBackupWorkspaceTarget[];
+  destinationOnly?: boolean;
 }) {
   const platform = useOptionalPlatform();
   const [config, setConfig] = useState<GitBackupConfig | null>(null);
@@ -167,20 +169,21 @@ export function useGitBackup({
   };
 
   const save = async () => {
-    if (!draft || !config || !target) return;
+    if (!draft || !config) return;
     const savedProvider = provider;
-    const validated = createGitBackupSavePatch(draft, config, savedProvider);
+    const validated = createGitBackupSavePatch(draft, config, savedProvider, destinationOnly);
     if (validated.error) {
       setError(validated.error);
       return;
     }
     await execute("save", async (isCurrent) => {
       // 保存存储配置不能隐式恢复用户已取消的工作区，名单仅由勾选操作修改。
+      // 供应商页只保存共享存储位置，不能用其旧草稿覆盖另一标签页的 Git 间隔。
       await service!.configure(validated.config);
       if (!isCurrent()) return;
       const next: GitBackupConfig = {
         ...config,
-        intervalMinutes: validated.config.intervalMinutes!,
+        intervalMinutes: validated.config.intervalMinutes ?? config.intervalMinutes,
         destinationEnabled: getGitBackupDestinationSelection(config),
         [savedProvider]: { ...validated.config[savedProvider], accessKeySecret: "" },
       };
@@ -301,7 +304,7 @@ export function useGitBackup({
         );
         if (isCurrent())
           setNotice({
-            id: "settings.gitBackup.backupCompleted",
+            id: result.skipped ? "settings.backup.unchanged" : "settings.gitBackup.backupCompleted",
             detail: String(result.totalFiles),
           });
       } finally {

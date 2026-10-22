@@ -40,9 +40,39 @@ async function fixture(fetch: typeof globalThis.fetch, options: GitBackupService
       secrets.delete(key);
     },
   };
+  const objects = new Map<string, Uint8Array>();
+  const transport: typeof globalThis.fetch = async (url, init) => {
+    const parsed = new URL(String(url));
+    const key = `${parsed.origin}${parsed.pathname}`;
+    if (init?.method === "GET") {
+      if (parsed.searchParams.has("prefix")) {
+        const prefix = parsed.searchParams.get("prefix")!;
+        const keys = [...objects.keys()]
+          .filter((item) => item.startsWith(parsed.origin))
+          .map((item) =>
+            new URL(item).pathname.replace(
+              parsed.hostname.endsWith("aliyuncs.com") ? /^\// : /^\/[^/]+\//,
+              "",
+            ),
+          )
+          .filter((item) => item.startsWith(prefix));
+        return new Response(
+          `<ListBucketResult><IsTruncated>false</IsTruncated>${keys.map((item) => `<Contents><Key>${encodeURIComponent(item)}</Key></Contents>`).join("")}</ListBucketResult>`,
+        );
+      }
+      return objects.has(key)
+        ? new Response(Buffer.from(objects.get(key)!))
+        : new Response(null, { status: 404 });
+    }
+    const response = await fetch(url, init);
+    if (response.ok && init?.method === "PUT")
+      objects.set(key, Buffer.from(init.body as Uint8Array));
+    if (response.ok && init?.method === "DELETE") objects.delete(key);
+    return response;
+  };
   const service = createGitBackupService(join(root, "profile"), {
     ...options,
-    fetch,
+    fetch: transport,
     credentialService,
   });
   return {
@@ -66,6 +96,26 @@ async function waitFor(check: () => Promise<boolean>) {
   }
   assert.fail("Scheduled backup did not reach the expected state");
 }
+
+test("legacy manual entry reports unchanged and does not upload a duplicate version", async () => {
+  let writes = 0;
+  const f = await fixture(async (_url, init) => {
+    if (init?.method === "PUT") writes++;
+    return new Response(null, { status: 200 });
+  });
+  try {
+    await f.service.configure(
+      { minio, destinationEnabled: { oss: false, minio: true } },
+      { workspacePath: f.workspace },
+    );
+    assert.equal((await f.service.startBackup(f.workspace)).skipped, false);
+    const createdWrites = writes;
+    assert.equal((await f.service.startBackup(f.workspace)).skipped, true);
+    assert.equal(writes, createdWrites);
+  } finally {
+    await f.close();
+  }
+});
 
 for (const selected of ["minio", "both"] as const) {
   test(`scheduled ${selected} destinations run and preserve the next due time`, async () => {
@@ -94,10 +144,10 @@ for (const selected of ["minio", "both"] as const) {
         const status = await f.service.getStatus();
         return status.lastBackupAt !== null && Date.parse(status.nextBackupAt!) > now;
       });
-      assert.equal(calls.filter((provider) => provider === "minio").length, 4);
+      assert.equal(calls.filter((provider) => provider === "minio").length, 2);
       assert.equal(
         calls.filter((provider) => provider === "oss").length,
-        selected === "both" ? 4 : 0,
+        selected === "both" ? 2 : 0,
       );
       assert.equal((await f.service.getStatus()).error, null);
     } finally {
@@ -146,8 +196,8 @@ test("destination disabled during a scheduled run is excluded from the next work
       const status = await f.service.getStatus();
       return status.lastBackupAt !== null && Date.parse(status.nextBackupAt!) > now;
     });
-    assert.equal(calls.filter((provider) => provider === "minio").length, 4);
-    assert.equal(calls.filter((provider) => provider === "oss").length, 8);
+    assert.equal(calls.filter((provider) => provider === "minio").length, 2);
+    assert.equal(calls.filter((provider) => provider === "oss").length, 4);
     assert.equal((await f.service.getConfig()).enabled, true);
   } finally {
     release?.();
@@ -170,16 +220,16 @@ test("both selected destinations receive identical encrypted snapshot and their 
   try {
     await f.service.configure({ oss, minio, destinationEnabled: { oss: true, minio: true } });
     const manifest = await f.service.startBackup(f.workspace, "fixture-identity");
-    assert.equal(calls.length, 8);
+    assert.equal(calls.length, 4);
     for (const provider of ["oss", "minio"] as const) {
       const own = calls.filter((call) => call.provider === provider);
       assert.ok(own.at(-1)!.key.endsWith("manifest.json"));
-      assert.equal(JSON.parse(own.at(-1)!.data.toString()).createdAt, manifest.createdAt);
+      assert.equal((await f.service.listBackups!(provider))[0]!.createdAt, manifest.createdAt);
       const status = (await f.service.getStatus()).destinations![provider]!;
       assert.equal(status.lastBackupAt, manifest.createdAt);
       assert.equal(status.error, null);
     }
-    for (const name of ["data.enc", "key.enc", "iv.bin"]) {
+    for (const name of ["archive.json"]) {
       const pair = calls.filter((call) => call.key.endsWith(name));
       assert.deepEqual(pair[0]!.data, pair[1]!.data);
       assert.equal(pair[0]!.key.split("/").at(-2), pair[1]!.key.split("/").at(-2));
@@ -240,11 +290,11 @@ test("manual provider selection works while disabled and default rejects empty s
     );
     assert.equal(calls.length, 0);
     await f.service.startBackup(f.workspace, undefined, "minio");
-    assert.deepEqual(calls, ["minio", "minio", "minio", "minio"]);
+    assert.deepEqual(calls, ["minio", "minio"]);
     calls.length = 0;
     await f.service.configure({ destinationEnabled: { oss: true } });
     await f.service.startBackup(f.workspace);
-    assert.deepEqual(calls, ["oss", "oss", "oss", "oss"]);
+    assert.deepEqual(calls, ["oss", "oss"]);
     assert.equal((await f.service.getConfig()).enabled, false);
   } finally {
     await f.close();
@@ -262,7 +312,7 @@ test("missing one provider credential still backs up the healthy provider", asyn
     const load = f.credentialService.load;
     f.credentialService.load = async (key) => (key.includes(":minio:") ? null : load(key));
     await assert.rejects(f.service.startBackup(f.workspace), /Secret is not configured/);
-    assert.deepEqual(calls, ["oss", "oss", "oss", "oss"]);
+    assert.deepEqual(calls, ["oss", "oss"]);
     const status = await f.service.getStatus();
     assert.ok(status.destinations!.oss!.lastBackupAt);
     assert.equal(status.destinations!.minio!.configured, false);

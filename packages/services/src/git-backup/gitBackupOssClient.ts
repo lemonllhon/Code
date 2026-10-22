@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 import { normalizeGitBackupOssConfig, type GitBackupOssConfig } from "./gitBackup.js";
+import { readBackupResponse } from "./backupHttpResponse.js";
 
 export interface OssRequestOptions {
   fetch?: typeof globalThis.fetch;
@@ -45,13 +46,14 @@ function requestParts(
   };
 }
 
-async function request(
+export async function requestOssObject(
   config: GitBackupOssConfig,
   key: string,
-  method: "PUT" | "HEAD",
+  method: "PUT" | "HEAD" | "GET" | "DELETE",
   data: Buffer | undefined,
   contentType: string,
   options: OssRequestOptions,
+  query?: URLSearchParams,
 ) {
   const parts = requestParts(config, key, method, contentType, (options.now ?? Date.now)());
   const controller = new AbortController();
@@ -60,18 +62,24 @@ async function request(
     options.timeoutMs ?? 60_000,
   );
   let statusCode = 0;
+  let bytes: Uint8Array = new Uint8Array();
   try {
-    const response = await (options.fetch ?? globalThis.fetch)(parts.url, {
-      method,
-      headers: parts.headers,
-      body: data,
-      signal: controller.signal,
-      redirect: "error",
-    });
+    const response = await (options.fetch ?? globalThis.fetch)(
+      `${parts.url}${query ? `?${query}` : ""}`,
+      {
+        method,
+        headers: parts.headers,
+        body: data,
+        signal: controller.signal,
+        redirect: "error",
+      },
+    );
     try {
       // 注入的传输即使在超时后返回，也不能把该请求报告成功。
       controller.signal.throwIfAborted();
       statusCode = response.status;
+      if (method === "GET" && response.ok)
+        bytes = await readBackupResponse(response, controller.signal);
     } finally {
       await response.body?.cancel();
     }
@@ -85,9 +93,15 @@ async function request(
   } finally {
     clearTimeout(timeout);
   }
-  if (statusCode < 200 || statusCode >= 300)
+  if (
+    (statusCode < 200 || statusCode >= 300) &&
+    !(
+      statusCode === 404 &&
+      (method === "GET" || method === "DELETE" || (method === "HEAD" && key !== ""))
+    )
+  )
     throw new Error(`OSS ${method} failed (HTTP ${statusCode})`);
-  return statusCode;
+  return { statusCode, bytes };
 }
 
 export async function uploadToOss(
@@ -97,7 +111,14 @@ export async function uploadToOss(
   contentType = "application/octet-stream",
   options: OssRequestOptions = {},
 ): Promise<OssUploadResult> {
-  const statusCode = await request(config, objectKey, "PUT", data, contentType, options);
+  const { statusCode } = await requestOssObject(
+    config,
+    objectKey,
+    "PUT",
+    data,
+    contentType,
+    options,
+  );
   return { ok: true, statusCode, objectKey };
 }
 
@@ -106,7 +127,7 @@ export async function testOssConnection(
   options: OssRequestOptions = {},
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    await request(config, "", "HEAD", undefined, "", options);
+    await requestOssObject(config, "", "HEAD", undefined, "", options);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "OSS connection failed" };

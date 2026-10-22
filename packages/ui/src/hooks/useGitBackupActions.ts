@@ -36,6 +36,7 @@ export function canUseSelectedGitBackupProviders(
   target: GitBackupWorkspaceTarget | null,
 ): boolean {
   if (!config) return false;
+  if (config.localEnabled && target) return true;
   const selected = getSelectedGitBackupProviders(config);
   return (
     selected.length > 0 &&
@@ -81,7 +82,9 @@ export function projectGitBackupDestinationSelection(
 ): { config: GitBackupConfig; status: GitBackupStatus | null } {
   const destinationEnabled = { ...getGitBackupDestinationSelection(config), [provider]: selected };
   // Host 接受关闭最后目的地时同时关闭总调度；刷新失败也必须保留这次已确认事实。
-  const enabled = config.enabled && (destinationEnabled.oss || destinationEnabled.minio);
+  const enabled =
+    config.enabled &&
+    Boolean(config.localEnabled || destinationEnabled.oss || destinationEnabled.minio);
   const nextStatus = projectGitBackupEnabledStatus(status, enabled);
   const destination = nextStatus?.destinations?.[provider];
   return {

@@ -1,4 +1,5 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createGitBackupResultRecorder } from "./gitBackupResults.js";
+import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { acquireFileLock } from "@lcode/shared/node";
@@ -11,6 +12,7 @@ import type {
   GitBackupMinioConfig,
   GitBackupOssConfig,
   GitBackupWorkspaceTarget,
+  GitBackupManifestEntry,
   IGitBackupService,
 } from "./gitBackup.js";
 import {
@@ -18,15 +20,16 @@ import {
   getSelectedGitBackupProviders,
   getGitBackupDestinationLocation,
 } from "./gitBackup.js";
-import { ensureKeyPair, encryptBuffer, readPrivateKey } from "./gitBackupEncryption.js";
+import { ensureKeyPair, readPrivateKey } from "./gitBackupEncryption.js";
 import { testOssConnection, type OssRequestOptions } from "./gitBackupOssClient.js";
 import { testMinioConnection } from "./gitBackupMinioClient.js";
-import { uploadBackupDestination, backupDestinationFailure } from "./gitBackupDestinations.js";
-import { captureGitSnapshot, type GitBackupSnapshotOptions } from "./gitBackupSnapshot.js";
+import { backupDestinationFailure } from "./gitBackupDestinations.js";
+import type { GitBackupSnapshotOptions } from "./gitBackupSnapshot.js";
+import { createGitBackupLifecycle } from "./gitBackupLifecycle.js";
+import { createBackupStateStore, type BackupSourcePort } from "../backup/node.js";
 import {
   createBackupStore,
   validateBackupTarget,
-  EMPTY_BACKUP_DESTINATION_STATE,
   type GitBackupAdmission,
   type BackupCredentials,
 } from "./gitBackupStore.js";
@@ -34,6 +37,7 @@ import {
 export interface GitBackupServiceOptions extends OssRequestOptions, GitBackupSnapshotOptions {
   credentialService?: BackupCredentials;
   schedulerPollMs?: number;
+  providerBackupSource?: BackupSourcePort;
 }
 
 export type GitBackupServiceRuntime = IGitBackupService & { dispose(): void };
@@ -42,7 +46,10 @@ export function createGitBackupService(
   dataDir: string,
   options: GitBackupServiceOptions = {},
 ): GitBackupServiceRuntime {
-  const store = createBackupStore(dataDir, options.credentialService);
+  const lifecycleState = createBackupStateStore(dataDir);
+  const store = createBackupStore(dataDir, options.credentialService, {
+    hasLocalDestination: () => lifecycleState((state) => state.policy.localEnabled),
+  });
   const logger = createServiceLogger("git-backup");
   let schedulerFailureLogged = false;
   const now = options.now ?? Date.now;
@@ -60,66 +67,7 @@ export function createGitBackupService(
     }
   }
 
-  async function recordResults(
-    admission: GitBackupAdmission,
-    target: GitBackupWorkspaceTarget,
-    attemptedAt: string,
-    results: GitBackupDestinationResult[],
-    manifest?: GitBackupManifest,
-  ) {
-    await store.updateState((state, current) => {
-      const destinations = { ...state.destinations };
-      // 旧地址的成功和失败都不能污染替换配置，独立与全局结果必须使用同一过滤条件。
-      const currentResults = results.filter(
-        (result) =>
-          getGitBackupDestinationLocation(admission.config[result.provider]) ===
-          getGitBackupDestinationLocation(current[result.provider]),
-      );
-      const sameLocations = currentResults.length === results.length;
-      for (const result of currentResults) {
-        const provider = result.provider;
-        const previous = destinations[provider] ?? { ...EMPTY_BACKUP_DESTINATION_STATE };
-        destinations[provider] = {
-          ...previous,
-          lastAttemptAt: attemptedAt,
-          ...(result.ok && manifest
-            ? {
-                lastBackupAt: manifest.createdAt,
-                lastBackupFiles: manifest.totalFiles,
-                lastBackupSize: manifest.totalSize,
-                lastWorkspacePath: target.workspacePath,
-              }
-            : {}),
-          error: result.ok ? null : (result.error ?? "Git backup failed"),
-        };
-      }
-      const successful = results.every((result) => result.ok) && manifest && sameLocations;
-      return {
-        ...state,
-        running: false,
-        destinations,
-        ...(successful
-          ? {
-              lastBackupAt: manifest.createdAt,
-              lastBackupFiles: manifest.totalFiles,
-              lastBackupSize: manifest.totalSize,
-              lastWorkspacePath: target.workspacePath,
-              lastBackupProviders: results.map((result) => result.provider),
-            }
-          : {}),
-        ...(currentResults.length
-          ? {
-              error: currentResults.some((result) => !result.ok)
-                ? backupDestinationFailure(currentResults).message
-                : null,
-              errorProviders: currentResults
-                .filter((result) => !result.ok)
-                .map((result) => result.provider),
-            }
-          : {}),
-      };
-    });
-  }
+  const recordResults = createGitBackupResultRecorder(store);
 
   async function backup(
     target: GitBackupWorkspaceTarget,
@@ -142,10 +90,11 @@ export function createGitBackupService(
     let recorded = false;
     try {
       admission = await store.loadAdmission(provider);
-      if (!admission.destinations.length)
+      const hasLocal = await lifecycleState((state) => state.policy.localEnabled);
+      if (!admission.destinations.length && !hasLocal)
         throw new Error("Backup destinations are not configured or no destination is selected");
       const ready = admission.destinations.filter((destination) => destination.config);
-      if (!ready.length)
+      if (!ready.length && !hasLocal)
         throw backupDestinationFailure(
           admission.destinations.map((destination) => ({
             provider: destination.provider,
@@ -153,44 +102,53 @@ export function createGitBackupService(
             error: destination.error,
           })),
         );
-      const snapshot = await captureGitSnapshot(target.workspacePath, options);
+      const admittedStores = await lifecycle.admittedDestinations(admission, Boolean(provider));
+      const snapshot = await lifecycle.git.capture(undefined, target);
+      const entries = (snapshot.data as { files: GitBackupManifestEntry[] }).files.map(
+        ({ path, size, sha256, mode }) => ({ path, size, sha256, mode }),
+      );
       const manifest: GitBackupManifest = {
         version: "repo_backup_manifest/v1",
         ...target,
         createdAt: attemptedAt,
-        totalFiles: snapshot.entries.length,
-        totalSize: snapshot.entries.reduce((sum, entry) => sum + entry.size, 0),
-        entries: snapshot.entries,
+        totalFiles: entries.length,
+        totalSize: entries.reduce((sum, entry) => sum + entry.size, 0),
+        entries,
       };
-      const keyPair = await ensureKeyPair(dataDir);
-      const payload = encryptBuffer(snapshot.packed, keyPair.publicKey);
-      const workspaceHash = createHash("sha256")
-        .update(gitBackupWorkspaceKey(target))
-        .digest("hex")
-        .slice(0, 24);
-      const timestamp = attemptedAt.replace(/[:.]/g, "-");
-      const relativeKey = `${workspaceHash}/backup-${timestamp}-${randomBytes(8).toString("hex")}`;
-      // 各目的地独立完成；全部 settled 后才能记录总结果和释放跨 Host 执行锁。
-      results = await Promise.all(
-        admission.destinations.map((destination) =>
-          destination.config
-            ? uploadBackupDestination(
-                destination.provider,
-                destination.config,
-                relativeKey,
-                payload,
-                manifest,
-                options,
-              )
-            : Promise.resolve({
-                provider: destination.provider,
-                ok: false,
-                error: destination.error,
-              }),
-        ),
+      const outcome = await lifecycle.capture(
+        {
+          kind: "git",
+          target,
+          operationId: randomUUID(),
+          ...(provider ? { locations: [provider] } : {}),
+        },
+        snapshot,
+        admittedStores,
       );
-      await recordResults(admission, target, attemptedAt, results, manifest);
+      manifest.createdAt =
+        outcome.results.find((result) => result.version)?.version?.createdAt ?? manifest.createdAt;
+      manifest.skipped = outcome.results.every((result) => result.status === "skipped-unchanged");
+      results = outcome.results
+        .filter((result) => result.location !== "local")
+        .map((result) => ({
+          provider: result.location as GitBackupProvider,
+          ok: result.status !== "failed",
+          skipped: result.status === "skipped-unchanged",
+          error: result.error,
+        }));
+      const localFailure = outcome.results.find(
+        (result) => result.location === "local" && result.status === "failed",
+      );
+      await recordResults(
+        admission,
+        target,
+        attemptedAt,
+        results,
+        manifest,
+        outcome.results.find((result) => result.location === "local"),
+      );
       recorded = true;
+      if (localFailure) throw new Error(localFailure.error || "Local backup failed");
       if (results.some((result) => !result.ok)) throw backupDestinationFailure(results);
       return manifest;
     } catch (error) {
@@ -234,7 +192,8 @@ export function createGitBackupService(
       const state = await store.loadState();
       if (
         !config.enabled ||
-        !getSelectedGitBackupProviders(config).length ||
+        (!getSelectedGitBackupProviders(config).length &&
+          !(await lifecycleState((state) => state.policy.localEnabled))) ||
         !config.workspaces.length ||
         (state.nextDueAt !== null && state.nextDueAt > now())
       )
@@ -317,20 +276,35 @@ export function createGitBackupService(
     }
   }
 
+  const lifecycle = createGitBackupLifecycle(dataDir, store, options, executionLock);
+  const runPoll = async () => {
+    if (disposed) return;
+    await lifecycle.resumeDeletes().catch(() => {
+      if (!disposed) logger.warn(undefined, "Incomplete backup deletion could not resume");
+    });
+    await lifecycle.tickProviders().catch(() => {
+      if (!disposed) logger.warn(undefined, "Provider backup check failed");
+    });
+    await poll();
+  };
   const timer = setInterval(() => {
-    void poll();
+    void runPoll();
   }, options.schedulerPollMs ?? 5_000);
   timer.unref();
-  void poll();
+  void runPoll();
   return {
+    ...lifecycle.service,
     configure(partial, workspace, configureOptions) {
       return store.configure(partial, workspace, now(), configureOptions);
     },
     removeWorkspace(target) {
       return store.removeWorkspace(target);
     },
-    getConfig() {
-      return store.loadConfig();
+    async getConfig() {
+      const config = await store.loadConfig();
+      return (await lifecycleState((state) => state.policy.localEnabled))
+        ? { ...config, localEnabled: true }
+        : config;
     },
     async getStatus() {
       const state = await store.loadState();
@@ -393,6 +367,7 @@ export function createGitBackupService(
     dispose() {
       disposed = true;
       clearInterval(timer);
+      lifecycle.dispose();
     },
   };
 }

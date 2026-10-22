@@ -465,5 +465,8 @@ nul
 !/packages/web/test/remote-workspace-status.test.mjs
 !/packages/web/test/fixtures/remote-workspace-status.html
 !/packages/web/test/fixtures/remote-workspace-status.tsx
+!/packages/web/test/automatic-backup.test.mjs
+!/packages/web/test/fixtures/automatic-backup.html
+!/packages/web/test/fixtures/automatic-backup.tsx
 !/packages/ui/src/lib/remoteTaskExecutionState.ts
 !/packages/ui/src/lib/remoteTaskExecutionState.test.ts

@@ -13,6 +13,8 @@
     "test:remote-providers": "node --import tsx --test packages/services/src/model-provider/providerAccountRelay.test.ts packages/server/src/remote/providerAccountRelayConnect.test.ts",
     "test:provider-routing": "node scripts/test-provider-routing.mjs",
     "test:provider-routing-ui": "node scripts/test-provider-routing.mjs --ui",
+    "test:automatic-backup": "node scripts/test-automatic-backup.mjs",
+    "test:automatic-backup:ui": "node scripts/test-automatic-backup.mjs --ui",
     "test:remote-assets": "node --import tsx --test scripts/remote-release-assets.test.mjs scripts/remote-runtime-download.test.mjs packages/desktop/src/main/remoteCdn.test.ts packages/server/src/remote/remoteAssetCdn.test.ts",
     "dev:web": "concurrently -k -n server,web -c blue,green \"pnpm --filter @lcode/server dev\" \"pnpm --filter @lcode/web dev\"",
     "dev:desktop": "pnpm run dev:desktop:prod",

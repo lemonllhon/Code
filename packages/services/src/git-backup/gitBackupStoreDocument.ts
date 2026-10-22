@@ -57,6 +57,7 @@ export interface BackupDocument {
 }
 export interface BackupStoreOptions {
   write?: (path: string, content: string) => Promise<void>;
+  hasLocalDestination?: () => Promise<boolean>;
 }
 export const BACKUP_PROVIDERS = ["oss", "minio"] as const;
 export function validateProvider(provider: GitBackupProvider) {

@@ -260,6 +260,15 @@ export function createSettingsPageConfig(options: SettingsPageConfigOptions = {}
       .filter((section) => section.groupId === group.id)
       .toSorted((left, right) => titleLengths.get(left.id)! - titleLengths.get(right.id)!),
   })).filter((group) => group.sections.length > 0);
+  // 供应商管理有明确的产品相邻规则；长度排序完成后移动一次，其他项的相对顺序不变。
+  for (const group of settingsSectionGroups) {
+    const providerIndex = group.sections.findIndex((section) => section.id === "modelProvider");
+    if (providerIndex < 0 || !group.sections.some((section) => section.id === "remoteControl"))
+      continue;
+    const [provider] = group.sections.splice(providerIndex, 1);
+    const remoteIndex = group.sections.findIndex((section) => section.id === "remoteControl");
+    group.sections.splice(remoteIndex + 1, 0, provider!);
+  }
 
   return { settingsSectionGroups, settingsSections };
 }

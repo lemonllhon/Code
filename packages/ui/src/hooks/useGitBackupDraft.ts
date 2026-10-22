@@ -119,10 +119,11 @@ export function createGitBackupSavePatch(
   draft: GitBackupDraft,
   config: GitBackupConfig,
   provider: GitBackupProvider,
+  destinationOnly = false,
 ):
   | { config: GitBackupConfigUpdate; error: null }
   | { config: null; error: GitBackupValidationError } {
-  const error = validateInterval(draft.intervalMinutes);
+  const error = destinationOnly ? null : validateInterval(draft.intervalMinutes);
   if (error) return { config: null, error };
   const result =
     provider === "oss"
@@ -133,8 +134,8 @@ export function createGitBackupSavePatch(
   return {
     config: {
       ...("oss" in result ? { oss: result.oss } : { minio: result.minio }),
-      intervalMinutes: Number(draft.intervalMinutes),
-      destinationEnabled: getGitBackupDestinationSelection(config),
+      ...(destinationOnly ? {} : { intervalMinutes: Number(draft.intervalMinutes) }),
+      destinationEnabled: destinationOnly ? {} : getGitBackupDestinationSelection(config),
     },
     error: null,
   };

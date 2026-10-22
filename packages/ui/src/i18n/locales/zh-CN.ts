@@ -1,5 +1,7 @@
 /** 中文翻译 */
+import { backupZhCN } from "./backup.js";
 const zhCN: Record<string, string> = {
+  ...backupZhCN,
   "git.workspace.error.ssh-key-unavailable": "SSH 私钥路径不存在或不可用，请在 Git 管理中检查。",
   "settings.gitManagement.title": "Git 管理",
   "settings.gitManagement.configuration": "Git 配置",
@@ -3467,7 +3469,7 @@ const zhCN: Record<string, string> = {
   "settings.previewBadge.active": "当前生效",
   "settings.previewBadge.light": "浅色",
   "settings.previewBadge.dark": "深色",
-  "settings.modelProviderTitle": "模型设置",
+  "settings.modelProviderTitle": "供应商管理",
   "settings.mcpTitle": "MCP 服务器",
   "settings.mcp.description": "管理 LCode Agent 使用的 MCP 服务器配置。",
   "settings.mcp.create.open": "新建 MCP 服务器",
@@ -7978,9 +7980,9 @@ const zhCN: Record<string, string> = {
   "scheduledPreview.addSchedule": "添加计划",
 
   // Git 自动备份（满血版新增）
-  "settings.gitBackup.title": "Git 自动备份",
+  "settings.gitBackup.title": "自动备份",
   "settings.gitBackup.description":
-    "将 .git 历史直接备份到你自己的阿里云 OSS 和/或 MinIO 存储桶。仓库文件内容加密，清单中的路径、哈希和工作区元数据不加密；不包含未提交的工作区文件。密钥由当前 Host 保管，仅明确导出时才将私钥传送到本设备。",
+    "将 .git 历史备份到 Host 本地目录、你自己的阿里云 OSS 或 MinIO。新版本使用 AES-256-GCM + RSA-OAEP-SHA256 加密内容和完整清单；旧 v1 不具备认证防篡改能力。不包含未提交的工作区文件。密钥由当前 Host 保管，仅明确导出时才将私钥传送到本设备。",
   "settings.gitBackup.enabled": "启用自动备份",
   "settings.gitBackup.switchNote":
     "使用已保存配置和已加入的工作区。关闭后不再开始上传，已开始的备份可能继续完成。",
@@ -8103,9 +8105,9 @@ const zhCN: Record<string, string> = {
   "settings.gitBackup.validation.oss": "OSS 配置无效：{error}",
   "settings.gitBackup.close": "关闭",
 
-  "gitBackup.welcome.title": "Git 自动备份",
+  "gitBackup.welcome.title": "自动备份",
   "gitBackup.welcome.description":
-    "将 .git 历史备份到你自己的阿里云 OSS 或 MinIO，可单独或同时备份。点击“开启自动备份”前往设置 → 数据与统计 → Git 自动备份，配置并启用后才会自动上传。仓库内容使用 AES-256-CTR + RSA-OAEP 加密，清单中的路径、哈希和工作区元数据为明文，不包含未提交的工作区文件。密钥保留在当前 Host，仅明确导出时才传送私钥。",
+    "将 .git 历史备份到 Host 本地目录、阿里云 OSS 或 MinIO。点击“开启自动备份”前往设置 → 数据与统计 → 自动备份 → Git 备份，配置并启用后才会自动备份。新版本使用 AES-256-GCM + RSA-OAEP-SHA256 加密内容和完整清单；不包含未提交的工作区文件。密钥保留在当前 Host，仅明确导出时才传送私钥。",
   "gitBackup.welcome.enableNow": "开启自动备份",
   "gitBackup.welcome.skipForNow": "暂不开启",
   "gitBackup.welcome.skipNote":

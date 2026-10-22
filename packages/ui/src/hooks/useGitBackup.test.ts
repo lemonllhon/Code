@@ -328,6 +328,17 @@ test("MinIO drafts default region and isolate saved credentials by endpoint", ()
   );
 });
 
+test("storage-only save cannot overwrite a concurrently changed Git plan", () => {
+  const draft = createGitBackupDraft(config);
+  draft.intervalMinutes = "stale";
+  const result = createGitBackupSavePatch(draft, config, "oss", true);
+  assert.equal(result.error, null);
+  assert.equal(result.config?.intervalMinutes, undefined);
+  assert.deepEqual(result.config?.destinationEnabled, {});
+  assert.equal(result.config?.enabled, undefined);
+  assert.equal(result.config?.minio, undefined);
+});
+
 test("provider save explicitly preserves selection and only resets the saved draft", () => {
   const minio = { ...oss, endpoint: "https://storage.example:9000", region: "us-east-1" };
   const saved = { ...config, minio: null, destinationEnabled: { oss: true, minio: false } };

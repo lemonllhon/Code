@@ -368,6 +368,7 @@ import { GitCommitMessageGenerator } from "./git/gitCommitMessageGenerator.js";
 import { createGitCheckpointService } from "./git/gitCheckpointService.js";
 import { IGitBackupService } from "./git-backup/gitBackup.js";
 import { createGitBackupService } from "./git-backup/gitBackupService.js";
+import { createProviderBackupSource } from "./model-provider/providerBackupSource.js";
 import { createSystemService } from "./system/systemService.js";
 import { createTerminalService, createPublicTerminalService } from "./terminal/terminalService.js";
 import { createSettingServiceWithMigrations } from "./setting/settingService.js";
@@ -2903,10 +2904,43 @@ export function createLocalServices(options: {
     )
     .register(IPromptAttachmentTransferService, createLocalPromptAttachmentTransferService());
 
+  const providerBackup =
+    providerAccounts instanceof ProviderAccounts
+      ? createProviderBackupSource({
+          profileDir: resolveAppConfigDir(),
+          personalFilePath: join(resolveAppConfigDir(), PERSONAL_PROVIDER_CONFIG_FILE_NAME),
+          personalRepository: providerConfigRuntime.personalRepository,
+          accounts: getProviderAccountBackupPort(providerAccounts),
+          credentials: credentialService,
+          async validatePersonal(personal, providerIds) {
+            const facts = await providerConfigRuntime.configService.read();
+            for (const rule of personal.config.providerConfigRules.providerRules)
+              if (
+                providerIds.includes(rule.providerId) &&
+                rule.templateId &&
+                !facts.lcodeBuiltinProviderTemplates.has(rule.templateId)
+              )
+                throw new Error(
+                  "A provider template required by the backup is unavailable on this Host",
+                );
+          },
+          async refresh() {
+            await providerAccounts.publishBackupAccounts();
+            await providerRuntime.registryService.refresh("backup-restore");
+          },
+        })
+      : null;
+  void providerBackup?.ready.catch(() =>
+    createServiceLogger("provider-backup").error(
+      undefined,
+      "Provider restore recovery failed; configuration access remains blocked",
+    ),
+  );
   const gitBackupOwner = createGitBackupService(join(resolveAppConfigDir(), "git-backup"), {
     commandProvider: managedGitCommand,
     credentialService,
     fetch: hostApiNetworkTransport.fetch,
+    providerBackupSource: providerBackup?.port,
   });
   // 通用 Channel 会暴露实例方法；显式移除 Host 私有 dispose，避免远控调用关闭调度。
   const { dispose: disposeGitBackup, ...gitBackupService } = gitBackupOwner;
@@ -3162,7 +3196,10 @@ async function disposeOtherServiceResourcesAndWait(services: ServiceCollection):
   providerAccountRelayOwners.delete(services);
   remoteProviderAccountRelays.delete(services);
 }
-import { ProviderAccounts } from "./model-provider/providerAccounts.js";
+import {
+  ProviderAccounts,
+  getProviderAccountBackupPort,
+} from "./model-provider/providerAccounts.js";
 import { createAuthDriver, resolveProviderNetworkOptions } from "@lcode/provider-node";
 import { IProviderAccountService } from "./model-provider/providerAccountService.js";
 import {

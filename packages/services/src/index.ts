@@ -72,6 +72,25 @@ export * from "./runtime-environment/contract.js";
 export { IGitCheckpointService } from "./git/gitCheckpoint.js";
 
 // Git backup service (LCode 满血版新增)
+export type {
+  IBackupLifecycleService,
+  BackupKind,
+  BackupLocation,
+  BackupSelection,
+  BackupTarget,
+  BackupRequest,
+  BackupPolicy,
+  BackupSnapshot,
+  BackupVersion,
+  BackupResult,
+  BackupState,
+  BackupItem,
+  BackupReference,
+  BackupRestoreRequest,
+  BackupRestorePreview,
+  BackupRestoreResult,
+  BackupCleanupPreview,
+} from "./backup/contract.js";
 export {
   IGitBackupService,
   normalizeGitBackupOssConfig,

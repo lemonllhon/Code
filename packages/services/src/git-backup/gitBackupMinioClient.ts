@@ -2,9 +2,10 @@ import { createHash } from "node:crypto";
 import { AwsV4Signer } from "aws4fetch";
 import { normalizeGitBackupMinioConfig, type GitBackupMinioConfig } from "./gitBackup.js";
 import type { OssRequestOptions, OssUploadResult } from "./gitBackupOssClient.js";
+import { readBackupResponse } from "./backupHttpResponse.js";
 
-function encodeObjectKey(objectKey: string, method: "PUT" | "HEAD"): string {
-  if (method === "HEAD" && objectKey === "") return "";
+function encodeObjectKey(objectKey: string, method: string): string {
+  if ((method === "HEAD" || method === "GET") && objectKey === "") return "";
   if (
     !objectKey ||
     Array.from(objectKey).some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127) ||
@@ -28,20 +29,22 @@ function encodeObjectKey(objectKey: string, method: "PUT" | "HEAD"): string {
   }
 }
 
-async function request(
+export async function requestMinioObject(
   config: GitBackupMinioConfig,
   objectKey: string,
-  method: "PUT" | "HEAD",
+  method: "PUT" | "HEAD" | "GET" | "DELETE",
   data: Buffer | undefined,
   contentType: string,
   options: OssRequestOptions,
-): Promise<number> {
+  query?: URLSearchParams,
+) {
   const normalized = normalizeGitBackupMinioConfig(config);
   const encodedKey = encodeObjectKey(objectKey, method);
-  const url = `${normalized.endpoint}/${normalized.bucket}${encodedKey ? `/${encodedKey}` : ""}`;
+  const url = `${normalized.endpoint}/${normalized.bucket}${encodedKey ? `/${encodedKey}` : ""}${query ? `?${query}` : ""}`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 60_000);
   let statusCode = 0;
+  let bytes: Uint8Array = new Uint8Array();
   try {
     const signer = new AwsV4Signer({
       url,
@@ -73,6 +76,8 @@ async function request(
       // 即使注入的传输在 abort 后返回响应，也不能把已经超时的请求报告为成功。
       controller.signal.throwIfAborted();
       statusCode = response.status;
+      if (method === "GET" && response.ok)
+        bytes = await readBackupResponse(response, controller.signal);
     } finally {
       await response.body?.cancel();
     }
@@ -87,10 +92,16 @@ async function request(
   } finally {
     clearTimeout(timeout);
   }
-  if (statusCode < 200 || statusCode >= 300) {
+  if (
+    (statusCode < 200 || statusCode >= 300) &&
+    !(
+      statusCode === 404 &&
+      (method === "GET" || method === "DELETE" || (method === "HEAD" && objectKey !== ""))
+    )
+  ) {
     throw new Error(`MinIO ${method} failed (HTTP ${statusCode})`);
   }
-  return statusCode;
+  return { statusCode, bytes };
 }
 
 export async function uploadToMinio(
@@ -100,7 +111,14 @@ export async function uploadToMinio(
   contentType = "application/octet-stream",
   options: OssRequestOptions = {},
 ): Promise<OssUploadResult> {
-  const statusCode = await request(config, objectKey, "PUT", data, contentType, options);
+  const { statusCode } = await requestMinioObject(
+    config,
+    objectKey,
+    "PUT",
+    data,
+    contentType,
+    options,
+  );
   return { ok: true, statusCode, objectKey };
 }
 
@@ -109,7 +127,7 @@ export async function testMinioConnection(
   options: OssRequestOptions = {},
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    await request(config, "", "HEAD", undefined, "", options);
+    await requestMinioObject(config, "", "HEAD", undefined, "", options);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "MinIO connection failed" };

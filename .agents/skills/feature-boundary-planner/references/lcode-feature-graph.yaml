@@ -721,9 +721,11 @@ nodes:
     label: Model catalog synchronization and editable model membership
     aliases:
       - model settings
+      - provider management
       - sync models
       - check and add models
       - 模型设置
+      - 供应商管理
       - 同步模型
       - 模型去重
       - 删除内置模型
@@ -1731,8 +1733,12 @@ nodes:
       - "A shared snapshot is encrypted once; each selected destination commits its own manifest last, and partial success is not full success."
   - id: surface.git-backup-settings
     kind: ui-surface
-    label: Git backup shared settings and independent provider tabs
+    label: Automatic backup Git and provider tabs with shared destination operations
     codeSeeds:
+      - file: packages/ui/src/settings/AutomaticBackupSection.tsx
+        symbol: AutomaticBackupSection
+      - file: packages/ui/src/hooks/useAutomaticBackup.ts
+        symbol: useAutomaticBackup
       - file: packages/ui/src/settings/GitBackupSection.tsx
         symbol: GitBackupSection
       - file: packages/ui/src/settings/git-backup/GitBackupDestinationTabs.tsx
@@ -1753,6 +1759,44 @@ nodes:
         symbol: createGitBackupService
       - file: packages/services/src/git-backup/gitBackupStore.ts
         symbol: createBackupStore
+  - id: capability.automatic-backup
+    kind: capability
+    label: Provider and Git backup restoration, retention and content deduplication
+    aliases: [自动备份, 供应商备份, 供应商还原, Git 还原, 备份版本清理]
+    codeSeeds:
+      - file: packages/services/src/backup/contract.ts
+        symbol: IBackupLifecycleService
+    invariants:
+      - "The existing Host timer and execution lock admit one shared lifecycle; the backup module creates no scheduler."
+      - "Only completed copies advance location-scoped content checkpoints; unchanged content causes no upload."
+      - "Revision-bound previews and exact copy references cannot operate on a replacement backup location."
+  - id: service.backup-lifecycle
+    kind: state-owner
+    label: Shared immutable backup lifecycle
+    codeSeeds:
+      - file: packages/services/src/backup/app/backupEngine.ts
+        symbol: createBackupEngine
+      - file: packages/services/src/git-backup/gitBackupLifecycle.ts
+        symbol: createGitBackupLifecycle
+  - id: boundary.provider-backup-source
+    kind: service
+    label: Provider owner snapshot and rollback transaction
+    codeSeeds:
+      - file: packages/services/src/model-provider/providerBackupSource.ts
+        symbol: createProviderBackupSource
+      - file: packages/services/src/model-provider/providerAccounts.ts
+        symbol: getProviderAccountBackupPort
+    invariants:
+      - "Credential-bearing ports remain in a Host-only WeakMap, not reflective account RPC methods."
+      - "Provider configuration and account writes share a cross-process mutation barrier and recover an encrypted journal before access."
+  - id: boundary.git-backup-restore
+    kind: service
+    label: Validated Git staging and empty-directory publication
+    codeSeeds:
+      - file: packages/services/src/git-backup/gitBackupRestore.ts
+        symbol: createGitBackupSource
+    invariants:
+      - "Restore validates and stages committed Git data before publication; hooks remain inactive and nonempty destinations are rejected."
   - id: capability.goal-execution-evidence
     kind: capability
     label: Opt-in strict Goal acceptance from versioned execution facts
@@ -2101,6 +2145,22 @@ edges:
     to: boundary.workspace-key
     type: isolates-by
     rank: invariant-only
+  - from: capability.automatic-backup
+    to: surface.git-backup-settings
+    type: renders-in
+    rank: must-inspect
+  - from: service.git-backup-host
+    to: service.backup-lifecycle
+    type: admits-lifecycle-through
+    rank: must-inspect
+  - from: service.backup-lifecycle
+    to: boundary.provider-backup-source
+    type: restores-through-owner
+    rank: must-inspect
+  - from: service.backup-lifecycle
+    to: boundary.git-backup-restore
+    type: restores-through-staging
+    rank: must-inspect
   - from: service.git-backup-host
     to: boundary.web-remote-replayable
     type: reads-owner-through

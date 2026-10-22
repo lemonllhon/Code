@@ -147,7 +147,8 @@ export function createBackupStore(
         ];
       }
       const selected = getSelectedGitBackupProviders(updated);
-      if (!selected.length) {
+      const hasLocal = (await options.hasLocalDestination?.()) ?? false;
+      if (!selected.length && !hasLocal) {
         if (partial.enabled === true)
           throw new Error(
             "Enabling backup requires a selected destination and a registered workspace",
@@ -272,29 +273,35 @@ export function createBackupStore(
       });
     });
   }
-  async function loadAdmission(provider?: GitBackupProvider): Promise<GitBackupAdmission> {
-    if (provider !== undefined) validateProvider(provider);
+  async function loadAdmission(
+    provider?: GitBackupProvider | GitBackupProvider[],
+  ): Promise<GitBackupAdmission> {
+    if (provider !== undefined)
+      for (const item of Array.isArray(provider) ? provider : [provider]) validateProvider(item);
     // admission 配置和引用在同一锁内读取及解析；并发保存不能把新凭据配到旧 endpoint。
     return withFileLock(configPath, async () => {
       const document = await readDocument();
       const destinations = await Promise.all(
-        (provider ? [provider] : getSelectedGitBackupProviders(document.config)).map(
-          async (provider) => {
-            try {
-              const input = document.config[provider];
-              if (!input) throw new Error(`${providerName(provider)} is not configured`);
-              return { provider, config: await resolveFrom(document, provider, input) };
-            } catch (error) {
-              return {
-                provider,
-                error:
-                  error instanceof Error
-                    ? error.message
-                    : "Git backup credentials could not be loaded",
-              };
-            }
-          },
-        ),
+        (provider
+          ? Array.isArray(provider)
+            ? provider
+            : [provider]
+          : getSelectedGitBackupProviders(document.config)
+        ).map(async (provider) => {
+          try {
+            const input = document.config[provider];
+            if (!input) throw new Error(`${providerName(provider)} is not configured`);
+            return { provider, config: await resolveFrom(document, provider, input) };
+          } catch (error) {
+            return {
+              provider,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Git backup credentials could not be loaded",
+            };
+          }
+        }),
       );
       return { config: document.config, destinations };
     });
@@ -328,7 +335,9 @@ export function createBackupStore(
     }
     return {
       enabled: config.enabled,
-      configured: PROVIDERS.some((provider) => destinations[provider]!.configured),
+      configured:
+        Boolean(await options.hasLocalDestination?.()) ||
+        PROVIDERS.some((provider) => destinations[provider]!.configured),
       lastBackupAt: state.lastBackupAt,
       lastBackupFiles: state.lastBackupFiles,
       lastBackupSize: state.lastBackupSize,

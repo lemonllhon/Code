@@ -59,20 +59,18 @@ async function waitForCycleRelease(dataDir: string) {
   await release();
 }
 
-function decode(packed: Buffer) {
-  const entries: Array<{ path: string; content: Buffer }> = [];
-  let offset = 0;
-  while (offset < packed.length) {
-    const nameEnd = packed.indexOf(0, offset);
-    const sizeEnd = packed.indexOf(0, nameEnd + 1);
-    assert.ok(nameEnd >= offset && sizeEnd > nameEnd);
-    const path = packed.subarray(offset, nameEnd).toString();
-    const size = Number(packed.subarray(nameEnd + 1, sizeEnd).toString());
-    assert.ok(Number.isSafeInteger(size) && size >= 0 && sizeEnd + 1 + size <= packed.length);
-    entries.push({ path, content: packed.subarray(sizeEnd + 1, sizeEnd + 1 + size) });
-    offset = sizeEnd + 1 + size;
-  }
-  return entries;
+function decryptArchive(bytes: Buffer, privateKey: string) {
+  const envelope = JSON.parse(bytes.toString());
+  const key = privateDecrypt(
+    { key: privateKey, padding: constants.RSA_PKCS1_OAEP_PADDING, oaepHash: "sha256" },
+    Buffer.from(envelope.wrapped, "base64"),
+  );
+  const cipher = createDecipheriv("aes-256-gcm", key, Buffer.from(envelope.iv, "base64"));
+  cipher.setAAD(Buffer.from(`lcode-backup/v2:${envelope.keyId}`));
+  cipher.setAuthTag(Buffer.from(envelope.tag, "base64"));
+  return JSON.parse(
+    Buffer.concat([cipher.update(Buffer.from(envelope.data, "base64")), cipher.final()]).toString(),
+  );
 }
 
 test("configuration persists redacted credentials, validates and deduplicates identity", async () => {
@@ -116,11 +114,13 @@ test("configuration persists redacted credentials, validates and deduplicates id
   }
 });
 
-test("archive decrypts and decodes v1, includes reflogs, and commits manifest last", async () => {
+test("archive authenticates v2, includes reflogs, and commits encrypted manifest last", async () => {
   const f = await fixture();
   const uploads = new Map<string, Buffer>();
   const order: string[] = [];
   const mock: typeof fetch = async (url, init) => {
+    if (init?.method === "GET")
+      return new Response("<ListBucketResult><IsTruncated>false</IsTruncated></ListBucketResult>");
     const name = new URL(String(url)).pathname.split("/").pop()!;
     order.push(name);
     uploads.set(name, Buffer.from(init!.body as Uint8Array));
@@ -135,15 +135,14 @@ test("archive decrypts and decodes v1, includes reflogs, and commits manifest la
     const manifest = await service.startBackup(f.workspace, "fixture-identity");
     assert.equal(order.at(-1), "manifest.json");
     const privateKey = await service.exportPrivateKey();
-    const key = privateDecrypt(
-      { key: privateKey, padding: constants.RSA_PKCS1_OAEP_PADDING, oaepHash: "sha256" },
-      uploads.get("key.enc")!,
-    );
-    const cipher = createDecipheriv("aes-256-ctr", key, uploads.get("iv.bin")!);
-    const restored = decode(
-      Buffer.concat([cipher.update(uploads.get("data.enc")!), cipher.final()]),
-    );
-    assert.ok(restored.some((entry) => entry.path === join("logs", "HEAD")));
+    const restored: { path: string; content: Buffer }[] = decryptArchive(
+      uploads.get("archive.json")!,
+      privateKey,
+    ).data.files.map((entry: { path: string; content: string }) => ({
+      path: entry.path,
+      content: Buffer.from(entry.content, "base64"),
+    }));
+    assert.ok(restored.some((entry) => entry.path === "logs/HEAD"));
     for (const entry of restored) {
       const expected = manifest.entries.find((item) => item.path === entry.path)!;
       assert.equal(expected.size, entry.content.length);
@@ -358,11 +357,17 @@ test("scheduler only backs up selected workspaces and skips one deselected befor
     // 用启动时的到期周期验证名单；避免高频新 poll 与测试目录清理并发。
     schedulerPollMs: 60_000,
     fetch: async (url, init) => {
-      if (String(url).endsWith("data.enc")) {
+      if (String(url).endsWith("archive.json")) {
         startUpload();
         await gate;
       }
-      if (String(url).endsWith("manifest.json")) manifests.push(JSON.parse(String(init?.body)));
+      if (String(url).endsWith("archive.json"))
+        manifests.push(
+          decryptArchive(
+            Buffer.from(init?.body as Uint8Array),
+            await readFile(join(f.dataDir, "git-backup-keys", "backup.pem"), "utf8"),
+          ).data.target,
+        );
       return new Response(null, { status: 200 });
     },
   });
@@ -417,7 +422,7 @@ test("stop permits the admitted run to finish but prevents the next target", asy
     now: () => now,
     schedulerPollMs: 60_000,
     fetch: async (url) => {
-      if (String(url).endsWith("data.enc")) dataUploads++;
+      if (String(url).endsWith("archive.json")) dataUploads++;
       uploadStarted();
       await gate;
       return new Response(null, { status: 200 });
@@ -448,7 +453,7 @@ test("two host instances admit only one due cycle and dispose preserves enabled"
   const credentialService = credentials();
   let dataUploads = 0;
   const mock: typeof fetch = async (url) => {
-    if (String(url).endsWith("data.enc")) dataUploads++;
+    if (String(url).endsWith("archive.json")) dataUploads++;
     return new Response(null, { status: 200 });
   };
   const options = { credentialService, fetch: mock, now: () => now, schedulerPollMs: 10 };

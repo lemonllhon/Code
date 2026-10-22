@@ -4,6 +4,48 @@ import test from "node:test";
 import { Event, type IChannel, type IChannelClient } from "@lcode/rpc";
 import { IGitBackupService } from "@lcode/services";
 import { RemoteServiceAccess } from "./remoteServiceAccess.js";
+test("backup lifecycle forwards operation IDs, selections and location revisions through the existing Host channel", async () => {
+  const calls: { channel: string; method: string; args: unknown }[] = [];
+  const client: IChannelClient = {
+    getChannel<T extends IChannel>(channel: string): T {
+      return {
+        call: async (method: string, args: unknown) => {
+          calls.push({ channel, method, args });
+          return undefined;
+        },
+        listen: () => Event.None,
+      } as unknown as T;
+    },
+  };
+  const service = new RemoteServiceAccess(client).gitBackupService;
+  const request = {
+    kind: "providers" as const,
+    operationId: "fixture-operation",
+    selection: { providerIds: ["fixture"] },
+    locations: ["minio" as const],
+  };
+  const reference = {
+    id: "fixture-version",
+    location: "minio" as const,
+    locationRevision: "fixture-location",
+  };
+  await service.backupNow!(request);
+  await service.planBackupRestore!({ ...reference, mode: "merge" });
+  await service.deleteBackups!([reference], "fixture-delete");
+  assert.deepEqual(calls, [
+    { channel: IGitBackupService.channelName, method: "backupNow", args: [request] },
+    {
+      channel: IGitBackupService.channelName,
+      method: "planBackupRestore",
+      args: [{ ...reference, mode: "merge" }],
+    },
+    {
+      channel: IGitBackupService.channelName,
+      method: "deleteBackups",
+      args: [[reference], "fixture-delete"],
+    },
+  ]);
+});
 
 test("Git backup proxy preserves workspace identity and the target registration argument", async () => {
   const calls: Array<{ channel: string; method: string; args: unknown }> = [];

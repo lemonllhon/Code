@@ -1,8 +1,12 @@
 # 模型供应商设置
 
+## 供应商管理与备份扩展（2026-10-22）
+
+界面名称统一为“供应商管理”，保留 modelProvider 导航 ID。备份从 Personal 配置和账号 owner 读取完整内容，不能从省略大 Key 池的 UI 投影导出。恢复通过原 owner 提交并校验冲突，受限或过期 OAuth 授权标记需重新授权；不导出应用登录态或整个凭据库。规则、状态顺序和验收参见 [统一执行方案](./automatic-backup-and-provider-restore.md)。
+
 ## 产品规则
 
-1. 模型设置统一管理 OAuth 账号连接与个人 API 供应商。“添加供应商”提供 `OAuth` / `API` 分类；分类依据是连接来源，不依据上游最终使用 Bearer、Cookie 或 API Key。OAuth 入口属于模型供应商连接，不改变应用账号登录语义。完整合同见 [OAuth 供应商接入](./oauth-provider-integration.md)。
+1. 供应商管理统一管理 OAuth 账号连接与个人 API 供应商。“添加供应商”提供 `OAuth` / `API` 分类；分类依据是连接来源，不依据上游最终使用 Bearer、Cookie 或 API Key。OAuth 入口属于模型供应商连接，不改变应用账号登录语义。完整合同见 [OAuth 供应商接入](./oauth-provider-integration.md)。
 2. 既有供应商、API Key 列表、模型参数、排除记录、启停和顺序保持不变，归入 API。API 分类内保留现有品牌分组排序及自定义供应商，添加页以连续紧凑网格展示，不用分组标题和空列拉长列表。通过 BigModel/Z.AI 网页授权取得的 Coding Plan Key 属于 OAuth 账号；不得复制成个人 API Key 配置。相同品牌允许分别添加 OAuth 与 API 连接。
 
 3. 选中个人供应商后，“同步模型”和“添加模型”是两个相邻但独立的按钮，不能共享弹框或点击事件。“同步模型”打开独立对话框并立即从供应商 `/models` 接口拉取目录；“添加模型”仍打开单模型编辑器。

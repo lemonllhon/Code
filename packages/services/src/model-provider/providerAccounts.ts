@@ -26,6 +26,15 @@ import {
   type StartProviderAuthorization,
 } from "@lcode/shared";
 import { createAuthDriver, type AuthDriver, type AuthDriverFactory } from "@lcode/provider-node";
+import {
+  registerProviderAccountBackupPort,
+  exportProviderBackupAccounts,
+  replaceProviderBackupAccounts,
+} from "./providerAccountBackup.js";
+export {
+  getProviderAccountBackupPort,
+  type ProviderAccountBackupPort,
+} from "./providerAccountBackup.js";
 import type { ICredentialService } from "../credential/credential.js";
 import type { IProviderAccountService } from "./providerAccountService.js";
 import { ProviderAccountTransport } from "./providerAccountTransport.js";
@@ -95,6 +104,12 @@ export class ProviderAccounts implements IProviderAccountService {
     this.#factory = options.factory ?? createAuthDriver;
     this.#refreshOwner = new ProviderAccountRefreshOwner(options.lockPath);
     this.#storage = new ProviderAccountStorage(options.credentials, options.lockPath);
+    // Channel 按字符串反射实例方法，私密备份端口必须留在 WeakMap，不能成为公开账号方法。
+    registerProviderAccountBackupPort(this, {
+      exportBackupAccounts: async () => exportProviderBackupAccounts(await this.#storage.read()),
+      readBackupTransactionAccounts: () => this.#storage.read(),
+      replaceBackupAccounts: (input) => this.#replaceBackupAccounts(input),
+    });
     this.#checkins = new ProviderAccountCheckins({
       ...this.#operations,
       mutate: (update) => this.#mutate(update),
@@ -327,6 +342,17 @@ export class ProviderAccounts implements IProviderAccountService {
     return this.#publish();
   }
   readonly readAccounts = () => this.#storage.readPublic();
+  async #replaceBackupAccounts(input: StoredAccount[]): Promise<void> {
+    const changedIds = await replaceProviderBackupAccounts(input, (update) => this.#mutate(update));
+    for (const id of changedIds) {
+      this.#abort(id);
+      await this.#drivers.get(id)?.dispose?.();
+      this.#drivers.delete(id);
+    }
+  }
+  publishBackupAccounts(): Promise<ProviderAccountView> {
+    return this.#publish();
+  }
   channelName(id: string): string {
     return (
       (this.options.channels ?? PROVIDER_AUTH_CHANNELS).find((channel) => channel.id === id)

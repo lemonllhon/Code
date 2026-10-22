@@ -1,7 +1,7 @@
 import { mkdir, watch } from "node:fs/promises";
 import { basename, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
-import { withFileLock } from "@lcode/shared/node";
+import { withFileLock, withProviderMutationBarrier } from "@lcode/shared/node";
 import type { ICredentialService } from "../credential/credential.js";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import { storeSchema, type StoredAccount } from "./providerAccountStoreSchema.js";
@@ -14,8 +14,10 @@ export class ProviderAccountStorage {
     private readonly lockPath: string,
   ) {}
   async read(): Promise<StoredAccount[]> {
-    const raw = await this.credentials.load(STORE_KEY);
-    return raw ? storeSchema.parse(JSON.parse(raw)).accounts : [];
+    return withProviderMutationBarrier(this.lockPath, async () => {
+      const raw = await this.credentials.load(STORE_KEY);
+      return raw ? storeSchema.parse(JSON.parse(raw)).accounts : [];
+    });
   }
   async hostId(): Promise<string> {
     return withFileLock(this.lockPath, async () => {
@@ -29,6 +31,9 @@ export class ProviderAccountStorage {
     });
   }
   async mutate(update: (accounts: StoredAccount[]) => void): Promise<void> {
+    return withProviderMutationBarrier(this.lockPath, () => this.#mutateLocked(update));
+  }
+  async #mutateLocked(update: (accounts: StoredAccount[]) => void): Promise<void> {
     await withFileLock(this.lockPath, async () => {
       const accounts = await this.read();
       update(accounts);
@@ -37,7 +42,7 @@ export class ProviderAccountStorage {
   }
   async readPublic() {
     return (await this.read()).map(
-      ({ grant: _grant, generation: _generation, ...account }) => account,
+      ({ grant: _grant, generation: _generation, restoreEpoch: _epoch, ...account }) => account,
     );
   }
 }

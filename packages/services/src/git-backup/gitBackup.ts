@@ -1,5 +1,6 @@
 import { ServiceChannels } from "@lcode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
+import type { IBackupLifecycleService } from "../backup/contract.js";
 
 export interface GitBackupOssConfig {
   accessKeyId: string;
@@ -39,12 +40,15 @@ export interface GitBackupConfig {
   minio?: GitBackupMinioConfig | null;
   destinationEnabled?: GitBackupDestinationSelection;
   workspaces: GitBackupWorkspaceTarget[];
+  /** 统一生命周期本地位置的只读投影，不由旧 configure 写入。 */
+  localEnabled?: boolean;
 }
 
 export interface GitBackupManifestEntry {
   path: string;
   size: number;
   sha256: string;
+  mode?: number;
 }
 
 export interface GitBackupManifest {
@@ -55,6 +59,8 @@ export interface GitBackupManifest {
   totalFiles: number;
   totalSize: number;
   entries: GitBackupManifestEntry[];
+  /** 所有目标已有同内容副本时为 true，不表示生成了新版本。 */
+  skipped?: boolean;
 }
 
 export interface GitBackupDestinationStatus {
@@ -72,6 +78,7 @@ export interface GitBackupDestinationResult {
   provider: GitBackupProvider;
   ok: boolean;
   error?: string;
+  skipped?: boolean;
 }
 
 export type GitBackupConfigUpdate = Partial<
@@ -93,7 +100,7 @@ export interface GitBackupStatus {
   errorProviders?: GitBackupProvider[];
 }
 
-export interface IGitBackupService {
+export interface IGitBackupService extends Partial<IBackupLifecycleService> {
   configure(
     config: GitBackupConfigUpdate,
     workspace?: GitBackupWorkspaceTarget,

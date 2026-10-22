@@ -57,7 +57,7 @@ import { ComputerUseSection } from "@/settings/ComputerUseSection.js";
 import { RemoteControlSettingsSection } from "@/settings/RemoteControlSettingsSection.js";
 import { ShortcutSettingsSection } from "@/settings/ShortcutSettingsSection.js";
 import { MigrationSection } from "@/settings/MigrationSection.js";
-import { GitBackupSection } from "@/settings/GitBackupSection.js";
+import { AutomaticBackupSection as GitBackupSection } from "@/settings/AutomaticBackupSection.js";
 import { GitManagementSection } from "@/settings/GitManagementSection.js";
 import { WorktreeSettingsSection } from "@/settings/WorktreeSettingsSection.js";
 import { SessionConfigurationSection } from "@/settings/SessionConfigurationSection.js";

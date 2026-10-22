@@ -41,6 +41,7 @@ export {
   type BrandDirMigrationStatus,
 } from "./node/brandDataMigration.js";
 export { scanOfficialPluginCacheRoots } from "./node/officialPluginCache.js";
+export { withProviderMutationBarrier } from "./node/providerMutationBarrier.js";
 export {
   migrateUserSubagentMarkdown,
   migrateSubagentStateFile,

@@ -1,5 +1,7 @@
 /** English translations */
+import { backupEnUS } from "./backup.js";
 const enUS: Record<string, string> = {
+  ...backupEnUS,
   "git.workspace.error.ssh-key-unavailable":
     "The SSH private key path is unavailable. Check Git management settings.",
   "settings.gitManagement.title": "Git management",
@@ -3702,7 +3704,7 @@ const enUS: Record<string, string> = {
   "settings.previewBadge.active": "Active",
   "settings.previewBadge.light": "Light",
   "settings.previewBadge.dark": "Dark",
-  "settings.modelProviderTitle": "Model settings",
+  "settings.modelProviderTitle": "Provider Management",
   "settings.mcpTitle": "MCP Servers",
   "settings.mcp.description": "Manage MCP server configurations used by LCode Agent.",
   "settings.mcp.create.open": "Add MCP server",
@@ -8402,9 +8404,9 @@ const enUS: Record<string, string> = {
   "scheduledPreview.addSchedule": "Add schedule",
 
   // Git Auto Backup (LCode Full Edition)
-  "settings.gitBackup.title": "Git Auto Backup",
+  "settings.gitBackup.title": "Automatic Backup",
   "settings.gitBackup.description":
-    "Back up .git history directly to your own Alibaba Cloud OSS and/or MinIO buckets. Repository file contents are encrypted; manifest paths, hashes and workspace metadata are not. Uncommitted working files are not backed up. Keys belong to the selected Host; its private key is only sent to this device when you explicitly export it.",
+    "Back up .git history to a Host local directory, your Alibaba Cloud OSS or MinIO. New versions encrypt contents and the complete manifest with AES-256-GCM + RSA-OAEP-SHA256; legacy v1 backups have no authenticated tamper protection. Uncommitted working files are not backed up. Keys belong to the selected Host; its private key is only sent to this device when you explicitly export it.",
   "settings.gitBackup.enabled": "Enable auto backup",
   "settings.gitBackup.switchNote":
     "Uses saved configuration and registered workspaces. Disabling prevents new uploads; an active backup may finish.",
@@ -8534,9 +8536,9 @@ const enUS: Record<string, string> = {
   "settings.gitBackup.validation.oss": "Invalid OSS configuration: {error}",
   "settings.gitBackup.close": "Close",
 
-  "gitBackup.welcome.title": "Git Auto Backup",
+  "gitBackup.welcome.title": "Automatic Backup",
   "gitBackup.welcome.description":
-    "Back up .git history to your own Alibaba Cloud OSS or MinIO, separately or together. Enable Auto Backup opens Settings → Data & Statistics → Git Auto Backup; automatic uploads start only after you configure and enable them there. Repository contents use AES-256-CTR + RSA-OAEP encryption, but manifest paths, hashes and workspace metadata remain plaintext. Uncommitted working files are not backed up. Keys stay on the selected Host unless you explicitly export its private key.",
+    "Back up .git history to a Host local directory, Alibaba Cloud OSS or MinIO. Enable Auto Backup opens Settings → Data & Statistics → Automatic Backup → Git backup; automatic backups start only after you configure and enable them there. New versions encrypt contents and the complete manifest with AES-256-GCM + RSA-OAEP-SHA256. Uncommitted working files are not backed up. Keys stay on the selected Host unless you explicitly export its private key.",
   "gitBackup.welcome.enableNow": "Enable Auto Backup",
   "gitBackup.welcome.skipForNow": "Skip for Now",
   "gitBackup.welcome.skipNote":
