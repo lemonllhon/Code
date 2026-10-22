@@ -88,6 +88,7 @@ export class ProviderAccounts implements IProviderAccountService {
         request,
         this.#routing,
         ticket.routingInvocation,
+        this.#quotas,
       ),
     (ticket, usage) => {
       if (ticket.routingInvocation) this.#routing.observeUsage(ticket.routingInvocation, usage);

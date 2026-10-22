@@ -100,6 +100,28 @@ test("routing projection retains known quota across token rotation but rejects a
   f.close();
 });
 
+test("a failed read after token rotation preserves quota facts only within the same authorization epoch", async () => {
+  let failed = false;
+  const f = fixture(async () => {
+    if (failed) throw new Error("fixture-only");
+    return { windows: [{ id: "weekly", name: "Weekly", used: 100 }] };
+  });
+  const original = await f.owner.get("a");
+  failed = true;
+  f.accounts[0]!.generation++;
+  const rotated = await f.owner.get("a");
+  assert.equal(rotated.status, "error");
+  assert.equal(rotated.stale, true);
+  assert.equal(rotated.checkedAt, original.checkedAt);
+  assert.equal(rotated.windows[0]?.usedPercent, 100);
+  f.accounts[0]!.generation++;
+  f.accounts[0]!.routingEpoch = 1;
+  const reauthorized = await f.owner.get("a");
+  assert.equal(reauthorized.windows.length, 0);
+  assert.equal(reauthorized.checkedAt, undefined);
+  f.close();
+});
+
 test("coalesces per-account reads, reuses TTL, isolates accounts and force refreshes without inference", async () => {
   const pending = deferred<unknown>(),
     began = deferred<void>();

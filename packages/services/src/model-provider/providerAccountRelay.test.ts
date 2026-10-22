@@ -25,7 +25,7 @@ import { createProviderAccountsSource } from "./providerAccountsSource.js";
 import { createProviderAccountRelaySource } from "./providerAccountRelaySource.js";
 import { RemoteProviderAccounts } from "./remoteProviderAccounts.js";
 import type { ProviderAccountRelayService } from "./providerAccountRelay.js";
-import type { AuthDriverContext } from "@lcode/provider-node";
+import type { AuthDriver, AuthDriverContext } from "@lcode/provider-node";
 
 const protocols = ["openai-chat-completions", "openai-responses", "anthropic-messages"] as const;
 const paths = ["/chat/completions", "/responses", "/messages"] as const;
@@ -34,6 +34,7 @@ async function fixture(
   t: test.TestContext,
   fetchHook?: (request: Request, context: AuthDriverContext) => Promise<Response>,
   routing?: ProviderRoutingPolicy,
+  quota?: AuthDriver["quota"],
 ) {
   const directory = await mkdtemp(join(tmpdir(), "remote-oauth-relay-"));
   const saved = new Map<string, string>();
@@ -70,6 +71,7 @@ async function fixture(
           },
         ],
         checkin: async () => ({ outcome: "claimed", credit: 10 }),
+        ...(quota ? { quota } : {}),
         fetch: async (request, context) => {
           const grant = (await context.read())!;
           assert.equal(grant.access, `secret-${channelId}`);
@@ -141,6 +143,50 @@ async function fixture(
   });
   return { local, remote, source, proxy, saved, frames, calls };
 }
+
+test("remote requests refresh expired quota at the original Host without reopening the account panel", async (t) => {
+  let time = Date.parse("2026-10-22T04:00:00Z"),
+    reads = 0;
+  t.mock.method(Date, "now", () => time);
+  const f = await fixture(t, undefined, { version: 1, strategy: "reliable-first" }, async () => {
+    reads++;
+    return { windows: [{ name: "5 hours", used: 20 }] };
+  });
+  const login = await f.local.startAuthorization({ channelId: "bigmodel", methodId: "login" });
+  const account = await f.local.completeAuthorization(login.attemptId, "fixture");
+  await f.remote.getQuota(account.connectionId!);
+  time += 60_001;
+  for (const attemptId of ["first", "second"]) {
+    const auth = await resolveAuth(
+      f.remote,
+      "bigmodel",
+      "fixture-model",
+      "openai-chat-completions",
+      "remote-session",
+      {
+        capability: "single-attempt-routing-v1",
+        workspaceKey: "ssh-workspace",
+        remoteSessionId: "attachment",
+        sessionId: "remote-session",
+        turnId: attemptId,
+        attemptId,
+      },
+    );
+    const response = await fetch(auth.baseURL + "/chat/completions", {
+      method: "POST",
+      headers: { authorization: `Bearer ${auth.apiKey}`, "content-type": "application/json" },
+      body: JSON.stringify({ model: "fixture-model", stream: true }),
+    });
+    await response.text();
+    assert.equal(response.status, 200);
+  }
+  assert.equal(f.calls.length, 2);
+  assert.equal(reads, 3, "initial, expired, then the fixture's credential rotation");
+  assert.equal(
+    f.frames.some((frame) => Buffer.from(frame.buffer).includes(Buffer.from("secret-"))),
+    false,
+  );
+});
 
 test("enhanced relay negotiates capabilities, returns the actual strategy and sends usage to the original attempt", async (t) => {
   const policy = { version: 1, strategy: "headroom-balance" } as const;

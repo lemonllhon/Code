@@ -6,6 +6,7 @@ import type {
 } from "@lcode/provider-node";
 import { resolveProviderAccountRoutes } from "./providerAccountRouting.js";
 import type { ProviderAccountScheduler } from "./providerAccountScheduler.js";
+import type { ProviderAccountQuotas } from "./providerAccountQuotas.js";
 import type { RoutingInvocation } from "@lcode/shared";
 import { RoutingError } from "@lcode/provider";
 interface PoolAccount {
@@ -32,8 +33,20 @@ export async function executeProviderAccountPool<T extends PoolAccount>(
   request: Request,
   routing?: ProviderAccountScheduler,
   invocation?: RoutingInvocation,
+  quotas?: Pick<ProviderAccountQuotas, "prepareRouting">,
 ): Promise<Response> {
+  request.signal.throwIfAborted();
   let routes = resolveProviderAccountRoutes(await host.read(), channelId, modelId, protocol);
+  if (routing) {
+    await routing.requireCapability(channelId, invocation);
+    await quotas?.prepareRouting(
+      routes.map(({ account }) => account.connectionId),
+      request.signal,
+    );
+    request.signal.throwIfAborted();
+    // 额度读取可能已 CAS 轮换凭据或退休账号；准入必须使用读取后的当前候选。
+    routes = resolveProviderAccountRoutes(await host.read(), channelId, modelId, protocol);
+  }
   const selected = await routing?.reserve(channelId, routes, request, invocation);
   if (selected)
     routes = routes.filter((route) => route.account.connectionId === selected.lease.routeId);

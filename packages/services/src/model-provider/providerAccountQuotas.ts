@@ -105,6 +105,28 @@ export class ProviderAccountQuotas {
       stale: false,
     };
   }
+  async prepareRouting(connectionIds: readonly string[], signal: AbortSignal): Promise<void> {
+    const ids = [...new Set(connectionIds)];
+    let next = 0;
+    const check = () => {
+      signal.throwIfAborted();
+      if (this.host.closed())
+        throw new DOMException("Provider account service closed", "AbortError");
+    };
+    check();
+    // 原路由只 peek 陈旧读数，探测后没有新修订便会一直拒绝；复用 get 的 TTL/flight，
+    // 在预留和推理账号锁之前补齐读取。取消仅撤销本等待者，不终止 Host 共有读取。
+    await Promise.all(
+      Array.from({ length: Math.min(4, ids.length) }, async () => {
+        while (next < ids.length) {
+          check();
+          await abortable(this.get(ids[next++]!), signal);
+          check();
+        }
+      }),
+    );
+    check();
+  }
   async get(connectionId: string, force = false): Promise<ProviderAccountQuota> {
     if (!connectionId || typeof connectionId !== "string" || typeof force !== "boolean")
       throw new Error("Invalid quota request");
@@ -124,7 +146,9 @@ export class ProviderAccountQuotas {
     existing?.controller.abort();
     const controller = this.host.track(connectionId);
     const flight = { generation: account.generation, controller } as Flight;
-    const previous = cached?.generation === account.generation ? cached.value : undefined;
+    // token 轮换不改变额度身份；刷新失败不能把同一授权已知的耗尽事实丢成未知。
+    const previous =
+      cached?.routingEpoch === (account.routingEpoch ?? 0) ? cached.value : undefined;
     flight.promise = this.#read(account, flight, previous)
       .catch(() => ({
         ...this.#empty(connectionId, "error", account.channelId),
