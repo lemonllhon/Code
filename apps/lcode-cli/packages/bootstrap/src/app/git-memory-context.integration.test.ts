@@ -20,7 +20,7 @@ test("Runtime combines live Git accounts and learned conventions without persist
     fileName = "git-workflow.md";
   await mkdir(memoryRoot, { recursive: true });
   const before = "# Git 提交与审核约定\n\n提交使用 Conventional Commits；提交前检查文件范围。\n";
-  const after = `${before}\n审核时排除生成的构建产物；发布前检查远端与 Tag 目标。\n`;
+  const after = `${before}\n审核时排除生成的构建产物；发布前检查远端与 Tag 目标。fixture 仓库的长期账号偏好为 preferred-reviewer，执行时应核对 Host 并关联。\n`;
   await writeFile(join(memoryRoot, fileName), before);
   const store = createSqliteSessionStore({ dbPath: join(root, "session.db") });
   const fs = createNodeFileSystemAdapter(),
@@ -56,6 +56,7 @@ test("Runtime combines live Git accounts and learned conventions without persist
         assert.match(text, new RegExp(username));
         assert.match(text, /Conventional Commits/);
         if (turn === 2) {
+          assert.match(text, /preferred-reviewer/);
           assert.match(text, /排除生成的构建产物/);
           assert.doesNotMatch(text, /runtime-only-alice/);
         }
@@ -69,6 +70,7 @@ test("Runtime combines live Git accounts and learned conventions without persist
       const payload = JSON.parse(String(request.messages[1]!.content));
       if (payload.items) {
         assert.match(String(request.messages[0]!.content), /current Host authentication/);
+        assert.match(String(request.messages[0]!.content), /desired username preference/);
         return {
           text: JSON.stringify({
             decisions: payload.items.map((item: { itemId: string }) => ({
@@ -85,6 +87,7 @@ test("Runtime combines live Git accounts and learned conventions without persist
         String(request.messages[0]!.content),
         /Git account\/remote bindings are live Host configuration/,
       );
+      assert.match(String(request.messages[0]!.content), /user-confirmed long-term preference/);
       const session = payload.sources.find((s: { kind: string }) => s.kind === "session");
       const memory = payload.sources.find((s: { reference: string }) => s.reference === fileName);
       assert.ok(session && memory);
@@ -167,7 +170,7 @@ test("Runtime combines live Git accounts and learned conventions without persist
   );
   try {
     const completed = await runtime.executeTurn(
-      "确定项目 Git 规范：提交使用 Conventional Commits；审核时排除生成的构建产物；发布前检查远端与 Tag 目标。",
+      "确定项目 Git 规范：提交使用 Conventional Commits；审核时排除生成的构建产物；发布前检查远端与 Tag 目标；fixture 仓库长期使用 preferred-reviewer，执行时核对 Host 并关联。",
       undefined,
       { abortSignal: t.signal },
     );

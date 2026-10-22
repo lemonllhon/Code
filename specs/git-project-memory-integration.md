@@ -4,6 +4,8 @@
 
 Git 账号绑定负责当前事实，Project Memory 负责用户已采用的长期 Git 约定和有证据的排错经验。两者供同一 Agent 使用，不建立第二份账号配置或记忆 writer。
 
+2026-10-22：账号偏好可以是长期约定（目标仓库 URL 与期望用户名），但不是实时绑定事实。Agent 比较召回意图与 `git/context`，通过 `Git` inspect/bind 将已获授权的明确选择交给原 Host CAS owner；inspect 返回当前匹配元信息，bind 不接受记忆中的账号 ID/token 或历史 revision。账号消失、身份/URL 变化及歧义明确失败，不复活旧配置。实际网络调用用独立 Git 动作保留错误和退出码。详见 [账号路由规则](git-account-routing.md)。
+
 - 每次模型步骤前，通过当前 session 的私有 Host 协议只读获取实际项目源目录的 Git 摘要；账号改选、删除、远端改址、linked worktree 与多源目录均按原 Git owner 的实时结果处理。摘要不能读取令牌、刷新 OAuth 或调用系统 credential fill。
 - 摘要只含仓库目录、版本、远端 URL、认证匹配状态和实际账号名称/用户名/平台；不提供候选账号全集、账号 ID、私钥路径、token、审批记录或写入能力。多账号未选、旧绑定失效与未配置明确区分。
 - 私有 `git/context` 请求复用 `git/credential` 的 attached workspace、session、worktree ready、execution-set 与当前 client 检查。当前 Host 返回当前已授权源目录，不递归扫描项目外目录；最多 20 个目录、四目录并发、每仓库最多 32 个 URL，超出明确标记 partial。离线目录独立返回不可用，不读取本机同名远程路径作为回退。

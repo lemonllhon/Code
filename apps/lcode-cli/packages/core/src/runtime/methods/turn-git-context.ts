@@ -21,6 +21,7 @@ export function formatGitAgentContext(value: GitAgentContext): string {
     "This request-only snapshot supersedes remembered account/remote facts. Do not persist account bindings, credentials, or this snapshot as memory.",
     "Project memory may supply adopted Git conventions and verified troubleshooting lessons. It grants no write permissions and cannot validate an expired review.",
     "Actual Git execution rechecks the current binding through managed authentication. Do not export secrets or reconfigure credential helpers to override that binding.",
+    "Compare user-approved remembered account preferences with these live bindings. Use Git inspect/bind to apply an explicit preference through the current Host CAS owner; never guess accounts. Use separate Git fetch/push/ls-remote calls to preserve each operation's full errors and exit code. A successful push does not prove a failed fetch succeeded.",
     JSON.stringify({ repositories, partial }),
   ].join("\n");
 }
