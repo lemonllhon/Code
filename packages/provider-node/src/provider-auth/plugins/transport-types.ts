@@ -30,6 +30,8 @@ export type WorkerMessage = {
     message: string;
     name?: string;
     signIn?: string;
+    code?: "invalid_model_request";
+    context?: { retryable: false; reason: "invalid_request"; retryDisposition: "terminal" };
     diagnostic?: ProviderAuthorizationDiagnostic;
   };
   diagnostic?: unknown;

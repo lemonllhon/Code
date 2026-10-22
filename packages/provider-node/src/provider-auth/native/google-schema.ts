@@ -1,4 +1,9 @@
 import { list, number, record, type Json } from "./common.js";
+import {
+  objectToolSchema,
+  mergeToolSchemaAlternatives,
+  ToolSchemaCompatibilityError,
+} from "@lcode/provider";
 
 const MAX_SCHEMA_DEPTH = 32;
 const SCALAR_FIELDS = [
@@ -53,8 +58,19 @@ export function googleToolSchema(root: Json): Json {
     for (const key of ["anyOf", "oneOf"]) {
       if (!Array.isArray(schema[key])) continue;
       const branches = list(schema[key]).map(record);
-      const selected = branches.find((branch) => branch.type !== "null");
-      const out = selected ? walk(selected, depth + 1, refs) : { type: "string" };
+      const nonNull = branches
+        .filter((branch) => branch.type !== "null")
+        .map((branch) => walk(branch, depth + 1, refs));
+      const merged = mergeToolSchemaAlternatives(nonNull);
+      // 真正的联合必须保留全部动作；nullable 只剥离 null，不能取第一个有效分支。
+      const objects =
+        nonNull.length > 1 &&
+        nonNull.every((branch) => branch.type === "object" || branch.properties);
+      if (nonNull.length > 1 && !objects && merged.anyOf)
+        throw new ToolSchemaCompatibilityError("Google cannot represent this mixed union");
+      const out = nonNull.length
+        ? walk(objects ? objectToolSchema({ ...schema, [key]: nonNull }) : merged, depth + 1, refs)
+        : { type: "string" };
       if (schema.description !== undefined && out.description === undefined)
         out.description = schema.description;
       if (branches.some((branch) => branch.type === "null")) out.nullable = true;
@@ -64,6 +80,8 @@ export function googleToolSchema(root: Json): Json {
     const out: Json = {};
     for (const key of SCALAR_FIELDS) if (schema[key] !== undefined) out[key] = schema[key];
     const types = Array.isArray(schema.type) ? schema.type : [schema.type];
+    if (types.filter((type) => typeof type === "string" && TYPES.has(type)).length > 1)
+      throw new ToolSchemaCompatibilityError("Google cannot represent this mixed type union");
     const type = types.find((item) => typeof item === "string" && TYPES.has(item));
     if (type) out.type = type;
     if (types.includes("null")) out.nullable = true;

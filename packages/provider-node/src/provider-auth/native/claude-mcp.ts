@@ -1,4 +1,5 @@
 import { createServer, type Server, type ServerResponse } from "node:http";
+import { objectToolSchema } from "@lcode/provider";
 import { randomBytes } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { list, record, text, type Json } from "./common.js";
@@ -22,7 +23,14 @@ export class ClaudeTools {
   private readonly uses: ToolUse[] = [];
   private readonly results = new Map<string, Json>();
   private readonly delivered = new Set<string>();
-  constructor(private readonly tools: Json[]) {}
+  private readonly tools: Json[];
+  constructor(tools: Json[]) {
+    // 启动本地服务前编译一次，非法 schema 必须作为请求配置错误直接返回。
+    this.tools = tools.map((tool) => ({
+      ...tool,
+      input_schema: objectToolSchema(record(tool.input_schema)),
+    }));
+  }
   async start(): Promise<Json> {
     this.server = createServer((request, response) => {
       if (request.url !== this.path || request.headers.authorization !== `Bearer ${this.token}`) {
@@ -65,7 +73,7 @@ export class ClaudeTools {
               tools: this.tools.map((tool) => ({
                 name: tool.name,
                 description: tool.description,
-                inputSchema: tool.input_schema ?? { type: "object", properties: {} },
+                inputSchema: tool.input_schema,
               })),
             });
             break;

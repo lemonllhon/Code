@@ -114,7 +114,7 @@ test("Cline converts nested oneOf without changing parameter names or data", asy
   });
   assert.deepEqual(output.messages, payload.messages);
 });
-test("other Chat channels keep supported JSON Schema unchanged", async () => {
+test("all Chat channels project union roots without dropping either branch", async () => {
   const payload = {
     tools: [{ type: "function", function: { name: "fixture_tool", parameters: union } }],
   };
@@ -129,6 +129,13 @@ test("other Chat channels keep supported JSON Schema unchanged", async () => {
     "cursor",
     "devin",
     "grok",
-  ])
-    assert.deepEqual(await send(channel, "chat/completions", payload), payload);
+  ]) {
+    const output = await send(channel, "chat/completions", payload);
+    const schema = output.tools[0].function.parameters;
+    assert.equal(schema.type, "object");
+    assert.deepEqual(Object.keys(schema.properties).sort(), ["a", "b", "shared"]);
+    assert.deepEqual(schema.required, ["shared"]);
+    assert.equal(schema.oneOf, undefined);
+    assert.deepEqual(payload.tools[0].function.parameters, union);
+  }
 });

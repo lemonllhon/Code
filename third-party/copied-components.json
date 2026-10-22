@@ -283,6 +283,7 @@
     "provenance": "New Node/TypeScript implementation based on provider protocol definitions and behavior in the clean pinned magpie checkout; this is an adaptation, not a claim of clean-room development or a verbatim Go source copy. Exact source paths are recorded in native/README.md and plugins/README.md.",
     "roots": [
       "packages/provider-node/src/provider-auth/native",
+      "packages/provider/src/tool-schema.ts",
       "packages/provider-node/src/provider-auth/native.ts",
       "packages/provider-node/src/provider-auth/plugins/factory-import.mjs",
       "packages/provider-node/src/provider-auth/plugins/method-details.mjs",

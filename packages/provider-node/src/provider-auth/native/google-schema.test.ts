@@ -2,6 +2,84 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { geminiRequest } from "./google-wire.js";
 import { record, list, type Json } from "./common.js";
+import { objectToolSchema } from "@lcode/provider";
+
+test("Google rejects an unrepresentable mixed union instead of silently choosing a branch", () => {
+  assert.throws(
+    () =>
+      parameters({
+        type: "object",
+        properties: { value: { oneOf: [{ type: "string" }, { type: "integer" }] } },
+      }),
+    /mixed union/,
+  );
+  assert.throws(
+    () => parameters({ type: "object", properties: { value: { type: ["string", "integer"] } } }),
+    /mixed type union/,
+  );
+});
+
+test("Google retains nested object union siblings and referenced enum alternatives", () => {
+  const output = parameters({
+    type: "object",
+    $defs: { a: { const: "a" }, b: { const: "b" } },
+    properties: {
+      mode: { anyOf: [{ $ref: "#/$defs/a" }, { $ref: "#/$defs/b" }] },
+      nested: {
+        type: "object",
+        properties: { common: { type: "string" } },
+        required: ["common"],
+        oneOf: [
+          { type: "object", properties: { first: { type: "boolean" } } },
+          { type: "object", properties: { second: { type: "boolean" } } },
+        ],
+      },
+    },
+  });
+  assert.deepEqual(record(record(output.properties).mode).enum, ["a", "b"]);
+  assert.deepEqual(Object.keys(record(record(record(output.properties).nested).properties)), [
+    "common",
+    "first",
+    "second",
+  ]);
+});
+
+test("Google preserves every Git object branch and every action after common projection", () => {
+  const schema = {
+    oneOf: [
+      {
+        type: "object",
+        properties: { action: { const: "inspect" }, url: { type: "string" } },
+        required: ["action", "url"],
+      },
+      {
+        type: "object",
+        properties: { action: { const: "bind" }, username: { type: "string" } },
+        required: ["action", "username"],
+      },
+      {
+        type: "object",
+        properties: {
+          action: { enum: ["fetch", "push", "ls-remote"] },
+          refs: { type: "array", items: { type: "string" } },
+        },
+        required: ["action"],
+      },
+    ],
+  };
+  for (const input of [schema, objectToolSchema(schema)]) {
+    const output = parameters(input);
+    assert.equal(output.type, "object");
+    assert.deepEqual(record(record(output.properties).action).enum, [
+      "inspect",
+      "bind",
+      "fetch",
+      "push",
+      "ls-remote",
+    ]);
+    assert.deepEqual(Object.keys(record(output.properties)), ["action", "url", "username", "refs"]);
+  }
+});
 
 function parameters(schema: Json): Json {
   const result = geminiRequest({

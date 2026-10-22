@@ -3,6 +3,7 @@
 // ============================================================
 
 import { anthropic } from "@ai-sdk/anthropic";
+import { objectToolSchema } from "@lcode/provider";
 import { jsonSchema, tool, type ToolSet } from "ai";
 import { ModelErrorCode, type JsonSchema, type ModelToolContract } from "@lcode/contracts";
 import { AiSdkModelAdapterError } from "./errors.js";
@@ -35,10 +36,13 @@ export function toAiSdkTools(
     const baseTool = {
       description: contract.description,
       inputSchema: jsonSchema<unknown>(
-        normalizeToolInputSchema(
+        compileToolInputSchema(
           contract.name,
-          strictSchema ?? (contract.inputSchema as JsonSchema),
-          options,
+          normalizeToolInputSchema(
+            contract.name,
+            strictSchema ?? (contract.inputSchema as JsonSchema),
+            options,
+          ),
         ),
       ),
       ...(strictSchema === undefined ? {} : { strict: true }),
@@ -76,6 +80,22 @@ export function toAiSdkTools(
   });
 
   return entries.length > 0 ? (Object.fromEntries(entries) as ToolSet) : undefined;
+}
+
+function compileToolInputSchema(toolName: string, schema: JsonSchema): JsonSchema {
+  try {
+    // 统一在模型边界生成 object 根；原 Runtime schema 继续严格校验动作与权限参数。
+    return objectToolSchema(schema) as JsonSchema;
+  } catch (cause) {
+    throw new AiSdkModelAdapterError(
+      ModelErrorCode.InvalidModelRequest,
+      `Tool ${toolName} has an incompatible input schema`,
+      {
+        cause,
+        context: { toolName, retryable: false, reason: "invalid_request" },
+      },
+    );
+  }
 }
 
 /**

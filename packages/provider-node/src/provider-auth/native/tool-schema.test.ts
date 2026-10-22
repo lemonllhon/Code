@@ -103,7 +103,8 @@ test("object roots preserve every branch property, common requirements, refs and
   ]);
   assert.deepEqual(output.required, ["own", "mode", "common"]);
   assert.deepEqual(record(output.properties).mode, {
-    anyOf: [{ const: "first" }, { const: "second" }],
+    type: "string",
+    enum: ["first", "second"],
   });
   assert.deepEqual(output.$defs, schema.$defs);
   for (const keyword of ["oneOf", "anyOf", "allOf"]) assert.equal(output[keyword], undefined);

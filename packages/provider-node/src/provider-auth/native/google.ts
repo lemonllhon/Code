@@ -24,6 +24,7 @@ import {
   type Json,
 } from "./common.js";
 import { codeAssistRequest, codeAssistResponse } from "./google-wire.js";
+import { normalizeGoogleQuotaResponse } from "./google-quota-error.js";
 import { NativeAccountRefresh } from "./account-refresh.js";
 
 type GoogleChannel = "gemini" | "antigravity";
@@ -315,7 +316,12 @@ export class GoogleAuthDriver implements AuthDriver {
       signal,
       redirect: "error",
     });
-    return codeAssistResponse(response, text(body.model), body.stream === true, signal);
+    return codeAssistResponse(
+      await normalizeGoogleQuotaResponse(response),
+      text(body.model),
+      body.stream === true,
+      signal,
+    );
   }
   async quota(context: AuthDriverContext): Promise<unknown> {
     return this.catalog.quota(

@@ -6,6 +6,8 @@ The upstream root [LICENSE](https://github.com/yetone/magpie/blob/93c5d846ca2b05
 
 All source paths below refer to that exact upstream revision:
 
+The shared object-root schema compiler now lives in `packages/provider/src/tool-schema.ts`; `native/tool-schema.ts` re-exports it. Its upstream-derived portions retain the same MIT attribution, and the copied-component inventory includes the new location. LCode's branch-completeness checks, terminal errors and regression fixtures are local changes.
+
 | Local area                                                                                                                                                      | Upstream reference paths                                                                                                                                                                                          |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `browser.ts`, `openai.ts`: PKCE, Codex and ChatGPT API registration/refresh, model/request behavior                                                             | `internal/provider/signin.go`, `internal/provider/account.go`, `internal/provider/chatgpt_api.go`, `internal/provider/codex_models.go`, `internal/provider/codex_request.go`, `internal/gateway/codex_backend.go` |

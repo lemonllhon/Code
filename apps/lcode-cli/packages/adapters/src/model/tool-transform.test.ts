@@ -6,6 +6,23 @@ import {
 } from "@lcode/contracts";
 import { toAiSdkTools } from "./tool-transform.js";
 
+test("invalid function roots fail locally with a terminal request error", () => {
+  for (const inputSchema of [
+    { type: "string" },
+    { $ref: "#/missing" },
+    { oneOf: [{ type: "object" }, { type: "null" }] },
+  ])
+    assert.throws(
+      () => toAiSdkTools([{ name: "fixture", inputSchema }]),
+      (error: unknown) => {
+        const failure = error as { code: string; context: { retryable: boolean } };
+        assert.equal(failure.code, "invalid_model_request");
+        assert.equal(failure.context.retryable, false);
+        return true;
+      },
+    );
+});
+
 for (const providerKind of ["openai", "anthropic", "openai-compatible", "custom"] as const) {
   for (const requiresMfjsToolSchema of [false, true]) {
     test(`${providerKind} snippet schema preserves omission (ref projection=${requiresMfjsToolSchema})`, async () => {

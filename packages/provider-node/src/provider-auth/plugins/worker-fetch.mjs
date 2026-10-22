@@ -29,12 +29,12 @@ export async function fetchPluginModel({
   // Responses 同样要求 object 根；Factory 的 Messages 保留已有包装/解包。
   const messages = /\/messages(?:\/count_tokens)?$/.test(target.pathname);
   const responses = target.pathname.endsWith("/responses");
-  if ((messages && channel !== "factory") || responses || channel === "cline") {
+  if (!(messages && channel === "factory")) {
     payload = prepareToolSchemas(
       payload,
       messages ? "anthropic-messages" : responses ? "openai-responses" : "openai-chat-completions",
       {
-        objectRoots: messages || responses,
+        objectRoots: true,
         oneOfAsAnyOf: channel === "cline",
       },
     );
