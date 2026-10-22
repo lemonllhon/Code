@@ -35,6 +35,7 @@ import type {
   ExecutionShellSelection,
 } from "./deps.js";
 import type { BackgroundResultOriginMeta, ContextUsageBreakdownItem } from "@lcode/contracts";
+import type { AgentRuntimeControlApi } from "./agent-runtime-control-api.js";
 import type {
   ExecutionFailoverPolicyPort,
   SetExecutionFailoverTargetInput,
@@ -93,6 +94,7 @@ export interface AgentRuntimeCoreMethods {
     traceContext?: TraceContext,
   ): Promise<void>;
   getSessionModelSelection(): ModelSelection | undefined;
+  persistSessionModelSelection: AgentRuntimeControlApi["persistSessionModelSelection"];
   setSessionModelSelection(selection: ModelSelection | undefined): void;
   getProjectId(): ProjectId;
   setWorkingDirectory(cwd: string): void;

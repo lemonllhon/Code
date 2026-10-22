@@ -92,30 +92,55 @@ export function sameModelSelection(
   );
 }
 
+type SelectionPersistenceOutcome = Awaited<
+  ReturnType<AgentRuntimeInternal["persistSessionModelSelection"]>
+>;
+const selectionWrites = new WeakMap<AgentRuntimeInternal, Promise<SelectionPersistenceOutcome>>();
+
+export async function persistSessionModelSelection(
+  this: AgentRuntimeInternal,
+): Promise<SelectionPersistenceOutcome> {
+  const selection = this.getSessionModelSelection();
+  return selection ? persistRuntimeModelSelection(this, selection) : "unavailable";
+}
+
 export async function persistRuntimeModelSelection(
   runtime: AgentRuntimeInternal,
   selection: ModelSelection,
-): Promise<void> {
-  if (!runtime.sessionStore?.saveSessionEntry) return;
-  const timestamp = Date.now();
-  try {
-    await runtime.sessionStore.saveSessionEntry({
-      id: `${runtime.sessionId}:runtime-model-selection`,
-      sessionID: runtime.sessionId,
-      type: SESSION_ENTRY_MODEL_SELECTION,
-      touchSession: false,
-      time: { created: timestamp, updated: timestamp },
-      data: selection,
-    });
-  } catch (error) {
-    runtime.logger?.warn("Session model selection persistence failed", {
-      error: error instanceof Error ? error.message : String(error),
-      event: "session.model_selection.persist_failed",
-      modelId: selection.modelId,
-      module: "core.runtime",
-      providerId: selection.providerId,
-      status: "failed",
-      thoughtLevel: selection.options?.reasoningLevel,
-    });
-  }
+): Promise<SelectionPersistenceOutcome> {
+  // 草稿没有父 session；唯一 Runtime owner 在父记录创建后补写最新选型，避免外键失败。
+  if (!runtime.sessionPersisted) return "deferred";
+  if (!runtime.sessionStore?.saveSessionEntry) return "unavailable";
+  const snapshot = cloneModelSelection(selection);
+  // 所有入口串行覆盖同一稳定 entry，较慢的旧写入不能覆盖新选型。
+  const write = (selectionWrites.get(runtime) ?? Promise.resolve()).then(
+    async (): Promise<SelectionPersistenceOutcome> => {
+      const timestamp = Date.now();
+      try {
+        await runtime.sessionStore!.saveSessionEntry!({
+          id: `${runtime.sessionId}:runtime-model-selection`,
+          sessionID: runtime.sessionId,
+          type: SESSION_ENTRY_MODEL_SELECTION,
+          touchSession: false,
+          time: { created: timestamp, updated: timestamp },
+          data: snapshot,
+        });
+        return "persisted";
+      } catch (error) {
+        runtime.logger?.warn("Session model selection persistence failed", {
+          error: error instanceof Error ? error.message : String(error),
+          event: "session.model_selection.persist_failed",
+          modelId: snapshot.modelId,
+          module: "core.runtime",
+          providerId: snapshot.providerId,
+          status: "failed",
+        });
+        return "failed";
+      }
+    },
+  );
+  selectionWrites.set(runtime, write);
+  const outcome = await write;
+  if (selectionWrites.get(runtime) === write) selectionWrites.delete(runtime);
+  return outcome;
 }

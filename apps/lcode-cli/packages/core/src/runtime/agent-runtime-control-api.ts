@@ -66,6 +66,7 @@ export interface AgentRuntimeControlApi {
     traceContext?: TraceContext,
   ): Promise<void>;
   getSessionModelSelection(): ModelSelection | undefined;
+  persistSessionModelSelection(): Promise<"deferred" | "persisted" | "failed" | "unavailable">;
   setSessionModelSelection(selection: ModelSelection | undefined): void;
   getProjectId(): ProjectId;
   ensureSessionPersistedForExternalActivity(

@@ -2,6 +2,7 @@ import { grantPermissionFullAccess, setPermissionMode } from "../permission-full
 import { updateConfig, setExecutionState } from "./config.js";
 import { installSessionShellControlApi } from "./session-shell-control-api.js";
 import { getMode, getPlanEnabled } from "./config.js";
+import { persistSessionModelSelection } from "./turn-model.js";
 import { getSessionModelSelection, setSessionModelSelection } from "./config.js";
 import { getProjectId } from "./config.js";
 import { setWorkingDirectory } from "./config.js";
@@ -211,6 +212,7 @@ export function installAgentRuntimeMethods(ctor: AgentRuntimeConstructor): void 
   proto.getPlanEnabled = getPlanEnabled;
   proto.getSessionModelSelection = getSessionModelSelection;
   proto.setSessionModelSelection = setSessionModelSelection;
+  proto.persistSessionModelSelection = persistSessionModelSelection;
   proto.getProjectId = getProjectId;
   proto.setWorkingDirectory = setWorkingDirectory;
   proto.ensureSessionPersistedForExternalActivity = ensureSessionPersistedForExternalActivity;
