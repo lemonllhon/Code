@@ -6,6 +6,8 @@ import { HostMessageTypes, InternalChannels, PlatformChannels, type Locale } fro
 import { scheduleArmsBrowserPerfLoadNudge } from "./armsBrowserPerfLoadNudge.js";
 import { createBrowserWindow } from "./desktopWindowChrome.js";
 import type { HostInitMessage, WindowBootstrapOptions } from "./desktopHostProcess.js";
+import { isHostProcessDisposing } from "./desktopHostProcess.js";
+import { createWindowHostRecovery } from "./windowHostRecovery.js";
 import type { StartupWorkspaceWarmupTarget } from "./startupWorkspace.js";
 import { handleDarwinWindowCloseRequest } from "./desktopDarwinCloseBehavior.js";
 import {
@@ -33,6 +35,7 @@ export function createWindow(options: {
     label: string,
     // Built-in Provider 路径由 Main spawn 装配器唯一解析，再补入严格 HostInitMessage。
     initMessage: Omit<HostInitMessage, "lcodeBuiltinProviderConfigFilePath">,
+    onExitedRetryRequested: () => void,
   ) => ElectronUtilityProcess;
   disposeHostProcess: (
     child: ElectronUtilityProcess,
@@ -119,6 +122,23 @@ export function createWindow(options: {
   }
 
   const wcId = win.webContents.id;
+  const hostRecovery = createWindowHostRecovery<ElectronUtilityProcess>({
+    canRecover: () =>
+      !options.forceQuitRef.current &&
+      !win.isDestroyed() &&
+      !win.webContents.isDestroyed() &&
+      !options.windowHostProcessMap.has(wcId),
+    isExpectedExit: isHostProcessDisposing,
+    recover: () => {
+      options.logger.warn(
+        `[createWindow] recovering exited Host through renderer reload (${label})`,
+      );
+      win.webContents.reload();
+    },
+    onExhausted: () => options.logger.warn(`[createWindow] Host recovery limit reached (${label})`),
+    onRecoveryFailed: (error) =>
+      options.logger.warn(`[createWindow] Host recovery failed (${label})`, error),
+  });
   // 资源遥测据此把主窗口 renderer 归 renderer_main；辅助窗口与 DevTools 归 chromium_other。
   registerMainApplicationWindow(wcId);
   let domReadyGeneration = 0;
@@ -192,20 +212,26 @@ export function createWindow(options: {
         return;
       }
       const primaryWarmupTarget = options.agentWarmupTargets?.[0];
-      const child = options.spawnHostProcess(win, label, {
-        type: HostMessageTypes.InitLocal,
-        deviceMid: options.deviceMid,
-        workspacePath: primaryWarmupTarget?.workspacePath,
-        workspaceIdentity: primaryWarmupTarget?.workspaceIdentity,
-        ...(options.agentWarmupTargets && options.agentWarmupTargets.length > 0
-          ? { agentWarmupTargets: [...options.agentWarmupTargets] }
-          : {}),
-        runtimeProcessEnvPatch,
-        // 同一窗口会后台索引所有已恢复 workspace，不只索引启动时的 active workspace。
-        // fallback 必须跟随 local Host 生命周期常驻，否则非 active 历史目录被删除后会用失效 cwd 反复 spawn。
-        agentSpawnFallbackCwd: options.agentSpawnFallbackCwd,
-      });
+      const child = options.spawnHostProcess(
+        win,
+        label,
+        {
+          type: HostMessageTypes.InitLocal,
+          deviceMid: options.deviceMid,
+          workspacePath: primaryWarmupTarget?.workspacePath,
+          workspaceIdentity: primaryWarmupTarget?.workspaceIdentity,
+          ...(options.agentWarmupTargets && options.agentWarmupTargets.length > 0
+            ? { agentWarmupTargets: [...options.agentWarmupTargets] }
+            : {}),
+          runtimeProcessEnvPatch,
+          // 同一窗口会后台索引所有已恢复 workspace，不只索引启动时的 active workspace。
+          // fallback 必须跟随 local Host 生命周期常驻，否则非 active 历史目录被删除后会用失效 cwd 反复 spawn。
+          agentSpawnFallbackCwd: options.agentSpawnFallbackCwd,
+        },
+        hostRecovery.retry,
+      );
       options.windowHostProcessMap.set(wcId, child);
+      hostRecovery.watch(child);
       options.onHostProcessReady?.(wcId);
       options.syncAutoUpdaterStateToWindow(win);
       options.syncReadyUpdateToWindow(win);
@@ -262,6 +288,7 @@ export function createWindow(options: {
   });
 
   win.on("closed", () => {
+    hostRecovery.dispose();
     unregisterMainApplicationWindow(wcId);
     cancelRuntimeProcessEnvWait?.();
     cancelRuntimeProcessEnvWait = null;

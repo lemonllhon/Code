@@ -33,6 +33,7 @@ export function bindDatabaseStartupRelay(
   win: BrowserWindow,
   child: UtilityProcess,
   startupId = randomUUID(),
+  onExitedRetryRequested?: () => void,
 ) {
   // 同窗口重建 Host 时，旧监听不能继续重放 ready 或接收用户控制命令。
   windowBindings.get(win)?.();
@@ -72,6 +73,8 @@ export function bindDatabaseStartupRelay(
       return;
     }
     if (result.data.action === "snapshot" && latest) forward(latest);
+    if (exited && result.data.action === "retry" && result.data.attemptId === latest?.attemptId)
+      onExitedRetryRequested?.();
     if (!exited)
       child.postMessage({ type: HostMessageTypes.DatabaseStartupControl, control: result.data });
   };

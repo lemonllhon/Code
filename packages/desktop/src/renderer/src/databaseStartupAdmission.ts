@@ -5,6 +5,16 @@ export class DatabaseStartupAdmission {
   state: DatabaseStartupState | null = null;
   private pending?: { startupId: string; port: MessagePort };
 
+  acceptTransportFailure(state: DatabaseStartupState): boolean {
+    if (
+      state.startupId !== this.state?.startupId ||
+      state.phase !== "failed" ||
+      state.errorCode !== "transport_closed"
+    )
+      return false;
+    return this.acceptState(state);
+  }
+
   acceptState(state: DatabaseStartupState): boolean {
     if (this.state?.startupId === state.startupId && this.state.sequence >= state.sequence)
       return false;

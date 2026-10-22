@@ -246,9 +246,14 @@ function StartupReadyNotifier() {
 function handleServicePortMessage(event: MessageEvent): void {
   if (event.source === window && event.data?.type === InternalChannels.DatabaseStartupState) {
     const result = databaseStartupStateSchema.safeParse(event.data.state);
-    if (!result.success || appInitialized) return;
+    if (!result.success) return;
     const next = result.data;
-    if (!databaseStartupAdmission.acceptState(next)) return;
+    if (appInitialized) {
+      if (!databaseStartupAdmission.acceptTransportFailure(next)) return;
+      // Host 退出后原 business port 已失效。恢复预算耗尽时必须显示可重试的失败面，
+      // 不能继续停在永远不会重新接收 ServicePort 的旧工作台。
+    } else if (!databaseStartupAdmission.acceptState(next)) return;
+    appInitialized = false;
     if (firstStartupStateTimer) clearTimeout(firstStartupStateTimer);
     renderDatabaseStartup();
     enterAppIfPrepared();

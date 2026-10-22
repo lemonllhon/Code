@@ -86,6 +86,7 @@ export interface HostInitMessage {
 }
 
 interface SpawnHostProcessOptions {
+  onExitedRetryRequested?: () => void;
   internalChannel?: typeof InternalChannels.ServicePort | typeof InternalChannels.ScopedServicePort;
   internalPayload?: unknown;
   registerBroadcast?: boolean;
@@ -101,6 +102,10 @@ interface SpawnHostProcessOptions {
 
 const exitedHostProcesses = new WeakSet<ElectronUtilityProcess>();
 const disposingHostProcesses = new Set<ElectronUtilityProcess>();
+
+export function isHostProcessDisposing(child: ElectronUtilityProcess): boolean {
+  return disposingHostProcesses.has(child);
+}
 
 export function listDisposingHostProcesses(): ElectronUtilityProcess[] {
   return Array.from(disposingHostProcesses);
@@ -283,7 +288,12 @@ export function spawnHostProcess(
     hostLogRelay.onStdout(data.toString());
   });
 
-  const databaseStartupRelay = bindDatabaseStartupRelay(win, child, hostId);
+  const databaseStartupRelay = bindDatabaseStartupRelay(
+    win,
+    child,
+    hostId,
+    options?.onExitedRetryRequested,
+  );
   child.on("message", (message: unknown) => {
     const result = hostResponseMessageSchema.safeParse(message);
     if (!result.success) {
@@ -605,9 +615,9 @@ export function spawnHostProcess(
     dependencies.logger.info(`[spawnHostProcess] host process (${label}) exited with code ${code}`);
     dependencies.hostRunningTaskCountMap.delete(child);
     if (shouldRegisterBroadcast) {
-      dependencies.broadcastHub.unregister(windowId);
+      dependencies.broadcastHub.unregister(windowId, child);
     }
-    unregisterHostProcess(label);
+    unregisterHostProcess(label, child);
     for (const [wcId, process] of dependencies.windowHostProcessMap) {
       if (process === child) {
         dependencies.windowHostProcessMap.delete(wcId);

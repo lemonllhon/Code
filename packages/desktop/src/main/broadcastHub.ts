@@ -52,6 +52,7 @@ export class BroadcastHub {
     this.processes.set(windowId, child);
 
     child.on("message", (msg: unknown) => {
+      if (this.processes.get(windowId) !== child) return;
       const result = hostResponseMessageSchema.safeParse(msg);
       if (!result.success) {
         logger.warn("[BroadcastHub] invalid host response message:", formatZodError(result.error));
@@ -76,7 +77,9 @@ export class BroadcastHub {
   }
 
   /** 注销 host process（窗口关闭时调用） */
-  unregister(windowId: number): void {
+  unregister(windowId: number, expectedChild?: ElectronUtilityProcess): void {
+    // 旧 Host 延迟退出不能注销同窗口已经注册的替代进程及其 reservation。
+    if (expectedChild && this.processes.get(windowId) !== expectedChild) return;
     this.processes.delete(windowId);
     // 窗口在 reservation 返回前关闭时无法主动 release；只回收该窗口未 commit
     // 的占用，已 commit claim 继续保留，避免后来打开的窗口重播同一次完成提示。

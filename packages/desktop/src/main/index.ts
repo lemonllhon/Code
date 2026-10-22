@@ -1712,7 +1712,7 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
       }
     },
     awaitFirstHostSpawnDecision,
-    spawnHostProcess: (win, label, initMessage) =>
+    spawnHostProcess: (win, label, initMessage, onExitedRetryRequested) =>
       spawnHostProcess(
         win,
         label,
@@ -1754,6 +1754,7 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
             runBrowserCommandOnView({ win: browserWin, ...request }),
         },
         {
+          onExitedRetryRequested,
           taskRealtime: {
             workspaceKeys: windowWorkspaceMap.get(win.id) ?? [],
             onHostId: (hostId) => {

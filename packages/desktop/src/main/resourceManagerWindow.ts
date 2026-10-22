@@ -209,7 +209,9 @@ export function registerHostProcess(label: string, child: ElectronUtilityProcess
   hostProcesses.set(label, child);
 }
 
-export function unregisterHostProcess(label: string): void {
+export function unregisterHostProcess(label: string, expectedChild?: ElectronUtilityProcess): void {
+  // 按进程 owner 清理，避免旧代 exit 清除新代的资源与 Agent 登记。
+  if (expectedChild && hostProcesses.get(label) !== expectedChild) return;
   hostProcesses.delete(label);
   hostAgentProcesses.delete(label);
   forgetHostResourceUsage(label);

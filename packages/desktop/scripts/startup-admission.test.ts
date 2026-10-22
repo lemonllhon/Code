@@ -20,6 +20,22 @@ const state = (
 });
 const port = () => ({ close() {} }) as MessagePort;
 
+test("business connection accepts only a newer failure of its own Host generation", () => {
+  const admission = new DatabaseStartupAdmission();
+  admission.acceptState(state("current", 1, "ready"));
+  const failure = { ...state("current", 2, "failed"), errorCode: "transport_closed" as const };
+  assert.equal(admission.acceptTransportFailure({ ...failure, startupId: "old" }), false);
+  assert.equal(admission.acceptTransportFailure({ ...failure, sequence: 0 }), false);
+  assert.equal(admission.acceptTransportFailure(failure), true);
+  assert.equal(admission.acceptTransportFailure(failure), false);
+  assert.equal(admission.state?.phase, "failed");
+  const replacement = port();
+  admission.acceptPort({ databaseStartupId: "replacement" }, replacement);
+  assert.equal(admission.takeReadyPort(), undefined);
+  admission.acceptState(state("replacement", 1, "ready"));
+  assert.equal(admission.takeReadyPort(), replacement);
+});
+
 test("ready 与端口先后顺序不改变同代准入", () => {
   for (const readyFirst of [true, false]) {
     const admission = new DatabaseStartupAdmission();

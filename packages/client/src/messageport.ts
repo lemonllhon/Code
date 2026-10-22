@@ -35,16 +35,20 @@ export function createMessagePortServiceConnection(
 
   const services = new RemoteServiceAccess(client);
   let disposed = false;
+  const onClose = () => dispose(new Error("MessagePort connection closed"));
+  const dispose = (reason?: Error) => {
+    if (disposed) return;
+    disposed = true;
+    port.removeEventListener("close", onClose);
+    client.dispose(reason);
+    protocol.disconnect();
+  };
+  // Host 崩溃和 scoped attachment 关闭都走同一边界；否则已经发送的 RPC
+  // 永远等不到响应，业务层的 flight/锁也无法随端口一起释放。
+  port.addEventListener("close", onClose);
   return {
     services,
-    dispose: (reason?: Error) => {
-      if (disposed) {
-        return;
-      }
-      disposed = true;
-      client.dispose(reason);
-      protocol.disconnect();
-    },
+    dispose,
   };
 }
 
