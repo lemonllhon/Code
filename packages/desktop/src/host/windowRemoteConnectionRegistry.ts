@@ -1,3 +1,4 @@
+import { disposeResourceSteps } from "@lcode/services/node";
 /* eslint-disable max-lines -- 所有 transport 生命周期共享同一个 registry 状态机，必须原子演进。 */
 import { Emitter } from "@lcode/rpc";
 import {
@@ -162,6 +163,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
   onSessionClosed?: (event: WindowRemoteConnectionCloseEvent & { remoteSessionId: string }) => void;
   releaseWorkspace?: (services: TServices, context: RemoteWorkspaceContext) => Promise<void>;
   onWorkspaceReleaseError?: (context: RemoteWorkspaceContext, error: unknown) => void;
+  onConnectionDisposeError?: (error: unknown) => void;
   wslIdleTtlMs?: number;
 }) {
   const entriesByKey = new Map<string, ConnectionEntry<TServices, TCapabilities>>();
@@ -363,7 +365,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
       ) {
         return;
       }
-      void disposeEntry(entry);
+      disposeEntryInBackground(entry);
     }, wslIdleTtlMs);
   }
 
@@ -375,13 +377,25 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
     clearIdleTimer(entry);
     entry.state = "closing";
     entry.abortController.abort();
-    entry.closeSubscription?.dispose();
+    const subscription = entry.closeSubscription;
     entry.closeSubscription = undefined;
     if (entriesByKey.get(entry.key) === entry) {
       entriesByKey.delete(entry.key);
     }
-    entry.disposePromise = Promise.resolve(entry.handle?.dispose()).then(() => undefined);
+    // dispose 允许同步抛错；先登记同一 Promise，重复关闭不能再次调用 owner。
+    entry.disposePromise = Promise.resolve().then(() =>
+      disposeResourceSteps([
+        ...(subscription
+          ? [{ name: "remote-close-subscription", run: () => subscription.dispose() }]
+          : []),
+        { name: "remote-connection-handle", run: () => entry.handle?.dispose() },
+      ]),
+    );
     return entry.disposePromise;
+  }
+
+  function disposeEntryInBackground(entry: ConnectionEntry<TServices, TCapabilities>): void {
+    void disposeEntry(entry).catch((error) => options.onConnectionDisposeError?.(error));
   }
 
   function handleConnectionClosed(
@@ -610,7 +624,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
       if (session.entry.state === "connecting") {
         // 旧逻辑仅中止 SSH，WSL 会复用已取消的部署，Docker 则继续后台安装。
         // 三种 transport 的最后一个 waiter 都退休 entry 并中止 backend，其他共享 owner 不受影响。
-        void disposeEntry(session.entry);
+        disposeEntryInBackground(session.entry);
       } else if (session.entry.target.kind === "wsl" && session.entry.state === "online") {
         scheduleWslIdleDispose(session.entry, "cancelled-logical-connect");
       } else if (session.entry.target.kind === "ssh" && session.entry.state === "online") {
@@ -618,7 +632,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
         // 复用连接一并销毁，真实窗口 Host shutdown 时统一释放。
         clearIdleTimer(session.entry);
       } else if (session.entry.handle) {
-        void disposeEntry(session.entry);
+        disposeEntryInBackground(session.entry);
       }
     }
   }
@@ -842,7 +856,13 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
       pendingSessionsByRequestId.clear();
       catalogChanged.fire();
       catalogChanged.dispose();
-      disposePromise = Promise.all(Array.from(entries, disposeEntry)).then(() => undefined);
+      // Promise.all 会在首个失败时提前退出，留下其它连接清理未完成。
+      disposePromise = Promise.allSettled(Array.from(entries, disposeEntry)).then((results) => {
+        const failures = results
+          .filter((result) => result.status === "rejected")
+          .map((result) => result.reason);
+        if (failures.length) throw new AggregateError(failures, "Remote connection cleanup failed");
+      });
       return disposePromise;
     },
   };

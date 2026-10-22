@@ -1,3 +1,13 @@
+import {
+  ownsServiceResource,
+  disposeResourceSteps,
+  takeServiceResourceDisposers,
+} from "./serviceResourceLifecycle.js";
+export {
+  registerBorrowedServiceResources,
+  registerServiceResourceDisposer,
+  disposeResourceSteps,
+} from "./serviceResourceLifecycle.js";
 export {
   installProjectNativeRoutingOwner,
   prepareNativeProjectContext,
@@ -3103,7 +3113,29 @@ function readTelemetryOAuthUserId(rawUserInfo: string | null): string {
   }
 }
 
+function ownedDisposableServices(services: ServiceCollection) {
+  return [
+    { name: "terminal-service", service: services.getOptional(ITerminalService) },
+    { name: "task-service", service: services.getOptional(ILCodeTaskService) },
+    { name: "agent-service", service: services.getOptional(ILCodeAgentService) },
+    { name: "session-service", service: services.getOptional(ILCodeSessionService) },
+    { name: "file-watcher-service", service: services.getOptional(IFileWatcherService) },
+    { name: "off-peak-service", service: services.getOptional(IOffPeakTaskService) },
+  ].flatMap(({ name, service }) =>
+    service !== undefined && ownsServiceResource(services, service) ? [{ name, service }] : [],
+  );
+}
+
 export function disposeServiceResources(services: ServiceCollection): void {
+  for (const dispose of takeServiceResourceDisposers(services)) {
+    try {
+      void Promise.resolve(dispose()).catch((error) =>
+        createServiceLogger("service-dispose").warn(undefined, "资源清理失败", error),
+      );
+    } catch (error) {
+      createServiceLogger("service-dispose").warn(undefined, "资源清理失败", error);
+    }
+  }
   managedTerminalOwners.get(services)?.disposeAll();
   void managedRuntimeEnvironmentDisposers
     .get(services)?.()
@@ -3117,16 +3149,9 @@ export function disposeServiceResources(services: ServiceCollection): void {
   // host process 退出前以前没有统一遍历本地服务做资源回收，
   // terminal/task wrapper 这类会拉起子进程的服务只能等宿主进程自己结束，时序上可能留下短暂残留。
   // 这里集中调用各服务的本地 disposeAll 钩子，把“退出 app = 回收所有托管资源”落成机械动作。
-  const disposableServices = [
-    services.getOptional(ITerminalService),
-    services.getOptional(ILCodeTaskService),
-    services.getOptional(ILCodeAgentService),
-    services.getOptional(ILCodeSessionService),
-    services.getOptional(IFileWatcherService),
-    services.getOptional(IOffPeakTaskService),
-  ].filter((service) => service !== undefined);
+  const disposableServices = ownedDisposableServices(services);
 
-  for (const service of disposableServices) {
+  for (const { service } of disposableServices) {
     if (hasDisposeAll(service)) {
       service.disposeAll();
     }
@@ -3149,60 +3174,72 @@ export function disposeServiceResources(services: ServiceCollection): void {
   managedHostApiNetworkTransports.get(services)?.dispose();
 }
 
-export async function disposeServiceResourcesAndWait(services: ServiceCollection): Promise<void> {
-  await drainProviderServiceResources(
+const serviceDisposals = new WeakMap<ServiceCollection, Promise<void>>();
+
+export function disposeServiceResourcesAndWait(services: ServiceCollection): Promise<void> {
+  const existing = serviceDisposals.get(services);
+  if (existing) return existing;
+  const closing = drainProviderServiceResources(
     {
       runtime: providerRuntimes.get(services),
       hostNetwork: managedHostApiNetworkTransports.get(services),
     },
     () => disposeOtherServiceResourcesAndWait(services),
   );
+  serviceDisposals.set(services, closing);
+  return closing;
 }
 
 async function disposeOtherServiceResourcesAndWait(services: ServiceCollection): Promise<void> {
-  await managedTerminalOwners.get(services)?.disposeAllAndWait();
-  managedTerminalOwners.delete(services);
-  managedGitBackupDisposers.get(services)?.();
-  managedGitBackupDisposers.delete(services);
-  managedGitAuthorizationDisposers.get(services)?.();
-  managedGitAuthorizationDisposers.delete(services);
-  // app 关闭时 host 需要等 agent 进程树完成 graceful + force 清理。
-  // 旧的同步 dispose 会在 host 退出时丢掉强杀 timer，导致 lcode-cli/app-server 变成孤儿进程。
-  const disposableServices = [
-    services.getOptional(ITerminalService),
-    services.getOptional(ILCodeTaskService),
-    services.getOptional(ILCodeAgentService),
-    services.getOptional(ILCodeSessionService),
-    services.getOptional(IFileWatcherService),
-    services.getOptional(IOffPeakTaskService),
-  ].filter((service) => service !== undefined);
-
-  for (const service of disposableServices) {
-    if (hasDisposeAllAndWait(service)) {
-      await service.disposeAllAndWait();
-    } else if (hasDisposeAll(service)) {
-      service.disposeAll();
-    }
-  }
-
-  await managedRuntimeEnvironmentDisposers.get(services)?.();
-  managedRuntimeEnvironmentDisposers.delete(services);
-
-  // 等待托管的 Computer Use Helper 终止（best-effort）：Helper 是长生命周期高权限进程，服务释放语义必须显式
-  // 收口它，不能只靠 launcher-pid watchdog / 进程退出兜底。
-  const managedCuaHelperHost = managedCuaHelperHosts.get(services);
-  if (managedCuaHelperHost) {
-    await managedCuaHelperHost.stop().catch(() => {});
-  }
-  // 关闭共享 tasks-index sqlite 句柄（同 disposeServiceResources，异步收口路径也要释放）
-  for (const repo of sharedSqliteRepos.get(services) ?? []) repo.close();
-  sharedSqliteRepos.delete(services);
-  for (const dispose of providerProvisioningTriggerDisposers.get(services) ?? []) dispose();
-  providerProvisioningTriggerDisposers.delete(services);
-  providerProvisioningSources.delete(services);
-  providerAccountRelayOwners.delete(services);
-  remoteProviderAccountRelays.delete(services);
+  const disposableServices = ownedDisposableServices(services);
+  // 远端 collection 混有借用代理，只有显式拥有的本地实例可以探测 dispose 钩子。
+  // 每一步独立结算，Agent 清理失败也必须继续关闭运行环境、Helper 和 SQLite。
+  await disposeResourceSteps([
+    ...takeServiceResourceDisposers(services).map((run, index) => ({
+      name: `local-subscription-${index}`,
+      run,
+    })),
+    { name: "terminal-owner", run: () => managedTerminalOwners.get(services)?.disposeAllAndWait() },
+    { name: "git-backup", run: () => managedGitBackupDisposers.get(services)?.() },
+    { name: "git-authorization", run: () => managedGitAuthorizationDisposers.get(services)?.() },
+    ...disposableServices.map(({ service, name }) => ({
+      name,
+      run: () => {
+        if (hasDisposeAllAndWait(service)) return service.disposeAllAndWait();
+        if (hasDisposeAll(service)) service.disposeAll();
+      },
+    })),
+    {
+      name: "runtime-environment",
+      run: () => managedRuntimeEnvironmentDisposers.get(services)?.(),
+    },
+    { name: "computer-use-helper", run: () => managedCuaHelperHosts.get(services)?.stop() },
+    ...(sharedSqliteRepos.get(services) ?? []).map((repo, index) => ({
+      name: `sqlite-${index}`,
+      run: () => repo.close(),
+    })),
+    ...(providerProvisioningTriggerDisposers.get(services) ?? []).map((run, index) => ({
+      name: `provider-trigger-${index}`,
+      run,
+    })),
+    {
+      name: "release-registrations",
+      run: () => {
+        managedTerminalOwners.delete(services);
+        managedGitBackupDisposers.delete(services);
+        managedGitAuthorizationDisposers.delete(services);
+        managedRuntimeEnvironmentDisposers.delete(services);
+        managedCuaHelperHosts.delete(services);
+        sharedSqliteRepos.delete(services);
+        providerProvisioningTriggerDisposers.delete(services);
+        providerProvisioningSources.delete(services);
+        providerAccountRelayOwners.delete(services);
+        remoteProviderAccountRelays.delete(services);
+      },
+    },
+  ]);
 }
+
 import {
   ProviderAccounts,
   getProviderAccountBackupPort,

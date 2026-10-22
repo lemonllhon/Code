@@ -64,6 +64,7 @@ import {
   getOffPeakRequestAuthBuilder,
   disposeServiceResources,
   disposeServiceResourcesAndWait,
+  disposeResourceSteps,
   AutomationRepo,
   OffPeakTaskRepo,
   OffPeakTaskService,
@@ -1702,7 +1703,7 @@ async function createWindowRemoteConnectionHandle(params: {
     },
   });
 
-  let disposed = false;
+  let disposal: Promise<void> | undefined;
   // 远端 workspace 的 CLI 与 MCP 样本走与本地同一条路径：远端 lcode-server → 本地 Host → main。
   // 订阅寿命等于这份远端 services 的寿命：由 connection handle 持有，registry 释放 entry
   // （WSL idle 回收、最后一个 logical session 关闭、掉线后的 session 清理）时随 dispose 一起收口。
@@ -1740,15 +1741,16 @@ async function createWindowRemoteConnectionHandle(params: {
       closeListeners.add(listener);
       return { dispose: () => closeListeners.delete(listener) };
     },
-    async dispose() {
-      if (disposed) {
-        return;
-      }
-      disposed = true;
+    dispose() {
+      if (disposal) return disposal;
       closeListeners.clear();
-      resourceTelemetry.dispose();
-      await disposeServiceResourcesAndWait(services);
-      await disposeHostRemoteConnection(connection);
+      // 本地投影清理失败也必须关闭 transport；重复释放等待同一结果。
+      disposal = disposeResourceSteps([
+        { name: "remote-telemetry", run: () => resourceTelemetry.dispose() },
+        { name: "remote-local-services", run: () => disposeServiceResourcesAndWait(services) },
+        { name: "remote-transport", run: () => disposeHostRemoteConnection(connection) },
+      ]);
+      return disposal;
     },
   };
 }
@@ -1775,6 +1777,7 @@ const windowRemoteConnectionRegistry = createWindowRemoteConnectionRegistry<
       error,
     );
   },
+  onConnectionDisposeError: (error) => logger.warn("remote connection disposal failed", error),
   onSessionClosed: (event) => {
     // logical session 已离线时 attachment 仍持有旧 services/订阅；后续 sessionId
     // 换代只释放 transport，无法按旧 ID 找回这些端口。Host 在失效源头统一关闭所有 clientMode。
@@ -2433,7 +2436,9 @@ function disposeHostResourcesBestEffort(reason: string): void {
   }
   disposeOffPeakRuntime();
   offPeakTaskRepo.close();
-  void windowRemoteConnectionRegistry.dispose();
+  void windowRemoteConnectionRegistry.dispose().catch((error) => {
+    logger.error("remote registry disposal failed", error);
+  });
 
   if (activeServices) {
     try {

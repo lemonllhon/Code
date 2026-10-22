@@ -52,6 +52,8 @@ import {
   createNodeApiClient,
   createHostApiNetworkTransport,
   registerHostApiNetworkTransportForDispose,
+  registerBorrowedServiceResources,
+  registerServiceResourceDisposer,
   createOAuthService,
   createOAuthProviderLogoutHandler,
   createAccountProviderCredentialStore,
@@ -212,133 +214,135 @@ export function createRemoteWorkspaceServiceCollection(params: {
   const remoteProviderProvisioningService =
     createRemoteProviderProvisioningExecutorFromWorkspace(params);
 
-  params.connectionServices.lcodeAgentService.onDynamicProjectNativeRequest()((request) => {
-    void (async () => {
-      const owner = getProjectNativeRoutingOwner();
-      try {
-        if (!owner) throw new Error("Window project router unavailable");
-        const value = await owner.call(request.request, request.originKey);
-        await params.connectionServices.lcodeAgentService.respondProjectNative({
-          requestId: request.requestId,
-          result: { value },
-        });
-      } catch (error) {
-        await params.connectionServices.lcodeAgentService.respondProjectNative({
-          requestId: request.requestId,
-          result: { error: error instanceof Error ? error.message : String(error) },
-        });
-      }
-    })().catch(params.runtimePreferencesBridge.onError);
-  });
+  const projectNativeSubscription =
+    params.connectionServices.lcodeAgentService.onDynamicProjectNativeRequest()((request) => {
+      void (async () => {
+        const owner = getProjectNativeRoutingOwner();
+        try {
+          if (!owner) throw new Error("Window project router unavailable");
+          const value = await owner.call(request.request, request.originKey);
+          await params.connectionServices.lcodeAgentService.respondProjectNative({
+            requestId: request.requestId,
+            result: { value },
+          });
+        } catch (error) {
+          await params.connectionServices.lcodeAgentService.respondProjectNative({
+            requestId: request.requestId,
+            result: { error: error instanceof Error ? error.message : String(error) },
+          });
+        }
+      })().catch(params.runtimePreferencesBridge.onError);
+    });
 
   // desktop-attached remote 的 Agent 运行在远端，但 app-global 设置权威仍在
   // desktop shared Host。通过窄化的 runtime-preferences 请求原路返回；
   // 只传可跨机器的全局偏好，Shell 可执行路径由远端解析。
   const { onError } = params.runtimePreferencesBridge;
-  params.connectionServices.lcodeAgentService.onDynamicSessionRuntimePreferencesRequest()(
-    (request) => {
-      const startedAt = Date.now();
-      const requestContext = {
-        event: "lcode_protocol.runtime_preferences.host_request_received",
-        module: "desktop.host.remote_workspace",
-        requestId: request.requestId,
-        scope: request.scope,
-        sessionId: request.sessionId,
-      };
-      // 诊断：Agent 侧超时只能说明没有拿到响应；这里记录 Host 是否收到请求，
-      // 用“收到但无 response”区分 transport 丢包和设置读取卡住。
-      runtimePreferencesLogger.info(
-        undefined,
-        "runtime preferences host request received",
-        requestContext,
-      );
-      void (async () => {
-        const trackStage = <T>(stage: string, promise: Promise<T>): Promise<T> => {
-          const stageStartedAt = Date.now();
-          return promise.then(
-            (value) => {
-              runtimePreferencesLogger.debug(
-                undefined,
-                "runtime preferences host stage completed",
-                {
+  const runtimePreferencesSubscription =
+    params.connectionServices.lcodeAgentService.onDynamicSessionRuntimePreferencesRequest()(
+      (request) => {
+        const startedAt = Date.now();
+        const requestContext = {
+          event: "lcode_protocol.runtime_preferences.host_request_received",
+          module: "desktop.host.remote_workspace",
+          requestId: request.requestId,
+          scope: request.scope,
+          sessionId: request.sessionId,
+        };
+        // 诊断：Agent 侧超时只能说明没有拿到响应；这里记录 Host 是否收到请求，
+        // 用“收到但无 response”区分 transport 丢包和设置读取卡住。
+        runtimePreferencesLogger.info(
+          undefined,
+          "runtime preferences host request received",
+          requestContext,
+        );
+        void (async () => {
+          const trackStage = <T>(stage: string, promise: Promise<T>): Promise<T> => {
+            const stageStartedAt = Date.now();
+            return promise.then(
+              (value) => {
+                runtimePreferencesLogger.debug(
+                  undefined,
+                  "runtime preferences host stage completed",
+                  {
+                    ...requestContext,
+                    durationMs: Math.max(0, Date.now() - stageStartedAt),
+                    stage,
+                  },
+                );
+                return value;
+              },
+              (error: unknown) => {
+                runtimePreferencesLogger.warn(undefined, "runtime preferences host stage failed", {
                   ...requestContext,
                   durationMs: Math.max(0, Date.now() - stageStartedAt),
+                  error: error instanceof Error ? error.message : String(error),
                   stage,
-                },
-              );
-              return value;
-            },
-            (error: unknown) => {
-              runtimePreferencesLogger.warn(undefined, "runtime preferences host stage failed", {
-                ...requestContext,
-                durationMs: Math.max(0, Date.now() - stageStartedAt),
-                error: error instanceof Error ? error.message : String(error),
-                stage,
-              });
-              throw error;
-            },
-          );
-        };
-        let resolution:
-          | { status: "resolved"; preferences: LCodeSessionRuntimePreferencesResult }
-          | { status: "failed"; message: string };
-        try {
-          // 与本地 Host 同源：固定预算不依赖配置网关，远程/手机偏好响应不再串行等待网络。
-          const settings = await trackStage("settings", localSettingService.get());
-          const modelContextBudgetStrategy = DEFAULT_LCODE_MODEL_CONTEXT_BUDGET_STRATEGY;
-          resolution = {
-            status: "resolved",
-            preferences: {
-              ...(request.scope === "project-admission" && request.projectContext
-                ? {
-                    projectContext: await prepareNativeProjectContext(
-                      buildProjectContextSnapshot(settings, request.projectContext.workspace),
-                    ),
-                  }
-                : {}),
-              askUserQuestionAutoResolutionEnabled:
-                settings.askUserQuestionAutoResolutionEnabled !== false,
-              nativeSearchEnhancementsEnabled: settings.nativeSearchEnhancementsEnabled !== false,
-              memoryEnabled: settings.memoryEnabled === true,
-              // 存储位置与切换版本是本机项目设置；远端继续 profile，不能传播本机 workspace/revision 或目录。
-              // 因旧 Agent strict 校验也不能显式补 profile，保留原报文字段缺席。
-              sessionRecallEnabled: settings.sessionRecallEnabled === true,
-              modelContextBudgetStrategy,
-              // 修复：本机 PowerShell 路径曾在首发时传给 Linux，触发 Selected Shell is not executable。
-              // 不传播本机 integratedTerminalShell；远程 Agent 按自己的平台和环境解析并校验 Shell。
-            },
+                });
+                throw error;
+              },
+            );
           };
-        } catch (error) {
-          resolution = {
-            status: "failed",
-            message: error instanceof Error ? error.message : String(error),
-          };
-          runtimePreferencesLogger.warn(undefined, "runtime preferences host resolution failed", {
+          let resolution:
+            | { status: "resolved"; preferences: LCodeSessionRuntimePreferencesResult }
+            | { status: "failed"; message: string };
+          try {
+            // 与本地 Host 同源：固定预算不依赖配置网关，远程/手机偏好响应不再串行等待网络。
+            const settings = await trackStage("settings", localSettingService.get());
+            const modelContextBudgetStrategy = DEFAULT_LCODE_MODEL_CONTEXT_BUDGET_STRATEGY;
+            resolution = {
+              status: "resolved",
+              preferences: {
+                ...(request.scope === "project-admission" && request.projectContext
+                  ? {
+                      projectContext: await prepareNativeProjectContext(
+                        buildProjectContextSnapshot(settings, request.projectContext.workspace),
+                      ),
+                    }
+                  : {}),
+                askUserQuestionAutoResolutionEnabled:
+                  settings.askUserQuestionAutoResolutionEnabled !== false,
+                nativeSearchEnhancementsEnabled: settings.nativeSearchEnhancementsEnabled !== false,
+                memoryEnabled: settings.memoryEnabled === true,
+                // 存储位置与切换版本是本机项目设置；远端继续 profile，不能传播本机 workspace/revision 或目录。
+                // 因旧 Agent strict 校验也不能显式补 profile，保留原报文字段缺席。
+                sessionRecallEnabled: settings.sessionRecallEnabled === true,
+                modelContextBudgetStrategy,
+                // 修复：本机 PowerShell 路径曾在首发时传给 Linux，触发 Selected Shell is not executable。
+                // 不传播本机 integratedTerminalShell；远程 Agent 按自己的平台和环境解析并校验 Shell。
+              },
+            };
+          } catch (error) {
+            resolution = {
+              status: "failed",
+              message: error instanceof Error ? error.message : String(error),
+            };
+            runtimePreferencesLogger.warn(undefined, "runtime preferences host resolution failed", {
+              ...requestContext,
+              durationMs: Math.max(0, Date.now() - startedAt),
+              error: resolution.message,
+            });
+          }
+          // 只把设置读取失败编码为 -32603；发送失败交给最终 onError 记录，不能重试同一请求。
+          await params.connectionServices.lcodeAgentService.respondSessionRuntimePreferences({
+            requestId: request.requestId,
+            resolution,
+          });
+          runtimePreferencesLogger.info(undefined, "runtime preferences host response sent", {
             ...requestContext,
             durationMs: Math.max(0, Date.now() - startedAt),
-            error: resolution.message,
+            resolutionStatus: resolution.status,
           });
-        }
-        // 只把设置读取失败编码为 -32603；发送失败交给最终 onError 记录，不能重试同一请求。
-        await params.connectionServices.lcodeAgentService.respondSessionRuntimePreferences({
-          requestId: request.requestId,
-          resolution,
+        })().catch((error: unknown) => {
+          runtimePreferencesLogger.warn(undefined, "runtime preferences host response failed", {
+            ...requestContext,
+            durationMs: Math.max(0, Date.now() - startedAt),
+            error: error instanceof Error ? error.message : String(error),
+          });
+          onError(error);
         });
-        runtimePreferencesLogger.info(undefined, "runtime preferences host response sent", {
-          ...requestContext,
-          durationMs: Math.max(0, Date.now() - startedAt),
-          resolutionStatus: resolution.status,
-        });
-      })().catch((error: unknown) => {
-        runtimePreferencesLogger.warn(undefined, "runtime preferences host response failed", {
-          ...requestContext,
-          durationMs: Math.max(0, Date.now() - startedAt),
-          error: error instanceof Error ? error.message : String(error),
-        });
-        onError(error);
-      });
-    },
-  );
+      },
+    );
 
   // Web 手机远控进入 SSH task 时只连到 remote workspace host，
   // 没有桌面 renderer 那层 `baseServices + remoteServices` 合并。
@@ -416,6 +420,16 @@ export function createRemoteWorkspaceServiceCollection(params: {
   if (params.connectionServices.gitManagementService)
     services.register(IGitManagementService, params.connectionServices.gitManagementService);
   registerHostApiNetworkTransportForDispose(services, hostApiNetworkTransport);
+  registerServiceResourceDisposer(services, () => projectNativeSubscription.dispose());
+  registerServiceResourceDisposer(services, () => runtimePreferencesSubscription.dispose());
+  // RPC Proxy 会动态伪造方法存在性；不能借 Host 退出调用远端非契约的 disposeAll。
+  registerBorrowedServiceResources(services, [
+    params.connectionServices.terminalService,
+    remoteLCodeTaskService,
+    params.connectionServices.lcodeAgentService,
+    remoteLCodeSessionService,
+    params.connectionServices.fileWatcherService,
+  ]);
   registerRemoteProviderProvisioningExecutor(services, remoteProviderProvisioningService);
   const organization = params.sourceServices?.getOptional(ISidebarOrganizationService);
   if (organization) services.register(ISidebarOrganizationService, organization);

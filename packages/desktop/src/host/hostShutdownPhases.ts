@@ -26,10 +26,13 @@ export async function runHostShutdownPhases(
     const startedAt = Date.now();
     const timeoutMs = Math.max(phase.timeoutMs ?? options.phaseTimeoutMs, 0);
     let timeout: ReturnType<typeof setTimeout> | undefined;
-    const operation = phase.run().then(
-      () => ({ kind: "completed" as const }),
-      (error: unknown) => ({ kind: "failed" as const, error }),
-    );
+    // 清理实现也可能同步抛错；先收进 Promise 才能继续执行后续资源释放阶段。
+    const operation = Promise.resolve()
+      .then(() => phase.run())
+      .then(
+        () => ({ kind: "completed" as const }),
+        (error: unknown) => ({ kind: "failed" as const, error }),
+      );
     const deadline = new Promise<{ kind: "timed-out" }>((resolve) => {
       timeout = setTimeout(() => resolve({ kind: "timed-out" }), timeoutMs);
     });

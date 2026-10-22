@@ -9,6 +9,58 @@ const targets: RemoteTarget[] = [
   { kind: "docker", container: "test-container" },
 ];
 
+test("registry shutdown waits for every transport even when one disposal throws synchronously", async () => {
+  const gate = Promise.withResolvers<void>();
+  const calls: string[] = [];
+  let id = 0;
+  let settled = false;
+  const registry = createWindowRemoteConnectionRegistry({
+    createId: () => `shutdown-${++id}`,
+    connect: async ({ target }) => ({
+      services: {},
+      dispose: () => {
+        calls.push(target.kind);
+        if (target.kind === "ssh") throw new Error("sync close failed");
+        return gate.promise;
+      },
+    }),
+  });
+  for (const target of targets.slice(0, 2))
+    await registry.connect({ requestId: target.kind, target, remoteAssets: {} });
+  const closing = registry.dispose();
+  const checked = assert.rejects(closing, AggregateError).then(() => {
+    settled = true;
+  });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(calls.sort(), ["ssh", "wsl"]);
+  assert.equal(settled, false);
+  gate.resolve();
+  await checked;
+  await assert.rejects(registry.dispose(), AggregateError);
+  assert.equal(calls.length, 2);
+});
+
+test("a throwing close subscription cannot skip the physical connection owner", async () => {
+  let closed = 0;
+  const registry = createWindowRemoteConnectionRegistry({
+    createId: () => "close-subscription",
+    connect: async () => ({
+      services: {},
+      onDidClose: () => ({
+        dispose: () => {
+          throw new Error("unsubscribe failed");
+        },
+      }),
+      dispose: () => {
+        closed++;
+      },
+    }),
+  });
+  await registry.connect({ requestId: "request", target: targets[0]!, remoteAssets: {} });
+  await assert.rejects(registry.dispose(), AggregateError);
+  assert.equal(closed, 1);
+});
+
 test("native IO holds the original WSL transport until release and rejects stale device generations", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const services = { marker: "original-device" };
