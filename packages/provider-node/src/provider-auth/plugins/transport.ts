@@ -99,6 +99,7 @@ export class PluginWorkerTransport {
             headers: [...request.headers],
             body,
           },
+          requestSessionKey: context?.requestSessionKey,
         },
         context,
         request.signal,

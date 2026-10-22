@@ -54,6 +54,10 @@ export interface AuthDriverContext {
   /** Enhanced routing owns retries: at most one inference POST in this fetch. */
   readonly routingSingleAttempt?: true;
   readonly connectionId?: string;
+  /** Opaque Host cache-affinity key including workspace, remote session and session facts.
+   * @example { ...accountContext, requestSessionKey: JSON.stringify([workspaceKey, remoteSessionId, sessionId]) }
+   */
+  readonly requestSessionKey?: string;
   read(): Promise<AuthGrant | null>;
   /** Replaces the current grant; Host rejects writes after the account/attempt generation changes. */
   write(grant: AuthGrant): Promise<void>;

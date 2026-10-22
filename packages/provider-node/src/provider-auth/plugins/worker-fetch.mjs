@@ -8,6 +8,7 @@ export async function fetchPluginModel({
   loader,
   model,
   request: r,
+  requestSessionKey,
   signal,
   singleAttempt,
 }) {
@@ -42,6 +43,11 @@ export async function fetchPluginModel({
   }
   const sessionID = headers.get("x-lcode-session-id");
   headers.delete("x-lcode-session-id");
+  // 使用 Host 原会话事实，不能按首条提示词把不同 workspace/session 合成同一厂商会话。
+  if ((channel === "qoder" || channel === "qoder-cn") && requestSessionKey?.trim()) {
+    payload.prompt_cache_key = requestSessionKey;
+    body = JSON.stringify(payload);
+  }
   if (sessionID && hooks["chat.headers"]) {
     const output = { headers: {} };
     await hooks["chat.headers"](

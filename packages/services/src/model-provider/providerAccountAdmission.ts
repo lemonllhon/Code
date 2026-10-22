@@ -16,8 +16,15 @@ export function safeAccountLabel(value: unknown): string | undefined {
     ? text
     : undefined;
 }
-const explicitIdentity = (grant: AuthGrant) =>
-  typeof grant.identityKey === "string" && grant.identityKey ? grant.identityKey : undefined;
+const explicitIdentity = (grant: AuthGrant, channel: string) => {
+  if (typeof grant.identityKey === "string" && grant.identityKey) return grant.identityKey;
+  // Kiro 将同一邮箱的 Google/GitHub 登录视为独立账号；只按邮箱会覆盖另一套凭据和额度。
+  const login =
+    typeof grant.loginProvider === "string" ? grant.loginProvider.trim().toLowerCase() : "";
+  if (channel === "kiro" && login && grant.accountId?.trim())
+    return `kiro:${JSON.stringify([grant.accountId.trim(), login])}`;
+  return undefined;
+};
 const sameCredential = (left: AuthGrant, right: AuthGrant) =>
   left.type === right.type &&
   Boolean(
@@ -34,11 +41,11 @@ export function admitProviderAccount(
   channel: { id: string; name: string },
   grant: AuthGrant,
 ): Pick<ProviderAccountImportResult, "status" | "connectionId"> {
-  const key = explicitIdentity(grant);
+  const key = explicitIdentity(grant, channel.id);
   const existing = accounts.find((account) => {
     if (account.channelId !== channel.id) return false;
     const stored = account.grant as AuthGrant;
-    const storedKey = explicitIdentity(stored);
+    const storedKey = explicitIdentity(stored, channel.id);
     // 旧accountId不是新的账号+组织复合key；只凭同一私有凭据升级，双方明确不同组织则不可合并。
     if (key && storedKey) return key === storedKey;
     if (!key && !storedKey && grant.accountId && stored.accountId)
@@ -52,6 +59,10 @@ export function admitProviderAccount(
     for (const field of ["identityKey", "accountId"] as const)
       if (next[field] === undefined && typeof existing.grant[field] === "string")
         next[field] = existing.grant[field];
+    if (key) next.identityKey = key;
+    // 同凭据的旧登录返回不完整元数据时，不能擦掉已经确认的登录方式。
+    if (channel.id === "kiro" && next.loginProvider === undefined)
+      next.loginProvider = existing.grant.loginProvider;
     if (JSON.stringify(existing.grant) === JSON.stringify(next))
       return { status: "exists", connectionId: existing.connectionId };
     // 同一身份的重新授权更新凭据，但保留connection、启停和用户别名，避免拆散统计归属。
@@ -76,7 +87,7 @@ export function admitProviderAccount(
     enabled: true,
     generation: 1,
     routingEpoch: 1,
-    grant,
+    grant: key ? { ...grant, identityKey: key } : grant,
     models: [],
   });
   return { status: "added", connectionId };

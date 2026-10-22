@@ -326,6 +326,24 @@
     "license": "MIT"
   },
   {
+    "id": "Magpie provider cross-platform compatibility backports",
+    "referenceRevision": "7ee60f825387455db26157ade2740a0f4ddbf3ee",
+    "importRevision": "7ee60f825387455db26157ade2740a0f4ddbf3ee",
+    "source": "https://raw.githubusercontent.com/magpie-community/plugins/7ee60f825387455db26157ade2740a0f4ddbf3ee/LICENSE",
+    "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
+    "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
+    "provenance": "Bounded adaptations of packages/qoder/index.mjs tool pairing, cache marking and Windows runtime discovery; packages/devin/index.mjs empty-response detection; packages/zen-free/tool-response.mjs incremental IDs; packages/factory/index.mjs billing-line preservation; packages/grok/index.mjs tool-choice compatibility. Local integration uses Host session facts, conservative tool pairing, owned reader cancellation and the existing single-attempt boundary. Exact sources and differences are recorded in provider-auth/plugins/README.md.",
+    "roots": [
+      "packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs",
+      "packages/provider-node/src/provider-auth/plugins/vendor-qoder-session-patch.mjs",
+      "packages/provider-node/src/provider-auth/plugins/vendor-devin-empty-patch.mjs",
+      "packages/provider-node/src/provider-auth/plugins/vendor-backports-20261022.test.mjs",
+      "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
+    ],
+    "scope": "Upstream-derived behavior and regression scenarios only. Host session propagation, account admission/CAS, reader ownership and dispatch integration are local work; the immutable vendor snapshot retains its own revision.",
+    "license": "MIT"
+  },
+  {
     "id": "CLIProxyAPI portions retained by Magpie Qoder plugin",
     "referenceRevision": "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a",
     "source": "https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/packages/qoder/LICENSE-CLIProxyAPI",

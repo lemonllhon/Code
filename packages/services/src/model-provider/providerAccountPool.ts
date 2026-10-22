@@ -96,7 +96,18 @@ export async function executeProviderAccountPool<T extends PoolAccount>(
             body,
             signal,
           }),
-          { ...host.context(account, signal), ...(selected ? { routingSingleAttempt: true } : {}) },
+          {
+            ...host.context(account, signal),
+            // 复用已校验的路由身份；仅 session ID 会把同名远程会话或复制的工作区缓存串联。
+            requestSessionKey: invocation
+              ? JSON.stringify([
+                  invocation.workspaceKey,
+                  invocation.remoteSessionId ?? null,
+                  invocation.sessionId,
+                ])
+              : (request.headers.get("x-lcode-session-id") ?? undefined),
+            ...(selected ? { routingSingleAttempt: true } : {}),
+          },
         );
       });
       selected?.observeHeaders(response);

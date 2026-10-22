@@ -22,7 +22,7 @@ const groups = [
   ["packages/services/src/lcode-agent", /^providerConnectivityStartup\.test\.ts$/u],
   [
     "packages/provider-node/src/provider-auth/plugins",
-    /^(?:authorization-progress|single-attempt.*|backport-fixtures)\.test\.ts$/u,
+    /^(?:authorization-progress|single-attempt.*|backport-(?:.*-)?fixtures)\.test\.ts$/u,
   ],
   [
     "packages/provider-node/src/provider-auth/native",
@@ -48,7 +48,10 @@ const files = process.argv.includes("--ui")
       )
     )
       .flat()
-      .concat("packages/provider-node/src/provider-auth/plugins/vendor-compatibility.test.mjs")
+      .concat(
+        "packages/provider-node/src/provider-auth/plugins/vendor-compatibility.test.mjs",
+        "packages/provider-node/src/provider-auth/plugins/vendor-backports-20261022.test.mjs",
+      )
       .sort();
 const child = spawn(
   process.execPath,

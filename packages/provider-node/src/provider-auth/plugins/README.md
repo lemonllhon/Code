@@ -51,3 +51,37 @@ The adapted protocol behavior comes from community plugins
 The original cache-usage patches still apply afterward. Cursor continuity,
 check-in hooks, SDK parsing, tool execution, history and memory are unchanged.
 The separate backport provenance is registered in `third-party/copied-components.json`.
+
+## Cross-platform backports (2026-10-22)
+
+Additional bounded adaptations follow plugins
+`7ee60f825387455db26157ade2740a0f4ddbf3ee` (MIT, same retained vendor LICENSE):
+
+- `vendor-qoder-session-patch.mjs` derives tool-pairing, cache marking and Windows
+  machine-wide runtime discovery from `packages/qoder/index.mjs` (`a900bab`,
+  `dc59000`). Local pairing never assigns an unknown explicit result to a call
+  whose ID was already known. Calls without matched results remain explicit
+  historical text, so neither side leaves an invalid protocol pair. Cache identity uses the existing Host ticket's
+  `AuthDriverContext.requestSessionKey` (the existing workspace/remote-session/session
+  tuple, with a legacy local session fallback) or an explicit cache key; missing identity
+  gets a request-local ID, never a prompt/user-derived conversation guess.
+- `vendor-devin-empty-patch.mjs` derives pre-success empty-reply rejection from
+  `packages/devin/index.mjs` (`397a890`). Local integration also owns cancellation
+  of pending reader IO, first-frame errors and stream-end errors. No extra model
+  POST is introduced; retry decisions remain with the existing Runner.
+- `vendor-compatibility-patch.mjs` also adapts incremental IDs from
+  `packages/zen-free/tool-response.mjs` (`ec884d0`), billing-header line removal
+  from `packages/factory/index.mjs` (`bb020ce`), and absent-tools choices from
+  `packages/grok/index.mjs` (`aee6b9d`).
+
+The Windows runtime probe also preserves macOS/Linux and CLI fallback branches.
+Its injected Applications root is test-only and is never accepted from Renderer.
+Host account admission distinguishes Kiro login providers using the existing
+composite identity mechanism; Devin's distinct private API keys already remain
+separate, even when their display email matches.
+
+The broad Qoder upstream-error-to-502 conversion and internal queued POST resend
+are deliberately excluded: deterministic schema 400 errors and the single physical
+attempt guarantee retain their existing semantics. There is no new provider, queue,
+credential owner, desktop/mobile delivery kind or WebKitGTK platform dependency.
+See `specs/provider-plugin-backports-2026-10-22.md` for acceptance and validation.

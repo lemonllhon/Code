@@ -15,6 +15,7 @@ interface Reply {
   json?: unknown;
   text?: string;
   headers?: Record<string, string>;
+  bytes?: Uint8Array;
 }
 export async function fixture(
   t: TestContext,
@@ -30,7 +31,7 @@ export async function fixture(
     calls.push(call);
     const reply = await route(call);
     res.writeHead(reply.status ?? 200, { "content-type": "application/json", ...reply.headers });
-    res.end(reply.text ?? JSON.stringify(reply.json ?? {}));
+    res.end(reply.bytes ?? reply.text ?? JSON.stringify(reply.json ?? {}));
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const driver = createPluginAuthFixtureDriver(

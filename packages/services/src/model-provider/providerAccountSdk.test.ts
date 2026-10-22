@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 import { ProviderAccounts } from "./providerAccounts.js";
 import { sdkResponse } from "./providerAccountSdk.fixture.js";
 import type { RoutingInvocation } from "@lcode/shared";
+import type { AuthDriverContext } from "@lcode/provider-node";
 for (const protocol of [
   "openai-chat-completions",
   "openai-responses",
@@ -65,8 +66,17 @@ for (const protocol of [
                 },
               ],
             }),
-            fetch: async (request: Request): Promise<Response> => {
+            fetch: async (request: Request, context: AuthDriverContext): Promise<Response> => {
               posts++;
+              assert.equal(
+                context.requestSessionKey,
+                JSON.stringify([
+                  invocation.workspaceKey,
+                  invocation.remoteSessionId ?? null,
+                  invocation.sessionId,
+                ]),
+              );
+              assert.equal(request.headers.get("x-lcode-session-id"), null);
               assert.equal(
                 service.readRoutingDiagnostics("fixture")!.owner.resources[0]!.reserved +
                   service.readRoutingDiagnostics("fixture")!.owner.resources[0]!.dispatched,
@@ -91,7 +101,8 @@ for (const protocol of [
         const invocation: RoutingInvocation = {
           capability: "single-attempt-routing-v1",
           createdAt: Date.now(),
-          workspaceKey: "workspace",
+          workspaceKey: `workspace-${protocol}`,
+          ...(mode === "stream" ? { remoteSessionId: "remote-fixture" } : {}),
           sessionId: "session",
           attemptId: "sdk",
           turnId: "turn",

@@ -2564,6 +2564,8 @@ The original import revisions of copied components are not recorded in the curre
 
 - Magpie provider compatibility backports (MIT): packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-devin-images-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-zed-organization-patch.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/5b68df0057501d67b3eda711800ad57254634a58/LICENSE. Original import revision: 5b68df0057501d67b3eda711800ad57254634a58.
 
+- Magpie provider cross-platform compatibility backports (MIT): packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-qoder-session-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-devin-empty-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-backports-20261022.test.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/7ee60f825387455db26157ade2740a0f4ddbf3ee/LICENSE. Original import revision: 7ee60f825387455db26157ade2740a0f4ddbf3ee.
+
 - CLIProxyAPI portions retained by Magpie Qoder plugin (MIT): packages/provider-node/src/provider-auth/vendor/qoder. License reference: https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/packages/qoder/LICENSE-CLIProxyAPI. Original import revision: 5d5d86e2251169e0f5c0fd7a884957ac2dbe184a.
 
 - Magpie Zen Free plugin original notice (MIT): packages/provider-node/src/provider-auth/vendor/zen-free. License reference: https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/packages/zen-free/LICENSE. Original import revision: 5d5d86e2251169e0f5c0fd7a884957ac2dbe184a.
@@ -40749,6 +40751,8 @@ SOFTWARE.
 - Magpie community fixed provider plugins: https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/LICENSE
 
 - Magpie provider compatibility backports: https://raw.githubusercontent.com/magpie-community/plugins/5b68df0057501d67b3eda711800ad57254634a58/LICENSE
+
+- Magpie provider cross-platform compatibility backports: https://raw.githubusercontent.com/magpie-community/plugins/7ee60f825387455db26157ade2740a0f4ddbf3ee/LICENSE
 
 
 

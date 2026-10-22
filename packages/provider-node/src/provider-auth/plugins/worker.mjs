@@ -267,6 +267,7 @@ async function call(message, scope) {
     loader,
     model,
     request: r,
+    requestSessionKey: message.requestSessionKey,
     signal: scope.controller.signal,
     singleAttempt: scope.singleAttempt,
   });
