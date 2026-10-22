@@ -104,8 +104,13 @@ export function createDesktopPlatform(options: {
     saveMcpToUserDirectory: (payload) => window.lcode.saveMcpToUserDirectory(payload),
     migrateLegacyCommonMcp: (payload) => window.lcode.migrateLegacyCommonMcp(payload),
     openExternal: (url) => window.lcode.openExternal(url),
-    openFeedback: () => window.lcode.executeDesktopCommand(DesktopCommandIds.OpenFeedback),
-    openCommunity: () => window.lcode.executeDesktopCommand(DesktopCommandIds.OpenCommunity),
+    // 通用命令可返回查询结果；这两个入口只承诺操作完成，不向 UI 透传不透明返回值。
+    openFeedback: async () => {
+      await window.lcode.executeDesktopCommand(DesktopCommandIds.OpenFeedback);
+    },
+    openCommunity: async () => {
+      await window.lcode.executeDesktopCommand(DesktopCommandIds.OpenCommunity);
+    },
     canOpenCommunity: (locale) => window.lcode.canOpenCommunity(locale),
     openInFileManager: (path) => window.lcode.openInFileManager(path),
     openExternalFile: (path) => window.lcode.openExternalFile(path),

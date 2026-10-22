@@ -1,5 +1,15 @@
 const overlays = new WeakMap<HTMLImageElement, HTMLCanvasElement>();
 
+// 矩形必须恰有四个坐标；普通 number[][] 会把缺失坐标传给 Canvas，类型检查无法保证安全。
+const eyeMasks = [
+  [542, 310, 154, 150],
+  [770, 350, 164, 158],
+] as const;
+const eyePatches = [
+  [526, 294, 186, 182],
+  [754, 334, 196, 190],
+] as const;
+
 export async function loadAemeathClosedEyes() {
   const image = new Image();
   image.src = new URL("./startup-media/aemeath-closed-eyes.png", document.baseURI).href;
@@ -30,10 +40,7 @@ export function drawAemeathPortrait(
     fill.filter = "blur(4px)";
     fill.fillStyle = "white";
     // 遮罩需覆盖外侧上睫毛，椭圆会在角落漏出旧睫毛，造成闭眼残影。
-    for (const [x, y, width, height] of [
-      [542, 310, 154, 150],
-      [770, 350, 164, 158],
-    ]) {
+    for (const [x, y, width, height] of eyeMasks) {
       fill.beginPath();
       fill.roundRect(x, y, width, height, 16);
       fill.fill();
@@ -45,10 +52,7 @@ export function drawAemeathPortrait(
   ctx.save();
   ctx.globalAlpha *= closure;
   // 裁到眼部补帧区域，避免在其它区域重复执行透明合成。
-  for (const [x, y, width, height] of [
-    [526, 294, 186, 182],
-    [754, 334, 196, 190],
-  ])
+  for (const [x, y, width, height] of eyePatches)
     ctx.drawImage(overlay, x, y, width, height, x, y, width, height);
   ctx.restore();
 }

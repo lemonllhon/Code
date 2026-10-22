@@ -69,7 +69,8 @@ export const desktopBrowserPlatformBridge = {
         originsSkipped: 0,
         originsFailed: 0,
       },
-      error: "unsupported",
+      // 旧 preload 缺少此能力时仍返回 shared 已定义的错误码，供 UI 统一解释。
+      error: "chrome_import_not_supported",
     }),
   clearEmbeddedBrowserData: (mode) =>
     window.lcode.clearEmbeddedBrowserData?.(mode) ??

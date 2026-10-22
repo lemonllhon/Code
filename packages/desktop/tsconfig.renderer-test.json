@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.renderer.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "node_modules/.cache/tsconfig.renderer-test.tsbuildinfo",
+    "types": ["node", "vite/client", "@lcode/client/globals"]
+  },
+  // composite 工程也须列入测试依赖的源码；生产工程仍单独按纯 DOM 环境检查。
+  "include": ["src/renderer"],
+  "exclude": [],
+  "references": [
+    { "path": "../shared" },
+    { "path": "../services" },
+    { "path": "../ui" },
+    { "path": "../client" }
+  ]
+}

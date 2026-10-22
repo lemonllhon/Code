@@ -5,6 +5,7 @@ import {
 } from "@lcode/shared";
 /* eslint-disable max-lines -- preload bridge 集中暴露桌面平台 IPC，拆散会让 contextBridge 权限边界更难审计。 */
 import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";
+import type { DesktopPreloadBridge } from "@lcode/client/globals";
 import {
   installArmsRumBridgeIpcForward,
   scheduleArmsEventBridgePatch,
@@ -333,9 +334,11 @@ contextBridge.exposeInMainWorld("lcode", {
   printPageToPdf: (): Promise<PrintPageToPdfResult> =>
     ipcRenderer.invoke(PlatformChannels.PrintToPdf),
   /** 从系统拖拽/文件输入得到的 Web File 解析真实本地路径 */
-  getPathForFile: (file: File): string | null => {
+  getPathForFile: (file: unknown): string | null => {
     // Electron 32 起移除了非标准 File.path，renderer 不能再直接从拖拽 File 上取路径。
     // webUtils 只能在 preload 安全使用；取不到路径时返回 null，让 Web/内联附件逻辑继续兜底。
+    // 公共平台接口接收 unknown，先校验真实 Web File，不能把任意对象交给原生桥。
+    if (!(file instanceof File)) return null;
     const path = webUtils.getPathForFile(file).trim();
     return path.length > 0 ? path : null;
   },
@@ -847,7 +850,7 @@ contextBridge.exposeInMainWorld("lcode", {
     ipcRenderer.invoke(PlatformChannels.SetTitleBarTheme, theme),
   /** 获取桌面端设备标识符（deviceMid） */
   getDeviceId: () => ipcRenderer.invoke(PlatformChannels.GetDeviceId),
-});
+} satisfies DesktopPreloadBridge);
 
 /**
  * MessagePort 不能通过 contextBridge 传递（contextBridge 会把它包成 Proxy，

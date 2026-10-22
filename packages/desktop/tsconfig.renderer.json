@@ -5,9 +5,14 @@
     "rootDir": "src/renderer",
     "lib": ["es2025", "dom", "dom.iterable"],
     "jsx": "react-jsx",
-    "noEmit": true
+    "noEmit": true,
+    "tsBuildInfoFile": "node_modules/.cache/tsconfig.renderer.tsbuildinfo",
+    // 页面未启用 Node；资源声明和公共 preload 契约必须由本工程显式加载。
+    "types": ["vite/client", "@lcode/client/globals"]
   },
   "include": ["src/renderer"],
+  // Node 测试由 renderer-test 工程检查，避免它们把 process/require 注入实际页面环境。
+  "exclude": ["src/renderer/**/*.test.ts", "src/renderer/**/*.test.tsx"],
   // renderer 直接 import 了 shared；把它补进 references，避免 renderer 单独检查时再走源码回退路径。
   "references": [{ "path": "../shared" }, { "path": "../ui" }, { "path": "../client" }]
 }

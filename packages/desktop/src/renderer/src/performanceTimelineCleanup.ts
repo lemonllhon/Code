@@ -1,6 +1,7 @@
 const PERFORMANCE_TIMELINE_CLEANUP_INTERVAL_MS = 10_000;
 
-let cleanupTimer: ReturnType<typeof window.setInterval> | undefined;
+// 实际所有者是浏览器；Node 测试的全局重载不能把 DOM timer ID 推导为 Timeout 对象。
+let cleanupTimer: number | undefined;
 
 export function startPerformanceTimelineCleanup(): void {
   if (!import.meta.env.DEV || cleanupTimer != null) {

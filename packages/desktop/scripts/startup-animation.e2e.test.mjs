@@ -105,7 +105,13 @@ test(
           env,
         })
       : undefined;
-    const browser = !native ? await chromium.launch({ headless: true }) : undefined;
+    // Electron 默认允许自动播放；无头 Chromium 的用户手势限制会把有声欢迎误判成媒体失败。
+    const browser = !native
+      ? await chromium.launch({
+          headless: true,
+          args: ["--autoplay-policy=no-user-gesture-required"],
+        })
+      : undefined;
     t.after(() => electron?.close() ?? browser?.close());
     const page = electron
       ? await electron.firstWindow()
