@@ -2,6 +2,16 @@
 
 ## 产品规则
 
+### v3.20.6 跨平台协议兼容与项目归档发行（2026-10-22）
+
+- 根 `package.json` 的桌面版本由 `3.20.5` 更新为 `3.20.6`。
+- 发行包含 `v3.20.5` 之后的全部提交：`8851b4d1` 的跨平台供应商协议兼容回填（Qoder 工具配对/缓存标记/Windows 运行时发现、Devin 空响应识别、Zen Free 增量 ID、Factory 账单行保留、Grok 工具选择）、`07598755` 的 Renderer 契约检查不依赖预构建产物、`33389c13` 的项目永久删除与归档。v3.20.5 已发布，新版本必须包含其后的源码，不能复用同一提交或仅改版本号。
+- 本轮 `third-party/copied-components.json` 新增 “Magpie provider cross-platform compatibility backports” 归因条目（上游修订 `7ee60f82`），库存输入由 3014 增至 3017；必须重新生成 `THIRD-PARTY-NOTICES.md` 与库存，不能只改 manifest 摘要。
+- 新建附注 tag `v3.20.6`，只推送该 tag 至 `code` remote 对应的 `lemonllhon/Code`（fetch/push 均使用 lemonllhon 账号），不推送 `L-GO` 分支；不移动或覆盖既有 tag。
+- 发行输入以提交对象为准：`node scripts/verify-release-inputs.mjs --source=HEAD` 必须覆盖全部库存输入，本地工作区哈希不作为依据（Windows `core.autocrlf` 会改变工作区字节）。
+- cfworker-remote 在桌面构建开始后，以 `LCODE_ENV=production pnpm build:mobile-web` 重新装配 `public`，提交信息记录源码提交 SHA；`public/site` 的发行目录由 Worker 实时代理 GitHub Release，不固化版本号。该仓库 fetch/push 均使用 lemon-casino 账号。
+- 验收远端 tag 解引用后的 SHA 等于该 tag 指向的提交、Actions 在 `lemon-casino/LemonCode` 完成六平台构建与公开 Release，cfworker-remote 的 `public` 与主仓库构建产物一致。
+
 ### v3.20.5 供应商、CLI 与桌面稳定性发行（2026-10-22）
 
 - 根 `package.json` 的桌面版本由 `3.20.4` 更新为 `3.20.5`。
