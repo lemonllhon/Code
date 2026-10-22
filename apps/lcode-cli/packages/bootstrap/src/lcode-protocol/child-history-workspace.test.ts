@@ -167,6 +167,61 @@ test("a cold fork reads its own workspace without borrowing a different parent w
   assert.equal(f.appCreations(), 0);
 });
 
+test("cold fork history remains readable when a foreign parent becomes active", async () => {
+  const f = legacyFixture(true);
+  f.child.taskType = "fork";
+  f.child.workspaceID = "fork-workspace" as SessionInfo["workspaceID"];
+  const workspace = {
+    workspacePath: f.child.path!,
+    workspaceIdentity: "fork-workspace",
+    workspaceKey: "fork-workspace",
+  };
+  const reader = await resolveConversationReader(f.context, f.sessionId, workspace);
+  assert.equal(reader.record, undefined);
+  assert.equal(reader.workspace.workspaceIdentity, "fork-workspace");
+  assert.equal(f.appCreations(), 0);
+  assert.equal(f.context.sessions.size, 1);
+});
+
+for (const clientMode of ["desktop-continuous", "web-remote-replayable"] as const) {
+  for (const active of [false, true])
+    test(`${clientMode} legacy worktree child accepts verified origin with parent active=${active}`, async () => {
+      const f = legacyFixture(active, true);
+      const execution = {
+        workspacePath: "fixture-worktree",
+        workspaceKey: "fixture-execution",
+        workspaceIdentity: "fixture-execution",
+        originWorkspacePath: "fixture-origin",
+        originWorkspaceIdentity: "fixture-origin",
+      };
+      f.store.sessionEntries = async ({ sessionID }) =>
+        sessionID === f.parent.id
+          ? ([{ type: WORKTREE_BINDING_ENTRY, data: execution }] as never)
+          : [];
+      if (active) f.context.sessions.get(f.parent.id)!.workspace = execution;
+      const requested = {
+        workspacePath: "fixture-origin",
+        workspaceKey: "fixture-origin",
+        workspaceIdentity: "fixture-origin",
+      };
+      const gateway = createConversationV4Gateway(f.context);
+      try {
+        const reader = await resolveConversationReader(f.context, f.sessionId, requested);
+        assert.equal(reader.workspace.workspaceIdentity, execution.workspaceIdentity);
+        await gateway.subscribe({
+          topic: `conversation/${f.sessionId}`,
+          connectionId: "fixture",
+          clientMode,
+          workspace: requested,
+        });
+        assert.equal(f.appCreations(), 0);
+        assert.equal(f.context.sessions.size, active ? 1 : 0);
+      } finally {
+        gateway.dispose();
+      }
+    });
+}
+
 test("legacy child parent cycles and store failures remain explicit", async () => {
   const f = legacyFixture(false);
   f.parent.taskType = "subagent_child";

@@ -79,6 +79,10 @@ sequenceDiagram
 
 无数据库迁移，不热修改正在运行的 workflow，不把诊断“缺陷复现通过”当作修复验收。正式结果与未验证范围在执行后记录。
 
+### 2026-10-22 活跃外域父会话的只读边界
+
+独立 fork 或普通会话的冷读不借用父运行时，无论父是否活跃、是否属于另一工作区；仅 `subagent_child` / `workflow_child` 沿执行父链借用同工作区 live 能力。否则父会话从冷变热会让原本可读的独立 fork 突然 workspaceMismatch。子会话工作树 origin 经唯一工作区解析规范化后再比较父能力；desktop-continuous / web-remote-replayable 均不创建新的 runtime。显式跨域 child 继续拒绝，不能将父能力隔离失败误当作独立 fork 的降级条件。
+
 ### 2026-10-19 工作区不一致修复
 
 源码复现链路：`createDefaultSubagentPort` 构造 child 时只传执行 cwd，遗漏父 workspacePath/identity/binding；`ensureSessionPersisted` 因此回落到 cwd 保存 path/directory，workspaceID 为空。父 cwd 变为子目录、本地路径表示被规范化、远端身份或 worktree origin 存在时，child 的持久身份与父/UI 请求不再一致。原 `resolveConversationBackingRecord` 又直接用这份 path/identity 比较 live 父，未使用历史读取入口的 binding/origin 解析。

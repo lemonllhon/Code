@@ -1,5 +1,6 @@
 import type { SessionId, SessionInfo } from "@lcode/contracts";
 import type { LCodeWorkspaceRef } from "@lcode/shared";
+import { isReadOnlyChildTaskType } from "./child-session-policy.js";
 import {
   ConversationReadWorkspaceError,
   conversationWorkspaceKey,
@@ -40,7 +41,9 @@ export async function resolveConversationBackingRecord(
       return direct;
     }
     const stored = await context.deps.sessionStore?.getSession(current as SessionId);
-    if (!stored?.parentID) return undefined;
+    if (!stored?.parentID || !isReadOnlyChildTaskType(stored.taskType)) return undefined;
+    // 独立 fork 的 parentID 是历史来源，不是运行时 owner；不能因外域父会话
+    // 恰好活跃，就让本来可读的自身冷历史失败或借用父执行能力。
     // 父能力借用与请求入口必须共用工作区解析；原实现直接比较 child cwd，
     // 且只核对第一层和 live 根，会误拒绝旧子会话并漏过中间显式跨域绑定。
     ancestors.push(stored);
