@@ -34,6 +34,11 @@ import { createGitAccountAuthorization } from "./gitAccountAuthorization.js";
 import { createGitAccountRouting, gitStoredAccountBindingSchema } from "./gitAccountRouting.js";
 import { projectGitRepositoryContext } from "./gitRepositoryContext.js";
 import {
+  createSystemGitCredentialGuard,
+  resetSystemGitCredentialAttempts,
+  systemGitCredentialAttemptSchema,
+} from "./gitSystemCredentialGuard.js";
+import {
   gitOAuthGrantSchema,
   refreshGitOAuthGrant,
   type GitOAuthFetch,
@@ -51,6 +56,7 @@ const storeSchema = z
     configuration: gitConfigurationSchema,
     accounts: z.array(storedAccount).max(200),
     bindings: z.array(gitStoredAccountBindingSchema).max(2000).default([]),
+    systemCredentialAttempts: z.array(systemGitCredentialAttemptSchema).max(2000).default([]),
   })
   .strict();
 type Store = z.infer<typeof storeSchema>;
@@ -106,6 +112,7 @@ export function createGitManagementService(options: {
         configuration: { binaryPath: "", userName: "", userEmail: "", initialBranch: "main" },
         accounts: [],
         bindings: [],
+        systemCredentialAttempts: [],
       };
     // 损坏或未知版本不能当空配置覆盖，否则会丢失其他窗口保存的账号。
     try {
@@ -149,6 +156,16 @@ export function createGitManagementService(options: {
         })),
       },
     );
+  const systemCredentials = createSystemGitCredentialGuard({
+    change: (edit) =>
+      withFileLock(lockPath, async () => {
+        const data = await read();
+        const result = edit(data);
+        // 内部认证 admission 不改变公开账号/绑定 revision，但与其他窗口共用原 profile 锁。
+        await options.credentials.save(key, JSON.stringify(storeSchema.parse(data)));
+        return result;
+      }),
+  });
   const routing = createGitAccountRouting({
     read,
     detect,
@@ -158,6 +175,7 @@ export function createGitManagementService(options: {
       }),
     }),
     authenticate: (url, reference) => owner.authentication(url, reference),
+    systemCredentials,
     update: (expected, edit) =>
       withFileLock(lockPath, async () => {
         const data = await read();
@@ -293,6 +311,8 @@ export function createGitManagementService(options: {
             ...(account.auth === "oauth" ? { oauth: original?.oauth } : {}),
           });
           data.accounts = [...data.accounts.filter((a) => a.id !== id), next];
+          if (account.auth === "system")
+            resetSystemGitCredentialAttempts(data, account.serverUrl, account.username);
         }
         data.revision = randomUUID();
         const validated = storeSchema.parse(data);

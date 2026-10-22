@@ -2,10 +2,10 @@
 export const gitCredentialHelperSource = String.raw`
 const http=require('node:http'),cp=require('node:child_process');
 const git=process.env.LCODE_GIT_BINARY||'git';
-async function request(url,transport){
+async function request(url,transport,operation){
  let cwd=cp.spawnSync(git,['rev-parse','--show-toplevel'],{encoding:'utf8',windowsHide:true}).stdout?.trim();
  if(!cwd&&process.env.GIT_DIR){const dir=cp.spawnSync(git,['rev-parse','--absolute-git-dir'],{encoding:'utf8',windowsHide:true}).stdout?.trim();if(dir){const path=require('node:path');cwd=path.basename(dir)==='.git'?path.dirname(dir):dir}}
- const body=JSON.stringify({cwd:cwd||process.cwd(),url,transport});
+ const body=JSON.stringify({cwd:cwd||process.cwd(),url,transport,...(operation?{operation}:{})});
  return new Promise((resolve,reject)=>{
   const endpoint=new URL(process.env.LCODE_GIT_HELPER_ENDPOINT);
   if(endpoint.hostname!=='127.0.0.1'||endpoint.protocol!=='http:')return reject(new Error('git-account-helper-unavailable'));
@@ -18,11 +18,16 @@ async function request(url,transport){
 (async()=>{
  const mode=process.argv[2],args=process.argv.slice(3);
  if(mode==='http'){
-  if(args[0]!=='get')return;
+  if(!['get','store','erase'].includes(args[0]))return;
   let input='';for await(const c of process.stdin){input+=c;if(input.length>65536)throw 0}
   const fields=Object.fromEntries(input.split(/\r?\n/).filter(l=>l.includes('=')).map(l=>{const i=l.indexOf('=');return[l.slice(0,i),l.slice(i+1)]}));
   const url=new URL(fields.url||fields.protocol+'://'+fields.host+'/'+(fields.path||''));
   if(fields.username)url.username=fields.username;
+  if(args[0]!=='get'){
+   const result=await request(url.href,'http',args[0]==='store'?'approve':'reject');
+   if(result.kind!=='ack')throw new Error(result.error||'git-account-helper-unavailable');
+   return;
+  }
   const result=await request(url.href,'http');
   if(result.kind!=='http')throw new Error(result.error||'git-account-credential-unavailable');
   if(/[\r\n\0]/.test(result.username+result.password))throw 0;
@@ -43,5 +48,5 @@ async function request(url,transport){
   child.on('error',()=>{process.stderr.write('git-account-ssh-unavailable\n');process.exitCode=1});
   child.on('exit',code=>{process.exitCode=code??1});
  }else throw 0;
-})().catch(error=>{const code=/^git-[a-z-]+$/.test(error?.message)?error.message:'git-account-helper-unavailable';process.stderr.write(code+'\nSelect or reload the repository account in Git > Remotes, then explicitly retry the Git operation.\n');process.exitCode=1});
+})().catch(error=>{const code=/^git-[a-z-]+$/.test(error?.message)?error.message:'git-account-helper-unavailable';process.stderr.write(code+'\n'+(code==='git-account-system-credential-blocked'?'Repair system credentials, then reselect or save the system account before explicitly retrying. Refresh does not unblock failed credentials.':'Select or reload the repository account in Git > Remotes, then explicitly retry the Git operation.')+'\n');process.exitCode=1});
 `;

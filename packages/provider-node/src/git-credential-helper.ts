@@ -7,14 +7,17 @@ import {
   gitCredentialResultSchema,
   LCODE_GIT_CREDENTIAL_HELPER_COMMAND,
   type GitCredentialResult,
+  type GitCredentialRequest,
 } from "@lcode/shared";
 import { gitCredentialHelperSource } from "./git-credential-helper-source.js";
 
-export type GitCredentialResolver = (input: {
-  cwd: string;
-  url: string;
-  transport: "http" | "ssh";
-}) => Promise<GitCredentialResult>;
+export type GitCredentialResolver = (
+  input: {
+    cwd: string;
+    url: string;
+    transport: "http" | "ssh";
+  } & Pick<GitCredentialRequest, "operation" | "attemptId">,
+) => Promise<GitCredentialResult>;
 const quote = (value: string) => "'" + value.replace(/'/g, "'\\''") + "'";
 /** 认证仅适配原执行端口的子进程；不解析命令、不创建 Git writer 或自动重试。 */
 export function createGitCredentialHelper(
@@ -47,6 +50,14 @@ export function createGitCredentialHelper(
       const directory = await mkdtemp(join(tmpdir(), "lcode-git-helper-")),
         file = join(directory, "helper.cjs");
       await writeFile(file, gitCredentialHelperSource, { mode: 0o600, flag: "wx" });
+      // 只保存本桥实际发出的尝试编号；Git 的 store 不能伪造另一个账号的成功回报。
+      const issued = new Map<string, { attemptId: string; cwd: string; url: string }>();
+      const credentialKey = (value: string) => {
+        const url = new URL(value);
+        url.username = decodeURIComponent(url.username).toLowerCase();
+        url.password = "";
+        return url.href;
+      };
       const server = createServer(async (req, res) => {
         res.setHeader("cache-control", "no-store");
         const expected = Buffer.from("Bearer " + capability),
@@ -77,14 +88,48 @@ export function createGitCredentialHelper(
             [...input.url].some((char) => char.charCodeAt(0) < 32)
           )
             throw new Error("git-account-helper-unavailable");
+          if (input.operation === "approve" || input.operation === "reject") {
+            if (input.transport !== "http") throw new Error("git-account-helper-unavailable");
+            const key = credentialKey(input.url),
+              attempt = issued.get(key);
+            const result =
+              attempt && input.operation === "approve"
+                ? gitCredentialResultSchema.parse(
+                    await resolve({ ...attempt, transport: "http", operation: "approve" }),
+                  )
+                : { kind: "ack" as const };
+            if (result.kind === "ack") issued.delete(key);
+            res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(result));
+            return;
+          }
+          if (input.operation !== undefined && input.operation !== "get")
+            throw new Error("git-account-helper-unavailable");
           const result = gitCredentialResultSchema.parse(
             await resolve({ cwd: input.cwd, url: input.url, transport: input.transport }),
           );
+          if (result.kind === "http" && result.attemptId) {
+            const url = new URL(input.url);
+            url.username = result.username;
+            const key = credentialKey(url.href);
+            if (!issued.has(key) && issued.size >= 2000)
+              throw new Error("git-account-helper-unavailable");
+            issued.set(key, {
+              cwd: input.cwd,
+              url: url.href,
+              attemptId: result.attemptId,
+            });
+          }
           res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(result));
-        } catch {
-          res
-            .writeHead(200, { "content-type": "application/json" })
-            .end(JSON.stringify({ kind: "error", error: "git-account-credential-unavailable" }));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "";
+          res.writeHead(200, { "content-type": "application/json" }).end(
+            JSON.stringify({
+              kind: "error",
+              error: /^git-account-[a-z-]+$/.test(message)
+                ? message
+                : "git-account-credential-unavailable",
+            }),
+          );
         }
       });
       server.requestTimeout = 65000;
@@ -130,6 +175,8 @@ export function createGitCredentialHelper(
       ["credential.helper", `!ELECTRON_RUN_AS_NODE=1 ${executable} ${file} http`],
       ["credential.useHttpPath", "true"],
       ["http.followRedirects", "false"],
+      ["credential.allowWindowsAuth", "false"],
+      ["http.emptyAuth", "false"],
     ];
     entries.forEach(([key, value], offset) => {
       set[`GIT_CONFIG_KEY_${prior + offset}`] = key!;
@@ -139,6 +186,7 @@ export function createGitCredentialHelper(
       GIT_CONFIG_COUNT: String(prior + entries.length),
       GIT_TERMINAL_PROMPT: "0",
       GCM_INTERACTIVE: "Never",
+      GCM_ALLOW_WINDOWSAUTH: "false",
       GIT_TRACE: "0",
       GIT_TRACE_CURL: "0",
       // Git 以变量是否存在决定 CURL_VERBOSE，字符串 0 仍会开启 HTTP 诊断。

@@ -60,16 +60,29 @@ export const gitCredentialRequestSchema = z
     cwd: z.string().min(1).max(8192),
     url,
     transport: z.enum(["http", "ssh"]),
+    operation: z.enum(["get", "approve"]).optional(),
+    attemptId: z.string().uuid().optional(),
   })
-  .strict();
+  .strict()
+  .refine((v) =>
+    v.operation === "approve" ? v.transport === "http" && Boolean(v.attemptId) : !v.attemptId,
+  );
 const privateText = z
   .string()
   .max(16384)
   .refine((v) => ![...v].some((char) => [0, 10, 13].includes(char.charCodeAt(0))));
 export const gitCredentialResultSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("http"), username: privateText, password: privateText }).strict(),
+  z
+    .object({
+      kind: z.literal("http"),
+      username: privateText,
+      password: privateText,
+      attemptId: z.string().uuid().optional(),
+    })
+    .strict(),
   z.object({ kind: z.literal("ssh"), username: privateText, privateKeyPath: privateText }).strict(),
   z.object({ kind: z.literal("error"), error: z.string().regex(/^git-[a-z-]+$/) }).strict(),
+  z.object({ kind: z.literal("ack") }).strict(),
 ]);
 export type GitRepositoryAuthenticationRequest = z.infer<
   typeof gitRepositoryAuthenticationRequestSchema

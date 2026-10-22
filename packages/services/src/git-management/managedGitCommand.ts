@@ -161,6 +161,8 @@ export function createManagedGitCommand(
         pairs.push([`credential.${server.href}.username`, auth.account.username]);
         env.GIT_TERMINAL_PROMPT = "0";
         env.GCM_INTERACTIVE = "Never";
+        // 中文依据：显式系统账号克隆也必须先占用 Host admission，不能直接绕到系统 helper。
+        useHelper = true;
       }
       if (pairs.length) {
         // 每次调用独立构造配置环境，不能在并发仓库之间共享或持久化认证头。
@@ -188,6 +190,11 @@ export function createManagedGitCommand(
             owner.repositoryCredential(
               { ...authenticationScope, workspacePath: request.cwd },
               request.url,
+              {
+                operation: request.operation,
+                attemptId: request.attemptId,
+                authentication: reference,
+              },
             ),
           )
         : null;

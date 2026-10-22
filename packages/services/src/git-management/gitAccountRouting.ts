@@ -7,7 +7,12 @@ import {
   type Repository,
 } from "./gitAuthenticationTarget.js";
 export { gitAuthenticationUrl } from "./gitAuthenticationTarget.js";
-import { readSystemGitCredential } from "./gitSystemCredential.js";
+import {
+  resetSystemGitCredentialAttempts,
+  type createSystemGitCredentialGuard,
+  type SystemGitCredentialAttempt,
+  type GitCredentialLifecycle,
+} from "./gitSystemCredentialGuard.js";
 import { createHash, randomUUID } from "node:crypto";
 import { realpath, lstat } from "node:fs/promises";
 import { z } from "zod";
@@ -41,6 +46,7 @@ type Profile = {
   revision: string;
   accounts: Account[];
   bindings: Binding[];
+  systemCredentialAttempts: SystemGitCredentialAttempt[];
 };
 type Auth = { account: Account | null; secret?: string };
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -100,6 +106,7 @@ export function createGitAccountRouting(options: {
   detect(): Promise<{ entries: DetectedGitAccount[] }>;
   authenticate(url: string, reference: { id: string; revision?: string }): Promise<Auth>;
   command: GitCommandProvider;
+  systemCredentials: ReturnType<typeof createSystemGitCredentialGuard>;
 }) {
   const git = async (cwd: string, args: string[], allowed = [0]) => {
     const result = await options.command.run({ cwd, args });
@@ -343,6 +350,8 @@ export function createGitAccountRouting(options: {
             id: account.id,
             revision: account.revision,
           });
+          if (account.auth === "system")
+            resetSystemGitCredentialAttempts(profile, account.serverUrl, account.username);
         } else {
           // 中文依据：显式恢复自动匹配需要留下作用域标记，不能复活克隆时写下的旧全局 ID。
           profile.bindings.push({
@@ -360,9 +369,18 @@ export function createGitAccountRouting(options: {
     async credential(
       request: GitRepositoryAuthenticationRequest,
       value: string,
+      lifecycle: GitCredentialLifecycle = {},
     ): Promise<GitCredentialResult> {
-      const auth = await resolve(request, value, true),
-        url = gitAuthenticationUrl(value);
+      const url = gitAuthenticationUrl(value);
+      if (lifecycle.operation === "approve")
+        return options.systemCredentials.approve(
+          value,
+          decodeURIComponent(url.username),
+          lifecycle.attemptId ?? "",
+        );
+      const auth = lifecycle.authentication
+        ? await options.authenticate(value, lifecycle.authentication)
+        : await resolve(request, value, true);
       if (url.protocol === "ssh:") {
         const path = auth.account?.privateKeyPath ?? "";
         if (path && (!isAbsolute(path) || !(await lstat(path).catch(() => null))?.isFile()))
@@ -382,7 +400,7 @@ export function createGitAccountRouting(options: {
               : auth.account.username,
           password: auth.secret,
         };
-      return readSystemGitCredential(
+      return options.systemCredentials.read(
         options.command,
         request.workspacePath,
         value,

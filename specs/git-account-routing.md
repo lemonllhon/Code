@@ -45,6 +45,39 @@ sequenceDiagram
 
 ## 唯一所有者和接口
 
+### 系统凭据防重复提交（2026-10-22）
+
+- 系统凭据读取和网络子进程关闭 GCM Windows 集成认证（`credential.allowWindowsAuth=false` / `GCM_ALLOW_WINDOWSAUTH=false`），保留非交互和秘密隔离。只对本产品子进程生效，不改全局 Git、Windows 账号或系统凭据。显式系统账号克隆也走原私有 helper，不绕过统一 admission。
+- `GitManagementService` 是认证尝试唯一 owner。在原加密 profile 和文件锁内，先持久化一次性尝试编号，再调用系统 helper。服务器 origin 与不区分大小写的用户名共享 admission，跨仓库、worktree、窗口、桌面 UI 与手机/Agent 生效；未指定用户名的尝试对该服务器保守互斥。workspace/identity/session/真实 URL 的原授权检查仍先执行。
+- 同一系统身份仅允许一个尚未确认成功的尝试；读取失败、服务器拒绝、取消、断连和结果不明均保留占用，后续请求在再次调用系统 helper 前返回 `git-account-system-credential-blocked`。无冷却时间、自动重试、检测解锁或重启解锁。持久化失败时不提供凭据。
+- Git 的 `store` 成功通知经固定 helper 回传 Host，携带仅内部可见的尝试编号；只有相同服务器、用户名和编号可释放占用。`erase` 不释放、不删除系统凭据。桥接只为自己实际发出的凭据转交成功通知，不传密码；迟到或重放通知不能释放新尝试。HTTP 认证的多次成功通知幂等。
+- 用户修复系统凭据后，通过原 CAS 明确重新选择系统账号（已选账号可先切换自动再选回）或保存该系统账号，清除该服务器/账号的阻断，下一次 Git 操作仍需显式发起。普通快照、刷新、检测和无账号的自动匹配不清除阻断。账号/绑定 revision 不因内部尝试变化，旧 profile 缺少尝试字段按空集合读取。
+- 私有 `git/credential` 请求增加可选成功确认字段；HTTP 私有响应可含尝试编号，成功确认返回无秘密 ack。字段严格校验，旧 get 请求兼容；旧执行端缺少成功回报时保守保留阻断。编号不进入 Git stdout、工具输出、Renderer 或公开 RPC。
+
+```mermaid
+sequenceDiagram
+  participant G as UI/Agent 原 Git 子进程
+  participant B as 私有 helper
+  participant H as Host GitManagementService
+  participant P as 原加密 profile + 文件锁
+  participant S as 系统凭据 helper
+  G->>B: get（原 URL/cwd）
+  B->>H: 原作用域授权后索取凭据
+  H->>P: 原子占用 origin/username + attemptId
+  H->>S: 禁止 WIA 的非交互 credential fill（一次）
+  H-->>B: 凭据 + 内部 attemptId
+  B-->>G: 仅 username/password
+  alt Git 确认认证成功
+    G->>B: store
+    B->>H: approve（原作用域 + attemptId，无密码）
+    H->>P: 仅匹配编号时释放
+  else 拒绝/取消/结果不明
+    P->>P: 保留占用；后续请求失败关闭
+  end
+```
+
+验收：实际隔离 HTTP Git 连续拒绝只提交一次错误凭据；并发请求、跨仓库及 Host 重建不再读取系统凭据；成功 store 后可再次执行；没有 store、读取失败及存储失败保守阻断；明确修复/重选可恢复且旧成功通知无效；用户名/服务器隔离与未知用户名互斥；显式系统克隆与 Agent 共用边界；WIA 禁用不受继承配置覆盖；现有 token/OAuth/SSH、授权和无秘密协议回归。
+
 Git 与项目记忆的联动遵循 [Git 实时上下文与项目记忆联动](git-project-memory-integration.md)：无秘密摘要是只读派生信息，账号绑定、凭据、审批与恢复的 owner 不变。
 
 `GitManagementService` 是账号/绑定唯一持久 owner；新增有严格类型和运行时校验的 `getRepositoryAuthentication`、`bindRepositoryAuthentication`。返回无秘密候选、绑定状态和 CAS revision。Host routing adapter 通过真实 Git 只读发现根/远端，UI managed Git 和 Agent 共用它。

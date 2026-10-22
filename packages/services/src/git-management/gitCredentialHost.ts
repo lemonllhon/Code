@@ -41,6 +41,7 @@ export function createHostGitCredentialResolver(
       return await owner.repositoryCredential(
         { workspacePath: cwd, workspaceIdentity: scope.workspaceIdentity },
         request.url,
+        { operation: request.operation, attemptId: request.attemptId },
       );
     } catch (error) {
       const text = error instanceof Error ? error.message : "";

@@ -15,6 +15,10 @@ export async function readSystemGitCredential(
       "credential.trace=false",
       "-c",
       "credential.traceSecrets=false",
+      "-c",
+      "credential.allowWindowsAuth=false",
+      "-c",
+      "http.emptyAuth=false",
       "credential",
       "fill",
     ],
@@ -24,6 +28,8 @@ export async function readSystemGitCredential(
     env: {
       GIT_TERMINAL_PROMPT: "0",
       GCM_INTERACTIVE: "Never",
+      // 中文依据：Never 只禁止弹窗；环境开关还需禁止 URL 级配置启用隐式 Windows 登录。
+      GCM_ALLOW_WINDOWSAUTH: "false",
       GIT_TRACE: "0",
       GIT_TRACE_CURL: "0",
       GIT_CURL_VERBOSE: undefined,
@@ -50,6 +56,8 @@ export async function readSystemGitCredential(
   );
   if (
     result.exitCode !== 0 ||
+    result.timedOut ||
+    result.outputTruncated ||
     !lines.password ||
     !lines.username ||
     (username && lines.username !== username)

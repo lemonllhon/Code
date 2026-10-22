@@ -75,6 +75,8 @@ export * from "../worktreeExecution.js";
 export * from "../worktreeIntegration.js";
 // 审核编辑状态由 Host Git RPC 所有；共享严格校验，不进入 Agent 会话队列。
 export * from "../gitReviewWorkspace.js";
+// Git 私有凭据成功确认与一次性尝试编号共享严格 schema；不进入公开会话事件。
+export { gitCredentialRequestSchema, gitCredentialResultSchema } from "../gitAuthentication.js";
 export { gitFileMutationJournalSchema } from "../gitCommitReview.js";
 export * from "../process-diagnostic.js";
 export {

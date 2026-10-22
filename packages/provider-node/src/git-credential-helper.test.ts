@@ -7,6 +7,50 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { randomUUID } from "node:crypto";
+import type { GitCredentialResolver } from "./git-credential-helper.js";
+
+test("Only issued system credentials can report success; erase revokes their receipt without forwarding secrets", async () => {
+  const calls: Parameters<GitCredentialResolver>[0][] = [],
+    id = randomUUID();
+  const helper = createGitCredentialHelper(async (input) => {
+    calls.push(input);
+    return input.operation === "approve"
+      ? { kind: "ack" }
+      : { kind: "http", username: "fixture", password: "fixture-private", attemptId: id };
+  });
+  try {
+    const env = await helper.environment();
+    const request = async (operation?: string) => {
+      const response = await fetch(env.LCODE_GIT_HELPER_ENDPOINT!, {
+        method: "POST",
+        headers: { authorization: "Bearer " + env.LCODE_GIT_HELPER_CAPABILITY },
+        body: JSON.stringify({
+          cwd: "/fixture",
+          url: "https://fixture@example.invalid/repo.git",
+          transport: "http",
+          operation,
+        }),
+      });
+      return response.json();
+    };
+    await request("approve");
+    assert.equal(calls.length, 0);
+    await request();
+    await request("approve");
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1]!.attemptId, id);
+    assert.ok(!JSON.stringify(calls).includes("fixture-private"));
+    await request("approve");
+    assert.equal(calls.length, 2);
+    await request();
+    await request("reject");
+    await request("approve");
+    assert.equal(calls.length, 3, "Rejected credentials must not later be approved");
+  } finally {
+    await helper.close();
+  }
+});
 
 test("Private helper preserves existing config and clears inherited credential traces", async () => {
   const helper = createGitCredentialHelper(async () => ({
@@ -22,7 +66,8 @@ test("Private helper preserves existing config and clears inherited credential t
       GIT_SSH_COMMAND: "ssh -F custom.conf",
       LCODE_GIT_BINARY: "C:/Git with spaces/bin/git.exe",
     });
-    assert.equal(env.GIT_CONFIG_COUNT, "6");
+    assert.equal(env.GIT_CONFIG_COUNT, "8");
+    assert.equal(env.GCM_ALLOW_WINDOWSAUTH, "false");
     assert.equal(env.GIT_CONFIG_KEY_2, "credential.helper");
     assert.equal(env.GIT_CONFIG_VALUE_2, "");
     assert.equal(env.GIT_CURL_VERBOSE, undefined);
