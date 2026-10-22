@@ -109,6 +109,11 @@ export function useGlobalTaskList(params: {
   const [loading, setLoading] = useState(workspaceScopes.length > 0);
   const requestSerialRef = useRef(0);
   const manualRefreshSerialRef = useRef(0);
+  const loadedQueryRef = useRef<{
+    registry: typeof controllerRegistry;
+    queryKey: string;
+    sourceGeneration: string;
+  } | null>(null);
 
   const query = useMemo(
     () => ({
@@ -133,6 +138,7 @@ export function useGlobalTaskList(params: {
     async (version: WindowControllerTaskListVersion) => {
       const requestSerial = ++requestSerialRef.current;
       if (workspaceScopes.length === 0) {
+        loadedQueryRef.current = null;
         setItems([]);
         itemsRef.current = [];
         setTotal(0);
@@ -146,12 +152,24 @@ export function useGlobalTaskList(params: {
         setLoading(false);
         return;
       }
-      setLoading(true);
+      // activity 帧会持续触发后台重读；把每次请求都视为首次加载会让远端提示反复闪烁。
+      // 空列表也是有效成功结果，仅查询、owner 或 session 换代后重新显示首次加载。
+      const loadedQuery = loadedQueryRef.current;
+      setLoading(
+        loadedQuery?.registry !== controllerRegistry ||
+          loadedQuery.queryKey !== queryKey ||
+          loadedQuery.sourceGeneration !== workspaceSourceGenerationSignature,
+      );
       try {
         const result = await controllerRegistry.list(queryKey, version, query);
         if (requestSerialRef.current !== requestSerial) {
           return;
         }
+        loadedQueryRef.current = {
+          registry: controllerRegistry,
+          queryKey,
+          sourceGeneration: workspaceSourceGenerationSignature,
+        };
         // Controller 的每个 activity 帧（运行中任务的 tool 调用等）都会让本 hook 重查，
         // 而 attachTaskListRowActivity 与 tasks-index join 每次都产生全新对象。下游（grouped 视图）
         // 只能按引用判等，于是整棵列表树换代重渲染并重测量虚拟器。这里与 sessions-index lane 同款
@@ -177,7 +195,14 @@ export function useGlobalTaskList(params: {
         }
       }
     },
-    [controllerRegistry, params.kind, query, queryKey, workspaceScopes],
+    [
+      controllerRegistry,
+      params.kind,
+      query,
+      queryKey,
+      workspaceScopes,
+      workspaceSourceGenerationSignature,
+    ],
   );
 
   const refresh = useCallback(async () => {

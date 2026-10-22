@@ -49,6 +49,8 @@ const tabs: WorkspaceTabState[] = [
 ];
 const listeners = new Set<(frame: WindowHostControllerFrame) => void>();
 const queries: unknown[] = [];
+const pendingQueries = new Map<number, { resolve(): void; reject(error: Error): void }>();
+let querySerial = 0;
 let seq = 0;
 const now = Date.now();
 const items: (WindowHostControllerTaskListItem & { pinnedAt?: number })[] = tabs.flatMap((tab) =>
@@ -85,7 +87,7 @@ const services = {
       workspaceScopes: { workspacePath: string; workspaceIdentity?: string }[];
     }) => {
       queries.push(query);
-      const selected = items.filter(
+      const selected = (params.has("empty") ? [] : items).filter(
         (item) =>
           query.workspaceScopes.some(
             (scope) =>
@@ -93,7 +95,13 @@ const services = {
               (item.workspaceIdentity || item.workspacePath),
           ) && (query.kind === "pinned" ? item.pinnedAt : !item.pinnedAt),
       );
-      return { items: structuredClone(selected), total: selected.length, hasMore: false };
+      const result = { items: structuredClone(selected), total: selected.length, hasMore: false };
+      if (params.has("hold-queries")) {
+        await new Promise<void>((resolve, reject) => {
+          pendingQueries.set(++querySerial, { resolve, reject });
+        });
+      }
+      return result;
     },
   },
 } as IServiceAccessor;
@@ -130,6 +138,20 @@ function notify() {
 Object.assign(globalThis, {
   __remoteStatus: {
     queries,
+    pendingQueries: () => [...pendingQueries.keys()],
+    settleQueries: (ids = [...pendingQueries.keys()], error?: string) => {
+      for (const id of ids) {
+        const pending = pendingQueries.get(id);
+        pendingQueries.delete(id);
+        if (error) pending?.reject(new Error(error));
+        else pending?.resolve();
+      }
+    },
+    replaceController: () =>
+      registry.registerBaseServices({
+        ...services,
+        windowControllerService: { ...services.windowControllerService! },
+      }),
     setActivity: (
       kind: string,
       phase: NonNullable<WindowHostControllerTaskListItem["activity"]>["phase"],
@@ -160,17 +182,51 @@ function Fixture() {
   const [connection, setConnection] = useState("connected");
   const [selected, setSelected] = useState(tabs[1]!);
   const [expanded, setExpanded] = useState(true);
+  const [queryTabs, setQueryTabs] = useState(tabs);
+  const [sortBy, setSortBy] = useState<"updated" | "created">("updated");
   const key = buildWorkspaceSessionKey(selected);
-  const { items: tasks } = useGlobalTaskList({
+  const {
+    items: tasks,
+    loading,
+    syncingRemoteWorkspaces,
+  } = useGlobalTaskList({
     kind: "timeline",
-    workspaceTabs: tabs,
-    sortBy: "updated",
+    workspaceTabs: queryTabs,
+    sortBy,
     searchQuery: "",
     expanded: true,
     collapsedLimit: 20,
   });
   return (
     <main className="max-w-md bg-sidebar p-2 text-ui-base text-foreground">
+      <output
+        data-testid="task-query-state"
+        data-loading={loading}
+        data-syncing-remote={syncingRemoteWorkspaces}
+        data-count={tasks.length}
+      />
+      {params.has("hold-queries") ? (
+        <>
+          <button data-testid="change-query" onClick={() => setSortBy("created")}>
+            Change query
+          </button>
+          <button
+            data-testid="replace-session"
+            onClick={() => {
+              const next = queryTabs.map((tab) =>
+                tab.remoteSessionId
+                  ? { ...tab, remoteSessionId: `${tab.remoteSessionId}-next` }
+                  : tab,
+              );
+              next.slice(1).forEach(connect);
+              setQueryTabs(next);
+              setSelected(next.find((tab) => tab.id === selected.id)!);
+            }}
+          >
+            Replace session
+          </button>
+        </>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         {tabs.slice(1).map((tab) => (
           <button
@@ -232,19 +288,19 @@ function Fixture() {
       </ul>
       <div data-testid="timeline-status">
         <WorkspaceTimelineTasksSection
-          workspaceTabs={tabs}
+          workspaceTabs={queryTabs}
           activeWorkspacePath={path}
           activeTaskId={null}
-          taskSortBy="updated"
+          taskSortBy={sortBy}
           onSelectTask={noop}
         />
       </div>
       <div data-testid="pinned-status">
         <WorkspacePinnedTasksSection
-          workspaceTabs={tabs}
+          workspaceTabs={queryTabs}
           activeWorkspacePath={path}
           activeTaskId={null}
-          taskSortBy="updated"
+          taskSortBy={sortBy}
           onSelectTask={noop}
         />
       </div>
