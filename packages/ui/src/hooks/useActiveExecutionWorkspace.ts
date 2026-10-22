@@ -99,21 +99,28 @@ export function useActiveExecutionWorkspace(
       if (nextReadyKey === readyKey) return;
       readyKey = nextReadyKey;
       const currentAttempt = ++attempt;
+      const projectedWorkspace = projection.snapshot.executionWorkspace;
       setState(owner);
       void (async () => {
-        const [snapshot, binding] = await Promise.allSettled([
-          service.readSession({
-            workspacePath,
-            workspaceIdentity,
-            sessionId: taskId,
-            messageLimit: 1,
-          }),
+        // live 只保证投影就绪，冷 child 没有可执行 record。优先读同代权威目录，
+        // 避免 readSession 的 inactiveSession 将正常历史误判为不可用；旧 CLI 仍兼容原入口。
+        const [execution, binding] = await Promise.allSettled([
+          projectedWorkspace
+            ? Promise.resolve(projectedWorkspace)
+            : service
+                .readSession({
+                  workspacePath,
+                  workspaceIdentity,
+                  sessionId: taskId,
+                  messageLimit: 1,
+                })
+                .then((snapshot) => snapshot.session.workspace),
           worktreeService?.getBinding({ workspacePath, workspaceIdentity, taskId }) ??
             Promise.resolve(null),
         ]);
         if (cancelled || currentAttempt !== attempt) return;
-        if (snapshot.status === "rejected") throw snapshot.reason;
-        const workspace = snapshot.value.session.workspace;
+        if (execution.status === "rejected") throw execution.reason;
+        const workspace = execution.value;
         if (workspace.executionSetRef) {
           if (!projectExecutionSetService)
             throw new Error("Collaboration execution set owner is unavailable");

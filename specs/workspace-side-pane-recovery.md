@@ -13,14 +13,15 @@ hook 没有恢复信号，Shell 因目录为空不挂载面板；展开状态又
 - 执行目录未知时不以原项目路径执行 Git、终端或文件操作。状态提示不暴露协议细节。
 - 目录读取必须在共享 V4 会话订阅就绪后进行；失败可显式重试，恢复事件可自动重新读取。
   禁止 sleep、轮询或固定延迟重试解决冷恢复时序。
+- 2026-10-22：live 表示只读投影就绪，不保证 child 的可执行 runtime 存在。目录优先消费同一就绪快照中的 `executionWorkspace`，仅旧 CLI 缺少该字段时调用原 `readSession`。不能为读取冷 child 目录创建 runtime，不能将 `inactiveSession` 当作历史缺失。binding / execution set 就绪校验以及旧范围迟到结果隔离保持不变。
 
 ## 所有者、接口与边界
 
 - CLI/目标 Host 是会话与实际执行目录的事实所有者；现有 workspace connection /
   SessionDataLayer 的引用计数租约共享冷恢复、订阅与 readiness，不创建新 Agent 或 Host。
 - `useActiveExecutionWorkspace` 只持有当前范围的目录读取结果、错误与未完成读取；通过
-  原项目 identity/path、remoteSessionId 租用既有连接，收到 live 投影后读取原 session
-  service 与 worktree binding。提供幂等的显式 retry 入口；同一就绪代次不因流式 chunk
+  原项目 identity/path、remoteSessionId 租用既有连接，收到 live 投影后读取其中的执行目录
+  与 worktree binding（旧快照才读 session service）。提供幂等的显式 retry 入口；同一就绪代次不因流式 chunk
   重读目录。恢复/服务换代/工作树生命周期使旧请求失效。
 - `useAppPanels` 仍是展开状态、标签页、归属与偏好的唯一所有者。Shell/面板只投影这些
   状态，新增的 pending/error/retry 参数不成为第二份面板显隐状态。
@@ -46,7 +47,8 @@ sequenceDiagram
   Layer->>Host: 既有 cold resume / reconnect
   Host-->>Layer: continuous 或 replayable 就绪投影
   Layer-->>Location: live readiness（同代次去重）
-  Location->>Host: readSession + getBinding
+  Location->>Layer: 同代 executionWorkspace（旧快照才 readSession）
+  Location->>Host: getBinding / execution set 校验
   Host-->>Location: 实际目录 / 错误
   Location-->>View: 正文 / 错误及重试
   User->>Location: 显式重试
