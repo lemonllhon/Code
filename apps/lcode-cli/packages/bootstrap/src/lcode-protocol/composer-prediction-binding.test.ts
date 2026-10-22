@@ -64,8 +64,72 @@ test("prediction binds the exact resident session and never creates a cold runti
   await assert.rejects(
     generateWorkspaceText(context, {
       ...params,
-      workspace: { ...workspace, workspaceKey: "foreign-workspace" },
+      workspace: {
+        ...workspace,
+        workspaceKey: "foreign-workspace",
+        workspaceIdentity: "foreign-workspace",
+      },
     }),
   );
   assert.equal(calls.length, 1);
+});
+
+test("prediction accepts worktree origin and rejects foreign identity and attachment", async () => {
+  const execution = {
+    workspacePath: "/worktree",
+    workspaceIdentity: "execution",
+    workspaceKey: "execution",
+    originWorkspacePath: "/origin",
+    originWorkspaceIdentity: "origin",
+    remoteSessionId: "attachment-a",
+  };
+  let calls = 0;
+  const context = {
+    sessions: new Map([
+      [
+        "session",
+        {
+          workspace: execution,
+          app: {
+            generateWorkspaceText: async () => {
+              calls++;
+              return {
+                text: "next",
+                selection: { providerId: "fixture", modelId: "model" },
+                finishReason: "stop",
+              };
+            },
+          },
+        },
+      ],
+    ]),
+    deps: { createSessionEventStore: () => assert.fail("No cold runtime") },
+  } as unknown as LCodeProtocolAgentServerContext;
+  const params = {
+    workspace: {
+      workspacePath: "/origin",
+      workspaceIdentity: "origin",
+      workspaceKey: "origin",
+      remoteSessionId: "attachment-a",
+    },
+    selection: { providerId: "fixture", modelId: "model" },
+    querySource: "composer_prediction",
+    composerPrediction: { sessionId: "session", boundaryMessageId: "boundary" },
+  };
+  assert.equal((await generateWorkspaceText(context, params)).text, "next");
+  await assert.rejects(
+    generateWorkspaceText(context, {
+      ...params,
+      workspace: { ...params.workspace, workspaceIdentity: "foreign", workspaceKey: "foreign" },
+    }),
+    /unavailable/,
+  );
+  await assert.rejects(
+    generateWorkspaceText(context, {
+      ...params,
+      workspace: { ...params.workspace, remoteSessionId: "attachment-b" },
+    }),
+    /unavailable/,
+  );
+  assert.equal(calls, 1);
 });

@@ -20,6 +20,26 @@ export class ConversationReadWorkspaceError extends Error {
   }
 }
 
+/** 只读入口与辅助请求共用 origin / execution / attachment 的身份判断。 */
+export function conversationReadScopeFault(
+  execution: LCodeWorkspaceRef,
+  requested: LCodeWorkspaceRef,
+): "fault.history.workspaceMismatch" | "fault.history.remoteSessionMismatch" | null {
+  const key = conversationWorkspaceKey(requested);
+  if (
+    key !== conversationWorkspaceKey(execution) &&
+    key !== conversationWorkspaceKey(originWorkspaceRef(execution))
+  )
+    return "fault.history.workspaceMismatch";
+  if (
+    execution.remoteSessionId &&
+    requested.remoteSessionId &&
+    execution.remoteSessionId !== requested.remoteSessionId
+  )
+    return "fault.history.remoteSessionMismatch";
+  return null;
+}
+
 async function resolveExecutionWorkspace(
   context: LCodeProtocolAgentServerContext,
   sessionId: string,
@@ -64,18 +84,8 @@ export async function resolveConversationReadWorkspace(
   if (!execution)
     throw new ConversationReadWorkspaceError("fault.history.sessionNotFound", sessionId);
   if (requested) {
-    const key = conversationWorkspaceKey(requested);
-    if (
-      key !== conversationWorkspaceKey(execution) &&
-      key !== conversationWorkspaceKey(originWorkspaceRef(execution))
-    )
-      throw new ConversationReadWorkspaceError("fault.history.workspaceMismatch");
-    if (
-      execution.remoteSessionId &&
-      requested.remoteSessionId &&
-      execution.remoteSessionId !== requested.remoteSessionId
-    )
-      throw new ConversationReadWorkspaceError("fault.history.remoteSessionMismatch");
+    const fault = conversationReadScopeFault(execution, requested);
+    if (fault) throw new ConversationReadWorkspaceError(fault);
   }
   return {
     ...execution,

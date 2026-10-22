@@ -136,6 +136,7 @@ import {
   WORKTREE_BINDING_ENTRY,
 } from "./worktree-execution.js";
 import { originWorkspaceRef } from "./workspace.js";
+import { conversationReadScopeFault } from "./conversation-read-workspace.js";
 import type { PreparedSessionTitle } from "@lcode/core";
 import { createProtocolCheckoutExecutionPort } from "./checkout-execution-port.js";
 import {
@@ -2958,7 +2959,9 @@ export async function generateWorkspaceText(
       );
   if (
     params.composerPrediction &&
-    (!active || active.workspace.workspaceKey !== params.workspace.workspaceKey)
+    // 工作树 UI 使用 origin 入口，不能只比较 execution key；同时复用历史读的
+    // identity / attachment 边界，仍只允许精确 resident session，绝不冷启动预测源。
+    (!active || conversationReadScopeFault(active.workspace, params.workspace))
   )
     throw new ProtocolRequestError(-32010, "Composer prediction source is unavailable");
   const input = {

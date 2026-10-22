@@ -4,6 +4,8 @@
 
 ## 产品规则与所有者
 
+- 工作树会话的建议请求允许从已验证的 origin 工作区进入，仍绑定精确 resident session。与历史读取复用工作区及 remoteSessionId 校验；不把 origin 路径当执行 cwd，也不为冷会话创建预测运行时。真正的外域 identity / attachment 仍拒绝。
+
 - 独立设置 `composerPredictionsEnabled`，缺省 false。设置说明明确：启用后每个符合条件的完成轮最多一次辅助模型请求，使用当前会话模型，计入现有用量；没有合理下一步可返回空建议。
 - 只在当前可见且活跃的普通会话经历 running → completedSuccess 后、空草稿且无附件/引用/阻塞/队列/目标/运行工作时请求。首屏、历史恢复、切换回来、重连快照、自动任务和子会话不会触发；关闭设置或开始输入立即撤下并取消。
 - 原 ConversationProjectionStore 与 snapshot 同次发布 `lastUpdateIsOnlineDelta` 派生投递标记。只有可信 deliveryKind=online 的连续 delta 为 true；initial/recovery delta 及所有 snapshot 为 false。SessionPane 同时要求非 syncing。Composer 不能仅凭 phase 差异把修复投影当成在线完成；不增加协议业务状态、事件总线或超时推断。
