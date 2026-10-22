@@ -144,6 +144,11 @@ export class GitReviewWorkspaceState {
         }
       };
       const live = this.changed.event(emit);
+      const failed = () => {
+        if (!abort.signal.aborted) logger.warn(undefined, "审核编辑订阅中断，需重新读取快照");
+        abort.abort();
+        live.dispose();
+      };
       if (this.dataDir) {
         const directory = this.dataDir;
         const path = this.location(scope)!;
@@ -157,12 +162,11 @@ export class GitReviewWorkspaceState {
                 emit(await this.read(scope));
             }
           })();
-          await this.read(scope).then(emit);
-          await observe;
-        })().catch(() => {
-          if (!abort.signal.aborted) logger.warn(undefined, "审核编辑订阅中断，需重新读取快照");
-        });
-      } else void this.read(scope).then(emit);
+          // 初读可能慢于取消/监听失败，必须立即共同观察，避免 AbortError 先成为未处理拒绝。
+          // 任一任务失败后由同一取消 owner 关闭 watcher，不能留下无人消费的文件监听。
+          await Promise.all([observe, this.read(scope).then(emit)]);
+        })().catch(failed);
+      } else void this.read(scope).then(emit).catch(failed);
       return {
         dispose: () => {
           abort.abort();

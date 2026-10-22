@@ -6,6 +6,36 @@ import { tmpdir } from "node:os";
 import { GitReviewWorkspaceState } from "./gitReviewWorkspaceState.js";
 import { ProxyChannel } from "@lcode/rpc";
 
+test("审核 watcher 在初读未完成时取消也立即观察 AbortError", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "review-watch-cancel-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const state = new GitReviewWorkspaceState(dir);
+  const scope = { workspacePath: dir, scopeId: "watch-cancel" };
+  const read = state.read.bind(state);
+  let started!: () => void;
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const reading = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  state.read = async (input) => {
+    started();
+    await pending;
+    return read(input);
+  };
+  const received: unknown[] = [];
+  const subscription = state.subscribe(scope)((value) => received.push(value));
+  await reading;
+  subscription.dispose();
+  // 真正 fs.watch 的取消会先于初读落定；Node test runner 会拒绝任何未处理 Promise。
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  release();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(received, []);
+});
+
 test("Host 审核编辑状态：字段并发、同字段冲突、幂等和重启恢复", async () => {
   const dir = await mkdtemp(join(tmpdir(), "review-workspace-"));
   try {
