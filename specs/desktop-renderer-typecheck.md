@@ -61,6 +61,31 @@ flowchart LR
 `no-user-gesture-required`；使用同策略的 Chromium 已正常进入白璃 ambient/welcome。
 测试的浏览器分支显式对齐此策略，保留原有音量、未静音、持续播放与 Root 准入断言。
 
+## 发行契约测试不依赖构建产物（2026-10-22）
+
+`v3.20.5` 的 Linux x64 发行在 `pnpm test:release` 失败：fixture 保留 Renderer 的
+project references，但普通 `ts.createCompilerHost` 默认读取引用工程的声明输出。
+干净 CI 尚未生成 `shared/dist/index.d.ts`，因此出现 TS6305，随后两个返回值反例
+产生 TS2578。本地已有声明输出时，旧测试无法暴露这个前置构建依赖。
+
+- 测试 compiler host 负责 fixture 和文件可见性，通过 TypeScript 的
+  `useSourceOfProjectReferenceRedirect` 使用引用工程的当前源码；公共类型仍由
+  `IPlatformService` 和 `@lcode/client/globals` 拥有，不复制类型或改写生产工程配置。
+- 回归递归读取实际 project references，屏蔽各工程的 `outDir` / `declarationDir`，
+  同时覆盖文件存在查询和读取，使已有本地产物也无法参与 fixture 检查。不删除、移动或
+  生成工作区产物，不增加预构建步骤，不通过忽略诊断或移除返回值反例使测试通过。
+- 验收：屏蔽输出后，公共桥返回值、暴露方法完整性以及 Node 全局隔离检查全部通过，
+  且 program 实际包含 `shared/src/index.ts`；取消源码重定向时，回归必须失败。
+- 范围只包含测试及本 spec，运行时状态所有者、IPC、事件顺序和生产构建边界沿用原状。
+  执行完整 `pnpm test:release`、根 `pnpm typecheck` / `pnpm lint`、changed 架构检查，
+  并记录真实通过、失败及跳过项目。
+
+本次在 Windows / Node 24.21.0 验证：先屏蔽输出，旧实现复现 TS6305 和两个 TS2578；
+启用源码重定向后 Renderer 契约 2 项通过。完整 `pnpm test:release` 共 159 项，158 项
+通过、1 项 Chromium 场景因未设置浏览器路径跳过；显式提供本机 Chromium 路径后，
+该场景单独补跑通过。根类型检查、Lint、改动脚本显式 Lint、两文件格式检查均通过，
+changed 架构检查 baseline 0、new 0、violations 0。未实际重跑 GitHub Linux 发行任务。
+
 ## 实际验证（2026-10-22）
 
 - Renderer、Renderer 测试与 preload 的独立 `tsc -p ... --noEmit` 均退出 0；

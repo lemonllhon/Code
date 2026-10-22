@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { resolve, sep } from "node:path";
 import { test } from "node:test";
 import ts from "typescript";
 
@@ -17,6 +17,21 @@ function config(name) {
       },
     },
   );
+}
+
+function referencedOutputDirectories(project, visited = new Set()) {
+  const directories = [];
+  for (const reference of project.projectReferences ?? []) {
+    const path = ts.resolveProjectReferencePath(reference);
+    if (visited.has(path)) continue;
+    visited.add(path);
+    const referenced = config(path);
+    for (const directory of [referenced.options.outDir, referenced.options.declarationDir]) {
+      if (directory) directories.push(`${resolve(directory)}${sep}`);
+    }
+    directories.push(...referencedOutputDirectories(referenced, visited));
+  }
+  return directories;
 }
 
 test("root checks Renderer, preload and Node tests without emitting runtime bundles", async () => {
@@ -43,7 +58,7 @@ test("root checks Renderer, preload and Node tests without emitting runtime bund
   for (const path of testFiles) assert.ok(tests.fileNames.includes(path), path);
 });
 
-test("public preload signatures match platform results and keep Node outside Renderer", async () => {
+test("public preload signatures match platform results and keep Node outside Renderer without prebuilt outputs", async () => {
   const parsed = config("tsconfig.renderer.json");
   const fixture = resolve(desktop, "src/renderer/typecheck-fixture.ts");
   const source = `
@@ -73,8 +88,17 @@ test("public preload signatures match platform results and keep Node outside Ren
     require('node:fs');
   `;
   const host = ts.createCompilerHost(parsed.options);
+  // createProgram 不构建引用工程；直接检查源码，才能在尚无声明产物时验证公共契约。
+  host.useSourceOfProjectReferenceRedirect = () => true;
+  // 屏蔽引用工程的输出，避免本地已有 dist 掩盖干净 CI 的 TS6305。
+  const outputDirectories = referencedOutputDirectories(parsed);
+  const isOutput = (path) =>
+    outputDirectories.some((directory) => resolve(path).startsWith(directory));
   const read = host.readFile;
-  host.readFile = (path) => (resolve(path) === fixture ? source : read(path));
+  const exists = host.fileExists;
+  host.readFile = (path) =>
+    resolve(path) === fixture ? source : isOutput(path) ? undefined : read(path);
+  host.fileExists = (path) => !isOutput(path) && exists(path);
   const program = ts.createProgram({
     rootNames: [fixture],
     options: { ...parsed.options, composite: false, incremental: false },
@@ -91,6 +115,7 @@ test("public preload signatures match platform results and keep Node outside Ren
       getNewLine: () => "\n",
     }),
   );
+  assert.ok(program.getSourceFile(resolve(root, "packages/shared/src/index.ts")));
   const checker = program.getTypeChecker();
   const fixtureFile = program.getSourceFile(fixture);
   const declared = checker
