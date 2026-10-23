@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { statSync } from "node:fs";
+import { stat } from "node:fs/promises";
 import { shell } from "electron";
 import type { OpenInEditorOptions, OpenInEditorRemoteTarget } from "@lcode/shared";
 import { listWSLDistros } from "@lcode/server/remote/wsl-detect.js";
@@ -29,9 +29,10 @@ async function openPathViaShell(path: string): Promise<OpenInEditorResult> {
   return error ? { success: false, error } : { success: true };
 }
 
-function detectPathKind(path: string): PathKind {
+async function detectPathKind(path: string): Promise<PathKind> {
   try {
-    const stats = statSync(path);
+    // 打开操作和列表发现共享 Main；路径检查也必须异步，避免慢磁盘再次阻塞窗口。
+    const stats = await stat(path);
     if (stats.isFile()) {
       return "file";
     }
@@ -310,12 +311,12 @@ export async function openInEditor(
   path: string,
   options?: OpenInEditorOptions,
 ): Promise<OpenInEditorResult> {
-  const def = getEditorDefsForCurrentPlatform().find((editor) => editor.id === editorId);
+  const def = (await getEditorDefsForCurrentPlatform()).find((editor) => editor.id === editorId);
   if (!def) {
     return { success: false, error: `unknown editor: ${editorId}` };
   }
 
-  const appPath = resolveEditorDefAppPath(def) ?? def.appPath;
+  const appPath = (await resolveEditorDefAppPath(def)) ?? def.appPath;
   if (options?.remoteTarget?.kind === "ssh" && isVSCodeEditor(editorId)) {
     // SSH 工作区的 workspacePath 是远端文件系统路径，不能按本机路径执行 `code /root/...`。
     // VS Code Remote-SSH 需要 folder URI 才会连接对应 SSH Host 并打开远端目录。
@@ -348,7 +349,7 @@ export async function openInEditor(
     return openWslPathInExplorer(appPath, path, options.remoteTarget, options.pathKind);
   }
 
-  const pathKind = detectPathKind(path);
+  const pathKind = await detectPathKind(path);
 
   if (editorId === "finder") {
     if (pathKind === "file") {
