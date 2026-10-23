@@ -54,3 +54,26 @@ sequenceDiagram
 - 项目路由和恢复共 51 项通过：包含新增队列/序列化/retry/edit 5 项、真实冷恢复、子范围继承、原多设备路由和图片 Read 执行、MCP scope 及恢复事务、原生桥和远程序列化订阅。图片用例验证目标设备二进制经现有 ImageProcessorPort 生成模型图像；无 resolver/无快照仍在 IO 前拒绝，没有静默本机 fallback。
 - 根 typecheck/lint、CLI typecheck/lint、目标格式及 changed architecture 通过；架构 baseline=0/new=0。CLI lint 仍有 registry 原有 `no-useless-fallback-in-spread` 警告，不写成零警告。Core 测试单独做类型检查，避免其默认 tsconfig 排除测试导致漏查。
 - 验证使用合成目录、身份、路由和内存端口；没有访问用户项目、调用真实供应商或连接真实 SSH/WSL/Docker 设备。没有替换安装版；macOS/Linux 平台未做实机验收。
+
+## 2026-10-23：执行器对 MCP 同名参数的所有权补查
+
+后续日志中的应用版本为 3.20.6，早于上述源码修复；该 Main 日志没有 `Target folder routing is unavailable for this tool` 的原始工具参数，不能据此认定修复失效。只调查当前代码仍存在的缺口，不重复更改已修复的 schema/恢复路径。
+
+补查确认 executor 仍对所有工具解构并解释 `projectMemberId`。MCP 或其他扩展可以合法声明同名业务字段，非 null 值被错误拒绝，绕过了该工具自己的 schema 和 handler。这与模型投影中的 MCP 不改写规则不一致。
+
+- Executor 只对 canonical 原生工具白名单解释目录选择器。MCP、扩展与其 alias 的整个输入继续交给自身 schema、权限、hook、handler；不调用项目 resolver，不移除字段，不把 MCP 的业务字段解释为设备选择。
+- 原生工具显式选择器且路由不可用时仍在任何权限、hook、IO 之前拒绝，不能通过移除/忽略参数规避范围校验。null/default、本地、多目录、跨设备及 stale owner 规则保持。
+- 在原生路由拒绝的现有 Service/Agent Logger 中增加安全 warn：固定 event、已注册原生工具名、trace/turn/tool-call 关联、是否存在 resolver 和显式选择器。不记录输入、成员 ID、路径、capability 或凭据；错误仍按原 `ToolCallError` 交付连续/可重放链路，不另建 UI 状态。
+- 验收：MCP 的 string/number/null 同名字段在有无 resolver 下原样执行；MCP alias 不触发项目路由；自身 schema 错误仍失败；既有原生无路由、歧义、目标图片、跨设备和恢复测试不变。
+
+该补查不修复安装版、不发布新包；真实用户机器需要包含修复的新构建才能验收。
+
+补查验证：新增 MCP 参数透传与自有 schema 两项用例在修复前均复现相同英文错误，修复后通过；增加原生拒绝和日志隐私验证。目录路由、真实 Runtime 恢复、executor 生命周期/并发及输入快照序列化共 42 项通过。Core 测试单独 tsc 通过；根与 CLI typecheck/lint、目标格式、verify:pre-push、changed architecture 通过，架构 baseline=0/new=0。CLI lint 保留 registry 的原有 warning，Turbo 仍提示已有 lockfile workspace 图不完整；本次没有改依赖或刷新基线。仅 CLI executor 的原有 app/service 层和测试、本文档有本功能改动，新增状态只限原日志投影，不修改路由 owner 或 delivery kind。
+
+### 同份日志的其他观察
+
+- 09:38 差分 blockmap 404 后回退全量下载，09:40 已运行新版本；更新安装期间的 Program Files 写权限探测失败没有阻止这次更新，不与工具路由混为一因。
+- 09:40、10:04 各有一次重启后的 `Session is not active` 只读查询失败；缺少 Agent 端日志，无法据此认定会话已损坏。
+- 11:08 文件变更查询返回一次 `proto.staleRevision`；当前 UI 已有 same-sub authority resync，保留版本/epoch fencing，不为了消除日志跳过校验。
+- 启动时原生二进制缺失告警与随后 `lcode.cjs` 成功启动、ready 并存：启动诊断只查原生入口，而实际 Agent 可以使用 Node bundle。属于诊断口径缺口，不是该日志中 Agent 启动失败的证据；本次未扩大到启动流程改动。
+- 无崩溃或未处理异常证据；关闭过程的 disposed 订阅清理、已禁用 CUA 的事件丢弃、一次 CDP release pending timeout 和无效远控配置校验需按各自生命周期核对，不能仅凭 warn 判定为当前路由根因。

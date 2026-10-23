@@ -20,6 +20,14 @@ const readMetadata: PersistedReadFileStateMetadata = {
   sizeBytes: 12,
 };
 const skillMetadata: SkillTelemetryMetadata = { qualifiedName: "test-skill" };
+const readOnlyToolMetadata = {
+  readOnly: true,
+  riskLevel: "low" as const,
+  sideEffectScope: "none" as const,
+  destructive: false,
+  concurrentSafe: true,
+  needsApproval: false,
+};
 
 function executor(entry: Partial<ToolEntry>, options: Partial<ToolExecutorOptions> = {}) {
   const registry = new ToolRegistryImpl();
@@ -46,6 +54,108 @@ function executor(entry: Partial<ToolEntry>, options: Partial<ToolExecutorOption
     } as ToolExecutorOptions),
   };
 }
+
+test("MCP-owned projectMemberId reaches its own handler unchanged and never enters native routing", async () => {
+  for (const routed of [false, true]) {
+    let routeCalls = 0;
+    const inputs: unknown[] = [];
+    const setup = executor(
+      {
+        metadata: { ...readOnlyToolMetadata, name: "mcp__fixture__read" },
+        aliases: ["McpReadAlias"],
+        inputSchema: {
+          type: "object",
+          required: ["projectMemberId"],
+          properties: { projectMemberId: {} },
+        },
+        handler: async (input) => {
+          inputs.push(input);
+          return { done: true };
+        },
+      },
+      routed
+        ? {
+            resolveProjectToolScope: () => {
+              routeCalls++;
+              throw new Error("must not route MCP");
+            },
+          }
+        : {},
+    );
+    for (const projectMemberId of ["server-owned-project", 42, null]) {
+      const input = { projectMemberId };
+      const result = await setup.executor.execute({
+        id: `mcp-${inputs.length}`,
+        name: "McpReadAlias",
+        input,
+      });
+      assert.equal(result.success, true, JSON.stringify(result));
+      assert.deepEqual(inputs.at(-1), input);
+    }
+    assert.equal(routeCalls, 0);
+  }
+});
+
+test("MCP-owned selector still uses its own schema rather than the native selector schema", async () => {
+  let calls = 0;
+  const setup = executor({
+    metadata: { ...readOnlyToolMetadata, name: "mcp__fixture__read" },
+    inputSchema: {
+      type: "object",
+      required: ["projectMemberId"],
+      properties: { projectMemberId: { type: "number" } },
+    },
+    handler: async () => {
+      calls++;
+      return { done: true };
+    },
+  });
+  const result = await setup.executor.execute({
+    id: "invalid-mcp",
+    name: "mcp__fixture__read",
+    input: { projectMemberId: "invalid-number" },
+  });
+  assert.equal(result.success, false);
+  assert.doesNotMatch(result.error?.message ?? "", /Target folder routing/);
+  assert.equal(calls, 0);
+});
+
+test("native routing rejection still blocks execution and logs no input or selector", async () => {
+  let calls = 0;
+  const logs: unknown[] = [];
+  const logger: NonNullable<ToolExecutorOptions["logger"]> = {
+    debug() {},
+    info() {},
+    error() {},
+    child: () => logger,
+    warn: (message, context) => {
+      logs.push({ message, context });
+    },
+  };
+  const setup = executor(
+    {
+      metadata: { ...readOnlyToolMetadata, name: "Read" },
+      handler: async () => {
+        calls++;
+        return { done: true };
+      },
+    },
+    { logger },
+  );
+  const result = await setup.executor.execute({
+    id: "native-rejected",
+    name: "Read",
+    input: { projectMemberId: "synthetic-private-selector", file_path: "synthetic-private-path" },
+  });
+  assert.equal(result.success, false);
+  assert.match(result.error?.message ?? "", /Target folder routing/);
+  assert.equal(calls, 0);
+  const serialized = JSON.stringify(logs);
+  assert.match(serialized, /tool.project_routing.rejected/);
+  assert.match(serialized, /native-rejected/);
+  assert.equal(serialized.includes("synthetic-private-selector"), false);
+  assert.equal(serialized.includes("synthetic-private-path"), false);
+});
 
 test("execution context metadata callbacks update the enclosing result owner", async () => {
   const setup = executor({

@@ -137,7 +137,9 @@ async function executeToolCallImpl(
   }
 
   // 设备选择先于输入归一化、权限、hook 和 handler；权限窗和实际端口使用同一份目标事实。
+  // MCP/扩展可声明同名业务字段；只有原生白名单拥有目录选择器，不能拦截或改写扩展输入。
   if (
+    PROJECT_NATIVE_TOOLS.has(canonicalToolCall.name) &&
     canonicalToolCall.input &&
     typeof canonicalToolCall.input === "object" &&
     !Array.isArray(canonicalToolCall.input)
@@ -154,11 +156,21 @@ async function executeToolCallImpl(
         deps = { ...deps, ...scope };
         backgroundTasks = new BackgroundTaskTracker(deps);
         canonicalToolCall = { ...canonicalToolCall, input: nativeInput };
-      } else if (projectMemberId === null && PROJECT_NATIVE_TOOLS.has(canonicalToolCall.name)) {
+      } else if (projectMemberId === null) {
         // strict provider 将可选参数补为 null；无项目的 CLI 也必须继续使用原端口，不能被新选择器阻断。
         canonicalToolCall = { ...canonicalToolCall, input: nativeInput };
       }
     } catch (error) {
+      // 之前此早退只有工具结果、缺少关联诊断；只记受控能力事实，不记录路径或输入。
+      deps.logger?.warn("Native tool project routing rejected", {
+        ...traceContextToLogContext(traceContext),
+        event: "tool.project_routing.rejected",
+        module: "core.tool.executor",
+        toolName: canonicalToolCall.name,
+        toolCallId: canonicalToolCall.id,
+        hasResolver: Boolean(deps.resolveProjectToolScope),
+        hasExplicitSelector: projectMemberId !== undefined && projectMemberId !== null,
+      });
       const result = createErrorResult(
         canonicalToolCall,
         createCoreError(
