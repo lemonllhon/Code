@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ArchiveRestore, Cloud, Folder, Trash2 } from "lucide-react";
+import { ArchiveRestore, Trash2 } from "lucide-react";
 import type { ProjectDefinition } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
@@ -8,6 +8,8 @@ import { useProjectDeletion } from "@/hooks/useProjectDeletion.js";
 import type { UnifiedSidebarTreeProps } from "./UnifiedSidebarTree.js";
 import { logger } from "@/logger.js";
 import { useSidebarText } from "./sidebarText.js";
+import { ProjectSourceIcon } from "@/ProjectSourceIcon.js";
+import { getProjectSourceKind } from "@/workspaceProjectMenu.js";
 
 export function ArchivedProjectRow({
   project,
@@ -54,11 +56,7 @@ export function ArchivedProjectRow({
       data-testid={`archived-project-${project.id}`}
       className="flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5"
     >
-      {project.workspaceIdentity ? (
-        <Cloud className="size-4 shrink-0" />
-      ) : (
-        <Folder className="size-4 shrink-0" />
-      )}
+      <ProjectSourceIcon kind={getProjectSourceKind(project)} />
       <div className="min-w-0 flex-1">
         <div className="truncate text-ui-base">{project.name}</div>
         <div

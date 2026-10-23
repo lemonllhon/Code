@@ -18,7 +18,6 @@ import {
 import { InputGroup, InputGroupAddon } from "@/components/ui/input-group.js";
 import {
   ChevronDownIcon,
-  Cloud,
   Folder,
   FolderPlus,
   House,
@@ -49,6 +48,7 @@ import { toast } from "@/components/ui/toast.js";
 import { useSidebarText } from "@/WorkspaceSidebar/sidebarText.js";
 import { ChatEmptyCreateProjectDialog } from "@/ChatEmptyCreateProjectDialog.js";
 import { useProjectNavigationActions } from "@/hooks/useProjectNavigationActions.js";
+import { ProjectSourceIcon } from "@/ProjectSourceIcon.js";
 import {
   buildWorkspaceProjectMenuTabs,
   type WorkspaceProjectMenuTab,
@@ -267,12 +267,6 @@ export function ChatEmptyWorkspacePreviewMenu({
   const currentSourceLabel = currentSourceKind
     ? intl.formatMessage({ id: `project.source.${currentSourceKind}` })
     : null;
-  const CurrentWorkspaceIcon =
-    isCurrentRemoteWorkspace && currentSourceKind !== "mixed"
-      ? Cloud
-      : homeWorkspacePath === workspacePath
-        ? House
-        : Folder;
 
   return (
     <DropdownMenu>
@@ -325,9 +319,11 @@ export function ChatEmptyWorkspacePreviewMenu({
                 : currentWorkspaceTitle
             }
           >
-            <CurrentWorkspaceIcon
+            <ProjectSourceIcon
+              kind={currentSourceKind ?? (isCurrentRemoteWorkspace ? "remote" : "local")}
+              localIcon={homeWorkspacePath === workspacePath ? House : Folder}
               className={cn(
-                "size-4 text-foreground-subtle transition-opacity",
+                "transition-opacity",
                 // 关闭按钮和项目图标占用同一位置。只有允许脱离项目时才隐藏底层图标，
                 // 否则 X 会直接叠在图标上；定时任务禁用该能力时则让项目图标保持可见。
                 canDetachProject &&
@@ -335,11 +331,6 @@ export function ChatEmptyWorkspacePreviewMenu({
               )}
             />
             <span className="block max-w-full truncate">{currentWorkspaceTitle}</span>
-            {currentSourceLabel ? (
-              <span className="shrink-0 text-ui-xs text-foreground-subtle">
-                {currentSourceLabel}
-              </span>
-            ) : null}
             {triggerIndicator ?? <ChevronDownIcon className="size-3.5 text-foreground-subtle" />}
           </Button>
         </DropdownMenuTrigger>
@@ -371,12 +362,6 @@ export function ChatEmptyWorkspacePreviewMenu({
               ? workspaceTab.label
               : getWorkspaceListTitle(workspaceTab.workspacePath, homeWorkspaceLabel);
             const isRemoteWorkspace = hasRemoteWorkspaceIdentity(workspaceTab);
-            const WorkspaceIcon =
-              isRemoteWorkspace && workspaceTab.projectSourceKind !== "mixed"
-                ? Cloud
-                : inferWorkspaceHomePath(workspaceTab.workspacePath) === workspaceTab.workspacePath
-                  ? House
-                  : Folder;
 
             return (
               <DropdownMenuCheckboxItem
@@ -408,13 +393,16 @@ export function ChatEmptyWorkspacePreviewMenu({
                   });
                 }}
               >
-                <WorkspaceIcon className="size-4 text-foreground-subtle" />
+                <ProjectSourceIcon
+                  kind={workspaceTab.projectSourceKind ?? (isRemoteWorkspace ? "remote" : "local")}
+                  localIcon={
+                    inferWorkspaceHomePath(workspaceTab.workspacePath) ===
+                    workspaceTab.workspacePath
+                      ? House
+                      : Folder
+                  }
+                />
                 <span className="min-w-0 flex-1 truncate">{workspaceTitle}</span>
-                {workspaceTab.projectSourceKind ? (
-                  <span className="shrink-0 text-ui-xs text-foreground-subtle">
-                    {intl.formatMessage({ id: `project.source.${workspaceTab.projectSourceKind}` })}
-                  </span>
-                ) : null}
               </DropdownMenuCheckboxItem>
             );
           })}

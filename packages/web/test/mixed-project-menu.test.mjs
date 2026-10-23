@@ -153,7 +153,7 @@ test(
 );
 
 test(
-  "mixed project menu keeps the logical name, source badge and remote attachment at desktop and mobile widths",
+  "mixed project menu shows two source icons without visible source text and keeps its remote attachment",
   { timeout: 120000 },
   async (t) => {
     const { browser, port } = await startWorkflowProgressBrowser(t);
@@ -172,13 +172,19 @@ test(
       const trigger = page.getByTestId("composer-workspace-trigger");
       await trigger.waitFor();
       assert.match(await trigger.innerText(), /Unified project/);
-      assert.ok((await trigger.innerText()).includes(badge));
+      assert.equal((await trigger.innerText()).includes(badge), false);
+      const sourceIcons = trigger.locator('[data-project-source="mixed"]');
+      assert.equal(await sourceIcons.getAttribute("aria-label"), badge);
+      assert.equal(await sourceIcons.locator("svg").count(), 2);
       await trigger.click();
       assert.equal(
         await page.getByRole("menuitemcheckbox", { name: new RegExp(`Unified project`) }).count(),
         1,
       );
       assert.equal(await page.getByRole("menuitemcheckbox", { name: /remote-folder/ }).count(), 0);
+      const menuProject = page.getByRole("menuitemcheckbox", { name: /Unified project/ });
+      assert.equal((await menuProject.innerText()).includes(badge), false);
+      assert.equal(await menuProject.locator('[data-project-source="mixed"] svg').count(), 2);
       await page.getByRole("menuitemcheckbox", { name: /Unified project/ }).click();
       const selected = JSON.parse(await page.getByTestId("selected-project").innerText());
       assert.equal(selected.localProjectId, "mixed");
@@ -210,6 +216,112 @@ test(
         });
         await page.screenshot({ path: ".artifacts/mixed-project/logical-project-menu-mobile.png" });
       }
+    }
+  },
+);
+
+test(
+  "sidebar derives mixed project icons from all members for either primary device",
+  { timeout: 120000 },
+  async (t) => {
+    const { browser, port } = await startWorkflowProgressBrowser(t);
+    for (const remotePrimary of [false, true]) {
+      const page = await browser.newPage({
+        viewport: { width: remotePrimary ? 390 : 1280, height: 850 },
+      });
+      t.after(() => page.close());
+      const origin = "/fixture/repo";
+      const identity = buildRemoteWorkspaceIdentity(origin, {
+        kind: "ssh",
+        host: "example.invalid",
+        username: "fixture",
+        port: 22,
+      });
+      await page.addInitScript(
+        ({ origin, identity, remotePrimary }) => {
+          const local = {
+            id: "local",
+            path: origin,
+            label: "",
+            role: "",
+            description: "",
+            enabled: true,
+            source: { kind: "local" },
+          };
+          const remote = {
+            id: "remote",
+            path: origin,
+            label: "",
+            role: "",
+            description: "",
+            enabled: true,
+            source: { kind: "remote", deviceId: "device", workspaceIdentity: identity },
+          };
+          const project = {
+            id: remotePrimary ? "remote-project" : "project",
+            name: "Mixed project",
+            primaryFolderPath: origin,
+            sourceFolderPaths: [origin],
+            primaryMemberId: remotePrimary ? "remote" : "local",
+            members: [local, remote],
+            ...(remotePrimary ? { workspaceIdentity: identity } : {}),
+          };
+          localStorage.setItem(
+            "sidebar-fixture-projects",
+            JSON.stringify({
+              localProjects: [project],
+              projectDefinitions: { version: 1, projects: [project] },
+              remoteWorkspaceSessions: [],
+              recentProjects: [origin],
+            }),
+          );
+        },
+        { origin, identity, remotePrimary },
+      );
+      await page.goto(
+        `http://127.0.0.1:${port}/test/fixtures/sidebar-organization.html?project-lifecycle${remotePrimary ? "&english" : ""}`,
+      );
+      const row = page
+        .locator('[data-testid^="workspace-item-"]')
+        .filter({ hasText: "Mixed project", has: page.locator('[data-project-source="mixed"]') });
+      await row.waitFor();
+      const icons = row.locator('[data-project-source="mixed"]');
+      assert.equal(await icons.locator("svg").count(), 2);
+      assert.equal(
+        await icons.getAttribute("aria-label"),
+        remotePrimary ? "Local + remote" : "本地 + 远程",
+      );
+      assert.equal(
+        (await row.innerText()).includes(remotePrimary ? "Local + remote" : "本地 + 远程"),
+        false,
+      );
+      await row.click();
+      assert.equal(await icons.locator("svg").count(), 2);
+      await page.evaluate(() => globalThis.__sidebarOrganization.offline());
+      assert.equal(await icons.locator("svg").count(), 2);
+      await page.evaluate(() =>
+        document.documentElement.style.setProperty("--ui-font-size", "20px"),
+      );
+      for (const theme of [
+        "zai-light",
+        "zai-dark",
+        "sepia-light",
+        "midnight-blue",
+        "forest-dark",
+        "cinnabar",
+        "inkpurple",
+      ]) {
+        await page.evaluate((theme) => {
+          document.documentElement.className = `${["zai-dark", "inkpurple"].includes(theme) ? "dark " : ""}theme-${theme}`;
+        }, theme);
+        assert.equal(await icons.locator("svg").count(), 2);
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      }
+      await mkdir(".artifacts/mixed-project", { recursive: true });
+      await page.screenshot({
+        path: `.artifacts/mixed-project/sidebar-${remotePrimary ? "remote" : "local"}-primary.png`,
+        animations: "disabled",
+      });
     }
   },
 );

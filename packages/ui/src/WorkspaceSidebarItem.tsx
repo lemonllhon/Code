@@ -5,6 +5,8 @@ import { useProjectNavigationActions } from "@/hooks/useProjectNavigationActions
 import { useProjectDeletion } from "@/hooks/useProjectDeletion.js";
 import type { DesktopWorkspaceReconnect } from "@/hooks/windowWorkspaceReconnect.js";
 import { findProjectDefinition } from "@lcode/shared";
+import { getProjectSourceKind } from "@/workspaceProjectMenu.js";
+import { ProjectSourceIcon } from "@/ProjectSourceIcon.js";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -29,7 +31,6 @@ import {
 import {
   CheckIcon,
   CircleAlert,
-  Cloud,
   CopyIcon,
   Ellipsis,
   Folder,
@@ -712,34 +713,24 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
       }, 1500);
     });
   }, [remoteWorkspaceError]);
-  const renderWorkspaceIcon = () => {
-    // workspace 行之前在 hover/展开时会把目录图标切成箭头，
-    // 视觉上会多出一层“树形展开控件”的暗示；当前交互只需要保留项目图标本身，
-    // 这样能减少噪音，也避免用户把它理解成独立的箭头开关。
-    if (isExpanded && !isDisconnectedRemoteWorkspace) {
-      return isRemoteWorkspace ? (
-        <Cloud className="h-4 w-4 text-foreground-subtle" />
-      ) : isHomeWorkspace ? (
-        <House className="h-4 w-4 text-foreground-subtle" />
-      ) : (
-        <FolderOpen className="h-4 w-4 text-foreground-subtle" />
-      );
-    }
-
-    return isRemoteWorkspace ? (
-      <Cloud className="h-4 w-4 text-foreground-subtle" />
-    ) : isHomeWorkspace ? (
-      <House className="h-4 w-4 text-foreground-subtle" />
-    ) : (
-      <Folder className="h-4 w-4 text-foreground-subtle" />
-    );
-  };
-
   const workspaceLabelContent = (
     <div className="flex min-w-0 flex-1 items-center gap-2">
-      <span className="relative flex size-4 shrink-0 items-center justify-center">
-        {renderWorkspaceIcon()}
-      </span>
+      <ProjectSourceIcon
+        kind={
+          projectDefinition
+            ? getProjectSourceKind(projectDefinition)
+            : isRemoteWorkspace
+              ? "remote"
+              : "local"
+        }
+        localIcon={
+          isHomeWorkspace
+            ? House
+            : isExpanded && !isDisconnectedRemoteWorkspace
+              ? FolderOpen
+              : Folder
+        }
+      />
       <div className="min-w-0 truncate text-ui-base text-foreground-subtle">
         {workspaceSidebarLabel}
       </div>

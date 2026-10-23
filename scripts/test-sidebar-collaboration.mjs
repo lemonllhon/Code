@@ -26,6 +26,7 @@ const backend = [
   "apps/lcode-cli/packages/bootstrap/src/lcode-protocol/resource-release-close.test.ts",
 ];
 const browser = [
+  "mixed-project-menu",
   "sidebar-organization",
   "sidebar-organization-transactions",
   "sidebar-source-errors",
