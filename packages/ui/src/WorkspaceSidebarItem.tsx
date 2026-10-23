@@ -190,7 +190,10 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
     taskId: string,
     targetWorkspaceIdentity?: string,
   ) => void;
-  onStartDraftInWorkspace: (targetWorkspacePath: string, targetWorkspaceIdentity?: string) => void;
+  onStartDraftInWorkspace: (
+    targetWorkspacePath: string,
+    targetWorkspaceIdentity?: string,
+  ) => void | Promise<void>;
   onStartCollaboration?: () => void;
   taskItems: LCodeTaskMeta[];
   showTaskList?: boolean;
@@ -257,6 +260,8 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   });
   const projectActionPending = useRef(false);
   const [updatingProjectNavigation, setUpdatingProjectNavigation] = useState(false);
+  const openingProjectRef = useRef(false);
+  const [openingProject, setOpeningProject] = useState(false);
   const handleProjectNavigation = async (action: "archive" | "hide") => {
     if (projectActionPending.current) return;
     projectActionPending.current = true;
@@ -413,6 +418,27 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
     event.stopPropagation();
   }, []);
 
+  const handleOpenProject = useCallback(async () => {
+    if (readOnlyReason || openingProjectRef.current) return;
+    openingProjectRef.current = true;
+    setOpeningProject(true);
+    try {
+      await onStartDraftInWorkspace(tab.workspacePath, tab.workspaceIdentity);
+    } catch (error) {
+      logger.warn("[WorkspaceSidebarItem] 打开项目失败", { error });
+      toast(sidebarText("projectActionFailed"), { variant: "warning" });
+    } finally {
+      openingProjectRef.current = false;
+      setOpeningProject(false);
+    }
+  }, [
+    onStartDraftInWorkspace,
+    readOnlyReason,
+    sidebarText,
+    tab.workspaceIdentity,
+    tab.workspacePath,
+  ]);
+
   const handleCreateThreadClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
@@ -420,9 +446,9 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
       if (readOnlyReason) {
         return;
       }
-      onStartDraftInWorkspace(tab.workspacePath, tab.workspaceIdentity);
+      void handleOpenProject();
     },
-    [onStartDraftInWorkspace, readOnlyReason, tab.workspaceIdentity, tab.workspacePath],
+    [handleOpenProject, readOnlyReason],
   );
 
   const handleReconnectRemoteWorkspace = useCallback(
@@ -814,14 +840,9 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
         </Item>
       ) : null}
       <Item
-        disabled={Boolean(readOnlyReason) || isDisconnectedRemoteWorkspace}
-        title={
-          readOnlyReason ?? (isDisconnectedRemoteWorkspace ? sidebarText("offline") : undefined)
-        }
-        onSelect={() => {
-          if (!readOnlyReason && !isDisconnectedRemoteWorkspace)
-            onStartDraftInWorkspace(tab.workspacePath, tab.workspaceIdentity);
-        }}
+        disabled={Boolean(readOnlyReason) || openingProject}
+        title={readOnlyReason}
+        onSelect={() => void handleOpenProject()}
       >
         {sidebarText(isRemoteWorkspace ? "remoteNew" : "projectNew")}
       </Item>
@@ -937,7 +958,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
                 size="line"
                 colorVariant="colorful"
                 duration={1.96}
-                active={shouldShowRemoteConnectingBorderBeam}
+                active={openingProject || shouldShowRemoteConnectingBorderBeam}
                 borderRadius={8}
               >
                 <div
@@ -956,6 +977,13 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
                     <div
                       role="button"
                       aria-label={workspaceSidebarLabel}
+                      aria-busy={openingProject}
+                      onDoubleClick={(event) => {
+                        if (event.ctrlKey || event.metaKey || event.shiftKey) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        void handleOpenProject();
+                      }}
                       tabIndex={0}
                       data-testid={testId(TID_WORKSPACE_ITEM, tab.workspacePath)}
                       className={cn(

@@ -27,6 +27,7 @@ const backend = [
 ];
 const browser = [
   "mixed-project-menu",
+  "mixed-project-reopen",
   "sidebar-organization",
   "sidebar-organization-transactions",
   "sidebar-source-errors",

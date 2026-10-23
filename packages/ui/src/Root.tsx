@@ -50,6 +50,7 @@ import { OnboardingDialog } from "@/onboarding/OnboardingDialog.js";
 import { GitBackupWelcomeDialog } from "@/GitBackupWelcomeDialog.js";
 import { useRemoteWorkspaceHistory } from "@/root/useRemoteWorkspaceHistory.js";
 import { useRemoteDeviceManagement } from "@/hooks/useRemoteDeviceManagement.js";
+import { useProjectWorkspacePreparation } from "@/hooks/useProjectWorkspacePreparation.js";
 import type { RemoteDeviceConnectionIntent } from "@/hooks/useRemoteDeviceProfiles.js";
 import { useWindowWorkspaceReconnect } from "@/hooks/useWindowWorkspaceReconnect.js";
 import { useRemoteWorkspaceTabLifecycle } from "@/root/useRemoteWorkspaceTabLifecycle.js";
@@ -609,6 +610,14 @@ function RootInner({
     () => [...reconnectingRemoteWorkspaceKeys, ...windowWorkspaceReconnect.pendingKeys],
     [reconnectingRemoteWorkspaceKeys, windowWorkspaceReconnect.pendingKeys],
   );
+  const prepareProjectWorkspace = useProjectWorkspacePreparation({
+    services,
+    connect: handleConnectRemote,
+    dispose: handleCancelRemoteProject,
+    retain: retainRemoteDeviceConnection,
+    reconnect: windowWorkspaceReconnect.reconnect,
+    isDesktop: Boolean(isDesktop),
+  });
   const workspaceReconnectErrors = useMemo(
     () => ({ ...remoteWorkspaceErrorByWorkspaceKey, ...windowWorkspaceReconnect.errors }),
     [remoteWorkspaceErrorByWorkspaceKey, windowWorkspaceReconnect.errors],
@@ -1231,6 +1240,7 @@ function RootInner({
               activeWorkspacePath={activeWorkspacePath}
               isSettingsTabActive={isSettingsTabActive}
               handleConnectRemote={handleConnectRemote}
+              onPrepareProjectWorkspace={prepareProjectWorkspace}
               handleSelectRemoteProject={handleSelectRemoteProject}
               handleCancelRemoteProject={handleCancelRemoteProject}
               handleReconnectRemoteWorkspace={windowWorkspaceReconnect.reconnect}

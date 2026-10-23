@@ -5,6 +5,23 @@ import { startWorkflowProgressBrowser } from "./workflow-execution-progress-brow
 import { buildRemoteWorkspaceIdentity } from "../../shared/src/remote-workspace-identity.ts";
 
 test(
+  "double-clicking a sidebar project opens exactly one draft while single-click only expands",
+  { timeout: 60000 },
+  async (t) => {
+    const { browser, port } = await startWorkflowProgressBrowser(t);
+    const page = await browser.newPage();
+    await page.goto(
+      `http://127.0.0.1:${port}/test/fixtures/sidebar-organization.html?project-lifecycle`,
+    );
+    const row = page.getByRole("button", { name: "网站项目", exact: true });
+    await row.click();
+    assert.equal(await page.evaluate(() => globalThis.__sidebarOrganization.facts.drafts), 0);
+    await row.dblclick();
+    assert.equal(await page.evaluate(() => globalThis.__sidebarOrganization.facts.drafts), 1);
+  },
+);
+
+test(
   "composer uses the project chip X without a duplicate work-outside menu item",
   { timeout: 120000 },
   async (t) => {

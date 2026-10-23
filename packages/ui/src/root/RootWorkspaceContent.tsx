@@ -22,6 +22,7 @@ interface RootWorkspaceContentProps {
   activeWorkspacePath: string | null;
   isSettingsTabActive: boolean;
   handleConnectRemote: AppProps["onConnectRemote"];
+  onPrepareProjectWorkspace?: AppProps["onPrepareProjectWorkspace"];
   handleSelectRemoteProject: AppProps["onSelectRemoteProject"];
   handleCancelRemoteProject: AppProps["onCancelRemoteProject"];
   handleReconnectRemoteWorkspace: AppProps["onReconnectRemoteWorkspace"];
@@ -64,6 +65,7 @@ export function RootWorkspaceContent({
   activeWorkspacePath,
   isSettingsTabActive,
   handleConnectRemote,
+  onPrepareProjectWorkspace,
   handleSelectRemoteProject,
   handleCancelRemoteProject,
   handleReconnectRemoteWorkspace,
@@ -150,6 +152,7 @@ export function RootWorkspaceContent({
                   services={workspaceScopedServices}
                   baseFeedbackService={baseFeedbackService}
                   onConnectRemote={handleConnectRemote}
+                  onPrepareProjectWorkspace={onPrepareProjectWorkspace}
                   onSelectRemoteProject={handleSelectRemoteProject}
                   onCancelRemoteProject={handleCancelRemoteProject}
                   onReconnectRemoteWorkspace={handleReconnectRemoteWorkspace}

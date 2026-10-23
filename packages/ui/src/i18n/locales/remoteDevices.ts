@@ -2,6 +2,8 @@ export const remoteDevicesZhCN = {
   "project.source.local": "本地",
   "project.source.remote": "远程",
   "project.source.mixed": "本地 + 远程",
+  "project.open.deviceUnavailable": "项目的远程设备未连接或配置已更改，请检查远程设备后重试。",
+  "project.open.changed": "连接期间项目或设备配置已更改，请重新打开项目。",
   "remote.connectionBackground": "在后台继续",
   "settings.remoteDevices.title": "远程设备",
   "settings.remoteDevices.description":
@@ -37,6 +39,9 @@ export const remoteDevicesEnUS: Record<keyof typeof remoteDevicesZhCN, string> =
   "project.source.local": "Local",
   "project.source.remote": "Remote",
   "project.source.mixed": "Local + remote",
+  "project.open.deviceUnavailable":
+    "The project's remote device is unavailable or its configuration changed. Check Remote devices and retry.",
+  "project.open.changed": "The project or device changed while connecting. Open the project again.",
   "remote.connectionBackground": "Continue in background",
   "settings.remoteDevices.title": "Remote devices",
   "settings.remoteDevices.description":

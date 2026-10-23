@@ -80,6 +80,9 @@ export type CreateTaskRequest = LCodeProvider | CreateTaskOptions;
 export interface AppProps {
   services: IServiceAccessor;
   baseFeedbackService: IFeedbackService;
+  onPrepareProjectWorkspace?: (
+    target: import("@/hooks/useProjectWorkspacePreparation.js").ProjectWorkspaceTarget,
+  ) => Promise<void>;
   onConnectRemote: (options: RemoteTarget, requestId?: string) => Promise<string>;
   onSelectRemoteProject: (
     sessionId: string,

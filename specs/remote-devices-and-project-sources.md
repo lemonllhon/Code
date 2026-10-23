@@ -15,6 +15,30 @@
 - 新入口完成后移除项目选择菜单的“远程连接”。已有远程项目仍可打开与重连；不删除 SSH/WSL/Docker 能力或用户的代理、资源下载选项。
 - 移除设备配置不得删除项目目录、远端文件、任务和历史会话；仍被项目引用的设备保留明确的失联/缺配置状态，不将其成员重新解释成本地路径。
 
+## 重启后显式打开项目（2026-10-23）
+
+- 单击侧栏项目仅展开/收起；双击项目名称、项目的新建会话动作和会话中的项目选择共用草稿准备入口。应用启动仍不自动连接设备，用户显式打开项目后才恢复本次需要的 attachment。
+- 准备入口读取本机 SettingService 的最新项目定义，为项目身份锚点和本次默认参与的远程成员解析保存的设备配置及凭据引用；相同设备复用在线连接，缺失连接通过既有 Root 连接入口恢复。无须先去设置页连接，也无须先有远程 workspace 历史或已打开的 tab。
+- 只有源 workspace 的 identity 必须绑定对应的具体 attachment；其它成员可以复用同 authority 的在线设备连接。其它成员不自动新增项目/tab，也不创建会话 Runtime；新连接沿现有设备 retain 生命周期保留，业务仍由同一 CommandInbox 执行。
+- 本地入口未提供 identity 时保持本地路径 fallback，不从同路径的远程 tab 借用 identity；本地和远程均有相同路径的项目仍独立打开。
+- 连接完成前保持当前会话，项目行显示忙碌状态。快速重复打开同一项目共用一次在途准备；后续选择优先，迟到的准备不得把用户导航回旧项目。失败显示可重试错误，不能无反馈或回退另一设备。
+- 连接期间项目定义或设备 revision 改变时停止本次打开，并仅释放本次新建的 attachment，不释放其它项目连接。凭据不写入新缓存/日志/项目定义。手机沿原 Desktop reconnect owner 请求既有项目恢复，不在浏览器创建 SSH/WSL/Docker 连接。
+- 验收：重载后双击本地/远程为锚点的混合项目，只创建一个草稿；无旧 tab/历史仍可恢复保存的设备；同设备多成员连接去重；缺配置、失败、快速重复、切换目标、修改配置和断线后的重试明确可见。
+
+```mermaid
+sequenceDiagram
+  participant U as 侧栏/会话项目选择
+  participant P as 原草稿入口的项目准备
+  participant S as SettingService/CredentialService
+  participant H as Root连接入口/窗口Host registry
+  U->>P: 显式打开项目（稳定identity）
+  P->>S: 读取最新成员、设备与凭据引用
+  P->>H: 复用在线attachment / 恢复缺失连接
+  H-->>P: ready attachment（原generation）
+  P->>S: 核对项目及设备revision
+  P-->>U: 绑定源identity，进入原项目草稿
+```
+
 ## 项目来源图标（2026-10-23）
 
 - 侧边栏项目行（含收起、展开和归档）、会话输入区项目入口及其项目菜单使用同一来源判定与图标组件。本地项目显示原文件夹/主目录图标；远程项目显示原远程云图标；混合项目并列显示文件夹与远程云两个图标。
@@ -66,6 +90,17 @@ Desktop `desktop-continuous` 与手机 `web-remote-replayable` 都经过相同�
 5. 原生请求半关闭、abort、IO 失败及迟到响应遵守原 drain 语义；跨 origin/过期 generation 继续拒绝，不回退到另一设备。
 
 验证先通过真实 NDJSON 连接的回归用例复现等待环，再验证修复；临时本地目录模拟两台设备的协议测试不等同于真实 SSH 或已安装包验收。
+
+## 2026-10-23 修复验证记录
+
+- `pnpm test:remote-control` 最终 200/200 通过，包含新增原生调度、同会话双端 IO 与项目连接准备回归；新重载浏览器场景已纳入永久测试白名单及侧栏 UI 回归入口。
+- 先补 NDJSON 调度测试，修复前 7 项中 3 项失败：原生 stat/close 被等待中的输入挡住、长原生调用阻塞后续命令、原生检查错误地等待配置屏障。修复后 7/7 通过，既有连通性及 shutdown 联合 14/14 通过；普通命令、探测配置屏障及取消顺序保留。
+- `scripts/project-native-admission.test.ts` 四种组合通过：Desktop continuous / Web replayable × 本地 / 远程来源，在同一次 admission 返回前经 Host 签名路由、两条真实 NDJSON 资源端口、原生文件读写和真实子进程执行，核对两端 cwd、owner 清理及源请求不增加会话 Runtime。模型和两台设备由隔离夹具替代，不冒充实机 SSH。
+- 项目准备单测 8/8 通过：无旧 tab/历史、同设备成员去重、重复打开 single-flight、失败重试、项目/设备 revision 改变只清理新连接、同设备另一目录不能替代来源 identity、同路径本地/远程隔离、缺配置/目标变更、默认未参与成员不建连和手机沿 Desktop owner 恢复。
+- 浏览器项目菜单与图标 6/6 通过；重载后混合项目双击打开 1/1 通过，覆盖本地/远程来源、启动不自动连接、等待 ready、快速重复双击、失败后重试、中文/英文、390px、大字号与七主题。既有离线归档、读取失败与重读不重连场景 4/4 通过。目录说明滚动通过；键盘排序联合运行首次等待 DnD announcement 超时，单独复跑通过，保留这个非稳定结果。
+- 根 `pnpm typecheck`、`pnpm lint` 最终通过；CLI typecheck 27 tasks、lint 14 tasks 通过。CLI lint 保留 registry 的已有 warning，Turbo 提示已有 lockfile workspace 图不完整。期间并行 Git hook 的 TS4058 与另一文件的超长检查曾失败，后续工作区更新后通过；本任务没有修改那些文件。
+- 最终 changed architecture：violations=0 / baseline=0 / new=0；目标格式与 diff 检查通过。生产修改归 CLI 与 UI：传输调度仍归 NDJSON connection，资源仍归原 ProjectNativeServer/Host，连接准备调用既有 Root/Host owner，UI 只保存临时打开意图与忙碌状态。生产净增 330 行，排除任务开始前 App 的 7 行删除及 Root/types 的原有替换；测试、夹具和 spec 单列，不把整个并行工作区计为本任务改动。
+- 未构建或替换安装版，也未访问真实 SSH/WSL/Docker 设备。桌面 UI/Host 与成员目标 Agent 都需要包含本次修复的新构建；当前已安装的旧 Agent 仍保留原队列行为。
 
 ## 修改前确认的问题
 

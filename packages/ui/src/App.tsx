@@ -81,6 +81,8 @@ import { usePaneLayoutStore } from "@/v4/paneLayoutStore.js";
 import { useWorkbenchGroupStore } from "@/v4/workbenchGroupStore.js";
 import type { AssistantPreviewCardsAutoOpenRequest } from "@/lib/assistantPreviewCards.js";
 import { startMemoryDiagnosticsLogger } from "@/lib/memoryDiagnostics.js";
+import { getErrorMessage } from "@/lib/errorMessage.js";
+import { toast } from "@/components/ui/toast.js";
 
 const EMPTY_RECONNECTING_REMOTE_WORKSPACE_LOGS_BY_WORKSPACE_KEY: NonNullable<
   AppProps["reconnectingRemoteWorkspaceLogsByWorkspaceKey"]
@@ -92,6 +94,7 @@ export function App({
   services,
   baseFeedbackService,
   onConnectRemote,
+  onPrepareProjectWorkspace,
   onSelectRemoteProject,
   onCancelRemoteProject,
   onReconnectRemoteWorkspace,
@@ -735,8 +738,17 @@ export function App({
     workspaceAbsPath,
     reloadSessionDisabled,
   });
+  const projectOpenIntent = useRef(0);
+  const projectOpenOrigin = useRef(workspaceIdentity?.trim() || workspaceAbsPath);
+  projectOpenOrigin.current = workspaceIdentity?.trim() || workspaceAbsPath;
+  useEffect(
+    () => () => {
+      projectOpenIntent.current += 1;
+    },
+    [],
+  );
   const handleStartDraftInWorkspace = useCallback(
-    (
+    async (
       targetWorkspacePath: string,
       targetWorkspaceIdentity?: string,
       targetWorkspacePurpose?: WorkspacePurpose,
@@ -744,11 +756,35 @@ export function App({
       localProjectId?: string,
     ) => {
       const store = useLCodeSessionStore.getState();
-      const resolvedTargetWorkspaceIdentity =
-        targetWorkspaceIdentity ??
-        tabs.filter(isWorkspaceTab).find((tab) => tab.workspacePath === targetWorkspacePath)
-          ?.workspaceIdentity;
+      // 中文依据：缺省 identity 表示本地；同路径的远程 tab 不能替本地项目决定执行设备。
+      const resolvedTargetWorkspaceIdentity = targetWorkspaceIdentity;
       if (isWorkspaceReadOnly({ tabs }, targetWorkspacePath, resolvedTargetWorkspaceIdentity)) {
+        return;
+      }
+      const intent = ++projectOpenIntent.current;
+      const origin = projectOpenOrigin.current;
+      const previousTask = store.getWorkspaceState(
+        workspaceAbsPath,
+        workspaceIdentity,
+      ).activeTaskId;
+      try {
+        // 中文依据：侧栏只恢复项目定义，重启后的 attachment 未就绪；与项目选择共用准备后再激活草稿。
+        await onPrepareProjectWorkspace?.({
+          workspacePath: targetWorkspacePath,
+          workspaceIdentity: resolvedTargetWorkspaceIdentity,
+          localProjectId,
+        });
+        if (
+          intent !== projectOpenIntent.current ||
+          origin !== projectOpenOrigin.current ||
+          store.getWorkspaceState(workspaceAbsPath, workspaceIdentity).activeTaskId !== previousTask
+        )
+          return;
+      } catch (error) {
+        if (intent === projectOpenIntent.current) {
+          logger.warn("[App] 项目连接准备失败", { error });
+          toast(getErrorMessage(error), { variant: "warning" });
+        }
         return;
       }
       const targetSelectedProvider = resolveWorkspaceSwitchDraftProvider({
@@ -824,6 +860,7 @@ export function App({
       workspaceAbsPath,
       workspaceIdentity,
       workspaceShellLCodeState.selectedProvider,
+      onPrepareProjectWorkspace,
     ],
   );
 

@@ -25,6 +25,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
+import { createProjectWorkspacePreparation } from "@/hooks/useProjectWorkspacePreparation.js";
 import { useWorktreeLifecycleStore } from "@/store/worktreeLifecycleStore.js";
 import { ConfirmDialogHost } from "@/ConfirmDialog.js";
 import { platform } from "./git-backup-platform.js";
@@ -302,6 +303,37 @@ function registerRemote(sessionId = "remote") {
   store.bindWorkspaceIdentity(identity, sessionId);
 }
 if (!savedHistory) registerRemote();
+let releaseProjectPreparation: (() => void) | undefined;
+let projectPreparationGate: Promise<void> | undefined;
+let failProjectPreparation = false;
+const prepareProject = createProjectWorkspacePreparation({
+  getSettings: () => services.settingService.get(),
+  loadCredential: async () => "fixture-password",
+  sessions: () => Object.values(useRemoteWorkspaceSessionStore.getState().sessionsById),
+  connect: async (target, _requestId, context) => {
+    facts.connects++;
+    await projectPreparationGate;
+    if (failProjectPreparation) throw new Error("Fixture project connection failed");
+    const sessionId = `prepared-${facts.connects}`;
+    useRemoteWorkspaceSessionStore.getState().registerSession({
+      sessionId,
+      target,
+      workspacePath: context?.workspacePath,
+      workspaceIdentity: context?.workspaceIdentity,
+      services: remoteServices,
+    });
+    return sessionId;
+  },
+  dispose: async (id) => useRemoteWorkspaceSessionStore.getState().unregisterSession(id),
+  retain: noop,
+  bind: (key, id) => useRemoteWorkspaceSessionStore.getState().bindWorkspaceIdentity(key, id),
+  reconnect: async () => {
+    throw new Error("Fixture must restore from the saved device profile");
+  },
+  isDesktop: () => true,
+});
+if (params.has("prepare-project"))
+  useRemoteWorkspaceSessionStore.getState().unregisterSession("remote");
 Object.assign(globalThis, {
   __sidebarOrganization: {
     projectTaskSnapshot: () => structuredClone(tasks),
@@ -313,6 +345,25 @@ Object.assign(globalThis, {
     identity,
     origin,
     settings: () => settings,
+    projectPreparation: {
+      hold: () => {
+        projectPreparationGate = new Promise((resolve) => {
+          releaseProjectPreparation = resolve;
+        });
+      },
+      release: () => {
+        releaseProjectPreparation?.();
+        projectPreparationGate = undefined;
+      },
+      fail: (fail: boolean) => {
+        failProjectPreparation = fail;
+      },
+      disconnect: () => {
+        for (const id of Object.keys(useRemoteWorkspaceSessionStore.getState().sessionsById))
+          if (id.startsWith("prepared-"))
+            useRemoteWorkspaceSessionStore.getState().unregisterSession(id);
+      },
+    },
     rejectDeletion: (reject: boolean) => {
       rejectDeletion = reject;
     },
@@ -411,7 +462,9 @@ function Fixture({
             onSelectTask={(path, id, scope) => {
               facts.selected = `${path}:${id}:${scope || ""}`;
             }}
-            onStartDraftInWorkspace={() => {
+            onStartDraftInWorkspace={async (workspacePath, workspaceIdentity) => {
+              if (params.has("prepare-project"))
+                await prepareProject({ workspacePath, workspaceIdentity });
               facts.drafts++;
             }}
             onCreateTask={(request) => {

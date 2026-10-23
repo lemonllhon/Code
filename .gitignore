@@ -496,6 +496,7 @@ nul
 !/packages/web/test/fixtures/remote-devices.tsx
 !/packages/web/test/remote-connection-switches.test.mjs
 !/packages/web/test/project-source-interaction.test.mjs
+!/packages/web/test/mixed-project-reopen.test.mjs
 !/packages/services/src/setting/remoteDeviceMutations.test.ts
 
 # 会话路由恢复提示与永久浏览器回归。
