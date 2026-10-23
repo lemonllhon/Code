@@ -5,6 +5,7 @@ import { constants as fsConstants, existsSync, readFileSync, statSync } from "no
 import {
   access,
   mkdir,
+  mkdtemp,
   readFile,
   realpath,
   rename,
@@ -544,7 +545,10 @@ export function createCuaHelperInstaller(options = {}) {
 
     await mkdir(dirname(plan.installPath), { recursive: true, mode: 0o700 });
     const nonce = `${process.pid}-${randomBytes(8).toString("hex")}`;
-    const stagingPath = `${plan.installPath}.install-${nonce}`;
+    // 真实身份校验要求 .app 后缀；原先把 nonce 拼在 .app 后导致首次安装/升级必然失败。
+    // 用私有临时根包住原名 app，保留全部身份校验及同文件系统的原子替换语义。
+    const stagingRoot = await mkdtemp(join(dirname(plan.installPath), ".cua-install-"));
+    const stagingPath = join(stagingRoot, basename(plan.installPath));
     const backupPath = `${plan.installPath}.backup-${nonce}`;
     let movedExisting = false;
     let installedNew = false;
@@ -587,6 +591,12 @@ export function createCuaHelperInstaller(options = {}) {
         `Computer Use Helper installation failed: ${stringifyError(error)}`,
         "install_failed",
       );
+    } finally {
+      await removeInstallScratch(stagingRoot, plan.root).catch((error) => {
+        log(options, "warn", "Computer Use Helper staging cleanup failed.", {
+          error: stringifyError(error),
+        });
+      });
     }
   };
 
