@@ -26,7 +26,7 @@ export const DEFAULT_RESOURCE_SCAN_BUDGET: Readonly<ResourceScanBudget> = Object
   maxEntries: 2_000,
   maxDurationMs: 200,
 });
-export const MAX_RESOURCE_SCAN_BUDGET: Readonly<ResourceScanBudget> = Object.freeze({
+const MAX_RESOURCE_SCAN_BUDGET: Readonly<ResourceScanBudget> = Object.freeze({
   maxEntries: 20_000,
   maxDurationMs: 2_000,
 });

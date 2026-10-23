@@ -1,5 +1,6 @@
-import type { TextStreamPart, ToolSet } from "ai";
 import type { ModelStreamEvent } from "@lcode/contracts";
+import type { TextStreamPart, ToolSet } from "ai";
+import type { createStreamDiagnostics } from "./runner-diagnostics.js";
 import type { ModelRunnerInput } from "./runner-request-state.js";
 import type {
   AiSdkModelTextRequest,
@@ -8,7 +9,6 @@ import type {
   ResolvedAiSdkModel,
 } from "./runner-runtime.js";
 import type { ModelStatusContext } from "./runner-status.js";
-import type { createStreamDiagnostics } from "./runner-diagnostics.js";
 import type { createLinkedAbortController } from "./stream-idle-timeout.js";
 import type { StreamingToolCallAssembler } from "./streaming-tool-call-assembler.js";
 
@@ -26,7 +26,6 @@ export interface StreamAttemptState {
   emittedRetryBoundaryEvent: boolean;
   emittedError: boolean;
   retryScheduledFromStreamChunk: boolean;
-  offPeakQueueHoldFromStreamChunk: boolean;
   pendingRetrySafeEvents: ModelStreamEvent[];
   diagnostics: ReturnType<typeof createStreamDiagnostics>;
   attemptAbortController: ReturnType<typeof createLinkedAbortController>;

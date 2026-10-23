@@ -1,4 +1,3 @@
-import { createPartId } from "../deps.js";
 import type {
   MessageId,
   Model,
@@ -7,21 +6,21 @@ import type {
   ToolCallId,
   TraceContext,
 } from "../deps.js";
+import { createPartId } from "../deps.js";
 import {
   emitStreamingToolLedgerUpdate,
   requireRuntimeToolCallName,
-  toRecordInput,
   throwIfTurnAborted,
+  toRecordInput,
 } from "../helpers/index.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import type { StreamedToolExecutionResult } from "../types.js";
+import { mcpToolPartMetadata } from "./tool-part-metadata.js";
+import { persistPendingToolPart } from "./tool-part-persistence.js";
 import {
   isAutomationMutationRestrictedTurn,
-  isOffPeakCreateRestrictedTurn,
   type RegularTurnLoopState,
 } from "./turn-loop-state.js";
-import { persistPendingToolPart } from "./tool-part-persistence.js";
-import { mcpToolPartMetadata } from "./tool-part-metadata.js";
 
 export async function executeDuringStream(
   runtime: AgentRuntimeInternal,
@@ -96,7 +95,6 @@ export async function executeDuringStream(
     model: state.model,
     automationTurn: isAutomationMutationRestrictedTurn(state),
     automationId: state.automationId,
-    offPeakTurn: isOffPeakCreateRestrictedTurn(state),
     signal: options.abortSignal,
     traceContext: options.traceContext,
     onToolStart: async () => {

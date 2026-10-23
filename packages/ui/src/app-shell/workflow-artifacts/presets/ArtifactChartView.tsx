@@ -139,7 +139,7 @@ type PlotProps = { model: ChartModel; compact: boolean };
  * `memo` 的比较谓词（`true` = 跳过重渲染）。单独导出是为了能直接测——「什么时候不重画」
  * 是这张图的性能契约本身，把它藏在 memo 的第二实参里就没法钉住了。
  */
-export function chartPlotPropsEqual(previous: PlotProps, next: PlotProps): boolean {
+function chartPlotPropsEqual(previous: PlotProps, next: PlotProps): boolean {
   if (previous.compact !== next.compact) {
     return false;
   }

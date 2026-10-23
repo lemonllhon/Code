@@ -8,7 +8,7 @@ import type { GitWorkspaceSafety } from "./gitWorkspaceSafety.js";
 export const MAX_CONFLICT_TEXT = 256 * 1024;
 const MAX_FILE_BYTES = 64 * 1024 ** 2;
 export const digest = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
-export const absentVersion = (): GitConflictVersion => ({
+const absentVersion = (): GitConflictVersion => ({
   kind: "absent",
   oid: null,
   mode: null,
@@ -16,11 +16,7 @@ export const absentVersion = (): GitConflictVersion => ({
   text: null,
   eol: "none",
 });
-export function textVersion(
-  bytes: Buffer,
-  mode: string | null,
-  oid: string | null,
-): GitConflictVersion {
+function textVersion(bytes: Buffer, mode: string | null, oid: string | null): GitConflictVersion {
   const base = { ...absentVersion(), mode, oid, size: bytes.length };
   if (bytes.includes(0)) return { ...base, kind: "binary" };
   const text = bytes.toString("utf8");

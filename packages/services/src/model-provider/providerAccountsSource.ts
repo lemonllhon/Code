@@ -20,7 +20,7 @@ export function oauthProviderId(channelId: string): string {
 }
 export function createProviderAccountsSource(
   base: ProviderSource<AccountProviderConfigSnapshot> & {
-    refresh(reason: string): Promise<AccountProviderConfigSnapshot>;
+    refresh?(reason: string): Promise<AccountProviderConfigSnapshot>;
   },
   accounts: Pick<ProviderAccounts, "readAccounts" | "channelName" | "onDidChange">,
 ) {
@@ -117,7 +117,7 @@ export function createProviderAccountsSource(
   }
   return {
     read: async () => project(await base.read()),
-    refresh: async (reason: string) => project(await base.refresh(reason)),
+    refresh: async (reason: string) => project(await (base.refresh?.(reason) ?? base.read())),
     onDidChange(listener: (reason: string) => void) {
       const offBase = base.onDidChange(listener);
       const offAccounts = accounts.onDidChange(() => listener("oauth-accounts"));

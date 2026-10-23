@@ -51,7 +51,7 @@ export const CONFIGURATION_FILES = [".npmrc", "pnpm-workspace.yaml"] as const;
 export const isSha256Digest = (value: string | undefined): value is string =>
   typeof value === "string" && /^[a-f0-9]{64}$/u.test(value);
 
-export function normalizeVersionText(raw: string): { constraint: string; exact: boolean } {
+function normalizeVersionText(raw: string): { constraint: string; exact: boolean } {
   const constraint = raw.trim().replace(/^v(?=\d)/u, "");
   const exactVersion = valid(constraint);
   return { constraint: exactVersion ?? constraint, exact: exactVersion !== null };

@@ -193,7 +193,7 @@ export function createGitManagementService(options: {
     readRepositoryContext: async (request) =>
       projectGitRepositoryContext(
         request.workspacePath,
-        await routing.getRepositoryAuthentication(request),
+        await routing.getRepositoryContextSnapshot(request),
       ),
     dispose: () => {
       authorization.dispose();

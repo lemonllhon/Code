@@ -6,7 +6,7 @@ import {
 } from "@lcode/shared";
 import { normalizeLCodeUiError } from "@/lib/lcodeUiError.js";
 
-export const MODEL_CONFIG_MISSING_UI_ERROR_CODE = "model_config_missing";
+const MODEL_CONFIG_MISSING_UI_ERROR_CODE = "model_config_missing";
 
 export type ModelConfigMissingUiError = LCodeError & {
   code: typeof MODEL_CONFIG_MISSING_UI_ERROR_CODE;

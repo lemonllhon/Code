@@ -9,7 +9,7 @@ import type {
 } from "../backup/contract.js";
 import { accountSchema } from "./providerAccountStoreSchema.js";
 import { oauthProviderId } from "./providerAccountsSource.js";
-export const providerBackupDataSchema = z
+const providerBackupDataSchema = z
   .object({ version: z.literal(1), personal: z.unknown(), accounts: z.array(accountSchema) })
   .strict();
 export type ProviderBackupData = {
@@ -35,7 +35,7 @@ export function parseProviderBackupData(value: unknown): ProviderBackupData {
 export function providerBackupRevision(data: ProviderBackupData): string {
   return createHash("sha256").update(JSON.stringify(data)).digest("hex");
 }
-export function selectProviderBackup(
+function selectProviderBackup(
   data: ProviderBackupData,
   selection?: BackupSelection,
 ): ProviderBackupData {

@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFile } from "node:fs/promises";
 import {
   ApiKeyAccessConfig,
   ProviderApiConfig,
   ProviderConfig,
+  parseProviderConfig,
   type RegistryProviderConfig,
 } from "@lcode/provider";
 import { AiSdkModelExecution, createApiKeyFailoverFetch } from "./model-execution.js";
@@ -165,11 +167,13 @@ function bindProvider(
   execution: AiSdkModelExecution,
   providerId: string,
   saveGeneration: string | undefined,
+  config = providerConfig(),
+  modelId = "demo",
 ) {
   const binding = execution.bindModel({
     providerId,
-    modelId: "demo",
-    providerConfig: providerConfig(),
+    modelId,
+    providerConfig: config,
     ...(saveGeneration === undefined ? {} : { providerSaveGeneration: saveGeneration }),
     supportsJsonSchemaOutput: false,
     optionSpecs,
@@ -198,6 +202,54 @@ function bindProvider(
 function bindKeys(execution: AiSdkModelExecution, saveGeneration: string | undefined) {
   return bindProvider(execution, "custom", saveGeneration);
 }
+
+test("retained Coding Plan templates call Anthropic with user keys without an application subscription", async () => {
+  const data = JSON.parse(
+    await readFile(
+      new URL("../../../../../../config/provider/lcode-builtin.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  for (const id of ["zai-api", "bigmodel-api"]) {
+    const template = data.config.providerConfigRules.templateRules.find(
+      (entry: { templateId: string }) => entry.templateId === id,
+    );
+    assert.ok(template);
+    const calls: Request[] = [];
+    const execution = new AiSdkModelExecution(
+      {},
+      {
+        transport: async (input) => {
+          calls.push(new Request(input));
+          return Response.json({
+            id: "msg_fixture",
+            type: "message",
+            role: "assistant",
+            model: "GLM-5.3",
+            content: [{ type: "text", text: "ok" }],
+            stop_reason: "end_turn",
+            stop_sequence: null,
+            usage: { input_tokens: 1, output_tokens: 1 },
+          });
+        },
+      },
+    );
+    const config = parseProviderConfig({
+      ...template.config,
+      group: "standard-personal",
+      access: { ...template.config.access, apiKey: "FIXTURE_ONLY_NOT_A_REAL_API_KEY" },
+    }) as RegistryProviderConfig;
+    await generate(bindProvider(execution, `custom:${id}`, undefined, config, "GLM-5.3"));
+    assert.equal(calls.length, 1);
+    assert.equal(
+      new URL(calls[0]!.url).pathname,
+      id === "zai-api"
+        ? "/api/v1/ultra-zai/anthropic/v1/messages"
+        : "/api/v1/ultra/anthropic/v1/messages",
+    );
+    assert.equal(calls[0]!.headers.get("x-api-key"), "FIXTURE_ONLY_NOT_A_REAL_API_KEY");
+  }
+});
 
 async function generate(resolveModel: ReturnType<typeof bindProvider>): Promise<void> {
   // 现行派发许可归 Runner；直接 doGenerate 绕过每次 Key 尝试的准入与预算，不能证明正式回退链路。

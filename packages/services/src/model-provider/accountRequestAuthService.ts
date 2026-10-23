@@ -19,7 +19,15 @@ export interface IAccountRequestAuthService {
 }
 
 export function createAccountRequestAuthService(
-  resolver: AccountRequestAuthResolver,
+  resolver: AccountRequestAuthResolver = {
+    resolveAccessCurrent: async () => null,
+    resolveCurrent: async ({ providerId }) => {
+      throw new Error("Retired account provider: " + providerId);
+    },
+    assertCurrent: async ({ providerId }) => {
+      throw new Error("Retired account provider: " + providerId);
+    },
+  },
 ): IAccountRequestAuthService {
   return {
     resolveAccessCurrent(access) {
@@ -36,7 +44,6 @@ export function createAccountRequestAuthService(
 
 export type {
   AccountRequestAuthInput,
-  AccountAccessIdentityInput,
   AccountRequestAuthMaterial,
   AccountRequestAuthResolver,
 } from "./accountProviderRequestAuthService.js";

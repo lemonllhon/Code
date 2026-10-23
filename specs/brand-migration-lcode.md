@@ -1,5 +1,7 @@
 # LCode 品牌迁移决策与执行记录（ZCode → LCode）
 
+2026-10-23 套餐清理：应用内购买桥接与专用 Chromium 分区已移除，旧数据由 [移除规格](coding-plan-removal.md) 定义的启动清理负责，不再作为品牌迁移保留项。
+
 > 依据 `out/lcode-brand-survey.md`（2026-09-28 品牌检索报告）执行全仓更名。本文件是第 0 步的决策输出与批次 1–5 的执行/验收记录，迁移完成后长期保留作为例外清单与兼容边界的权威来源。
 
 ## 第 0 步决策（2026-09-28，执行者按报告默认选项确认）
@@ -25,11 +27,10 @@
 3. **MCP 命名空间**：`com.zcode/*`（含 Go 侧产出）。
 4. **插件市场**：市场 ID 与插件 ID 后缀 `zcode-plugins-official`。
 5. **外部包名**：`zcode_cua`（PyPI）、`zcode-cua.server`（npm）。
-6. **官网跨站契约**：`zcodeBridge`、`__zcodeLang__`、`zcode-coding-plan-lang-change`、注入官网页的 `localStorage "zcode-theme"` 与 `"zcode:coding-plan:embedded"`（codingPlanWebview.ts / codingPlanEmbeddedWebview.ts 内）。
-7. **持久化枚举/数据标识**：枚举字面量 `"zcode"`（CustomCommandSource、SkillSource、McpSyncSource、SettingsDirectorySource、settings-sync、skill source、telemetry skillSource）、`"zcodeagentmcp"`（MCP source 值，CLI 配置文件双侧一致）、旧 config.json 字段 `provider.zcode`/`model.zcode`、迁移源键 `localStorage:zcode-mcp-config`、SQLite 行键 `__zcode_internal_*` 与 traceId 前缀 `zcode-${task_id}`。
-8. **遥测 schema**：OTel 前缀 `zcode.agent.*`/`zcode.agent_turn.*`/`zcode.tool_execution.*` 等（telemetry 包内全部点分键）与哈希输入 `zcode:session_create:v1`。
-9. **上游指认**：README/NOTICE 对 `zai-org/ZCode` 的引用与锚点、第三方许可证原文（THIRD-PARTY-NOTICES.md、third-party/inventory.json——不机械改，重跑生成器再生）。
-10. **第三方 patch 内部标识**：patches/@arms\_\_rum-electron 的 `zcodeConsole*`（patch 内容不改，hash 保持有效）。
+6. **持久化枚举/数据标识**：枚举字面量 `"zcode"`（CustomCommandSource、SkillSource、McpSyncSource、SettingsDirectorySource、settings-sync、skill source、telemetry skillSource）、`"zcodeagentmcp"`（MCP source 值，CLI 配置文件双侧一致）、旧 config.json 字段 `provider.zcode`/`model.zcode`、迁移源键 `localStorage:zcode-mcp-config`、SQLite 行键 `__zcode_internal_*` 与 traceId 前缀 `zcode-${task_id}`。
+7. **遥测 schema**：OTel 前缀 `zcode.agent.*`/`zcode.agent_turn.*`/`zcode.tool_execution.*` 等（telemetry 包内全部点分键）与哈希输入 `zcode:session_create:v1`。
+8. **上游指认**：README/NOTICE 对 `zai-org/ZCode` 的引用与锚点、第三方许可证原文（THIRD-PARTY-NOTICES.md、third-party/inventory.json——不机械改，重跑生成器再生）。
+9. **第三方 patch 内部标识**：patches/@arms\_\_rum-electron 的 `zcodeConsole*`（patch 内容不改，hash 保持有效）。
 
 ## 兼容读取清单（新值生效 + 旧值兼容，批次 2）
 
@@ -40,7 +41,7 @@
 | 用户数据根        | `~/.lcode`（cli/、v2/）                                                         | 首启自动复制迁移，源目录保留                                           |
 | 工作区目录        | `<workspace>/.lcode`、`.lcode-plugin`                                           | 首次访问时复制迁移                                                     |
 | Electron userData | `appData/LCode`                                                                 | main 早期把旧 `appData/ZCode` 复制迁移                                 |
-| Chromium 分区     | `persist:lcode-embedded-browser`、`persist:lcode-coding-plan`                   | 分区目录复制迁移                                                       |
+| Chromium 分区     | `persist:lcode-embedded-browser`                                                | 分区目录复制迁移                                                       |
 | localStorage 键   | `lcode-theme`、`lcode-locale`、`lcode:remote-pairing:*`                         | 读新键，缺失时读旧键并回写                                             |
 | 凭据键            | `lcodejwttoken`                                                                 | 读新键，缺失时读旧键 `zcodejwttoken`                                   |
 | Web 鉴权 cookie   | `lcode_lite_token`                                                              | 服务端双读旧 cookie `zcode_lite_token`（过渡期）                       |
@@ -111,7 +112,6 @@
 - packages/desktop/src/main/desktopEarlyDataBaseDirBootstrap.ts（1 行）
 - packages/desktop/src/main/desktopRuntimeEnv.ts（2 行）
 - packages/desktop/src/main/desktopWindowChrome.ts（2 行）
-- packages/desktop/src/preload/codingPlanWebview.ts（4 行）
 - packages/desktop/src/renderer/src/main.tsx（2 行）
 - packages/lcode-cua/broker-server.js（3 行）
 - packages/lcode-cua/broker.test.js（2 行）
@@ -133,7 +133,6 @@
 - packages/ui/src/lib/toolIdentity.ts（2 行）
 - packages/ui/src/settings/CodingPlanEmbeddedWebviewDialog.tsx（2 行）
 - packages/ui/src/settings/CodingPlanUpgradeDialog.tsx（1 行）
-- packages/ui/src/settings/model-provider-section/codingPlanEmbeddedWebview.ts（3 行）
 - packages/ui/src/store/index.ts（2 行）
 - packages/web/index.html（2 行）
 - packages/web/src/remote/mirrorReconnect.ts（2 行）
@@ -150,10 +149,7 @@
 - apps/lcode-cli/packages/adapters/src/config/schema.ts（1 行）
 - config/provider/lcode-builtin.json（3 行）
 - packages/lcode-cua/broker-server.js（1 行）
-- packages/services/src/coding-plan-subscription/bigmodelCodingPlanSubscriptionProvider.ts（1 行）
 - packages/services/src/model-provider/legacyLCodeConfigProviderReader.ts（4 行）
-- packages/services/src/session/offPeakServerClient.ts（3 行）
-- packages/services/src/session/offPeakTaskService.ts（3 行）
 - packages/shared/src/mcp.ts（14 行）
 
 ### 外部域名族 zcode.z.ai / zcode-plan 网关路径 —— 43 行 / 28 文件
@@ -181,9 +177,7 @@
 - packages/ui/src/lib/lcodeUiError.ts（1 行）
 - packages/ui/src/lib/productDocs.ts（1 行）
 - packages/ui/src/lib/providerBusinessError.ts（1 行）
-- packages/ui/src/lib/rendererLCodeEndpoint.ts（1 行）
 - packages/ui/src/settings/CodingPlanEmbeddedWebviewDialog.tsx（1 行）
-- packages/ui/src/settings/model-provider-section/codingPlanEmbeddedWebview.ts（2 行）
 - packages/ui/src/v4/featureSuggestedPrompts.ts（1 行）
 - packages/web/src/share/ConversationShareLandingPage.tsx（1 行）
 
@@ -220,15 +214,7 @@
 ### 外部包名 zcode_cua / zcode-cua.server / zcode-api-key —— 4 行 / 3 文件
 
 - apps/lcode-cli/packages/adapters/src/auth/coding-plan-api-key.ts（1 行）
-- packages/services/src/model-provider/accountProviderApiTypes.ts（1 行）
 - packages/shared/src/mcp.ts（2 行）
-
-### 官网跨站契约 zcodeBridge / **zcodeLang** / zcode-coding-plan-lang-change / zcode:coding-plan:embedded / 注入页 zcode-theme —— 12 行 / 4 文件
-
-- packages/desktop/src/main/desktopWindowChrome.ts（1 行）
-- packages/desktop/src/preload/codingPlanWebview.ts（4 行）
-- packages/shared/src/channels.ts（1 行）
-- packages/ui/src/settings/model-provider-section/codingPlanEmbeddedWebview.ts（6 行）
 
 ### 持久化枚举/数据标识 "zcode" / zcodeagentmcp / provider.zcode / model.zcode / localStorage:zcode-mcp-config / \_\_zcode_internal —— 88 行 / 37 文件
 
@@ -240,7 +226,6 @@
 - packages/desktop/electron-builder.config.js（1 行）
 - packages/desktop/src/main/mcpUserDirectory/index.ts（3 行）
 - packages/desktop/src/main/mcpUserDirectory/types.ts（1 行）
-- packages/services/src/coding-plan-subscription/bigmodelCodingPlanSubscriptionProvider.ts（1 行）
 - packages/services/src/commands/commandsService.ts（2 行）
 - packages/services/src/hooks/hooksService.ts（7 行）
 - packages/services/src/hooks/workspaceHookSettingsModel.ts（1 行）

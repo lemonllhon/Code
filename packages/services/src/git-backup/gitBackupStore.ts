@@ -41,7 +41,7 @@ export {
   type GitBackupStoredState,
 } from "./gitBackupStoreDocument.js";
 
-export interface GitBackupAdmissionDestination {
+interface GitBackupAdmissionDestination {
   provider: GitBackupProvider;
   config?: GitBackupDestinationConfig;
   error?: string;

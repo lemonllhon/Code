@@ -8,8 +8,8 @@ import {
 import { targetParts } from "./sea-targets.mjs";
 import { readNativeSearchNotices } from "../../../../../scripts/third-party-notices.mjs";
 
-export const seaRuntimeToolAssetPrefix = "lcode-runtime-tools/";
-export const seaRuntimeToolManifestAssetKey = `${seaRuntimeToolAssetPrefix}manifest.json`;
+const seaRuntimeToolAssetPrefix = "lcode-runtime-tools/";
+const seaRuntimeToolManifestAssetKey = `${seaRuntimeToolAssetPrefix}manifest.json`;
 
 const binaryNames = Object.freeze({
   bfs: "bfs",

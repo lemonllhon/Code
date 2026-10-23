@@ -60,8 +60,6 @@ export function errorCategory(event: ModelRequestFailedStatusEvent): AgentTeleme
     case ModelFailureReason.ServerError:
     case ModelFailureReason.ProxyError:
     case ModelFailureReason.AuthRefresh:
-    case ModelFailureReason.OffpeakQueued:
-      return "provider";
     default:
       return "unknown";
   }

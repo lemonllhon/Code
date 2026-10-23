@@ -6,7 +6,7 @@ export function isMemoryNotFound(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
 }
 
-export function isMemoryFileName(name: string): boolean {
+function isMemoryFileName(name: string): boolean {
   return (
     name.length > 0 &&
     name.endsWith(".md") &&

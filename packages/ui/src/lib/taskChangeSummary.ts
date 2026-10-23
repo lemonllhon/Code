@@ -138,7 +138,7 @@ export function buildTaskChangeSummary(
   };
 }
 
-export function buildTurnChangeSummary(
+function buildTurnChangeSummary(
   turn: LCodePersistedFileChange | null | undefined,
 ): LCodeTaskChangeSummary | null {
   if (!turn || turn.snapshots.length === 0) {

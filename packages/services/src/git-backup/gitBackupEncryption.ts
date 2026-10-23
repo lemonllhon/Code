@@ -85,10 +85,6 @@ export function encryptBuffer(data: Buffer, publicKeyPem: string): EncryptedPayl
   return { encryptedData, encryptedKey, iv };
 }
 
-export async function readPublicKey(dataDir: string): Promise<string> {
-  return (await ensureKeyPair(dataDir)).publicKey;
-}
-
 export async function readPrivateKey(dataDir: string): Promise<string> {
   return (await ensureKeyPair(dataDir)).privateKey;
 }

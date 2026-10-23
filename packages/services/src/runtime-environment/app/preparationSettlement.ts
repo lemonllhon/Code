@@ -8,7 +8,7 @@ import type { PreparationOptions, PreparationRun } from "./preparationTypes.js";
 import { preparationError } from "./preparationTypes.js";
 import { finishPreparationCommit } from "./preparationCommit.js";
 
-export class PreparationCancelled extends Error {
+class PreparationCancelled extends Error {
   constructor() {
     super("preparation cancellation requested");
   }

@@ -1,12 +1,13 @@
-import { createHash } from "node:crypto";
-import { isAbsolute, relative, resolve, sep } from "node:path";
 import {
   ProjectMemoryReviewItemSchema,
   type ProjectMemoryReviewSource,
   type TraceContext,
 } from "@lcode/contracts";
+import { createHash } from "node:crypto";
+import { relative, resolve, sep } from "node:path";
 import type { ToolExecutionContext } from "../tool/types.js";
 import { resolveSafeMemoryFilePath } from "./memory-file-path.js";
+import { isAbsolute } from "node:path";
 
 export const REVIEW_SESSION_LIMIT = 8;
 export const REVIEW_SESSION_CHARACTER_LIMIT = 12_000;
@@ -152,7 +153,6 @@ export function assertReviewCapabilities(context: ToolExecutionContext): void {
       : !context.sessionStore?.readTranscriptSnapshot) ||
     context.runtimeScope === "subagent" ||
     context.automationTurn ||
-    context.offPeakTurn ||
     (context.reviewMode === "incremental" &&
       (!context.reviewBoundary ||
         context.reviewBoundary.sessionId !== context.sessionId ||

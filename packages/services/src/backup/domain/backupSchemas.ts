@@ -5,7 +5,7 @@ const operationId = z
   .string()
   .regex(/^[A-Za-z0-9_-]{1,128}$/)
   .refine((value) => !["__proto__", "constructor", "prototype"].includes(value));
-export const backupSelectionSchema = z
+const backupSelectionSchema = z
   .object({
     providerIds: z.array(z.string().min(1)).max(100_000).optional(),
     accountIds: z.array(z.string().min(1)).max(100_000).optional(),
@@ -35,7 +35,7 @@ export const backupRestoreRequestSchema = z
     overwriteConflicts: z.boolean().optional(),
   })
   .strict();
-export const backupVersionSchema = z
+const backupVersionSchema = z
   .object({
     id: z.string().min(1),
     sourceId: z.string().min(1),

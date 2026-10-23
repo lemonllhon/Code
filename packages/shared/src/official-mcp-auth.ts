@@ -11,9 +11,8 @@ export const LCODE_OFFICIAL_MCP_AUTH_TYPE = "lcode_official" as const;
 export const LCODE_OFFICIAL_MCP_AUTH_PROVIDER_JWT_TOKEN = "jwt_token" as const;
 
 /**
- * 官方 MCP 使用用户身份和套餐身份两组独立凭据。
- * codingPlanAuthorization 必须携带 MaaS 登录 JWT；不能用 Coding Plan 业务 API key
- * 代替。服务端按 JWT 中的 customer_id 校验它与当前用户的关联。
+ * 官方 MCP 仅发送应用登录身份。旧套餐头继续列为保留头，防止存量插件配置
+ * 把历史凭据作为静态 header 发出；客户端不再生成这些头。
  */
 export const OFFICIAL_MCP_AUTH_HEADER_NAMES = {
   authorization: "Authorization",

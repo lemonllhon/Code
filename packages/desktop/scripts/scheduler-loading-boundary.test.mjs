@@ -9,7 +9,7 @@ test("Scheduler public entry excludes unrelated Agent/plugin/terminal implementa
   for (const name of ["node", "scheduler"]) {
     const result = await build({
       stdin: {
-        contents: `import{AutomationRepo,OffPeakTaskRepo,computeAutomationNextRunAt,isOneShotAutomation}from'@lcode/services/${name}';globalThis.schedulerAPI={AutomationRepo,OffPeakTaskRepo,computeAutomationNextRunAt,isOneShotAutomation};`,
+        contents: `import{AutomationRepo,computeAutomationNextRunAt,isOneShotAutomation}from'@lcode/services/${name}';globalThis.schedulerAPI={AutomationRepo,computeAutomationNextRunAt,isOneShotAutomation};`,
         resolveDir: process.cwd(),
       },
       bundle: true,

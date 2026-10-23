@@ -20,7 +20,7 @@ const recordSchema = z
   .strict();
 const normalize = (path: string) =>
   process.platform === "win32" ? resolve(path).toLowerCase() : resolve(path);
-export class CheckoutReservedError extends Error {
+class CheckoutReservedError extends Error {
   readonly code = "LCODE_CHECKOUT_RESERVED";
   constructor() {
     super("LCODE_CHECKOUT_RESERVED: checkout has an unresolved Git operation");

@@ -116,16 +116,6 @@ export class ApiProviderModelRuntime {
       // 创建时冻结。只有本供应商自己的保存代次变化才清失败 Key。
       ...(providerSaveGeneration === undefined ? {} : { providerSaveGeneration }),
       modelConfig: config,
-      ...(provider.config.access.type === "zhipu-account" &&
-      provider.config.access.mode === "off-peak"
-        ? {
-            requestDependencies: {
-              requestAuth: {
-                source: target.requestDependencies?.requestAuth?.source,
-              },
-            },
-          }
-        : {}),
       options: {
         reasoningLevel: normalReasoningLevel,
         ...(speed ? { speed } : {}),

@@ -17,7 +17,5 @@
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
-    "@lcode/shared-types": "workspace:*"
-  }
+  "dependencies": {}
 }

@@ -13,7 +13,7 @@ import {
   withinBudget,
 } from "./managedServiceIo.js";
 
-export interface ManagedServiceProcessDefinition {
+interface ManagedServiceProcessDefinition {
   /** 与 start.ports 位置对应；未指定端口/0 分配真实 loopback ephemeral 候选。 */
   portEnvironment?: readonly string[];
 }

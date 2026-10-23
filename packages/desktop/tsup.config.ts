@@ -186,7 +186,6 @@ export default defineConfig([
     name: "preload",
     entry: {
       "preload/embeddedBrowserJavaScriptDialog": "src/preload/embeddedBrowserJavaScriptDialog.ts",
-      "preload/codingPlanWebview": "src/preload/codingPlanWebview.ts",
       "preload/browserVideoRecorder": "src/preload/browserVideoRecorder.ts",
       "preload/index": "src/preload/index.ts",
       "preload/resourceManager": "src/preload/resourceManager.ts",
@@ -197,7 +196,11 @@ export default defineConfig([
     platform: "node",
     target: "node22",
     external: ["electron"],
-    noExternal: ["@lcode/shared"],
+    // 沙箱 preload 无法 require 任意 npm 包；shared 的启动 schema 引入 Zod 后，
+    // 只内联 shared 会留下 require("zod")，桥接加载失败使主窗口空白。
+    // 所有 JS 依赖随入口内联，仅保留 Electron；禁止拆成沙箱无法加载的相对 chunk。
+    noExternal: [/^(?!electron(?:\/|$))/],
+    splitting: false,
     outExtension: () => ({ js: ".cjs" }),
     define: createSharedDefines(),
     esbuildOptions(options) {
@@ -205,6 +208,9 @@ export default defineConfig([
     },
     onSuccess: createDevReadyMarkerHook("preload"),
     ...desktopTsupBundleSecurityOptions,
+    // executeInMainWorld 序列化函数时不携带 preload 闭包；keepNames 注入的
+    // __name helper 会变成页面内的未定义引用，导致浏览器对话框 preload 加载失败。
+    keepNames: false,
   },
   {
     name: "host",

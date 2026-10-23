@@ -1,8 +1,8 @@
-import type { V4CommandCoreHost } from "../lcode-protocol-v4/commands/types.js";
 import { createSessionId } from "@lcode/contracts";
 import { createPreparedSessionTitle, type PreparedSessionTitle } from "@lcode/core";
-import { summarizeWorktreeTaskName } from "./worktree-task-name.js";
+import type { V4CommandCoreHost } from "../lcode-protocol-v4/commands/types.js";
 import { WorktreePreparationError } from "./worktree-execution.js";
+import { summarizeWorktreeTaskName } from "./worktree-task-name.js";
 
 import { resolveWorkspaceRefFromId } from "./mapper.js";
 
@@ -85,7 +85,6 @@ export function createV4SessionHost(
       executionRequestId,
       worktreeTaskNameInput,
       mcpServers,
-      offPeakToolEnabled,
       dynamicWorkflowEnabled,
     }) => {
       // workspaceId 双形态（Workspace Identity 约束）：
@@ -126,8 +125,6 @@ export function createV4SessionHost(
           // MCP 是 runtime 创建期配置；v4 createSession 必须与 legacy
           // session/create 等价透传，否则创建的 session 永远不会启动这些工具。
           mcpServers,
-          // Off-Peak 工具面 flag 同为 runtime 创建期配置，必须随 create 进入 record。
-          ...(offPeakToolEnabled === true ? { offPeakToolEnabled: true } : {}),
           // 动态工作流灰度门同为 runtime 创建期配置：
           // v4 createSession 必须与 legacy session/create 等价透传，否则无界面创建的会话
           // 会绕过 Host 的灰度判定，只剩进程级缺省。

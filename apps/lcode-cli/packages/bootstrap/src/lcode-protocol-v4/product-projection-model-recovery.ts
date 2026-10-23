@@ -1,19 +1,19 @@
 // 模型请求重试、断流恢复与 active-turn 准入，不改变统计事实来源。
 // host 是 ProductProjection 原实例的窄借用视图；函数不持有副本或另建 owner。
-import type { ProductProjectionState } from "./product-projection-state.js";
 import type {
-  SessionEvent,
   ModelNetworkStatusPayload,
-  StreamRecoveryStartedPayload,
+  SessionEvent,
   StreamRecoveryRetryStartedPayload,
+  StreamRecoveryStartedPayload,
 } from "@lcode/contracts";
-import type { ConversationDelta, ApiRetryState } from "@lcode/shared/lcode-protocol-v4";
-import { positiveInteger } from "./product-projection-model-config.js";
-import { ms } from "./product-projection-rows.js";
-import { closeStreamingRows } from "./product-projection-model-stream.js";
-import { closeOpenToolRows } from "./product-projection-tool-lifecycle.js";
-import { controlPatch, isRunning } from "./product-projection-session.js";
+import type { ApiRetryState, ConversationDelta } from "@lcode/shared/lcode-protocol-v4";
 import { isSessionModelQuerySource } from "./model-output-statistics.js";
+import { positiveInteger } from "./product-projection-model-config.js";
+import { closeStreamingRows } from "./product-projection-model-stream.js";
+import { ms } from "./product-projection-rows.js";
+import { controlPatch, isRunning } from "./product-projection-session.js";
+import type { ProductProjectionState } from "./product-projection-state.js";
+import { closeOpenToolRows } from "./product-projection-tool-lifecycle.js";
 
 type ModelNetworkStatusHost = Pick<
   ProductProjectionState,
@@ -235,9 +235,6 @@ function modelRetryReasonCode(
     case "routing_unavailable":
       return "fault.runtime.routingUnavailable";
     case "rate_limited":
-      return "fault.provider.rateLimited";
-    // off-peak 排队（429/3105）语义上就是"上游让我们等"，UI 归入限流可恢复形态。
-    case "offpeak_queued":
       return "fault.provider.rateLimited";
     case "provider_overloaded":
     case "server_error":

@@ -8,7 +8,6 @@ const { DatabaseSync } = createRequire(import.meta.url)(
 ) as typeof import("node:sqlite");
 import { TaskIndexRepo } from "#src/session/taskIndexRepo.js";
 import { AutomationRepo } from "#src/session/automationRepo.js";
-import { OffPeakTaskRepo } from "#src/session/offPeakTaskRepo.js";
 import {
   runTasksDatabaseMigrations,
   inspectTasksMigrationKind,
@@ -96,11 +95,7 @@ export async function prepareTasksIndexStorage(
   // 主体失败（即使是 undefined/null 等 falsy 值）优先；关闭失败只在主体成功时上抛。
   closeTasksStorageStartupResources(failure, [() => db.close()]);
   markTasksStorageMigrated(path);
-  const repos = [
-    new TaskIndexRepo(path, LOCK_WAIT_MS),
-    new AutomationRepo(path, LOCK_WAIT_MS),
-    new OffPeakTaskRepo(path, LOCK_WAIT_MS),
-  ];
+  const repos = [new TaskIndexRepo(path, LOCK_WAIT_MS), new AutomationRepo(path, LOCK_WAIT_MS)];
   let preparationFailure: TasksStorageStartupFailure = NO_TASKS_STORAGE_STARTUP_FAILURE;
   try {
     // 这些是原本就在初始化时执行的修复，不创建新的迁移或改变已有事务边界。

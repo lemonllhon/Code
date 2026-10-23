@@ -33,11 +33,11 @@ export interface BackupObjectStore {
   remove(key: string): Promise<void>;
   exists?(key: string): Promise<boolean>;
 }
-export interface BackupCheckpoint {
+interface BackupCheckpoint {
   fingerprint: string;
   id: string;
 }
-export interface StoredRestorePlan {
+interface StoredRestorePlan {
   expiresAt: number;
   request: BackupRestoreRequest;
   snapshot: BackupSnapshot;

@@ -1,7 +1,7 @@
 import type { Event, IDisposable } from "@lcode/rpc";
 import type { LCodeProtocolMessage } from "@lcode/shared";
 
-export type LCodeProtocolTransportKind = "stdio" | "websocket" | "memory";
+type LCodeProtocolTransportKind = "stdio" | "websocket" | "memory";
 
 export interface LCodeProtocolTransportClosedEvent {
   code?: number | null;

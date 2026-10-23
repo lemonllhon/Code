@@ -20,12 +20,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Loader2Icon } from "lucide-react";
 import { ProviderStatusIndicator } from "./ProviderStatusIndicator.js";
 
-import {
-  resolveModelProviderFamilySpecByProviderId,
-  isStartPlanModelProviderId,
-  TID_MODEL_PROVIDER_NAV_ITEM,
-  testId,
-} from "@lcode/shared";
+import { TID_MODEL_PROVIDER_NAV_ITEM, testId } from "@lcode/shared";
 import { useCallback, useMemo, type KeyboardEvent } from "react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import type { ModelProviderNavGroup, ModelProviderNavItem } from "./constants.js";
@@ -39,7 +34,7 @@ function getSortableProviderId(
   item: ModelProviderNavItem,
   reorderableProviderIds?: ReadonlySet<string>,
 ): string | null {
-  if ((item.type === "custom" || item.type === "preset") && item.provider) {
+  if (item.type === "custom" && item.provider) {
     return !reorderableProviderIds || reorderableProviderIds.has(item.provider.providerId)
       ? item.provider.providerId
       : null;
@@ -72,12 +67,6 @@ function shouldShowModelProviderGroupLoadingIndicator(params: {
 }
 
 function resolveModelProviderSideNavLabel(item: ModelProviderNavItem): string {
-  if (item.type === "preset") {
-    return resolveModelProviderFamilySpecByProviderId(item.presetId)?.label ?? item.label;
-  }
-  if (item.type === "codingPlan" && isStartPlanModelProviderId(item.presetId)) {
-    return "Start Plan";
-  }
   return item.label;
 }
 
@@ -95,7 +84,7 @@ function ModelProviderNavigationButton({
   showIcon?: boolean;
 }) {
   const isSelected = item.key === selectedNodeKey;
-  const isLoadingItem = item.type === "codingPlanLoading";
+  const isLoadingItem = false;
   const inactiveItemClassName = "border-transparent text-foreground hover:border-border-hover/60";
 
   return (
@@ -127,11 +116,7 @@ function ModelProviderNavigationButton({
         <span className="flex min-w-0 flex-1 items-center gap-1.5 max-md:sr-only">
           <span className="min-w-0 truncate">{label}</span>
         </span>
-        {"provider" in item ? (
-          <ProviderStatusIndicator
-            provider={item.type === "preset" ? item.statusProvider : item.provider}
-          />
-        ) : null}
+        {"provider" in item ? <ProviderStatusIndicator provider={item.provider} /> : null}
       </button>
     </ControlHintTooltip>
   );
@@ -207,11 +192,7 @@ function SortableModelProviderNavigationButton({
         <span className="flex min-w-0 flex-1 items-center gap-1.5 max-md:sr-only">
           <span className="min-w-0 truncate">{label}</span>
         </span>
-        {"provider" in item ? (
-          <ProviderStatusIndicator
-            provider={item.type === "preset" ? item.statusProvider : item.provider}
-          />
-        ) : null}
+        {"provider" in item ? <ProviderStatusIndicator provider={item.provider} /> : null}
       </div>
     </ControlHintTooltip>
   );

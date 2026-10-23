@@ -43,17 +43,3 @@ export function readGroupedTaskCollapsedGroupIds(
     return new Set();
   }
 }
-
-export function persistGroupedTaskCollapsedGroupIds(
-  collapsedGroupIds: ReadonlySet<string>,
-  storage: BrowserStorageLike | null = getSafeLocalStorage(),
-) {
-  try {
-    storage?.setItem(
-      GROUPED_TASK_COLLAPSED_GROUPS_STORAGE_KEY,
-      JSON.stringify(collapsedGroupIdsToState(collapsedGroupIds)),
-    );
-  } catch {
-    // 受限浏览器或 SSR 测试里 storage 可能不可写，折叠状态写入失败不能阻断侧栏交互。
-  }
-}

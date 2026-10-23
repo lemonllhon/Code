@@ -25,7 +25,6 @@ type AttemptState = Pick<
   | "emittedRetryBoundaryEvent"
   | "emittedError"
   | "retryScheduledFromStreamChunk"
-  | "offPeakQueueHoldFromStreamChunk"
   | "pendingRetrySafeEvents"
   | "diagnostics"
   | "attemptAbortController"
@@ -161,7 +160,6 @@ export async function* consumeStreamAttempt(
       state.attemptFailed = true;
       state.awaitIteratorClose = true;
       state.retryScheduledFromStreamChunk = true;
-      state.offPeakQueueHoldFromStreamChunk = event.offPeakQueueHold;
       retryState.pendingRetryYield = event.deferredRetryYield;
       break;
     }

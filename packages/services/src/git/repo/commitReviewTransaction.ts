@@ -45,7 +45,7 @@ export async function publishReviewedCommitTransaction(
   return warning;
 }
 
-export async function publishCommitReviewRef(
+async function publishCommitReviewRef(
   command: GitCommandProvider,
   cwd: string,
   index: string,
@@ -77,7 +77,7 @@ export async function publishCommitReviewRef(
   }
 }
 
-export async function finishCommitReviewTransaction(
+async function finishCommitReviewTransaction(
   command: GitCommandProvider,
   cwd: string,
   index: string,

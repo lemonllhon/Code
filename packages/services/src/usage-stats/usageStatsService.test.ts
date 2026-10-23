@@ -75,14 +75,7 @@ test("API-only scope survives UsageStatsService and the real Host V4 request bou
     await rm(dir, { recursive: true, force: true });
   });
   await agent.getWorkspaceRuntimeIdentity({ workspacePath: dir });
-  type Dependencies = Parameters<typeof createUsageStatsService>[0];
   const usage = createUsageStatsService({
-    apiClient: {} as Dependencies["apiClient"],
-    accountRequestAuthService: {
-      resolveAccessCurrent: async () => assert.fail("API statistics must not fetch a plan"),
-      resolveCurrent: async () => assert.fail("API statistics must not fetch a plan"),
-      assertCurrent: async () => assert.fail("API statistics must not fetch a plan"),
-    },
     lcodeAgentService: agent,
   });
   for (const range of ["7d", "all"] as const) {

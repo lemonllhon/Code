@@ -151,7 +151,8 @@ export async function runStartupWelcomeTests({ t, page, origin, artifacts }) {
         const media = await fetch("/startup-media/baili-wallpaper.mp4").then((response) =>
           response.blob(),
         );
-        const { saveStartupSceneImage } = await import("/src/startup/sceneImages.ts");
+        const browserModuleUrl = "/src/startup/sceneImages.ts";
+        const { saveStartupSceneImage } = await import(browserModuleUrl);
         return saveStartupSceneImage(media);
       });
       await open("custom", "cinematic", { scenes: { custom: { image: "custom", imageId } } });

@@ -8,20 +8,20 @@ import type {
 } from "@lcode/contracts";
 import { SessionEventType } from "@lcode/contracts";
 import { parseAutomationRunId } from "@lcode/shared";
-import { workflowLifecycleFactFromProgress } from "./conversation-telemetry-workflow-facts.js";
 import {
   conversationTelemetryFactSchema,
   type ConversationTelemetryFact,
 } from "@lcode/shared/lcode-protocol-v4";
-import { optionalString, recordValue, eventTimestamp } from "./conversation-telemetry-values.js";
+import { normalizeModelFact } from "./conversation-telemetry-model-facts.js";
 import {
   BoundedKeySet,
   BoundedValueMap,
   type CompletedModelRequestIdentity,
   type ConversationTelemetryState,
 } from "./conversation-telemetry-state.js";
-import { normalizeModelFact } from "./conversation-telemetry-model-facts.js";
 import { normalizeToolFact } from "./conversation-telemetry-tool-facts.js";
+import { eventTimestamp, optionalString, recordValue } from "./conversation-telemetry-values.js";
+import { workflowLifecycleFactFromProgress } from "./conversation-telemetry-workflow-facts.js";
 
 export { streamingParentToolCallId } from "./conversation-telemetry-values.js";
 
@@ -103,10 +103,6 @@ export class ConversationTelemetryFactNormalizer {
           kind: "turn.started",
           ...(inputId ? { sourceCommandId: inputId } : {}),
           ...automationAdmission(inputId, optionalString(payload.automationId)),
-          ...(optionalString(payload.offPeakTaskId)
-            ? { offPeakTaskId: optionalString(payload.offPeakTaskId) }
-            : {}),
-          ...(payload.offPeakRunType ? { offPeakRunType: payload.offPeakRunType } : {}),
           ...(payload.executionKind ? { executionKind: payload.executionKind } : {}),
           ...(payload.inputSource ? { inputSource: payload.inputSource } : {}),
           ...(backgroundSource ? { backgroundSource } : {}),

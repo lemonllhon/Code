@@ -1,5 +1,16 @@
 import { createHash } from "node:crypto";
-import { lstat, mkdir, mkdtemp, open, readFile, realpath, rm, rename, writeFile, copyFile } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  open,
+  readFile,
+  realpath,
+  rm,
+  rename,
+  writeFile,
+  copyFile,
+} from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { withFileLock } from "@lcode/shared/node";
 import {
@@ -36,7 +47,7 @@ export const MISE_ASSETS: Readonly<Record<string, string>> = {
   "linux-arm64-musl": "mise-v2026.10.2-linux-arm64-musl.tar.xz",
 };
 
-export interface BackendManifest {
+interface BackendManifest {
   version: string;
   platform: string;
   archiveSha256: string;
@@ -90,7 +101,8 @@ function binaryPathFor(root: string, platform: BackendPlatform): string {
 }
 
 function assertDigest(value: string, label: string): void {
-  if (!/^[a-f0-9]{64}$/u.test(value)) throw new Error(`invalid ${label} sha256 in backend manifest`);
+  if (!/^[a-f0-9]{64}$/u.test(value))
+    throw new Error(`invalid ${label} sha256 in backend manifest`);
 }
 
 export async function sha256File(path: string): Promise<string> {
@@ -122,9 +134,12 @@ export async function validateBundledBackend(
   try {
     parsed = JSON.parse(await readFile(manifestPath, "utf8"));
   } catch (error) {
-    throw new Error(`bundled mise manifest is invalid: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `bundled mise manifest is invalid: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
-  if (!parsed || typeof parsed !== "object") throw new Error("bundled mise manifest is not an object");
+  if (!parsed || typeof parsed !== "object")
+    throw new Error("bundled mise manifest is not an object");
   const manifest = parsed as Partial<BackendManifest>;
   if (
     typeof manifest.version !== "string" ||
@@ -153,9 +168,11 @@ export async function validateBundledBackend(
     const relativePath = member.slice("mise/".length);
     const filePath = resolve(resolvedRoot, relativePath);
     const info = await lstat(filePath);
-    if (!info.isFile()) throw new Error(`bundled mise member is not a regular file: ${relativePath}`);
+    if (!info.isFile())
+      throw new Error(`bundled mise member is not a regular file: ${relativePath}`);
     const canonical = await realpath(filePath);
-    if (!isPathWithin(canonicalRoot, canonical)) throw new Error(`bundled mise member escapes root: ${relativePath}`);
+    if (!isPathWithin(canonicalRoot, canonical))
+      throw new Error(`bundled mise member escapes root: ${relativePath}`);
   }
   const binarySha256 = await sha256File(backendPath);
   if (binarySha256 !== manifest.binarySha256) {
@@ -172,7 +189,10 @@ export async function downloadAndPublishBackend(options: BackendDownloadOptions)
   if (options.assetName !== undefined && options.assetName !== fixedAssetName) {
     throw new Error(`mise asset name is not fixed for ${key}`);
   }
-  if (options.expectedArchiveSha256 !== undefined && options.expectedArchiveSha256 !== fixedDigest) {
+  if (
+    options.expectedArchiveSha256 !== undefined &&
+    options.expectedArchiveSha256 !== fixedDigest
+  ) {
     throw new Error(`mise asset digest is not fixed for ${key}`);
   }
 
@@ -202,7 +222,9 @@ export async function downloadAndPublishBackend(options: BackendDownloadOptions)
     const url = `https://github.com/jdx/mise/releases/download/${MISE_BACKEND_VERSION}/${fixedAssetName}`;
 
     try {
-      const cachedArchive = options.cacheRoot ? join(resolve(options.cacheRoot), fixedAssetName) : undefined;
+      const cachedArchive = options.cacheRoot
+        ? join(resolve(options.cacheRoot), fixedAssetName)
+        : undefined;
       if (cachedArchive) {
         await mkdir(dirname(cachedArchive), { recursive: true });
         const cachedDigest = await sha256File(cachedArchive).catch(() => undefined);
@@ -212,7 +234,9 @@ export async function downloadAndPublishBackend(options: BackendDownloadOptions)
           const downloadedDigest = await sha256File(cachedArchive);
           if (downloadedDigest !== fixedDigest) {
             await rm(cachedArchive, { force: true });
-            throw new Error(`mise asset digest mismatch: got ${downloadedDigest}, want ${fixedDigest}`);
+            throw new Error(
+              `mise asset digest mismatch: got ${downloadedDigest}, want ${fixedDigest}`,
+            );
           }
         }
         await copyFile(cachedArchive, archivePath);
@@ -220,7 +244,8 @@ export async function downloadAndPublishBackend(options: BackendDownloadOptions)
         await downloadBounded(url, archivePath, options);
       }
       const digest = await sha256File(archivePath);
-      if (digest !== fixedDigest) throw new Error(`mise asset digest mismatch: got ${digest}, want ${fixedDigest}`);
+      if (digest !== fixedDigest)
+        throw new Error(`mise asset digest mismatch: got ${digest}, want ${fixedDigest}`);
 
       await mkdir(payload, { recursive: true });
       await extractBackendArchive(archivePath, payload, options.platform, fixedAssetName);
@@ -268,7 +293,8 @@ export async function extractBackendArchive(
     const info = await lstat(target);
     if (!info.isFile()) throw new Error(`required backend member is not a regular file: ${member}`);
     const canonical = await realpath(target);
-    if (!isPathWithin(destination, canonical)) throw new Error(`extracted backend member redirects outside: ${member}`);
+    if (!isPathWithin(destination, canonical))
+      throw new Error(`extracted backend member redirects outside: ${member}`);
   }
 }
 
@@ -281,14 +307,16 @@ async function downloadBounded(
   const timeout = AbortSignal.timeout(options.fetchTimeoutMs ?? 600_000);
   const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
   const response = await fetchImpl(url, { signal });
-  if (!response.ok || !response.body) throw new Error(`mise asset download failed: HTTP ${response.status}`);
+  if (!response.ok || !response.body)
+    throw new Error(`mise asset download failed: HTTP ${response.status}`);
   const output = await open(destination, "w");
   let bytes = 0;
   try {
     for await (const chunk of response.body as AsyncIterable<Uint8Array>) {
       const buffer = Buffer.from(chunk);
       bytes += buffer.byteLength;
-      if (bytes > MAX_ASSET_BYTES) throw new Error(`mise asset exceeds ${MAX_ASSET_BYTES} byte limit`);
+      if (bytes > MAX_ASSET_BYTES)
+        throw new Error(`mise asset exceeds ${MAX_ASSET_BYTES} byte limit`);
       await output.write(buffer);
     }
   } finally {

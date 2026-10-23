@@ -1,19 +1,21 @@
-import { gitCredentialResultSchema, lcodeProtocolMethods } from "@lcode/shared";
-import { ProjectNativeServer } from "./project-native-server.js";
-import { PROJECT_NATIVE_METHOD } from "@lcode/shared";
 import {
+  gitCredentialResultSchema,
+  lcodeProtocolMethods,
+  PROJECT_NATIVE_METHOD,
+} from "@lcode/shared";
+import { ProjectNativeServer } from "./project-native-server.js";
+import {
+  cleanupClientRequest,
+  rejectClientRequest,
   requestClient,
   resolveClientRequest,
-  rejectClientRequest,
-  cleanupClientRequest,
-  type ProtocolClientRequestState,
   type LCodeProtocolOutboundMessage,
+  type ProtocolClientRequestState,
 } from "./server-client-requests.js";
 import { dispatchRequest, type LCodeProtocolPostResponseBatch } from "./server-dispatch.js";
 
 import type { BrowserControlPort } from "@lcode/contracts";
 import { InMemoryWorkspaceHookPolicyProvider } from "@lcode/core";
-import { parseConversationTopic } from "@lcode/shared/lcode-protocol-v4";
 import type {
   LCodeProtocolError,
   LCodeProtocolMessage,
@@ -22,22 +24,18 @@ import type {
   LCodeProtocolRequestId,
   LCodeProtocolResponse,
 } from "@lcode/shared";
+import { parseConversationTopic } from "@lcode/shared/lcode-protocol-v4";
 
 import { ProtocolRuntimeResources } from "./runtime-resources.js";
+import { activateSessionForResume } from "./server-operations.js";
 import { isResourceCleanupRequest } from "./shutdown-admission.js";
 import { createProtocolWorkflowRunOwnerRouter } from "./workflow-run-owner-router.js";
-import { activateSessionForResume } from "./server-operations.js";
 
+import { createInMemorySessionEventStore } from "@lcode/contracts";
 import {
-  V4InteractionRegistry,
   resolveV4InteractionRegistryOptionsFromEnv,
+  V4InteractionRegistry,
 } from "../lcode-protocol-v4/interaction-registry.js";
-import { createConversationV4Gateway } from "./v4-bridge.js";
-import { createSessionResidentPoolHost } from "./session-residency.js";
-import {
-  DEFAULT_SESSION_RESIDENT_HIGH_WATER_COUNT,
-  SessionResidentPool,
-} from "./session-resident-pool.js";
 import { createProtocolBrowserControlBroker } from "./browser-control-broker.js";
 import {
   createProtocolLogger,
@@ -46,14 +44,19 @@ import {
   isRequest,
   isResponse,
   ProtocolRequestError,
-  type ParamsSchema,
   toProtocolError,
-  type LCodeProtocolClientRequestOptions,
   type LCodeProtocolAgentDependencies,
   type LCodeProtocolAgentServerContext,
+  type LCodeProtocolClientRequestOptions,
   type LCodeProtocolSessionRecord,
+  type ParamsSchema,
 } from "./server-types.js";
-import { createInMemorySessionEventStore } from "@lcode/contracts";
+import { createSessionResidentPoolHost } from "./session-residency.js";
+import {
+  DEFAULT_SESSION_RESIDENT_HIGH_WATER_COUNT,
+  SessionResidentPool,
+} from "./session-resident-pool.js";
+import { createConversationV4Gateway } from "./v4-bridge.js";
 
 export type { LCodeProtocolAgentDependencies, LCodeProtocolSessionRecord };
 
@@ -145,7 +148,6 @@ export class LCodeProtocolAgentServer {
       appRuntimePreferences: {
         askUserQuestionAutoResolutionEnabled: true,
         modelIoFullRetentionEnabled: false,
-        offPeakToolEnabled: false,
         // 动态工作流灰度门 fail-closed：Host 必须显式 workspace/updateDynamicWorkflowPolicy
         // 才开启。
         dynamicWorkflowEnabled: false,

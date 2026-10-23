@@ -2,7 +2,7 @@ import { buildSessionMentionMarkdown } from "../mentions/mentionMarkdown.js";
 import type { ComposerMentionPrefill } from "../store/lcodeSessionStoreTypes.js";
 
 export const SESSION_REFERENCE_DRAG_MIME = "application/x-lcode-session-reference";
-export const SESSION_REFERENCE_DRAG_VERSION = 1 as const;
+const SESSION_REFERENCE_DRAG_VERSION = 1 as const;
 export const SESSION_REFERENCE_ARM_DELAY_MS = 1500;
 
 const SESSION_ID_PATTERN = /^sess_[A-Za-z0-9._-]+$/u;
@@ -140,7 +140,7 @@ export function createSessionReferenceDragPayload(input: {
   return normalized;
 }
 
-export function createSessionReferenceDragNonce(): string {
+function createSessionReferenceDragNonce(): string {
   const random =
     typeof globalThis.crypto?.randomUUID === "function"
       ? globalThis.crypto.randomUUID()
@@ -190,10 +190,6 @@ export function setActivePointerSessionReference(payload: SessionReferenceDragPa
   activePointerSessionReference = payload;
   activePointerTargetId = null;
   activePointerPosition = null;
-}
-
-export function readActivePointerSessionReference(): SessionReferenceDragPayload | null {
-  return activePointerSessionReference;
 }
 
 export function clearActivePointerSessionReference(nonce?: string): void {
@@ -264,21 +260,6 @@ export function finishSessionReferencePointerDrag(
     return Boolean(
       payload && target && position && target.onDrop(payload, position.clientX, position.clientY),
     );
-  } finally {
-    clearActivePointerSessionReference(payload.nonce);
-  }
-}
-
-export function cancelSessionReferencePointerDrag(expectedNonce?: string): void {
-  const payload = activePointerSessionReference;
-  if (!payload || (expectedNonce && payload.nonce !== expectedNonce)) return;
-  const target =
-    (activePointerTargetId ? pointerTargets.get(activePointerTargetId) : null) ??
-    (activePointerPosition
-      ? resolvePointerTarget(activePointerPosition.clientX, activePointerPosition.clientY)
-      : null);
-  try {
-    target?.onLeave(payload);
   } finally {
     clearActivePointerSessionReference(payload.nonce);
   }

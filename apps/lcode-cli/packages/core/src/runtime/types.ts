@@ -1,16 +1,15 @@
-import type { ProjectNativeRequest, ProjectNativeResult } from "@lcode/shared";
 import type { RuntimeInputPresentation, ToolOperationAdmissionPort } from "@lcode/contracts";
+import type { ProjectNativeRequest, ProjectNativeResult } from "@lcode/shared";
 /* eslint-disable max-lines -- Runtime 类型集中承载 core/runtime 对外结构，拆分需要单独迁移。 */
-import { PermissionService, ToolScheduler } from "./deps.js";
 import type {
-  JsonSchema,
   AgentExecutionTelemetryPort,
   AgentTelemetryCausation,
   BackgroundResultOriginMeta,
   ContextUsageBreakdownItem,
   CoordinatorResponsePort,
-  ForkCommitBundle,
   ForkChildSessionMetadata,
+  ForkCommitBundle,
+  JsonSchema,
   ModelRequestAuth,
   ModelRequestDependencies,
   ModelRetryYieldGate,
@@ -25,99 +24,99 @@ import type {
 import type { LCodeModelAccountAccess, LCodeWorkspaceRef } from "@lcode/shared";
 import type { EffectiveModelSelectionResult } from "@lcode/shared/model-selection";
 import type { RuntimeMessageEntry } from "../agent/message-history.js";
+import type { PresentationSurface } from "../context/types.js";
+import type { WorkspaceHookRuntimeAdmissionPort } from "../hooks/workspace-hook-runtime-admission.js";
+import type { RuntimeTaskRegistry } from "../runtime-task/registry.js";
+import type { AgentProfile } from "../subagent/profile.js";
+import type { BashTimeoutPolicy } from "../tool/bash-timeout-policy.js";
 import type {
-  ExecutionFailoverPolicyPort,
-  ExecutionFailoverScope,
-  ExecutionFailoverScopeLifetime,
-} from "./methods/model-failover-policy.js";
-import type {
+  AttachmentStorageMetadata,
+  AutoCompactPolicyConfig,
+  AutomationPort,
+  BrowserControlPort,
+  CheckpointCreatedPayload,
+  CollaborationMode,
   CompactPhase,
   CompactReason,
   CompactTrigger,
-  CollaborationMode,
+  ContextBuilder,
+  ContextSourcePort,
+  DynamicWorkflowRunPort,
+  DynamicWorkflowSnippetPort,
   EmbeddedSearchBackend,
+  EnvInfo,
+  ExecutionPort,
+  ExecutionShellSelection,
+  FilePartSource,
+  FileSystemPort,
+  HookRunner,
+  HooksRuntimeConfig,
+  HttpClientPort,
+  ImageProcessorPort,
   Logger,
-  AttachmentStorageMetadata,
+  McpPort,
+  McpServerConfig,
   MessageId,
   MessageVisibility,
-  FilePartSource,
-  ModelRequestAdmission,
+  MessageWithParts,
   Model,
-  ModelNetworkStatusEvent,
+  ModelAnomalyGuardConfig,
+  ModelCatalogPort,
+  ModelInputMessage,
   ModelMessageContentBlock,
+  ModelNetworkStatusEvent,
   ModelReasoningContentBlock,
+  ModelRequestAdmission,
   ModelStreamRecoveryStatus,
   ModelToolCall,
   ModelToolContract,
   ModelUsage,
   ModelUsageSummary,
-  ModelInputMessage,
-  MessageWithParts,
-  PendingTurnInput,
-  TurnInputIntentMetadata,
-  TurnSteerResult,
+  OutputStylePromptConfig,
   PartId,
+  PdfDocumentPort,
+  PendingTurnInput,
   PermissionBrokerPort,
   PermissionUpdate,
+  ProjectContext,
   QueryId,
   RewindScope,
   RewindStrategy,
+  RewindTargetEvaluation,
   SessionEvent,
   SessionEventSink,
   SessionEventStorePort,
+  SessionHistoryHydrationResult,
   SessionId,
-  SessionTaskType,
   SessionMailboxPort,
   SessionProjection,
   SessionStorePort,
-  ContextSourcePort,
-  DynamicWorkflowRunPort,
-  DynamicWorkflowSnippetPort,
-  ModelCatalogPort,
-  ExecutionPort,
-  BrowserControlPort,
-  ExecutionShellSelection,
-  AutomationPort,
-  OffPeakPort,
-  FileSystemPort,
-  HttpClientPort,
-  ImageProcessorPort,
-  PdfDocumentPort,
-  VideoProcessorPort,
-  HooksRuntimeConfig,
+  SessionTaskType,
   SkillPort,
-  McpPort,
-  McpServerConfig,
   SubagentPort,
+  SyntheticUserMessageSource,
   ToolArtifactStorePort,
   ToolCallId,
-  WorkflowPort,
-  WorkflowEscalatePort,
-  WorkflowSubmitPort,
-  TraceContext,
-  TraceId,
-  TurnId,
-  CheckpointCreatedPayload,
-  RewindTargetEvaluation,
-  SessionHistoryHydrationResult,
-  SyntheticUserMessageSource,
-  HookRunner,
   ToolExecutionResult,
   ToolExecutor,
   ToolRegistry,
-  ContextBuilder,
-  EnvInfo,
-  ProjectContext,
+  TraceContext,
+  TraceId,
+  TurnId,
+  TurnInputIntentMetadata,
+  TurnSteerResult,
   UserInstructionsOptions,
-  AutoCompactPolicyConfig,
-  ModelAnomalyGuardConfig,
-  OutputStylePromptConfig,
+  VideoProcessorPort,
+  WorkflowEscalatePort,
+  WorkflowPort,
+  WorkflowSubmitPort,
 } from "./deps.js";
-import type { AgentProfile } from "../subagent/profile.js";
-import type { RuntimeTaskRegistry } from "../runtime-task/registry.js";
-import type { BashTimeoutPolicy } from "../tool/bash-timeout-policy.js";
-import type { PresentationSurface } from "../context/types.js";
-import type { WorkspaceHookRuntimeAdmissionPort } from "../hooks/workspace-hook-runtime-admission.js";
+import { PermissionService, ToolScheduler } from "./deps.js";
+import type {
+  ExecutionFailoverPolicyPort,
+  ExecutionFailoverScope,
+  ExecutionFailoverScopeLifetime,
+} from "./methods/model-failover-policy.js";
 
 // -----------------------------------------------
 // Agent Runtime
@@ -418,7 +417,6 @@ export interface AgentRuntimeDeps {
   runtimeTaskRegistry?: RuntimeTaskRegistry;
   artifactStore?: ToolArtifactStorePort;
   automationPort?: AutomationPort;
-  offPeakPort?: OffPeakPort;
   contextSourcePort?: ContextSourcePort;
   eventSink?: SessionEventSink;
   logger?: Logger;
@@ -796,7 +794,6 @@ export interface PermissionDecisionResult {
 export interface ExecuteToolsOptions {
   automationTurn?: boolean;
   automationId?: string;
-  offPeakTurn?: boolean;
   signal?: AbortSignal;
   traceContext?: TraceContext;
   /** 仅透传给当前 turn 同步等待的 Agent child。 */

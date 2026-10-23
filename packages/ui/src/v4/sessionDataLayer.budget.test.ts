@@ -65,3 +65,88 @@ test("pending optimistic command protects its original view from count eviction"
   layer.dispose();
   await new Promise(setImmediate);
 });
+
+test("repeated parent/child switching bounds subscriptions, preserves shared panes and isolates Host connections", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  function trackedTransport() {
+    let sequence = 0;
+    const subscriptions = new Set<string>();
+    let listeners = 0;
+    const observe = () => {
+      listeners++;
+      return () => {
+        listeners--;
+      };
+    };
+    return {
+      subscriptions,
+      get listeners() {
+        return listeners;
+      },
+      port: {
+        ...transport(),
+        subscribe: async () => {
+          const subscriptionId = `sub-${++sequence}`;
+          subscriptions.add(subscriptionId);
+          return { ack: { subscriptionId, mode: "snapshot" as const, logEpoch: "epoch" } };
+        },
+        unsubscribe: async (id: string) => {
+          subscriptions.delete(id);
+        },
+        sendCommand: async () => assert.fail("closing views cannot send stop/restart commands"),
+        onFrame: observe,
+        onAssemblyFault: observe,
+        onRuntimeRestart: observe,
+      } as ConversationTransport,
+    };
+  }
+  const local = trackedTransport(),
+    remote = trackedTransport();
+  const layer = new SessionDataLayer({
+    transport: local.port,
+    keepWarmMs: 30_000,
+    maxKeepWarmEntries: 8,
+  });
+  const other = new SessionDataLayer({ transport: remote.port, keepWarmMs: 30_000 });
+  t.after(() => {
+    layer.dispose();
+    other.dispose();
+  });
+  const parent = layer.acquire("parent"),
+    pane = layer.acquire("parent");
+  const remoteParent = other.acquire("parent");
+  assert.notEqual(parent.store, remoteParent.store);
+  const retired = [];
+  for (let round = 0; round < 40; round++) {
+    const child = layer.acquire(`child-${round}`);
+    await new Promise<void>((done) => setImmediate(done));
+    child.release();
+    retired.push(child);
+    assert.ok(layer.size <= 9);
+    assert.ok(local.subscriptions.size <= 9);
+    assert.equal(remote.subscriptions.size, 1);
+  }
+  parent.release();
+  t.mock.timers.tick(30_000);
+  await new Promise<void>((done) => setImmediate(done));
+  assert.equal(layer.size, 1);
+  assert.equal(local.subscriptions.size, 1);
+  assert.notEqual(pane.store.getState().status, "closed");
+  assert.notEqual(remoteParent.store.getState().status, "closed");
+  assert.ok(
+    retired.every(
+      ({ store }) => store.getState().status === "closed" && store.getState().snapshot === null,
+    ),
+  );
+  pane.release();
+  remoteParent.release();
+  t.mock.timers.tick(30_000);
+  await new Promise<void>((done) => setImmediate(done));
+  assert.equal(local.subscriptions.size, 0);
+  assert.equal(remote.subscriptions.size, 0);
+  assert.equal(local.listeners, 1, "only the connection-level frame listener remains");
+  layer.dispose();
+  other.dispose();
+  assert.equal(local.listeners, 0);
+  assert.equal(remote.listeners, 0);
+});

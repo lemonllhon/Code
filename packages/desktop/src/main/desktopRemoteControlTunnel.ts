@@ -28,12 +28,12 @@ import {
   type RemoteControlRoomReadyFrame,
 } from "@lcode/shared";
 
-export const REMOTE_CONTROL_HEARTBEAT_INTERVAL_MS = 30_000;
+const REMOTE_CONTROL_HEARTBEAT_INTERVAL_MS = 30_000;
 /** host socket 断开后的重连宽限:与 DO 的 30s 保留期一致(PROTOCOL.md §3.3,v1 常量不配置)。 */
-export const REMOTE_CONTROL_HOST_RECONNECT_GRACE_MS = 30_000;
-export const REMOTE_CONTROL_RECONNECT_RETRY_DELAY_MS = 2_000;
+const REMOTE_CONTROL_HOST_RECONNECT_GRACE_MS = 30_000;
+const REMOTE_CONTROL_RECONNECT_RETRY_DELAY_MS = 2_000;
 /** bridge.open 之前 host socket BINARY 帧的违规断开阈值(对齐 §6.4 "计数+断开")。 */
-export const REMOTE_CONTROL_PRE_BRIDGE_BINARY_LIMIT = 5;
+const REMOTE_CONTROL_PRE_BRIDGE_BINARY_LIMIT = 5;
 const CLOSE_AUTH_FAILED = 4002;
 const CLOSE_PROTOCOL_VIOLATION = 4003;
 const CLOSE_ROOM_MISSING = 4004;

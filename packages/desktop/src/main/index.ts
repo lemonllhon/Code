@@ -1,62 +1,18 @@
-import { createLocalTtftExporter } from "./localTtftExporter.js";
-/* eslint-disable max-lines */
 import "./desktopEarlyDataBaseDirBootstrap.js";
-import { migrateDesktopIdentityDataSync } from "./desktopDataBaseDirBootstrap.js";
 import "./desktopEarlyChromiumHardwareAccelerationBootstrap.js";
-import { powerMonitor, powerSaveBlocker } from "electron";
-import { crashCapturePaths } from "./appCrashCaptureBootstrap.js";
-import { armsInitPromise } from "./appARMSBootstrap.js";
-import {
-  onLocalDatabaseStartupReady,
-  configureDatabaseStartupQuit,
-} from "./databaseStartupRelay.js";
+import { createLocalTtftExporter } from "./localTtftExporter.js";
+import { removeRetiredEmbeddedStorage } from "./retiredEmbeddedStorage.js";
+/* eslint-disable max-lines */
 import armsRum from "@arms/rum-electron";
-import { createArmsUserIdentitySync } from "./armsUserIdentity.js";
-import { ensureDesktopDeviceMidSync } from "./desktopDeviceMid.js";
 import {
-  createDesktopContextPromptRollout,
-  createElectronDesktopContextPromptConfigFetcher,
-} from "./desktopContextPromptRollout.js";
-import { buildBrowserViewCloseTabNotification } from "./browserView/browserCloseTabNotification.js";
-import { BrowserGuestManager } from "./browserView/browserGuestManager.js";
-import { createElectronBrowserWebmRecorder } from "./browserView/electronBrowserWebmRecorder.js";
-import { installBrowserRestoreBootstrapProtocol } from "./browserView/browserRestoreBootstrapProtocol.js";
-import {
-  createLocalMediaPreviewPathRegistry,
-  installLocalMediaPreviewProtocol,
-  registerLocalMediaPreviewScheme,
-} from "./localMediaPreviewProtocol.js";
-import { createDesktopBrowserScreenshotSurfaceCoordinator } from "./browserView/browserScreenshotSurfaceCoordinatorWiring.js";
-import { EMBEDDED_BROWSER_PARTITION } from "./browserDataManager.js";
-import { EmbeddedBrowserJavaScriptDialogController } from "./embeddedBrowserJavaScriptDialog.js";
-import {
-  browserOperationResetsResizeBaseline,
-  resolveBrowserOperationTabId,
-} from "./browserView/browserOperationIndicator.js";
-import {
-  app,
-  BrowserWindow,
-  dialog,
-  ipcMain,
-  nativeImage,
-  net,
-  protocol,
-  session,
-  webContents,
-} from "electron";
-import type { UtilityProcess as ElectronUtilityProcess } from "electron";
-import { spawn } from "node:child_process";
-import { join, resolve } from "node:path";
-import { homedir } from "node:os";
-import {
+  buildRuntimeProcessEnvPatch,
+  captureLoginShellEnvSnapshot,
   createCredentialService,
   createSettingService,
+  createTelemetryAuthorizationLoader,
   createTelemetryCore,
   createTelemetryMarketingParamsLoader,
   createTelemetryUserIdLoader,
-  createTelemetryAuthorizationLoader,
-  buildRuntimeProcessEnvPatch,
-  captureLoginShellEnvSnapshot,
   getConversationWorkspaceDir,
   getDataBaseDir,
   getLCodeDataRootDir,
@@ -64,32 +20,53 @@ import {
   setDataBaseDir,
 } from "@lcode/services/desktop-main";
 import {
-  desktopMenuMessageIds,
-  type Locale,
-  type AppSettings,
-  PlatformChannels,
-  LCODE_ENV,
-  LCODE_PRODUCT_FLAVOR,
   DEFAULT_LCODE_ENDPOINT_ORIGIN,
   DEFAULT_LOCALE,
-  LCODE_VERSION,
-  LCODE_TELEMETRY_ENABLED,
+  desktopMenuMessageIds,
+  HostMessageTypes,
   LCODE_ARMS_RUM_ENDPOINT,
+  LCODE_ENV,
+  LCODE_PRODUCT_FLAVOR,
+  LCODE_TELEMETRY_ENABLED,
+  LCODE_VERSION,
+  mapLCodeEnvToArmsRumEnv,
+  PlatformChannels,
   resolveLCodeEndpointOrigin,
   shouldEnableE2ETestBridge,
-  type UpdateStatePayload,
+  type AppSettings,
+  type Locale,
   type TelemetryEventPayload,
-  HostMessageTypes,
+  type UpdateStatePayload,
 } from "@lcode/shared";
-import { logger } from "./logger.js";
-import { logWindowsBundledRuntimeIntegrityDiagnostic } from "./bundledRuntimeDiagnostic.js";
+import type { UtilityProcess as ElectronUtilityProcess } from "electron";
 import {
-  applyDesktopImmediateAppSettings,
-  type ImmediateAppSettingsPatch,
-} from "./desktopImmediateAppSettings.js";
-import { markMainLaunchAppReady } from "./desktopLaunchMarks.js";
-import { createCuaPipFocusRouter, resolveCuaPipWindowKey } from "./cuaPipFocusRouter.js";
-import { createDesktopTelemetryFetch } from "./desktopTelemetryFetch.js";
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  nativeImage,
+  net,
+  powerMonitor,
+  powerSaveBlocker,
+  protocol,
+  session,
+  webContents,
+} from "electron";
+import { spawn } from "node:child_process";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
+import { resolveWindowsAppUserModelIdForFlavor } from "../../scripts/desktop-product-identity.mjs";
+import { armsInitPromise } from "./appARMSBootstrap.js";
+import { crashCapturePaths } from "./appCrashCaptureBootstrap.js";
+import { createAppLaunchCoordinator } from "./appLaunchCoordinator.js";
+import { createAppLaunchGate } from "./appLaunchGate.js";
+import {
+  resolveAppShutdownPolicy,
+  selectAppShutdownPolicy,
+  type AppShutdownKind,
+} from "./appShutdownPolicy.js";
+import { createAppTelemetryRuntime } from "./appTelemetryRuntime.js";
+import { createArmsUserIdentitySync } from "./armsUserIdentity.js";
 import {
   acknowledgePostUpdateReleaseNotes,
   getAutoUpdaterState,
@@ -103,76 +80,74 @@ import {
   syncReadyUpdateToWindow,
 } from "./autoUpdater.js";
 import { BroadcastHub } from "./broadcastHub.js";
-import { TaskRealtimeBus } from "./taskRealtimeBus.js";
-import { createAppLaunchGate } from "./appLaunchGate.js";
-import { createAppLaunchCoordinator } from "./appLaunchCoordinator.js";
-import { createAppTelemetryRuntime } from "./appTelemetryRuntime.js";
-import { createRendererActionTraceBroker } from "./rendererActionTraceBroker.js";
-import { createRendererActionTraceExporter } from "./rendererActionTraceExporter.js";
-import { registerRendererActionTraceIpc } from "./rendererActionTraceIpc.js";
-import { createRendererActionTraceRollout } from "./rendererActionTraceRollout.js";
+import { EMBEDDED_BROWSER_PARTITION } from "./browserDataManager.js";
+import { buildBrowserViewCloseTabNotification } from "./browserView/browserCloseTabNotification.js";
+import { BrowserGuestManager } from "./browserView/browserGuestManager.js";
 import {
-  resolveAppShutdownPolicy,
-  selectAppShutdownPolicy,
-  type AppShutdownKind,
-} from "./appShutdownPolicy.js";
-import { createPrimaryWindowCoordinator } from "./primaryWindowCoordinator.js";
-import { createStartupAnimationPolicy } from "./startupAnimationPolicy.js";
-import { flushMainE2ECoverage } from "./e2eCoverage.js";
-import { resolveStartupWindowBootstrap, type StartupWindowBootstrap } from "./startupWorkspace.js";
+  browserOperationResetsResizeBaseline,
+  resolveBrowserOperationTabId,
+} from "./browserView/browserOperationIndicator.js";
+import { installBrowserRestoreBootstrapProtocol } from "./browserView/browserRestoreBootstrapProtocol.js";
+import { createDesktopBrowserScreenshotSurfaceCoordinator } from "./browserView/browserScreenshotSurfaceCoordinatorWiring.js";
+import { createElectronBrowserWebmRecorder } from "./browserView/electronBrowserWebmRecorder.js";
+import { logWindowsBundledRuntimeIntegrityDiagnostic } from "./bundledRuntimeDiagnostic.js";
+import { createCuaPipFocusRouter, resolveCuaPipWindowKey } from "./cuaPipFocusRouter.js";
 import {
-  createStartupDeepLinkConsumptionGate,
-  type ExplicitStartupWorkspaceRequest,
-  resolveExplicitStartupWorkspaceBootstrap,
-} from "./startupWorkspaceDeepLinkGate.js";
-import { executeDesktopCommand } from "./desktopCommandHandlers.js";
-import { clampDesktopZoomLevel, resolveDesktopZoomLevelFromFactor } from "./desktopZoom.js";
+  configureDatabaseStartupQuit,
+  onLocalDatabaseStartupReady,
+} from "./databaseStartupRelay.js";
 import {
   getDesktopMenuLabel as getDesktopMenuLabelByLocale,
   rebuildApplicationMenu,
   resolveSystemApplicationLocale,
   updateLCodeStdioTapDevMenuState,
 } from "./desktopApplicationMenu.js";
-import { applyAppIcon } from "./desktopWindowChrome.js";
-import { resolveWindowsAppUserModelIdForFlavor } from "../../scripts/desktop-product-identity.mjs";
-import type { DesktopWindowSize } from "./desktopWindowSize.js";
 import { maybeWarnArchitectureMismatch } from "./desktopArchitectureGuard.js";
-import { maybeBlockStartupForForceUpdate } from "./forceUpdateGuard.js";
-import { createWindowsDesktopTray, updateWindowsDesktopTrayMenu } from "./desktopTray.js";
-import { createWindowsCuaOperationIndicator } from "./windowsCuaOperationIndicator.js";
+import { executeDesktopCommand } from "./desktopCommandHandlers.js";
 import {
-  configureDockMenu,
-  createWindow,
-  focusWorkspaceInExistingWindow,
-  showCurrentWindowFromDock,
-  syncApplicationUnreadBadge,
-  handleDesktopWindowCloseRequest,
-} from "./desktopWindowLifecycle.js";
-import { resolveLCodeBuiltinProviderConfigFilePath } from "./desktopProviderConfig.js";
+  createDesktopContextPromptRollout,
+  createElectronDesktopContextPromptConfigFetcher,
+} from "./desktopContextPromptRollout.js";
+import { spawnCronScheduler, type CronSchedulerHandle } from "./desktopCronScheduler.js";
+import { createCronSchedulerResidency } from "./cronSchedulerResidency.js";
+import { queryCronSchedulerDemand } from "./cronSchedulerDemandQuery.js";
+import { migrateDesktopIdentityDataSync } from "./desktopDataBaseDirBootstrap.js";
 import {
-  getCredentialsDir,
-  isDockerDaemonAvailable,
-  listSSHConfigAliases,
-  listAvailableDockerContainers,
-  listAvailableWSLDistros,
-  loadHostProcessEnvFromLocalFiles,
-  resolveRemoteAssetDirs,
-  resolveLCodeEndpointEnvBaseOrigin,
-  desktopRuntimeEnv,
-  runtimeApplicationName,
-  runtimeHomePath,
-  runtimeSessionDataPath,
-  runtimeUserDataPath,
-  shouldUseElectronDefaultUserDataPath,
-} from "./desktopRuntimeEnv.js";
+  createDeepLinkSingleInstanceData,
+  extractDeepLinkUrlFromArgs,
+  extractOpenWorkspacePathFromArgs,
+  extractWorkspaceOpenPath,
+  isWorkspaceOpenUrl,
+} from "./desktopDeepLinkUrl.js";
+import { ensureDesktopDeviceMidSync } from "./desktopDeviceMid.js";
+import { installFinderOpenFolderWorkflow } from "./desktopFinderOpenFolderWorkflow.js";
+import { createDesktopHelpConfigReader } from "./desktopHelpConfig.js";
 import {
   disposeHostProcess,
   disposeHostProcessAndWait,
+  isHostProcessDisposing,
   listDisposingHostProcesses,
   loadWindow,
   spawnHostProcess,
 } from "./desktopHostProcess.js";
-import { spawnCronScheduler, type CronSchedulerHandle } from "./desktopCronScheduler.js";
+import {
+  applyDesktopImmediateAppSettings,
+  type ImmediateAppSettingsPatch,
+} from "./desktopImmediateAppSettings.js";
+import { markMainLaunchAppReady } from "./desktopLaunchMarks.js";
+import {
+  registerDesktopLCodeDataSizeTelemetry,
+  stopDesktopLCodeDataSizeTelemetry,
+} from "./desktopLCodeDataSizeTelemetry.js";
+import { registerPlatformIpcHandlers } from "./desktopMainIpcPlatform.js";
+import { registerRemoteIpcHandlers } from "./desktopMainIpcRemote.js";
+import { configureDesktopMcpTelemetry, reportMcpTelemetryToArms } from "./desktopMcpTelemetry.js";
+import { applyDesktopChromiumNetworkPolicies } from "./desktopNetworkPolicy.js";
+import {
+  configureDesktopNetworkTelemetry,
+  registerDesktopNetworkTelemetry,
+  stopDesktopNetworkTelemetry,
+} from "./desktopNetworkTelemetry.js";
 import {
   clearOAuthRoutesForWindow,
   handleDeepLink,
@@ -180,64 +155,95 @@ import {
   registerDeepLinkProtocol,
   resolveExternalWorkspaceOpenDialogCopy,
 } from "./desktopOAuthDeepLink.js";
-import { handleSecondInstanceWorkspaceRequest } from "./desktopSecondInstanceDeepLink.js";
-import { installFinderOpenFolderWorkflow } from "./desktopFinderOpenFolderWorkflow.js";
-import { installWindowsOpenFolderContextMenu } from "./desktopWindowsOpenFolderContextMenu.js";
-import {
-  createDeepLinkSingleInstanceData,
-  extractWorkspaceOpenPath,
-  extractDeepLinkUrlFromArgs,
-  extractOpenWorkspacePathFromArgs,
-  isWorkspaceOpenUrl,
-} from "./desktopDeepLinkUrl.js";
-import { createRemoteWorkspaceSessionManager } from "./desktopRemoteSessions.js";
+import { resolveLCodeBuiltinProviderConfigFilePath } from "./desktopProviderConfig.js";
 import { createRemoteControlController } from "./desktopRemoteControlController.js";
+import { createRemoteWorkspaceSessionManager } from "./desktopRemoteSessions.js";
 import {
   reportRemoteConnectionStateChangedToArms,
   reportRemoteDisconnectToArms,
   stopRemoteUsageArmsPeriodicSampling,
 } from "./desktopRemoteUsageArmsTelemetry.js";
-import { resolveCanonicalWslTarget } from "./desktopWslTargetResolver.js";
-import {
-  listRegisteredHostAgentProcessIds,
-  setBrowserUseGuestWebContentsIdsProvider,
-} from "./resourceManagerWindow.js";
-import { createDesktopHelpConfigReader } from "./desktopHelpConfig.js";
-import { registerPlatformIpcHandlers } from "./desktopMainIpcPlatform.js";
-import { registerRemoteIpcHandlers } from "./desktopMainIpcRemote.js";
-import {
-  configureDesktopStabilityTelemetry,
-  getStabilityLifecycleScene,
-  notifyStabilityAppExit,
-  notifyStabilityLifecycle,
-  reportAgentProcessExitToArms,
-  reportAgentProcessReadyToArms,
-  reportAgentProcessStartToArms,
-  reportAgentProcessSpawnErrorToArms,
-  reportAgentProcessExceptionToArms,
-  registerDesktopStabilityMonitors,
-  registerStabilityMainWindow,
-  scheduleReportPerfAppStartAfterMainViewReady,
-} from "./desktopStabilityTelemetry.js";
 import {
   configureDesktopResourceTelemetry,
   registerDesktopResourceTelemetry,
   resolveResourceUsageScene,
   stopDesktopResourceTelemetry,
 } from "./desktopResourceTelemetry.js";
+import {
+  desktopRuntimeEnv,
+  getCredentialsDir,
+  isDockerDaemonAvailable,
+  listAvailableDockerContainers,
+  listAvailableWSLDistros,
+  listSSHConfigAliases,
+  loadHostProcessEnvFromLocalFiles,
+  resolveLCodeEndpointEnvBaseOrigin,
+  resolveRemoteAssetDirs,
+  runtimeApplicationName,
+  runtimeHomePath,
+  runtimeSessionDataPath,
+  runtimeUserDataPath,
+  shouldUseElectronDefaultUserDataPath,
+} from "./desktopRuntimeEnv.js";
+import { handleSecondInstanceWorkspaceRequest } from "./desktopSecondInstanceDeepLink.js";
+import {
+  configureDesktopStabilityTelemetry,
+  getStabilityLifecycleScene,
+  notifyStabilityAppExit,
+  notifyStabilityLifecycle,
+  registerDesktopStabilityMonitors,
+  registerStabilityMainWindow,
+  reportAgentProcessExceptionToArms,
+  reportAgentProcessExitToArms,
+  reportAgentProcessReadyToArms,
+  reportAgentProcessSpawnErrorToArms,
+  reportAgentProcessStartToArms,
+  scheduleReportPerfAppStartAfterMainViewReady,
+} from "./desktopStabilityTelemetry.js";
+import { createDesktopTelemetryFetch } from "./desktopTelemetryFetch.js";
+import { createWindowsDesktopTray, updateWindowsDesktopTrayMenu } from "./desktopTray.js";
+import { applyAppIcon } from "./desktopWindowChrome.js";
+import {
+  configureDockMenu,
+  createWindow,
+  focusWorkspaceInExistingWindow,
+  handleDesktopWindowCloseRequest,
+  showCurrentWindowFromDock,
+  syncApplicationUnreadBadge,
+} from "./desktopWindowLifecycle.js";
+import type { DesktopWindowSize } from "./desktopWindowSize.js";
+import { installWindowsOpenFolderContextMenu } from "./desktopWindowsOpenFolderContextMenu.js";
+import { resolveCanonicalWslTarget } from "./desktopWslTargetResolver.js";
+import { clampDesktopZoomLevel, resolveDesktopZoomLevelFromFactor } from "./desktopZoom.js";
+import { flushMainE2ECoverage } from "./e2eCoverage.js";
+import { EmbeddedBrowserJavaScriptDialogController } from "./embeddedBrowserJavaScriptDialog.js";
+import { maybeBlockStartupForForceUpdate } from "./forceUpdateGuard.js";
+import {
+  createLocalMediaPreviewPathRegistry,
+  installLocalMediaPreviewProtocol,
+  registerLocalMediaPreviewScheme,
+} from "./localMediaPreviewProtocol.js";
+import { logger } from "./logger.js";
+import { mainMemoryDiagnosticsRegistry } from "./mainMemoryDiagnostics.js";
+import { createPrimaryWindowCoordinator } from "./primaryWindowCoordinator.js";
 import { registerRendererHeapSampleIpc } from "./processResourceRendererHeapSource.js";
+import { createRendererActionTraceBroker } from "./rendererActionTraceBroker.js";
+import { createRendererActionTraceExporter } from "./rendererActionTraceExporter.js";
+import { registerRendererActionTraceIpc } from "./rendererActionTraceIpc.js";
+import { createRendererActionTraceRollout } from "./rendererActionTraceRollout.js";
 import {
-  registerDesktopLCodeDataSizeTelemetry,
-  stopDesktopLCodeDataSizeTelemetry,
-} from "./desktopLCodeDataSizeTelemetry.js";
-import { configureDesktopMcpTelemetry, reportMcpTelemetryToArms } from "./desktopMcpTelemetry.js";
+  listRegisteredHostAgentProcessIds,
+  setBrowserUseGuestWebContentsIdsProvider,
+} from "./resourceManagerWindow.js";
+import { createStartupAnimationPolicy } from "./startupAnimationPolicy.js";
+import { resolveStartupWindowBootstrap, type StartupWindowBootstrap } from "./startupWorkspace.js";
 import {
-  configureDesktopNetworkTelemetry,
-  registerDesktopNetworkTelemetry,
-  stopDesktopNetworkTelemetry,
-} from "./desktopNetworkTelemetry.js";
-import { applyDesktopChromiumNetworkPolicies } from "./desktopNetworkPolicy.js";
-import { mapLCodeEnvToArmsRumEnv } from "@lcode/shared";
+  createStartupDeepLinkConsumptionGate,
+  resolveExplicitStartupWorkspaceBootstrap,
+  type ExplicitStartupWorkspaceRequest,
+} from "./startupWorkspaceDeepLinkGate.js";
+import { TaskRealtimeBus } from "./taskRealtimeBus.js";
+import { createWindowsCuaOperationIndicator } from "./windowsCuaOperationIndicator.js";
 import {
   findWindowsProcessesReferencingResourceMarkers,
   probeWindowsPackagedResourceWritable,
@@ -246,7 +252,6 @@ import {
   snapshotWindowsPackagedResources,
   WINDOWS_UPDATE_LOCK_RELEASE_GRACE_MS,
 } from "./windowsInstallResourceLocks.js";
-import { mainMemoryDiagnosticsRegistry } from "./mainMemoryDiagnostics.js";
 
 registerLocalMediaPreviewScheme(protocol);
 const localMediaPreviewPathRegistry = createLocalMediaPreviewPathRegistry();
@@ -297,7 +302,7 @@ let currentApplicationLocale: Locale = DEFAULT_LOCALE;
 let closeToTrayOnWindows = true;
 // keep-awake：全局开关 keepAwakeWhileRunning。打开后主进程持有
 // powerSaveBlocker("prevent-app-suspension")，阻止系统闲置休眠（防不了合盖/手动睡眠）。
-// 不再绑定闲时任务活跃计数——设置页「常规」与 Automations 入口镜像同一配置。
+// 设置页「常规」与 Automations 入口镜像同一配置。
 let keepAwakeWhileRunning = false;
 let powerSaveBlockerId: number | null = null;
 function reconcileKeepAwakeBlocker(): void {
@@ -635,30 +640,42 @@ const windowsCuaOperationIndicator = createWindowsCuaOperationIndicator({
   logger,
 });
 
-// 常驻 cron scheduler 进程句柄；app ready 后拉起，退出前销毁。
-let cronScheduler: CronSchedulerHandle | null = null;
+// Main 仅管理应用级唯一物理进程；不读取数据库，不保留另一份调度任务队列。
+const cronScheduler = createCronSchedulerResidency({
+  readDemand: async () => {
+    const host = resolveCronDispatchHost();
+    if (!host) return null;
+    const demand = await queryCronSchedulerDemand(host);
+    if (host !== resolveCronDispatchHost()) return null;
+    return demand;
+  },
+  spawn: (onExit) =>
+    spawnCronScheduler({
+      hostProcessLocalEnv,
+      logger,
+      resolveDispatchHost: resolveCronDispatchHost,
+      onExit,
+    }),
+  onError: (error) => logger.warn("[cron-scheduler] residency observation failed:", error),
+});
 // host → main 的定时任务派发结果，转交给 scheduler 结算。经模块变量转发以避免 spawn 顺序耦合。
 function forwardCronRunResult(
   result: Parameters<CronSchedulerHandle["handleCronRunResult"]>[0],
 ): void {
-  cronScheduler?.handleCronRunResult(result);
+  cronScheduler.current?.handleCronRunResult(result);
 }
-function forwardOffPeakRunResult(
-  result: Parameters<CronSchedulerHandle["handleOffPeakRunResult"]>[0],
-): void {
-  cronScheduler?.handleOffPeakRunResult(result);
-}
+
 function wakeCronScheduler(automationId: string): void {
-  cronScheduler?.wake(automationId);
+  cronScheduler.current?.wake(automationId);
+  cronScheduler.invalidate();
 }
-function wakeOffPeakScheduler(offPeakTaskId?: string): void {
-  // 复用同一条 scheduler-wake 通道（tick 同时覆盖 cron 与 off-peak 分支），仅日志标签区分。
-  cronScheduler?.wake(`offpeak:${offPeakTaskId ?? "sync"}`);
-}
+
 // 选一个本地 host 执行派发：本期本地 workspace 由任一本地窗口 host 的 createTask 按 path 拉起/复用 agent。
 function resolveCronDispatchHost(): ElectronUtilityProcess | null {
-  const first = windowHostProcessMap.values().next();
-  return first.done ? null : first.value;
+  for (const host of windowHostProcessMap.values()) {
+    if (!isHostProcessDisposing(host)) return host;
+  }
+  return null;
 }
 const disposingHostProcessTimers = new WeakMap<
   ElectronUtilityProcess,
@@ -1039,7 +1056,6 @@ async function prepareAppQuit(reason: string, kind: AppShutdownKind = "normal"):
   );
 
   const cronSchedulerToDispose = cronScheduler;
-  cronScheduler = null;
 
   const hostProcesses = [
     ...new Set([...windowHostProcessMap.values(), ...listDisposingHostProcesses()]),
@@ -1721,9 +1737,8 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
             void appTelemetryCore.reportEvent(message.event).catch(() => {});
           },
           onCronRunResult: forwardCronRunResult,
-          onOffPeakRunResult: forwardOffPeakRunResult,
           onCronSchedulerWakeRequested: wakeCronScheduler,
-          onOffPeakSchedulerWakeRequested: wakeOffPeakScheduler,
+          onCronSchedulerDemandChanged: () => cronScheduler.invalidate(),
           authorizeLocalMediaPreviewPath: localMediaPreviewPathRegistry.authorize,
           // browser-use：main 用 WebContentsView+CDP 执行命令。
           handleBrowserExecuteRequest: ({ win: browserWin, ...request }) =>
@@ -1848,6 +1863,12 @@ app.on("second-instance", (_event, argv, _workingDirectory, additionalData) => {
 });
 
 app.whenReady().then(async () => {
+  await removeRetiredEmbeddedStorage({
+    userDataPath: app.getPath("userData"),
+    sessionDataPath: app.getPath("sessionData"),
+    onError: (partitionPath, error) =>
+      logger.warn("[retired-storage] 分区清理失败，下次启动重试", { partitionPath, error }),
+  });
   markMainLaunchAppReady();
   installLocalMediaPreviewProtocol(session.defaultSession.protocol, {
     isPathAuthorized: localMediaPreviewPathRegistry.isAuthorized,
@@ -1886,18 +1907,9 @@ app.whenReady().then(async () => {
     app.quit();
   });
   onLocalDatabaseStartupReady(() => {
-    try {
-      cronScheduler = spawnCronScheduler({
-        hostProcessLocalEnv,
-        logger,
-        resolveDispatchHost: resolveCronDispatchHost,
-        // keep-awake 已改为纯设置驱动；计数上报保留给后续诊断/配额用途，不再联动 blocker。
-        onOffPeakActiveCountChanged: () => {},
-      });
-    } catch (error) {
-      logger.error("[cron-scheduler] failed to spawn scheduler process:", error);
-    }
+    cronScheduler.start();
   });
+  powerMonitor.on("resume", () => cronScheduler.invalidate());
 
   if (process.platform === "win32") {
     // 打包态必须与 NSIS 快捷方式使用同一 AUMID，否则 Shell 把它们当成不同应用。

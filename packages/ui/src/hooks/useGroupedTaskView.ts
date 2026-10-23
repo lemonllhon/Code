@@ -310,23 +310,6 @@ function collectGroupedViewTaskKeys(view: LCodeGroupedTaskView): Set<string> {
   return taskKeys;
 }
 
-export function shouldHideGroupedTaskContent(params: {
-  initialized: boolean;
-  loading: boolean;
-  hasNodes: boolean;
-  /**
-   * 门禁只该拦首屏。已经画出过列表之后再回到隐藏态，就是用户看到的
-   * 「grouped 整块闪一下」——祖先重挂载和后台刷新都会走到这里。
-   * 画过一次之后一律继续渲染上一份列表：旧数据优于空白。
-   */
-  hasPaintedOnce?: boolean;
-}): boolean {
-  if (params.hasPaintedOnce) {
-    return false;
-  }
-  return !params.initialized || (params.loading && !params.hasNodes);
-}
-
 function isGroupedTaskViewInitialized(params: {
   remoteDataInitialized: boolean;
   hydratingEndpointKeys: readonly string[];

@@ -1,4 +1,4 @@
-import type { Model, ModelInputMessage, ModelToolContract, TraceContext } from "../deps.js";
+import type { Model, ModelToolContract, TraceContext } from "../deps.js";
 import type { AgentTelemetryCausation, ModelApiOperation } from "@lcode/contracts";
 import {
   PermissionService,
@@ -11,7 +11,7 @@ import type { RuntimeMessageEntry } from "../../agent/message-history.js";
 import type { ReadFileStateMap } from "../../tool/types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { getSessionShellSelectionFromConfig } from "../methods/session-shell-environment.js";
-import { buildRuntimeProviderRequestMessages } from "./runtime-provider-request-messages.js";
+import "./runtime-provider-request-messages.js";
 import { createRefreshRuntimeHeadersBeforeModelAttempt } from "../methods/model-runtime-headers.js";
 import { createRuntimeModel, withModelInvocationContext } from "../methods/runtime-model.js";
 
@@ -30,26 +30,6 @@ export interface ProjectMemoryAgentContext {
   traceContext: TraceContext;
   workingDirectory: string;
   workspaceRoot: string;
-}
-
-export function captureProjectMemoryAgentContext(
-  runtime: AgentRuntimeInternal,
-  input: {
-    memoryRoot: string;
-    /** Extraction 继承产生该工作的 Turn Model。 */
-    model?: Model;
-    operation: ModelApiOperation;
-    traceContext: TraceContext;
-  },
-): ProjectMemoryAgentContext {
-  const context = captureProjectMemoryReviewContext(runtime, input);
-  return {
-    ...context,
-    providerEntries: [...runtime.messageHistory.borrowReadOnlyRuntimeEntries()],
-    midConversationSystem: runtime.config.midConversationSystem,
-    readFileState: new Map(runtime.readFileState),
-    tools: runtime.getTools(context.model).map((tool) => ({ ...tool })),
-  };
 }
 
 export function captureProjectMemoryReviewContext(
@@ -102,23 +82,6 @@ export function captureProjectMemoryReviewContext(
     workingDirectory: runtime.workingDirectory,
     workspaceRoot: runtime.workspaceRoot,
   };
-}
-
-export function buildProjectMemoryAgentProviderMessages(
-  runtime: AgentRuntimeInternal,
-  context: ProjectMemoryAgentContext,
-  prompt: string,
-): ModelInputMessage[] {
-  const entries: RuntimeMessageEntry[] = [
-    ...context.providerEntries,
-    { message: { content: prompt, role: "user" } },
-  ];
-  return buildRuntimeProviderRequestMessages(
-    {
-      config: { midConversationSystem: context.midConversationSystem },
-    },
-    { applyCacheControl: true, entries, model: context.model },
-  ).messages;
 }
 
 export function createProjectMemoryAgentToolExecutor(

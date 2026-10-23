@@ -1,3 +1,4 @@
+import "@/styles.css";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { IPlatformService } from "@lcode/shared";
@@ -12,36 +13,40 @@ import {
 } from "./provider-accounts-service.js";
 import { PlatformProvider } from "@/hooks/usePlatform.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
-import { LCodeIntlProvider, useLCodeIntl } from "@/i18n/IntlProvider.js";
+import { LCodeIntlProvider } from "@/i18n/IntlProvider.js";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 import { ProviderTemplatePicker } from "@/settings/model-provider-section/ProviderTemplatePicker.js";
 import { ModelProviderSectionDetail } from "@/settings/model-provider-section/Detail.js";
 import { ModelProviderSectionLayout } from "@/settings/model-provider-section/SectionLayout.js";
 import { useProviderDetailFeedback } from "@/settings/model-provider-section/ProviderDetailFeedback.js";
-import { useModelProviderNavigation } from "@/settings/model-provider-section/useModelProviderNavigation.js";
 import { useModelProviders } from "@/hooks/useModelProviders.js";
 import { useProviderAccountsDialog } from "@/hooks/useProviderAccountsDialog.js";
 import { ProxySettingsSection } from "@/settings/ProxySettingsSection.js";
 import { ProviderAccountsDialog } from "@/settings/model-provider-section/ProviderAccountsDialog.js";
 import { applyTheme } from "@/useTheme.js";
-import "@/styles.css";
-
 applyTheme(
   new URLSearchParams(location.search).get("theme") === "light" ? "zai-light" : "zai-dark",
 );
 
 function FixtureNavigation() {
-  const { intl } = useLCodeIntl();
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const providers = useModelProviders({ workspacePath: "/fixture/provider-accounts" });
-  const { navigationGroups, selectedNavItem } = useModelProviderNavigation({
-    modelProviders: providers.modelProviders,
-    presetProviders: [],
-    selectedNodeKey,
-    setSelectedNodeKey,
-    intl,
-  });
+  const { navigationGroups, selectedNavItem } = (() => {
+    const items = providers.modelProviders
+      .filter((p) => p.config.access?.type !== "zhipu-account")
+      .map((provider) => ({
+        key: "custom:" + provider.providerId,
+        type: "custom" as const,
+        label: provider.providerName ?? provider.providerId,
+        provider,
+        statusActive: provider.enabled,
+      }));
+    return {
+      navigationGroups: [{ id: "custom" as const, title: "供应商", items }],
+      selectedNavItem: items.find((i) => i.key === selectedNodeKey) ?? items[0] ?? null,
+    };
+  })();
   return (
     <ModelProviderSectionLayout
       description="Fixture model providers"
@@ -70,22 +75,17 @@ function FixtureNavigation() {
           <ModelProviderSectionDetail
             selectedNavItem={selectedNavItem}
             presetLoading={false}
-            presetSubscriptionProviderId={null}
-            codingPlanStatusSyncProviderId={null}
-            codingPlanDisconnectProviderId={null}
-            onSave={providers.saveProvider}
+            onSave={async (provider) => {
+              await providers.saveProvider(provider);
+            }}
             onAddPersonalModel={providers.addPersonalModel}
             onSavePersonalModelDraft={providers.savePersonalModelDraft}
             onSetPersonalModelEnabled={providers.setPersonalModelEnabled}
             onDeletePersonalModel={providers.deletePersonalModel}
-            onListRemoteModels={providers.listRemoteModels}
+            onListRemoteModels={(id) => providers.listRemoteModels(id).then((c) => c.models)}
             onDelete={async () => {}}
             onTestModel={providers.testModelConnectivity}
-            onCodingPlanLogin={() => {}}
-            onCodingPlanDisconnect={() => {}}
             onOpenApiKeyUrl={() => {}}
-            onOpenBigModelRegistration={() => {}}
-            onCodingPlanPurchaseComplete={() => {}}
             providerSettingsView={providers.providerSettingsView}
           />
         )}

@@ -1,55 +1,54 @@
 import { ProxyChannel, type IChannel, type IChannelClient } from "@lcode/rpc";
-import type { WindowWorkspaceScope } from "@lcode/shared";
 import {
-  IFileService,
-  IMediaPreviewService,
-  IGitService,
-  IGitManagementService,
-  IWorktreeService,
-  IProjectExecutionSetService,
-  ISidebarOrganizationService,
-  IRuntimeEnvironmentService,
-  IGitCheckpointService,
-  IGitBackupService,
-  ISystemService,
-  ITerminalService,
-  ISettingService,
-  IOnboardingRecordService,
-  ICredentialService,
+  IApplicationConfigService,
   IBroadcastService,
-  ILCodeTaskService,
-  ILCodeAgentService,
-  ILCodeSessionService,
-  ICuaPermissionService,
-  IConversationShareService,
-  IFileWatcherService,
-  IOAuthService,
-  IModelSelectionService,
-  IProviderSettingsService,
-  IProviderAccountService,
-  IProviderProvisioningTargetService,
-  IUsageStatsService,
-  ICodingPlanSubscriptionService,
   IClientConfigService,
   IClientScenesService,
-  IOffPeakTaskService,
+  ICommandsService,
+  IConversationShareService,
+  ICredentialService,
+  ICuaPermissionService,
+  IFeedbackService,
+  IFileService,
+  IFileWatcherService,
+  IGitBackupService,
+  IGitCheckpointService,
+  IGitManagementService,
+  IGitService,
+  IHooksService,
+  ILCodeAgentService,
+  ILCodeSessionService,
+  ILCodeTaskService,
+  IMcpSyncService,
+  IMediaPreviewService,
+  IMemoryService,
+  IModelSelectionService,
+  IOAuthService,
+  IOnboardingRecordService,
+  IPluginManagementService,
+  IPluginsService,
+  IPluginSyncService,
+  IProjectExecutionSetService,
+  IPromptAttachmentTransferService,
+  IProviderAccountService,
+  IProviderProvisioningTargetService,
+  IProviderSettingsService,
+  IRuntimeEnvironmentService,
+  ISettingService,
+  ISettingsSyncService,
+  ISidebarOrganizationService,
   ISkillsService,
   ISkillSyncService,
-  IMcpSyncService,
-  IPluginSyncService,
-  IPluginsService,
-  IPluginManagementService,
   ISubagentsService,
-  ICommandsService,
-  IHooksService,
-  IMemoryService,
-  ISettingsSyncService,
-  IFeedbackService,
-  IPromptAttachmentTransferService,
+  ISystemService,
+  ITerminalService,
+  IUsageStatsService,
   IWindowControllerService,
   IWindowWorkspaceService,
+  IWorktreeService,
   type IServiceAccessor,
 } from "@lcode/services";
+import type { WindowWorkspaceScope } from "@lcode/shared";
 
 /**
  * RemoteServiceAccess — 通过 ChannelClient 自动创建类型安全的服务代理
@@ -90,10 +89,9 @@ export class RemoteServiceAccess implements IServiceAccessor {
   /** Host-only target proxy；不属于 IServiceAccessor，避免向 Renderer 暴露 Secret 写入接口。 */
   readonly providerProvisioningTargetService!: IProviderProvisioningTargetService;
   readonly usageStatsService: IUsageStatsService;
-  readonly codingPlanSubscriptionService: ICodingPlanSubscriptionService;
+  readonly applicationConfigService: IApplicationConfigService;
   readonly clientConfigService: IClientConfigService;
   readonly clientScenesService: IClientScenesService;
-  readonly offPeakTaskService: IOffPeakTaskService;
   readonly skillsService: ISkillsService;
   readonly skillSyncService: ISkillSyncService;
   readonly mcpSyncService: IMcpSyncService;
@@ -204,17 +202,14 @@ export class RemoteServiceAccess implements IServiceAccessor {
     this.usageStatsService = ProxyChannel.toService<IUsageStatsService>(
       channelClient.getChannel(IUsageStatsService.channelName),
     );
-    this.codingPlanSubscriptionService = ProxyChannel.toService<ICodingPlanSubscriptionService>(
-      channelClient.getChannel(ICodingPlanSubscriptionService.channelName),
+    this.applicationConfigService = ProxyChannel.toService<IApplicationConfigService>(
+      channelClient.getChannel(IApplicationConfigService.channelName),
     );
     this.clientConfigService = ProxyChannel.toService<IClientConfigService>(
       channelClient.getChannel(IClientConfigService.channelName),
     );
     this.clientScenesService = ProxyChannel.toService<IClientScenesService>(
       channelClient.getChannel(IClientScenesService.channelName),
-    );
-    this.offPeakTaskService = ProxyChannel.toService<IOffPeakTaskService>(
-      channelClient.getChannel(IOffPeakTaskService.channelName),
     );
     this.skillsService = ProxyChannel.toService<ISkillsService>(
       channelClient.getChannel(ISkillsService.channelName),

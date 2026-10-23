@@ -21,7 +21,7 @@ import {
 } from "@/lib/workspaceExpansionPreference.js";
 import { isSameWorkspaceTab } from "@/store/tabWorkspaceIdentity.js";
 
-export const SETTINGS_TAB_ID = "__settings__" satisfies TabId;
+const SETTINGS_TAB_ID = "__settings__" satisfies TabId;
 
 export type WorkspaceAvailability = "available" | "unavailable-local-directory";
 

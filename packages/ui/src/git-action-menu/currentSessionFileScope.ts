@@ -117,20 +117,6 @@ export function getCurrentSessionFilePaths(
   return paths.length > 0 ? paths : undefined;
 }
 
-export function filterCommitPreviewFilesByCurrentSession(options: {
-  files: readonly GitBranchCommitPreviewFile[];
-  summary: LCodeTaskChangeSummary | null;
-  gitSummary: GitRepositorySummary;
-  workspacePath: string;
-}): GitBranchCommitPreviewFile[] {
-  return filterCommitPreviewFilesByPaths({
-    files: options.files,
-    currentSessionFilePaths: getCurrentSessionFilePaths(options.summary),
-    gitSummary: options.gitSummary,
-    workspacePath: options.workspacePath,
-  });
-}
-
 export function filterCommitPreviewFilesByPaths(options: {
   files: readonly GitBranchCommitPreviewFile[];
   currentSessionFilePaths?: readonly string[];

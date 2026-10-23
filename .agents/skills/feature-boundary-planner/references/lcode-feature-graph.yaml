@@ -48,7 +48,15 @@ nodes:
   - id: state.runtime-memory-admission
     kind: state-owner
     label: Demand-driven runtime memory admission and owner cleanup
-    aliases: [远端内存预算, Agent按需启动, NodeREPL按需启动, runtime memory budget]
+    aliases:
+      [
+        远端内存预算,
+        Agent按需启动,
+        NodeREPL按需启动,
+        桌面空闲资源,
+        启动常驻成本,
+        runtime memory budget,
+      ]
     codeSeeds:
       - file: packages/shared/src/node/runtimeMemoryBudget.ts
         symbol: runtimeMemoryBudget
@@ -960,6 +968,16 @@ nodes:
     codeSeeds:
       - file: packages/services/src/session/automationService.ts
         symbol: AutomationService
+      - file: packages/services/src/session/automationRepo.ts
+        symbol: AutomationRepo
+      - file: packages/desktop/src/main/cronSchedulerResidency.ts
+        symbol: createCronSchedulerResidency
+      - file: packages/desktop/src/scheduler/schedulerIdleExit.ts
+        symbol: createSchedulerIdleExit
+    invariants:
+      - "AutomationRepo owns scheduling demand; committed Host writes invalidate Main observations without copying a task queue."
+      - "Main retains one Scheduler until physical exit; Scheduler retires only after Repo demand, tick, settlement and inFlight are empty."
+      - "Local Agent prewarm is independent of Scheduler residency; unknown demand preserves availability and unprepared storage does not start scheduling."
   - id: state.automation-form-draft
     kind: state-owner
     label: Automation edit React draft

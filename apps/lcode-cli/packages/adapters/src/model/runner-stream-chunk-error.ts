@@ -1,9 +1,8 @@
 import { ModelRetryReason } from "@lcode/contracts";
 import { classifyModelFailure, type ClassifiedModelFailure } from "./failure-classifier.js";
-import { shouldReportRoutingFailure } from "./routing-feedback.js";
 import { getResponseHeaders, unwrapRetryError } from "./failure-inspection.js";
-import { offPeakTicketExpiredMessage, resolveOffPeakFailureDecision } from "./offpeak-retry.js";
 import { retryBudgetMaxAttempts } from "./retry-budget.js";
+import { shouldReportRoutingFailure } from "./routing-feedback.js";
 import { createDeferredRetryYieldGate } from "./runner-failover-yield.js";
 import { sanitizeModelNetworkHeaders } from "./runner-network-headers.js";
 import {
@@ -16,11 +15,11 @@ import {
 import { publishModelStatus } from "./runner-status.js";
 import { modelFailureStatusFields } from "./runner-telemetry.js";
 
+import { canRotateApiKey } from "./api-key-retry.js";
 import { publishRetryScheduledStatus, statusPublishOptions } from "./runner-attempt-status.js";
 import { streamChunkResult } from "./runner-stream-boundary.js";
 import type { StreamChunkInput, StreamChunkResult } from "./runner-stream-chunk-state.js";
 import { resolveStreamFailureDecision } from "./runner-stream-failure-policy.js";
-import { canRotateApiKey } from "./api-key-retry.js";
 
 export async function handleStreamErrorEvent(
   input: StreamChunkInput,
@@ -51,26 +50,7 @@ export async function handleStreamErrorEvent(
       input.emittedRetryBoundaryEvent,
       input.input.request.abortSignal?.aborted,
     );
-  // off-peak 特判：SSE 首块即错（尚无可见输出）时的排队 429 同样豁免预算重试。
-  const offPeak = resolveOffPeakFailureDecision({
-    offPeak: input.input.resolved.accountAccess?.mode === "off-peak",
-    failure: classified,
-    error: unwrapRetryError(error),
-  });
-  const failure: ClassifiedModelFailure =
-    offPeak?.kind === "ticketExpired"
-      ? {
-          ...classified,
-          retryable: false,
-          message: offPeakTicketExpiredMessage(classified.message),
-        }
-      : offPeak?.kind === "queued"
-        ? {
-            ...classified,
-            retryable: true,
-            retryReason: ModelRetryReason.OffpeakQueued,
-          }
-        : classified;
+  const failure: ClassifiedModelFailure = classified;
   const responseHeaders = sanitizeModelNetworkHeaders(getResponseHeaders(unwrapRetryError(error)));
   const failureDecision = resolveStreamFailureDecision({
     attempt: input.retryBudgetAttempt,
@@ -83,7 +63,6 @@ export async function handleStreamErrorEvent(
     retryBudget: input.input.request.modelRetryBudget,
     streamErrorChunkObserved: true,
   });
-  // off-peak 排队 429 豁免预算：不消耗 maxAttempts，SSE 可见输出边界仍适用。
   const rotateApiKey = canRotateApiKey({
     apiKeyAttempt: input.apiKeyAttempt,
     error,
@@ -94,9 +73,6 @@ export async function handleStreamErrorEvent(
     maxAttempts: input.input.retry.maxAttempts,
   });
   if (rotateApiKey) failureDecision.canRetry = true;
-  if (offPeak?.kind === "queued" && !input.emittedRetryBoundaryEvent) {
-    failureDecision.canRetry = true;
-  }
   if (retryWithRepairedHistory) {
     failureDecision.canRetry = true;
   }
@@ -166,9 +142,7 @@ export async function handleStreamErrorEvent(
 
   const delayMs = rotateApiKey
     ? 0
-    : offPeak?.kind === "queued"
-      ? offPeak.delayMs
-      : calculateRetryDelay(input.input.retry, input.retryBudgetAttempt, failure.retryAfterMs);
+    : calculateRetryDelay(input.input.retry, input.retryBudgetAttempt, failure.retryAfterMs);
   logRetryDelayDecision({
     attempt: input.attempt,
     canRetry: failureDecision.canRetry,
@@ -207,10 +181,7 @@ export async function handleStreamErrorEvent(
     {
       attempt: input.attempt,
       canRetry: failureDecision.canRetry,
-      consumedRetryAttempts:
-        offPeak?.kind === "queued"
-          ? Math.max(0, input.retryBudgetAttempt - 1)
-          : input.retryBudgetAttempt,
+      consumedRetryAttempts: input.retryBudgetAttempt,
       failure,
       logger: input.input.logger,
       request: input.input.request,
@@ -232,6 +203,5 @@ export async function handleStreamErrorEvent(
     deferredRetryYield: finalRetryYieldGate,
     emittedError: true,
     retryScheduled: true,
-    offPeakQueueHold: offPeak?.kind === "queued",
   });
 }

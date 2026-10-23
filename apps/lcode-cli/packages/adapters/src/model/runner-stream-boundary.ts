@@ -131,7 +131,6 @@ export function streamChunkResult(overrides: Partial<StreamChunkResult> = {}): S
     emittedEvent: false,
     emittedRetryBoundaryEvent: false,
     retryScheduled: false,
-    offPeakQueueHold: false,
     visibleEvents: [],
     ...overrides,
   };

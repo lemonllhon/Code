@@ -1,6 +1,6 @@
 import type { LCodeProcessDiagnostic } from "@lcode/shared/process-diagnostic";
 
-export interface RuntimeProcessSpawnEvent {
+interface RuntimeProcessSpawnEvent {
   agentEntrySha256?: string;
   /** 进程泳道（如 mcp-status）；缺省为 chat 主泳道。同 cwd、同 command 的多 lane 进程靠它归因。 */
   lane?: string;
@@ -14,7 +14,7 @@ export interface RuntimeProcessSpawnEvent {
   runtimeInstanceId: string;
 }
 
-export interface RuntimeProcessReadyEvent {
+interface RuntimeProcessReadyEvent {
   /** 进程泳道（如 mcp-status）；缺省为 chat 主泳道。同 cwd、同 command 的多 lane 进程靠它归因。 */
   lane?: string;
   pid: number;
@@ -26,7 +26,7 @@ export interface RuntimeProcessReadyEvent {
   runtimeInstanceId: string;
 }
 
-export interface RuntimeProcessExitEvent {
+interface RuntimeProcessExitEvent {
   /** 进程泳道（如 mcp-status）；缺省为 chat 主泳道。同 cwd、同 command 的多 lane 进程靠它归因。 */
   lane?: string;
   pid: number;
@@ -45,7 +45,7 @@ export interface RuntimeProcessExitEvent {
   stderrTail?: string[];
 }
 
-export interface RuntimeProcessErrorEvent {
+interface RuntimeProcessErrorEvent {
   /** 进程泳道（如 mcp-status）；缺省为 chat 主泳道。同 cwd、同 command 的多 lane 进程靠它归因。 */
   lane?: string;
   pid: number | null;
@@ -70,7 +70,7 @@ export interface RuntimeProcessLifecycleReporter {
   onException?(event: RuntimeProcessExceptionEvent): void;
 }
 
-export interface RuntimeProcessExceptionEvent {
+interface RuntimeProcessExceptionEvent {
   agentEntrySha256?: string;
   lane?: string;
   pid: number;
@@ -81,7 +81,7 @@ export interface RuntimeProcessExceptionEvent {
   diagnostic: LCodeProcessDiagnostic;
 }
 
-export interface RuntimeTaskCountChangedEvent {
+interface RuntimeTaskCountChangedEvent {
   runningTaskCount: number;
 }
 

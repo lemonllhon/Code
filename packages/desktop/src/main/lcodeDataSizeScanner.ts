@@ -1,7 +1,7 @@
 import { lstat, opendir } from "node:fs/promises";
 import { join } from "node:path";
 
-export type LCodeDataSizePartialReason = "file_limit" | "io_error" | "time_limit";
+type LCodeDataSizePartialReason = "file_limit" | "io_error" | "time_limit";
 
 export type LCodeDataSizeScanResult = {
   bytes: number;

@@ -4,14 +4,14 @@ import {
   ModelRetryReason,
   type ModelRetryBudget,
 } from "@lcode/contracts";
+import { canRotateApiKey } from "./api-key-retry.js";
 import type { ClassifiedModelFailure } from "./failure-classifier.js";
 import { classifyModelFailure, inspectProviderFailure } from "./failure-classifier.js";
-import { shouldReportRoutingFailure } from "./routing-feedback.js";
 import { getResponseHeaders, unwrapRetryError } from "./failure-inspection.js";
-import { offPeakTicketExpiredMessage, resolveOffPeakFailureDecision } from "./offpeak-retry.js";
 import { repairReasoningHistoryAfterSignatureRejection } from "./reasoning-history-normalization.js";
 import { type AttemptAdmission } from "./request-admission.js";
 import { retryBudgetAllows, retryBudgetMaxAttempts } from "./retry-budget.js";
+import { shouldReportRoutingFailure } from "./routing-feedback.js";
 import { recordGenerateTextDebug } from "./runner-debug.js";
 import {
   createDeferredRetryYieldGate,
@@ -28,7 +28,6 @@ import { RuntimeHeadersRefreshError } from "./runner-runtime-headers.js";
 import { publishModelStatus } from "./runner-status.js";
 import { modelFailureStatusFields } from "./runner-telemetry.js";
 import { retryAllowedByFailurePolicy } from "./workflow-model-failure-policy.js";
-import { canRotateApiKey } from "./api-key-retry.js";
 
 import { publishRetryScheduledStatus, statusPublishOptions } from "./runner-attempt-status.js";
 import type { GenerateAttemptState } from "./runner-generate-state.js";
@@ -72,23 +71,8 @@ export async function handleGenerateFailure(
     classified.message = error.message;
     classified.retryable = false;
   }
-  // off-peak 特判（仅 idle plan provider，见 offpeak-retry.ts）：排队 429 豁免预算、
   // 3102（兼容旧 3001）以稳定标记落败触发 desktop 侧续跑。
-  const offPeak = resolveOffPeakFailureDecision({
-    offPeak: attemptState.resolved.accountAccess?.mode === "off-peak",
-    failure: classified,
-    error: unwrapRetryError(error),
-  });
-  const failure: ClassifiedModelFailure =
-    offPeak?.kind === "ticketExpired"
-      ? {
-          ...classified,
-          retryable: false,
-          message: offPeakTicketExpiredMessage(classified.message),
-        }
-      : offPeak?.kind === "queued"
-        ? { ...classified, retryable: true, retryReason: ModelRetryReason.OffpeakQueued }
-        : classified;
+  const failure: ClassifiedModelFailure = classified;
   const responseHeaders = sanitizeModelNetworkHeaders(getResponseHeaders(unwrapRetryError(error)));
   const repairedMessages =
     !retryState.signatureRepairAttempted && attemptState.resolved.providerKind === "anthropic"
@@ -107,15 +91,13 @@ export async function handleGenerateFailure(
     };
   }
   const canRetryWithFailurePolicy =
-    offPeak?.kind === "queued"
-      ? true
-      : retryBudgetAllows(retryBudget, attemptState.retryBudgetAttempt, input.retry.maxAttempts) &&
-        // workflow 流量（无上限预算）读策略表而不是分类器的 retryable；有界预算逐字不变。
-        retryAllowedByFailurePolicy(
-          failure,
-          retryBudget,
-          inspectProviderFailure(error).providerErrorCode,
-        );
+    retryBudgetAllows(retryBudget, attemptState.retryBudgetAttempt, input.retry.maxAttempts) &&
+    // workflow 流量（无上限预算）读策略表而不是分类器的 retryable；有界预算逐字不变。
+    retryAllowedByFailurePolicy(
+      failure,
+      retryBudget,
+      inspectProviderFailure(error).providerErrorCode,
+    );
   const rotateApiKey = canRotateApiKey({
     apiKeyAttempt: attemptState.resolved.apiKeyAttempt,
     error,
@@ -207,9 +189,7 @@ export async function handleGenerateFailure(
 
   const delayMs = rotateApiKey
     ? 0
-    : offPeak?.kind === "queued"
-      ? offPeak.delayMs
-      : calculateRetryDelay(input.retry, attemptState.retryBudgetAttempt, failure.retryAfterMs);
+    : calculateRetryDelay(input.retry, attemptState.retryBudgetAttempt, failure.retryAfterMs);
   logRetryDelayDecision({
     attempt: attemptState.attempt,
     canRetry,
@@ -279,10 +259,7 @@ export async function handleGenerateFailure(
     {
       attempt: attemptState.attempt,
       canRetry,
-      consumedRetryAttempts:
-        offPeak?.kind === "queued"
-          ? Math.max(0, attemptState.retryBudgetAttempt - 1)
-          : attemptState.retryBudgetAttempt,
+      consumedRetryAttempts: attemptState.retryBudgetAttempt,
       failure,
       logger: input.logger,
       request: input.request,
@@ -299,5 +276,5 @@ export async function handleGenerateFailure(
     throw finalRetryYieldGate.adapterError;
   }
   retryState.pendingRetryYield = finalRetryYieldGate;
-  return offPeak?.kind === "queued";
+  return false;
 }

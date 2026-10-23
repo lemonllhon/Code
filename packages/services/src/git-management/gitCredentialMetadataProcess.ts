@@ -1,13 +1,13 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-export type GitCredentialMetadataCommand = {
+type GitCredentialMetadataCommand = {
   executable: string;
   args: string[];
   input?: string;
   signal?: AbortSignal;
 };
-export type GitCredentialMetadataResult = {
+type GitCredentialMetadataResult = {
   status: "ok" | "unavailable" | "failed";
   stdout: string;
 };

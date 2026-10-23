@@ -1,23 +1,29 @@
 import { beginLocalTurnPreparation, type LocalTtftDetail } from "@lcode/contracts";
+import type {
+  MessageId,
+  Model,
+  ModelSelection,
+  QueryId,
+  SessionEvent,
+  TraceContext,
+  TurnState,
+} from "../deps.js";
 import { HookEventName, SessionEventType, traceContextToLogContext } from "../deps.js";
-import type { MessageId, QueryId, SessionEvent, TurnState } from "../deps.js";
 import {
-  throwIfTurnAborted,
-  createTurnFailureError,
   appendTurnOutcomeEvent,
+  createTurnFailureError,
   summarizeTurnAttachmentsForEvent,
+  throwIfTurnAborted,
 } from "../helpers/index.js";
-import type { ExecuteTurnOptions } from "../types.js";
-import type { AgentRuntimeInternal } from "../internal.js";
-import { createTurnModel } from "./turn-model.js";
-import { rebuildContextPrefix } from "./context-refresh.js";
 import { refreshProjectMemoryIndex } from "../helpers/project-memory-index-refresh.js";
+import type { AgentRuntimeInternal } from "../internal.js";
+import type { ExecuteTurnOptions, ParsedRewindCommand } from "../types.js";
+import { rebuildContextPrefix } from "./context-refresh.js";
 import {
   blockExecutionFailoverTargetForModelCreationFailure,
   modelSelectionFromModel,
 } from "./model-failover-router.js";
-import type { Model, ModelSelection, TraceContext } from "../deps.js";
-import type { ParsedRewindCommand } from "../types.js";
+import { createTurnModel } from "./turn-model.js";
 
 export interface TurnPhaseTracker {
   start(phase: string): number;
@@ -229,14 +235,6 @@ export async function persistTurnStartedEvent(
       input: displayInput,
       messageId: userMessageId,
       inputId: options?.inputId,
-      ...(options?.automationId
-        ? { automationId: options.automationId }
-        : options?.offPeakTaskId
-          ? {
-              offPeakTaskId: options.offPeakTaskId,
-              ...(options.offPeakRunType ? { offPeakRunType: options.offPeakRunType } : {}),
-            }
-          : {}),
       foregroundExecutionId: this.activeForegroundExecution?.foregroundExecutionId,
       queryId,
       inputSource: options?.inputSource,

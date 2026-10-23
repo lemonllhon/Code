@@ -197,15 +197,6 @@ export function setPendingSettingsSection(section: SettingsSectionId): void {
   setPendingSettingsSectionIntent(section);
 }
 
-export function setPendingSettingsUsageIntent(): void {
-  // 使用统计入口只负责打开 Usage 分区，不强行覆盖用户要看的具体统计 tab。
-  setPendingSettingsSectionIntent("usage");
-}
-
-export function setPendingSettingsUsageOAuthIntent(): void {
-  setPendingSettingsSectionIntent("usage", { usageTab: "oauth" });
-}
-
 export function setPendingSettingsPluginIntent(
   tab: SettingsPluginTabTarget,
   options: {

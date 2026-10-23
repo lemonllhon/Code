@@ -70,7 +70,8 @@ export async function runStartupPerformanceTests({ t, page, navigate, artifacts 
     async () => {
       await navigate("off", true);
       const result = await page.evaluate(async () => {
-        const { createStartupScene } = await import("/src/startup/scene.ts");
+        const browserModuleUrl = "/src/startup/scene.ts";
+        const { createStartupScene } = await import(browserModuleUrl);
         const oldCores = Object.getOwnPropertyDescriptor(navigator, "hardwareConcurrency");
         Object.defineProperty(navigator, "hardwareConcurrency", { configurable: true, value: 4 });
         const container = document.createElement("div");

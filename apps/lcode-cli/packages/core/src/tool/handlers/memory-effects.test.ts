@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { memoryHistoryToolEntry } from "./memory-history.js";
-import { reviewHarness } from "../../memory/review-test-fixtures.js";
 import { memoryEffectWorkspaceKey } from "../../memory/effect-observation.js";
+import { reviewHarness } from "../../memory/review-test-fixtures.js";
+import { memoryHistoryToolEntry } from "./memory-history.js";
 
 test("explicit feedback uses per-call user approval; effects diagnostics are read-only", async () => {
   const input = {
@@ -22,11 +22,7 @@ test("explicit feedback uses per-call user approval; effects diagnostics are rea
     memoryHistoryToolEntry.resolvePermissionCapability!({ action: "effects" }, h.context)?.readOnly,
     true,
   );
-  for (const patch of [
-    { automationTurn: true },
-    { offPeakTurn: true },
-    { runtimeScope: "subagent" as const },
-  ]) {
+  for (const patch of [{ automationTurn: true }, {}, { runtimeScope: "subagent" as const }]) {
     h.context.fileSystemPort!.projectMemory = {
       effects: {
         recordFeedback: async () => {

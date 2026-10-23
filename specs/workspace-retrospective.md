@@ -183,8 +183,6 @@ sequenceDiagram
 
 ### R2b 单次OffPeak：先补可信用途与续票契约
 
-OffPeak选项在R2b验收前不可选，不作为R1/R2a的隐式后备路径。当前 `OffPeakTaskService.createTask` 可能在创建后立即唤醒调度，`ensureFreshTicket` 还会在票据过期后重新取号（`offPeakTaskService.ts:225–256、449–485`）。所以“先建普通任务，再补一条复盘关联”或“复用默认续票”都不满足本方案。
-
 R2b必须完成：
 
 1. 先冻结reviewRunId、workspace scope、policyRevision、只读capability、hook禁用策略、预算与inputFingerprint；在任务可被claim之前，通过受信服务API将用途关联同task记录原子持久化。缺失/无效关联则fail-closed，不派发普通yolo轮。

@@ -1,11 +1,11 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import {
   createModelId,
   createModelProviderId,
   type ModelNetworkStatusEvent,
   type ModelStreamEvent,
 } from "@lcode/contracts";
+import assert from "node:assert/strict";
+import test from "node:test";
 import { AiSdkModelAdapterError } from "./errors.js";
 import { runGenerateText } from "./runner-generate.js";
 import type {
@@ -983,50 +983,6 @@ test("stream resumes the original bounded retry budget from a global attempt off
     false,
   );
 });
-
-test("off-peak queue yield reports zero consumed retry attempts", async () => {
-  let providerCalls = 0;
-  const offPeakResolved = {
-    ...resolved,
-    accountAccess: { mode: "off-peak", type: "zhipu-account" },
-  } as unknown as ResolvedAiSdkModel;
-  const queueFailure = Object.assign(new Error("queued"), {
-    responseHeaders: { "retry-after-ms": "0" },
-    statusCode: 429,
-  });
-  const runtime: AiSdkModelRuntime = {
-    async generateText() {
-      providerCalls += 1;
-      throw queueFailure;
-    },
-    streamText() {
-      throw new Error("streamText should not be called");
-    },
-  };
-
-  await assert.rejects(
-    runGenerateText({
-      env: {},
-      modelIoFullRetentionEnabled: false,
-      request: {
-        messages: [{ content: "continue", role: "user" }],
-        shouldYieldRetryToFailover: () => true,
-      },
-      resolveModel: () => offPeakResolved,
-      resolved: offPeakResolved,
-      retry,
-      runtime,
-    }),
-    (error: unknown) => {
-      assert.ok(error instanceof AiSdkModelAdapterError);
-      assert.equal(error.context?.retryYieldedToFailover, true);
-      assert.equal(error.context?.retryYieldConsumedRetryAttempts, 0);
-      return true;
-    },
-  );
-  assert.equal(providerCalls, 1);
-});
-
 test("generate restores retry yield after the protected signature-repair attempt", async () => {
   let providerCalls = 0;
   const failures: ModelRetryYieldInput[] = [];

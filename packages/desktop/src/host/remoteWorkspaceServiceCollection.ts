@@ -1,85 +1,74 @@
-import { prepareNativeProjectContext } from "@lcode/services/node";
-import { getProjectNativeRoutingOwner } from "@lcode/services/node";
+import { getProjectNativeRoutingOwner, prepareNativeProjectContext } from "@lcode/services/node";
 /* eslint-disable max-lines -- 远程 workspace 服务注册需集中维护，以保持依赖注入顺序 */
 import {
-  ServiceCollection,
-  IFileService,
-  IGitService,
-  IWorktreeService,
-  IProjectExecutionSetService,
-  IRuntimeEnvironmentService,
-  IGitCheckpointService,
-  IGitBackupService,
-  IGitManagementService,
-  ISystemService,
-  ITerminalService,
-  ISettingService,
-  ISidebarOrganizationService,
-  ICredentialService,
+  IApplicationConfigService,
   IBroadcastService,
-  ILCodeTaskService,
-  ILCodeAgentService,
-  ILCodeSessionService,
-  IConversationShareService,
-  IFileWatcherService,
-  IOAuthService,
-  IModelSelectionService,
-  IProviderSettingsService,
-  IUsageStatsService,
-  ICodingPlanSubscriptionService,
   IClientConfigService,
   IClientScenesService,
+  ICommandsService,
+  IConversationShareService,
+  ICredentialService,
+  IFileService,
+  IFileWatcherService,
+  IGitBackupService,
+  IGitCheckpointService,
+  IGitManagementService,
+  IGitService,
+  IHooksService,
+  ILCodeAgentService,
+  ILCodeSessionService,
+  ILCodeTaskService,
+  IMcpSyncService,
+  IMemoryService,
+  IModelSelectionService,
+  IOAuthService,
+  IPluginManagementService,
+  IPluginsService,
+  IPluginSyncService,
+  IProjectExecutionSetService,
+  IPromptAttachmentTransferService,
+  IProviderAccountService,
+  IProviderSettingsService,
+  IRuntimeEnvironmentService,
+  type IServiceAccessor,
+  ISettingService,
+  ISettingsSyncService,
+  ISidebarOrganizationService,
   ISkillsService,
   ISkillSyncService,
-  IMcpSyncService,
-  IPluginSyncService,
-  IPluginsService,
-  IPluginManagementService,
   ISubagentsService,
-  ICommandsService,
-  IHooksService,
-  IMemoryService,
-  ISettingsSyncService,
-  IPromptAttachmentTransferService,
-  type IServiceAccessor,
+  ISystemService,
+  ITerminalService,
+  IUsageStatsService,
+  IWorktreeService,
+  ServiceCollection,
 } from "@lcode/services";
 import {
   ConversationShareHttpClient,
   ConversationShareService,
-  createSettingService,
-  createCredentialService,
+  createApplicationConfigService,
   createBroadcastService,
-  createNodeApiClient,
-  createHostApiNetworkTransport,
-  registerHostApiNetworkTransportForDispose,
-  registerBorrowedServiceResources,
-  registerServiceResourceDisposer,
-  createOAuthService,
-  createOAuthProviderLogoutHandler,
-  createAccountProviderCredentialStore,
-  createAccountProviderCredentialService,
-  createAccountProviderRequestAuthService,
-  createAccountRequestAuthService,
-  resolveCurrentAccountAccess,
-  resolveAccountTeamPlanRuntimeApiKey,
-  createSettingsSyncService,
-  createUsageStatsService,
-  createCodingPlanSubscriptionService,
   createClientScenesService,
-  createServiceLogger,
-  createSubagentsService,
+  createCredentialService,
+  createHostApiNetworkTransport,
   createMemoryService,
+  createNodeApiClient,
+  createOAuthService,
   createRemoteConversationShareArtifactSource,
-  OAuthCredentialRepo,
+  createServiceLogger,
+  createSettingService,
+  createSettingsSyncService,
+  createSubagentsService,
+  createUsageStatsService,
+  registerBorrowedServiceResources,
+  registerHostApiNetworkTransportForDispose,
+  registerServiceResourceDisposer,
 } from "@lcode/services/node";
 import {
-  BIGMODEL_PROVIDER_ID,
+  buildProjectContextSnapshot,
   buildRuntimeLCodeApiUrl,
   DEFAULT_LCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
-  buildProjectContextSnapshot,
-  type ProviderFamilyDomain,
   type LCodeSessionRuntimePreferencesResult,
-  ZAI_PROVIDER_ID,
 } from "@lcode/shared";
 import { assertLegacyRemoteWorkspaceRpcContract } from "./legacyRemoteWorkspaceRpcContract.js";
 import {
@@ -106,9 +95,6 @@ export function createRemoteWorkspaceServiceCollection(params: {
   assertLegacyRemoteWorkspaceRpcContract(params.connectionServices);
   const localSettingService = createSettingService();
   const localCredentialService = createCredentialService();
-  const localAccountProviderCredentialStore = createAccountProviderCredentialStore({
-    credentialService: localCredentialService,
-  });
   const hostApiNetworkTransport = createHostApiNetworkTransport(async () => {
     const settings = await localSettingService.get();
     return {
@@ -121,70 +107,8 @@ export function createRemoteWorkspaceServiceCollection(params: {
     fetchImpl: hostApiNetworkTransport.fetch,
   });
   const localBroadcastService = createBroadcastService(params.parentPort);
-  let handleOAuthProviderLogout: ReturnType<typeof createOAuthProviderLogoutHandler> | null = null;
-  const localOAuthCredentialRepo = new OAuthCredentialRepo(localCredentialService, {
-    onCorruptOAuthSessionCleared: async (providers) => {
-      // remote workspace host 读写的是本机 OAuth 凭据。
-      // 损坏恢复必须和 local host 一样清理 Start/Coding Plan 派生 provider，避免手机 remote 残留旧 key。
-      await Promise.all(
-        providers.map((provider) => handleOAuthProviderLogout?.(provider) ?? Promise.resolve()),
-      );
-    },
-  });
-  const localAccountProviderCredentialService = createAccountProviderCredentialService({
-    credentialStore: localAccountProviderCredentialStore,
-    async loadOAuthAccessToken(family) {
-      const providerId = family === "zai" ? ZAI_PROVIDER_ID : BIGMODEL_PROVIDER_ID;
-      return (await localOAuthCredentialRepo.loadTokenSet(providerId))?.accessToken ?? null;
-    },
-    // desktop-attached remote 只复用本机已解析或旧存储中的 Key；远端刷新仍由本机正式账号链负责。
-    resolveProviderApiKey: async () => null,
-  });
-  const readLocalAccountProviderSettings = async () => {
-    const settings = await localSettingService.get();
-    return {
-      providerFamilyDomain: settings.providerFamilyDomain ?? null,
-      selections: settings.providerFamilyConnectionSelections ?? {},
-    };
-  };
-  const loadLocalAccountIdentity = async (family: ProviderFamilyDomain) => {
-    const providerId = family === "zai" ? ZAI_PROVIDER_ID : BIGMODEL_PROVIDER_ID;
-    return (await localOAuthCredentialRepo.loadUserProfile(providerId))?.id ?? null;
-  };
-  const localAccountRequestAuthService = createAccountRequestAuthService(
-    createAccountProviderRequestAuthService({
-      resolveCurrentAccountAccess: (access) =>
-        resolveCurrentAccountAccess({
-          access,
-          readSettings: readLocalAccountProviderSettings,
-          loadAccountIdentity: loadLocalAccountIdentity,
-        }),
-      loadOAuthTokenSet: (providerId) => localOAuthCredentialRepo.loadTokenSet(providerId),
-      async loadIndividualPlanApiKey(providerId, family) {
-        const oauthProviderId = family === "zai" ? ZAI_PROVIDER_ID : BIGMODEL_PROVIDER_ID;
-        const accountIdentity = (await localOAuthCredentialRepo.loadUserProfile(oauthProviderId))
-          ?.id;
-        if (!accountIdentity) return null;
-        return localAccountProviderCredentialService.loadCodingPlanApiKey({
-          providerId,
-          family,
-          accountIdentity,
-        });
-      },
-      resolveTeamPlanApiKey: (access) =>
-        resolveAccountTeamPlanRuntimeApiKey({
-          apiClient: localApiClient,
-          credentialService: localCredentialService,
-          access,
-        }),
-    }),
-  );
-  const localCodingPlanSubscriptionService = createCodingPlanSubscriptionService({
+  const localApplicationConfigService = createApplicationConfigService({
     apiClient: localApiClient,
-    credentialService: localCredentialService,
-  });
-  handleOAuthProviderLogout = createOAuthProviderLogoutHandler({
-    accountProviderCredentialStore: localAccountProviderCredentialStore,
   });
   const conversationShareClient = new ConversationShareHttpClient({
     // 远端 workspace 的分享也必须使用真实 API；本地 Mock 仅用于单测，不生成无法跨进程访问的链接。
@@ -368,7 +292,6 @@ export function createRemoteWorkspaceServiceCollection(params: {
       IOAuthService,
       createOAuthService(localCredentialService, {
         apiClient: localApiClient,
-        onProviderLogout: handleOAuthProviderLogout,
       }),
     )
     // Provider/Model 事实属于目标 Environment。远端 workspace 的选择和设置视图
@@ -378,14 +301,9 @@ export function createRemoteWorkspaceServiceCollection(params: {
     .register(IProviderAccountService, params.connectionServices.providerAccountService)
     .register(
       IUsageStatsService,
-      createUsageStatsService({
-        apiClient: localApiClient,
-        accountRequestAuthService: localAccountRequestAuthService,
-        credentialService: localCredentialService,
-        lcodeAgentService: params.connectionServices.lcodeAgentService,
-      }),
+      createUsageStatsService({ lcodeAgentService: params.connectionServices.lcodeAgentService }),
     )
-    .register(ICodingPlanSubscriptionService, localCodingPlanSubscriptionService)
+    .register(IApplicationConfigService, localApplicationConfigService)
     .register(IClientConfigService, params.clientConfigService)
     .register(IClientScenesService, createClientScenesService({ apiClient: localApiClient }))
     // 远端 workspace 的项目级 skills/plugins/commands 位于 SSH/Docker 文件系统。
@@ -435,4 +353,3 @@ export function createRemoteWorkspaceServiceCollection(params: {
   if (organization) services.register(ISidebarOrganizationService, organization);
   return services;
 }
-import { IProviderAccountService } from "@lcode/services";

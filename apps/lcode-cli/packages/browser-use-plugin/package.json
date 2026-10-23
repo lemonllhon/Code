@@ -14,20 +14,12 @@
     "lint": "oxlint --config ../../oxlint.config.json src --no-ignore"
   },
   "dependencies": {
-    "@modelcontextprotocol/server": "2.0.0",
-    "@lcode/contracts": "workspace:*",
     "@lcode/core": "workspace:*",
-    "@lcode/node-repl-host": "workspace:*",
-    "@lcode/shared": "workspace:*",
-    "zod": "4.6.5"
+    "@lcode/node-repl-host": "workspace:*"
   },
   "devDependencies": {
-    "@modelcontextprotocol/client": "2.3.1",
     "@types/node": "^24.0.0",
-    "@lcode/adapters": "workspace:*",
-    "@lcode/bootstrap": "workspace:*",
     "esbuild": "^0.25.0",
-    "playwright-core": "1.59.1",
     "typescript": "^5.9.0"
   }
 }

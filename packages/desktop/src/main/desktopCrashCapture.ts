@@ -1,20 +1,20 @@
+import { getAppConfigDir } from "@lcode/services/desktop-main";
+import { app, crashReporter, type BrowserWindow, type WebContents } from "electron";
 import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  statSync,
-  unlinkSync,
-  utimesSync,
-  writeFileSync,
+    copyFileSync,
+    existsSync,
+    mkdirSync,
+    readdirSync,
+    statSync,
+    unlinkSync,
+    utimesSync,
+    writeFileSync,
 } from "node:fs";
 import { basename, join } from "node:path";
-import { app, crashReporter, type BrowserWindow, type WebContents } from "electron";
-import { getAppConfigDir } from "@lcode/services/desktop-main";
 import {
-  type CrashDumpV8OomSummary,
-  readCrashDumpAnnotationsFromFile,
-  summarizeCrashDumpAnnotations,
+    readCrashDumpAnnotationsFromFile,
+    summarizeCrashDumpAnnotations,
+    type CrashDumpV8OomSummary,
 } from "./crashDumpAnnotations.js";
 
 const LOCAL_ONLY_CRASH_SUBMIT_URL = "https://lcode.invalid/local-crash-only";

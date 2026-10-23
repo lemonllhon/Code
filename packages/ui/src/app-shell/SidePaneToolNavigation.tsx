@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { WorkspaceSidePaneTab } from "@/lib/workspaceSidePane.js";
 
-export function sidePaneTool(tab: WorkspaceSidePaneTab): string {
+function sidePaneTool(tab: WorkspaceSidePaneTab): string {
   if (tab.type === "git") return "git";
   if (tab.type === "code-viewer") return "files";
   if (tab.type === "browser" || tab.type === "browser-use") return "browser";

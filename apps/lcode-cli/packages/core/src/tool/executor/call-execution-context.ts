@@ -1,8 +1,8 @@
-import type { TraceContext, TurnId, SessionEvent, ToolExecutionSpanWriter } from "@lcode/contracts";
-import type { ExecutableToolCall, ToolExecutionContext } from "../types.js";
-import type { ToolExecuteOptions, ToolExecutorDeps } from "./types.js";
+import type { SessionEvent, ToolExecutionSpanWriter, TraceContext, TurnId } from "@lcode/contracts";
 import { resolveEmbeddedSearchBranchCapability } from "../../embedded-search/capability.js";
+import type { ExecutableToolCall, ToolExecutionContext } from "../types.js";
 import { createToolModelStatusSink, withDefaultToolModelStatusSink } from "./model-status-sink.js";
+import type { ToolExecuteOptions, ToolExecutorDeps } from "./types.js";
 
 export function createToolExecutionContext(input: {
   deps: ToolExecutorDeps;
@@ -40,7 +40,6 @@ export function createToolExecutionContext(input: {
     telemetry,
     automationTurn: options?.automationTurn,
     automationId: options?.automationId,
-    offPeakTurn: options?.offPeakTurn,
     traceContext,
     traceId,
     spanId: traceContext.spanId,
@@ -75,7 +74,6 @@ export function createToolExecutionContext(input: {
     workflowEscalatePort: deps.workflowEscalatePort,
     artifactStore: deps.artifactStore,
     automationPort: deps.automationPort,
-    offPeakPort: deps.offPeakPort,
     sessionStore: deps.sessionStore,
     sessionModePort: deps.sessionModePort,
     workflowPort: deps.workflowPort,

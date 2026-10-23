@@ -1,5 +1,7 @@
 # 模型供应商设置
 
+2026-10-23：应用内套餐链路已移除；BigModel Coding Plan、Z.AI Coding Plan API Key 模板及原有调用路由保留，详见 [移除规格](coding-plan-removal.md)。
+
 ## 供应商管理与备份扩展（2026-10-22）
 
 界面名称统一为“供应商管理”，保留 modelProvider 导航 ID。备份从 Personal 配置和账号 owner 读取完整内容，不能从省略大 Key 池的 UI 投影导出。恢复通过原 owner 提交并校验冲突，受限或过期 OAuth 授权标记需重新授权；不导出应用登录态或整个凭据库。规则、状态顺序和验收参见 [统一执行方案](./automatic-backup-and-provider-restore.md)。

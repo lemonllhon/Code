@@ -566,7 +566,7 @@ sequenceDiagram
 | UI 交互    | 自定义分区行、拖放、悬停菜单、选择弹层、拆分弹窗               | 桌面、手机和键盘均可完成全部主要操作                   |
 | 兼容收尾   | 替换旧 Tabs、旧组织写入口及旧夹具，更新 specs 与 feature graph | 不残留双写、过时指令或伪覆盖声明                       |
 
-现有文件应重点评估：`WorkspaceSidebar.tsx`、`WorkspaceGroupedTasksSection.tsx`、`WorkspaceSidebarItem.tsx`、`WorkspaceSidebar/WorkspaceWorktreesSection.tsx`、`WorkspaceSidebar/WorktreeSidebarRow.tsx`、`WorkspaceArchivedTasksFlatSection.tsx`、`WorkspacePinnedTasksSection.tsx`、`hooks/useGroupedTaskView.ts`、`hooks/groupedWorkspaceService.ts`、`hooks/useSidebarWorktrees.ts` 及侧栏偏好 helpers。
+现有文件应重点评估：`WorkspaceSidebar.tsx`、`WorkspaceSidebar/UnifiedSidebarTree.tsx`、`WorkspaceSidebarItem.tsx`、`WorkspaceSidebar/WorkspaceWorktreesSection.tsx`、`WorkspaceSidebar/WorktreeSidebarRow.tsx`、`WorkspaceArchivedTasksFlatSection.tsx`、`WorkspacePinnedTasksSection.tsx`、`hooks/useGroupedTaskView.ts`、`hooks/groupedWorkspaceService.ts`、`hooks/useSidebarWorktrees.ts` 及侧栏偏好 helpers。
 
 拟新增 UI 组件按职责拆分为 `SidebarOrganizeMenu`、`SidebarSection`、`SidebarMoveDialog`、`SidebarSplitSectionDialog` 和只读投影 hook，不继续把状态与菜单堆入根组件。组件仅通过 hooks 访问服务，跨包使用公开入口。
 

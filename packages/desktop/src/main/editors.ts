@@ -5,13 +5,13 @@
  * 当前支持 macOS / Windows。Linux 后续再补。
  */
 
-import { access, mkdir, mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { join, win32 as pathWin32 } from "node:path";
-import { app, nativeImage } from "electron";
-import type { EditorInfo } from "@lcode/shared";
 import { getLCodeDataRootDir } from "@lcode/services/desktop-main";
+import type { EditorInfo } from "@lcode/shared";
+import { app, nativeImage } from "electron";
+import { execFile } from "node:child_process";
+import { access, mkdir, mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
+import { join, win32 as pathWin32 } from "node:path";
+import { promisify } from "node:util";
 import { logger } from "./logger.js";
 
 const execFileAsync = promisify(execFile);

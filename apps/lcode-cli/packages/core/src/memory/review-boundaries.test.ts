@@ -1,13 +1,13 @@
+import { createFileSystemError, type SessionId } from "@lcode/contracts";
 import assert from "node:assert/strict";
 import { join, resolve } from "node:path";
 import test from "node:test";
-import { createFileSystemError, type SessionId } from "@lcode/contracts";
 import { generateMemoryReviewDraft } from "./review-generation.js";
 import {
   oneReviewItem,
   readReviewPrompt,
-  reviewHarness,
   REVIEW_FIXTURE_MEMORY_ROOT,
+  reviewHarness,
 } from "./review-test-fixtures.js";
 
 const QUERY = "Review memory design";
@@ -38,22 +38,6 @@ test("static symlinks and protected directories are not read or made editable", 
   h.state.reply = (request) => oneReviewItem(request, { fileName: "linked.md" });
   await assert.rejects(generateMemoryReviewDraft({ query: QUERY, context: h.context }));
 });
-
-test("no snapshot reads occur for automation, offpeak, child or unknown remote contexts", async () => {
-  for (const patch of [
-    { automationTurn: true },
-    { offPeakTurn: true },
-    { runtimeScope: "subagent" as const },
-    { remoteSessionId: "remote-without-identity" },
-  ]) {
-    const h = reviewHarness();
-    Object.assign(h.context, patch);
-    await assert.rejects(generateMemoryReviewDraft({ query: QUERY, context: h.context }));
-    assert.equal(h.snapshots.length, 0);
-    assert.equal(h.requests.length, 0);
-  }
-});
-
 test("target absent is established by not_found, not arbitrary stat errors", async () => {
   for (const code of ["permission_denied", "io_error", "unsupported"] as const) {
     const h = reviewHarness();

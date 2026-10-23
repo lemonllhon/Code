@@ -5,20 +5,20 @@
 // 只打开对应设置页，Helper 进入 TCC 列表由用户从浮窗把 .app 拖进列表完成
 // （实测拖入后 auth_value 直接为 2，比弹窗少一步——弹窗只创建条目，仍需用户自己找到并勾选）。
 // 每 stage 的验签指纹不再交给 open(2) 前的终检，而是登记到会话上，由 dragstart 前的同步比对消费。
+import {
+    resolveHelperPermissionSubjectIdentity,
+    type HelperPermissionSubjectIdentity,
+} from "@lcode/services/cua-permission-broker";
+import type { CuaHelperInstallerOptions } from "@lcode/services/desktop-main";
+import type {
+    CuaAccessibilitySettingsResult,
+    CuaPermissionKind,
+    PrepareCuaHelperPermissionDragResult,
+} from "@lcode/shared";
+import { shell } from "electron";
 import { randomUUID } from "node:crypto";
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { shell } from "electron";
-import type { CuaHelperInstallerOptions } from "@lcode/services/desktop-main";
-import {
-  resolveHelperPermissionSubjectIdentity,
-  type HelperPermissionSubjectIdentity,
-} from "@lcode/services/cua-permission-broker";
-import type {
-  CuaAccessibilitySettingsResult,
-  CuaPermissionKind,
-  PrepareCuaHelperPermissionDragResult,
-} from "@lcode/shared";
 import { createDesktopCuaHelperInstaller } from "./desktopCuaHelperInstaller.js";
 
 const MACOS_ACCESSIBILITY_SETTINGS_URL =

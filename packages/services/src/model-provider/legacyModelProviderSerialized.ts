@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- 已发布旧 Provider store 只在单向 importer 边界建模。 */
 import { z } from "zod";
 
-export interface ClaudeModelMapping {
+interface ClaudeModelMapping {
   haiku: string;
   sonnet: string;
   opus: string;
@@ -44,7 +44,7 @@ export type ModelProviderKind = "anthropic" | "openai" | "openai-compatible";
 
 export type ModelProviderModality = "text" | "image" | "video" | "audio" | "pdf";
 
-export interface ProviderOptionsPatch {
+interface ProviderOptionsPatch {
   set?: Array<{ path: string[]; value: unknown }>;
   unset?: Array<{ path: string[] }>;
 }
@@ -63,7 +63,7 @@ export function stripModelProviderReasoningPatches(
   };
 }
 
-export interface ModelProviderCatalogModel {
+interface ModelProviderCatalogModel {
   id: string;
   name?: string;
   kinds: ModelProviderKind[];

@@ -33,13 +33,6 @@ const CAPTURED_USER_PROXY_KEYS = [
   "ALL_PROXY",
 ] as const;
 
-export function resolveProxyUrlForRequest(
-  requestUrl: string | URL,
-  options: NetworkProxyOptions,
-): string | undefined {
-  return resolveProxyForRequest(requestUrl, options).proxyUrl;
-}
-
 export function resolveWebFetchProxyForRequest(
   requestUrl: string | URL,
   options: NetworkProxyOptions,
@@ -112,10 +105,7 @@ function resolveProxyForRequestInternal(
 }
 
 export function resolveTlsCaCertFile(options: NetworkTlsOptions): string | undefined {
-  const candidates = [
-    options.caCertFile,
-    options.env?.[LCODE_AGENT_CA_CERT_ENV_KEY],
-  ];
+  const candidates = [options.caCertFile, options.env?.[LCODE_AGENT_CA_CERT_ENV_KEY]];
 
   for (const candidate of candidates) {
     const normalized = normalizePathLike(candidate);
@@ -136,8 +126,7 @@ export function loadTlsCaCertificates(options: NetworkTlsOptions): Buffer | unde
 
 function readExplicitNoProxyValue(options: NetworkProxyOptions): string | undefined {
   return (
-    normalizePathLike(options.noProxy) ??
-    normalizePathLike(options.env?.[LCODE_NO_PROXY_ENV_KEY])
+    normalizePathLike(options.noProxy) ?? normalizePathLike(options.env?.[LCODE_NO_PROXY_ENV_KEY])
   );
 }
 

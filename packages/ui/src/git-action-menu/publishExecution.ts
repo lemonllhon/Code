@@ -3,7 +3,7 @@ import type { GitCommitResult, GitPublishState } from "@lcode/shared";
 import { getErrorMessage } from "../lib/errorMessage.js";
 import { samePublishState, type PublishPlan } from "./publishModel.js";
 
-export interface PublishOutcome {
+interface PublishOutcome {
   id: string;
   kind: "commit" | "branch" | "create-tag" | "tag";
   status: "pending" | "running" | "success" | "failed" | "skipped";

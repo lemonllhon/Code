@@ -6,11 +6,10 @@ import {
   type ModelRetryBudget,
 } from "@lcode/contracts";
 import { classifyModelFailure, type ClassifiedModelFailure } from "./failure-classifier.js";
-import { shouldReportRoutingFailure } from "./routing-feedback.js";
 import { getResponseHeaders, unwrapRetryError } from "./failure-inspection.js";
-import { offPeakTicketExpiredMessage, resolveOffPeakFailureDecision } from "./offpeak-retry.js";
 import { type AttemptAdmission } from "./request-admission.js";
 import { retryBudgetMaxAttempts } from "./retry-budget.js";
+import { shouldReportRoutingFailure } from "./routing-feedback.js";
 import { recordStreamTextDebug } from "./runner-debug.js";
 import { logStreamFailureDiagnostics } from "./runner-diagnostics.js";
 import {
@@ -29,10 +28,10 @@ import { RuntimeHeadersRefreshError } from "./runner-runtime-headers.js";
 import { publishModelStatus } from "./runner-status.js";
 import { modelFailureStatusFields, readModelFailureErrorPhase } from "./runner-telemetry.js";
 
+import { canRotateApiKey } from "./api-key-retry.js";
 import { publishRetryScheduledStatus, statusPublishOptions } from "./runner-attempt-status.js";
 import type { ModelRunnerRetryState } from "./runner-request-state.js";
 import { resolveStreamFailureDecision } from "./runner-stream-failure-policy.js";
-import { canRotateApiKey } from "./api-key-retry.js";
 import type {
   StreamAttemptState,
   StreamDebugOptions,
@@ -141,26 +140,7 @@ export async function handleStreamFailure(
     classified.message = error.message;
     classified.retryable = false;
   }
-  // off-peak 特判（仅 idle plan provider）：排队 429 豁免预算无限探测；3102 标记落败触发续跑。
-  const offPeak = resolveOffPeakFailureDecision({
-    offPeak: state.resolved.accountAccess?.mode === "off-peak",
-    failure: classified,
-    error: unwrapRetryError(error),
-  });
-  const failure: ClassifiedModelFailure =
-    offPeak?.kind === "ticketExpired"
-      ? {
-          ...classified,
-          retryable: false,
-          message: offPeakTicketExpiredMessage(classified.message),
-        }
-      : offPeak?.kind === "queued"
-        ? {
-            ...classified,
-            retryable: true,
-            retryReason: ModelRetryReason.OffpeakQueued,
-          }
-        : classified;
+  const failure: ClassifiedModelFailure = classified;
   const errorPhase =
     readModelFailureErrorPhase(error) ??
     (state.streamIterator === undefined ? "prepare" : "stream");
@@ -180,7 +160,6 @@ export async function handleStreamFailure(
       state.diagnostics.lastErrorChunk || state.diagnostics.lastFinishChunk,
     ),
   });
-  // off-peak 排队 429 豁免预算：不消耗 maxAttempts，SSE 可见输出边界仍适用。
   const rotateApiKey = canRotateApiKey({
     apiKeyAttempt: state.resolved.apiKeyAttempt,
     error,
@@ -191,9 +170,6 @@ export async function handleStreamFailure(
     maxAttempts: input.retry.maxAttempts,
   });
   if (rotateApiKey) failureDecision.canRetry = true;
-  if (offPeak?.kind === "queued" && !state.emittedRetryBoundaryEvent) {
-    failureDecision.canRetry = true;
-  }
   if (retryWithRepairedHistory) {
     failureDecision.canRetry = true;
   }
@@ -270,9 +246,7 @@ export async function handleStreamFailure(
 
   const delayMs = rotateApiKey
     ? 0
-    : offPeak?.kind === "queued"
-      ? offPeak.delayMs
-      : calculateRetryDelay(input.retry, state.retryBudgetAttempt, failure.retryAfterMs);
+    : calculateRetryDelay(input.retry, state.retryBudgetAttempt, failure.retryAfterMs);
   logRetryDelayDecision({
     attempt: state.attempt,
     canRetry: failureDecision.canRetry,
@@ -332,10 +306,7 @@ export async function handleStreamFailure(
     {
       attempt: state.attempt,
       canRetry: failureDecision.canRetry,
-      consumedRetryAttempts:
-        offPeak?.kind === "queued"
-          ? Math.max(0, state.retryBudgetAttempt - 1)
-          : state.retryBudgetAttempt,
+      consumedRetryAttempts: state.retryBudgetAttempt,
       failure,
       logger: input.logger,
       request: input.request,
@@ -351,5 +322,5 @@ export async function handleStreamFailure(
     throw finalRetryYieldGate.adapterError;
   }
   retryState.pendingRetryYield = finalRetryYieldGate;
-  return offPeak?.kind === "queued";
+  return false;
 }

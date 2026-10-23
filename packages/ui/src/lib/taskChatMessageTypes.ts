@@ -37,15 +37,15 @@ export interface TaskChatToolCall {
   startedAt?: number;
 }
 
-export type TaskChatMessagePart = LCodeAssistantMessagePart;
+type TaskChatMessagePart = LCodeAssistantMessagePart;
 
-export interface TaskModelChangeUiTimeline {
+interface TaskModelChangeUiTimeline {
   type: "model_change";
   fromModelLabel: string;
   toModelLabel: string;
 }
 
-export type TaskUiTimelineMeta = TaskModelChangeUiTimeline;
+type TaskUiTimelineMeta = TaskModelChangeUiTimeline;
 
 export interface TaskChatMessage {
   id: string;

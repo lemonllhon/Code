@@ -59,7 +59,7 @@ export function gitOAuthEndpoints(provider: GitAccountInput["provider"], serverU
           : "read:user write:repository",
   };
 }
-export async function readOAuthJson(http: GitOAuthFetch, url: string, options: RequestInit = {}) {
+async function readOAuthJson(http: GitOAuthFetch, url: string, options: RequestInit = {}) {
   let response: Response;
   try {
     response = await http(url, {

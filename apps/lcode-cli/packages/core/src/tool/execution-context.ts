@@ -3,41 +3,40 @@
 // ============================================================
 
 import type {
-  ExecutionShellSelection,
   AutomationPort,
-  OffPeakPort,
-  EmbeddedSearchBackend,
-  ExecutionPort,
   BrowserControlPort,
-  FileSystemPort,
-  HttpClientPort,
-  ImageProcessorPort,
-  PdfDocumentPort,
-  VideoProcessorPort,
-  Model,
   CoordinatorResponsePort,
   DynamicWorkflowRunPort,
   DynamicWorkflowSnippetPort,
+  EmbeddedSearchBackend,
+  ExecutionPort,
+  ExecutionShellSelection,
+  FileSystemPort,
+  HttpClientPort,
+  ImageProcessorPort,
+  Model,
   ModelCatalogPort,
-  SessionId,
+  PdfDocumentPort,
   SessionEvent,
+  SessionId,
   SessionModePort,
   SessionStorePort,
   SkillPort,
   SkillTelemetryMetadata,
-  SubagentRunOptions,
   SubagentPort,
+  SubagentRunOptions,
   ToolArtifactStorePort,
+  ToolExecutionSpanWriter,
   TraceContext,
   TraceId,
   TurnId,
-  WorkflowPort,
+  VideoProcessorPort,
   WorkflowEscalatePort,
+  WorkflowPort,
   WorkflowSubmitPort,
 } from "@lcode/contracts";
-import type { ToolExecutionSpanWriter } from "@lcode/contracts";
-import type { PersistedReadFileStateMetadata } from "./read-file-state-metadata.js";
 import type { RuntimeTaskRegistry } from "../runtime-task/registry.js";
+import type { PersistedReadFileStateMetadata } from "./read-file-state-metadata.js";
 
 export type ToolRuntimeScope = "main" | "subagent";
 
@@ -89,8 +88,6 @@ export interface ToolExecutionContext {
   automationTurn?: boolean;
   /** 本轮可信 admission 身份；不得从工具输入或持久化会话绑定推断，用于仅删除自身。 */
   automationId?: string;
-  /** 当前工具调用是否属于闲时任务派发轮；OffPeakCreate handler 用它做最终拒绝。 */
-  offPeakTurn?: boolean;
   traceContext?: TraceContext;
   traceId: TraceId;
   spanId?: string;
@@ -120,7 +117,6 @@ export interface ToolExecutionContext {
   workflowEscalatePort?: WorkflowEscalatePort;
   artifactStore?: ToolArtifactStorePort;
   automationPort?: AutomationPort;
-  offPeakPort?: OffPeakPort;
   sessionStore?: SessionStorePort;
   sessionModePort?: SessionModePort;
   workflowPort?: WorkflowPort;

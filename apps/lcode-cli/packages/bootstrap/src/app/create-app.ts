@@ -1,35 +1,35 @@
-import { createInMemorySessionEventStore } from "@lcode/adapters/storage";
 import { createNodeContextSourceAdapter } from "@lcode/adapters/context";
+import { createInMemorySessionEventStore } from "@lcode/adapters/storage";
 import { AgentRuntime, buildPluginReferenceCatalog } from "@lcode/core";
+import type { WorkflowJournalOwnerLease } from "@lcode/dynamic-workflow";
 import { isRemoteWorkspaceIdentity } from "@lcode/shared";
-import { createModelAdapter } from "../model-factory.js";
 import { scheduleStartupLogRetentionCleanup } from "../log-retention.js";
-import type { LCodeApp, LCodeAppOptions } from "./types.js";
-import { runtimeConfigLogContext } from "./runtime-config.js";
-import { createScriptWorkflowBridge } from "./script-workflow-methods.js";
-import { getWorkflowConcurrencyGovernor } from "./workflow-concurrency-governor.js";
+import { createRuntimeAiSdkModelExecutionConfig } from "../model-config.js";
+import { createModelAdapter } from "../model-factory.js";
+import { createAppAdapters } from "./app-adapters.js";
+import { prepareAppConfiguration } from "./app-configuration.js";
+import { createAppDynamicWorkflowPort } from "./app-dynamic-workflow.js";
+import { createAppFacade } from "./app-facade.js";
+import { createAppSessionResume } from "./app-session-resume.js";
+import { createAppSkillPort } from "./app-skills.js";
+import { createAppStartupContext } from "./app-startup-context.js";
+import { createAppWorkspaceHookSecurity } from "./app-workspace-hooks.js";
 import { createDynamicWorkflowSnippetService } from "./dynamic-workflow-snippet-service.js";
+import { failAppStartup } from "./failed-app-startup.js";
 import { createModelCatalogPort } from "./model-catalog-port.js";
 import {
   createNodeReplBrowserBroker,
   injectNodeReplBrowserBroker,
   type NodeReplBrowserBroker,
 } from "./node-repl-browser-broker.js";
-import { createRuntimeAiSdkModelExecutionConfig } from "../model-config.js";
 import { ApiProviderModelRuntime } from "./provider-registry-model-runtime.js";
-import { completeAppStartup, markRuntimeConstructed } from "./startup-marks.js";
-import { createAppStartupContext } from "./app-startup-context.js";
-import { prepareAppConfiguration } from "./app-configuration.js";
-import { createAppAdapters } from "./app-adapters.js";
-import { createAppSessionResume } from "./app-session-resume.js";
-import { createAppSkillPort } from "./app-skills.js";
-import { createAppDynamicWorkflowPort } from "./app-dynamic-workflow.js";
-import { createAppWorkspaceHookSecurity } from "./app-workspace-hooks.js";
-import { createAppFacade } from "./app-facade.js";
-import { acquireAppWorkflowExecutionOwner } from "./workflow-execution-owner.js";
-import type { WorkflowJournalOwnerLease } from "@lcode/dynamic-workflow";
-import { failAppStartup } from "./failed-app-startup.js";
+import { runtimeConfigLogContext } from "./runtime-config.js";
+import { createScriptWorkflowBridge } from "./script-workflow-methods.js";
 import { isClosableSessionStore } from "./session-store.js";
+import { completeAppStartup, markRuntimeConstructed } from "./startup-marks.js";
+import type { LCodeApp, LCodeAppOptions } from "./types.js";
+import { getWorkflowConcurrencyGovernor } from "./workflow-concurrency-governor.js";
+import { acquireAppWorkflowExecutionOwner } from "./workflow-execution-owner.js";
 
 export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp> {
   if (!options?.providerRegistry) {
@@ -292,7 +292,6 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
       dynamicWorkflowSnippetPort,
       modelCatalogPort,
       automationPort: options.automationPort,
-      offPeakPort: options.offPeakPort,
       appVersion,
       traceContext,
     });

@@ -49,16 +49,16 @@ import {
 import { modelFailureStatusFields, providerRequestIdFromHeaders } from "./runner-telemetry.js";
 
 import { statusPublishOptions } from "./runner-attempt-status.js";
-import { logModelSpeedObservation } from "./runner-speed-observation.js";
-import { handleGenerateFailure } from "./runner-generate-failure.js";
 import {
-  generationExhaustedError,
   assertGenerateTextFinish,
+  generationExhaustedError,
   serializeStructuredOutput,
   waitForGenerateTextOrAbort,
 } from "./runner-generate-result.js";
 import type { GenerateAttemptState } from "./runner-generate-state.js";
 import type { ModelRunnerInput, ModelRunnerRetryState } from "./runner-request-state.js";
+import { logModelSpeedObservation } from "./runner-speed-observation.js";
+import { handleGenerateFailure } from "./runner-generate-failure.js";
 
 export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTextResult> {
   // 重试预算档位：workflow actor 的请求带 unbounded，
@@ -85,7 +85,6 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
     pendingRetryYield: undefined,
   };
   const retryAttemptOffset = normalizeRetryAttemptOffset(input.request.retryAttemptOffset);
-  // off-peak 排队会回退逻辑 attempt；物理序号独立递增，避免复用 ID 绕过请求预算。
   let physicalAttempt = retryAttemptOffset;
 
   for (
@@ -388,7 +387,7 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
         providerMetadata: result.providerMetadata as Record<string, unknown> | undefined,
       };
     } catch (error) {
-      const offPeakQueueHold = await handleGenerateFailure(
+      await handleGenerateFailure(
         input,
         retryState,
         attemptState,
@@ -397,7 +396,6 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
         { recordModelIO, isDev },
         retryBudget,
       );
-      if (offPeakQueueHold) attempt -= 1;
     } finally {
       await attemptState.resolved.apiKeyAttempt?.release();
       admission.release();

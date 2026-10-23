@@ -125,7 +125,7 @@ export interface LCodeSessionInitializeResult {
   reasonCode?: "provider_not_ready";
 }
 
-export interface LCodeSessionWorkspaceRuntimeIdentity {
+interface LCodeSessionWorkspaceRuntimeIdentity {
   generation: number;
   identity: string;
   processId?: number;

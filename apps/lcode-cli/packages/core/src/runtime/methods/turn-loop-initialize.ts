@@ -1,13 +1,12 @@
+import type { MessageId, Model, SessionEvent, TraceContext, TraceId, TurnId } from "../deps.js";
 import { TurnMachineImpl } from "../deps.js";
-import type { MessageId, SessionEvent } from "../deps.js";
-import type { ActiveTurnSteeringState, ExecuteTurnOptions } from "../types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
-import { resolveTurnRecallQuery, type RegularTurnLoopState } from "./turn-loop-state.js";
+import type { ActiveTurnSteeringState, ExecuteTurnOptions } from "../types.js";
 import {
   executionModelSelectionIdentity,
   modelSelectionFromModel,
 } from "./model-failover-router.js";
-import type { Model, TraceContext, TraceId, TurnId } from "../deps.js";
+import { resolveTurnRecallQuery, type RegularTurnLoopState } from "./turn-loop-state.js";
 
 export function createRegularTurnLoopState(
   this: AgentRuntimeInternal,
@@ -56,8 +55,6 @@ export function createRegularTurnLoopState(
   return {
     activeTurn,
     ...(options?.automationId ? { automationId: options.automationId } : {}),
-    // 闲时派发轮的身份进入 loop state，供工具执行边界 deny OffPeakCreate。
-    ...(options?.offPeakTaskId ? { offPeakTaskId: options.offPeakTaskId } : {}),
     anomalyWarningsInjected: 0,
     backgroundSubagentResultConsumed: options?.backgroundSubagentResultConsumed === true,
     workflowResultConsumed: options?.workflowResultConsumed === true,

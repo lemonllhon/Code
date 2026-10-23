@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { DynamicWorkflowClientConfig } from "@lcode/shared";
-import type { ICodingPlanSubscriptionService } from "@lcode/services";
+import type { IApplicationConfigService } from "@lcode/services";
 import { logger } from "@/logger.js";
 
 // ============================================================
@@ -18,7 +18,7 @@ import { logger } from "@/logger.js";
 //     失败结果**不记住**：换一份 service 实例会重试。手机 `/remote` 在工作区桥接前拿到的是
 //     unsupported 代理，必然抛错，桥接完成后 accessor 会换一份，那一次必须能纠正回来。
 
-export type DynamicWorkflowAvailabilityStatus = "loading" | "ready";
+type DynamicWorkflowAvailabilityStatus = "loading" | "ready";
 
 export interface DynamicWorkflowAvailabilitySnapshot {
   readonly status: DynamicWorkflowAvailabilityStatus;
@@ -30,9 +30,9 @@ export interface DynamicWorkflowAvailabilitySnapshot {
 
 interface DynamicWorkflowAvailabilityState extends DynamicWorkflowAvailabilitySnapshot {
   /** 首次取数；同一个 service 出过结果后是 no-op，并发调用共用同一次请求。 */
-  ensureLoaded(service: ICodingPlanSubscriptionService): Promise<void>;
+  ensureLoaded(service: IApplicationConfigService): Promise<void>;
   /** 绕过闩与 Host 的 1h 快照缓存重取（forceRefresh）。 */
-  refresh(service: ICodingPlanSubscriptionService): Promise<void>;
+  refresh(service: IApplicationConfigService): Promise<void>;
 }
 
 const INITIAL_SNAPSHOT: DynamicWorkflowAvailabilitySnapshot = {
@@ -43,12 +43,12 @@ const INITIAL_SNAPSHOT: DynamicWorkflowAvailabilitySnapshot = {
 
 let inFlight: Promise<void> | null = null;
 /** 已经出过结果（成功或失败）的 service 实例；同一实例不再重复请求。 */
-let settledService: ICodingPlanSubscriptionService | null = null;
+let settledService: IApplicationConfigService | null = null;
 
 type PublishSnapshot = (snapshot: DynamicWorkflowAvailabilitySnapshot) => void;
 
 async function loadDynamicWorkflowConfig(
-  service: ICodingPlanSubscriptionService,
+  service: IApplicationConfigService,
   options: { forceRefresh?: boolean },
   publish: PublishSnapshot,
 ): Promise<void> {

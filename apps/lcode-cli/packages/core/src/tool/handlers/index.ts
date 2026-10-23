@@ -16,63 +16,62 @@ import {
   SUBMIT_RESULT_TOOL_NAME,
   type JsonSchema,
 } from "@lcode/contracts";
-import type { ToolEntry } from "../types.js";
-import type { AgentProfile } from "../../subagent/profile.js";
-import { readToolEntry } from "./read.js";
-import { videoInspectToolEntry } from "./video-inspect.js";
-import { writeToolEntry } from "./write.js";
-import { editToolEntry } from "./edit.js";
-import { bashToolEntry, createBashToolEntry } from "./bash.js";
-import { createGitToolEntry } from "./git.js";
 import type { AgentRuntimeDeps } from "../../runtime/types.js";
+import type { AgentProfile } from "../../subagent/profile.js";
 import type { BashTimeoutPolicy } from "../bash-timeout-policy.js";
-import { createJsToolEntry, jsToolEntry } from "./node-repl.js";
-import { globToolEntry } from "./glob.js";
-import { grepToolEntry } from "./grep.js";
-import { webFetchToolEntry } from "./webfetch.js";
-import { webSearchToolEntry } from "./websearch.js";
+import { isSubagentDispatchToolName } from "../compat.js";
+import type { ToolEntry } from "../types.js";
 import {
   agentToolEntry,
   createAgentToolEntry,
   createTaskToolEntry,
   taskToolEntry,
 } from "./agent.js";
-import { isSubagentDispatchToolName } from "../compat.js";
-import { skillToolEntry } from "./skill.js";
-import { todoReadToolEntry, todoWriteToolEntry } from "./todo.js";
+import { amendWorkflowToolEntry } from "./amend-workflow.js";
+import { askUserQuestionToolEntry } from "./ask-user-question.js";
+import { bashToolEntry, createBashToolEntry } from "./bash.js";
+import { createWorkflowToolEntry } from "./create-workflow.js";
 import {
   cronCreateToolEntry,
   cronDeleteToolEntry,
   cronListToolEntry,
   cronUpdateToolEntry,
 } from "./cron.js";
-import { offPeakCreateToolEntry, offPeakListToolEntry } from "./off-peak.js";
+import { editToolEntry } from "./edit.js";
+import { escalateToolEntry } from "./escalate.js";
+import { evalWorkflowSnippetToolEntry } from "./eval-workflow-snippet.js";
+import { getWorkflowRunToolEntry } from "./get-workflow-run.js";
+import { createGitToolEntry } from "./git.js";
+import { globToolEntry } from "./glob.js";
+import { grepToolEntry } from "./grep.js";
+import { listModelsToolEntry } from "./list-models.js";
+import { listSavedWorkflowsToolEntry } from "./list-saved-workflows.js";
+import { listWorkflowRunsToolEntry } from "./list-workflow-runs.js";
+import { memoryHistoryToolEntry } from "./memory-history.js";
+import { memoryReviewToolEntry, memorySearchToolEntry } from "./memory.js";
+import { createJsToolEntry, jsToolEntry } from "./node-repl.js";
 import {
   createEnterPlanModeToolEntry,
   enterPlanModeToolEntry,
   exitPlanModeToolEntry,
 } from "./plan-mode.js";
-import { askUserQuestionToolEntry } from "./ask-user-question.js";
-import { sendMessageToolEntry } from "./send-message.js";
-import { respondToCoordinatorToolEntry } from "./respond-to-coordinator.js";
-import { createSubmitResultToolEntry, submitResultToolEntry } from "./submit-result.js";
-import { escalateToolEntry } from "./escalate.js";
+import { readSessionContextToolEntry } from "./read-session-context.js";
+import { readToolEntry } from "./read.js";
 import { resolveWorkflowQuestionToolEntry } from "./resolve-workflow-question.js";
+import { respondToCoordinatorToolEntry } from "./respond-to-coordinator.js";
+import { resumeWorkflowRunToolEntry } from "./resume-workflow-run.js";
+import { saveWorkflowToolEntry } from "./save-workflow.js";
+import { sendMessageToolEntry } from "./send-message.js";
+import { sessionHistorySearchToolEntry } from "./session-history-search.js";
+import { skillToolEntry } from "./skill.js";
+import { createSubmitResultToolEntry, submitResultToolEntry } from "./submit-result.js";
 import { taskOutputToolEntry } from "./task-output.js";
 import { taskStopToolEntry } from "./task-stop.js";
-import { readSessionContextToolEntry } from "./read-session-context.js";
-import { sessionHistorySearchToolEntry } from "./session-history-search.js";
-import { memorySearchToolEntry, memoryReviewToolEntry } from "./memory.js";
-import { memoryHistoryToolEntry } from "./memory-history.js";
-import { amendWorkflowToolEntry } from "./amend-workflow.js";
-import { createWorkflowToolEntry } from "./create-workflow.js";
-import { saveWorkflowToolEntry } from "./save-workflow.js";
-import { listSavedWorkflowsToolEntry } from "./list-saved-workflows.js";
-import { listModelsToolEntry } from "./list-models.js";
-import { evalWorkflowSnippetToolEntry } from "./eval-workflow-snippet.js";
-import { listWorkflowRunsToolEntry } from "./list-workflow-runs.js";
-import { getWorkflowRunToolEntry } from "./get-workflow-run.js";
-import { resumeWorkflowRunToolEntry } from "./resume-workflow-run.js";
+import { todoReadToolEntry, todoWriteToolEntry } from "./todo.js";
+import { videoInspectToolEntry } from "./video-inspect.js";
+import { webFetchToolEntry } from "./webfetch.js";
+import { webSearchToolEntry } from "./websearch.js";
+import { writeToolEntry } from "./write.js";
 // import { workflowToolEntry } from "./workflow.js";
 import { createToolRuleNameSet } from "../tool-visibility.js";
 
@@ -97,8 +96,6 @@ export const builtInTools: ToolEntry[] = [
   cronListToolEntry,
   cronUpdateToolEntry,
   cronDeleteToolEntry,
-  offPeakCreateToolEntry,
-  offPeakListToolEntry,
   enterPlanModeToolEntry,
   exitPlanModeToolEntry,
   askUserQuestionToolEntry,
@@ -185,8 +182,6 @@ interface RegisterBuiltInToolsOptions {
   includeEscalate?: boolean;
   includeWorkflow?: boolean;
   includeAutomation?: boolean;
-  /** Off-Peak 会话内创建工具面；由 host 的 offPeakToolEnabled flag（灰度/远程门）驱动。 */
-  includeOffPeak?: boolean;
   /**
    * 动态工作流灰度门。**只有显式 false
    * 才下架** DYNAMIC_WORKFLOW_TOOL_NAMES：缺席代表调用方不参与灰度（TUI、headless、
@@ -257,12 +252,6 @@ export function registerBuiltInTools(
         entry.metadata.name === "CronUpdate" ||
         entry.metadata.name === "CronDelete") &&
       options.includeAutomation !== true
-    ) {
-      continue;
-    }
-    if (
-      (entry.metadata.name === "OffPeakCreate" || entry.metadata.name === "OffPeakList") &&
-      options.includeOffPeak !== true
     ) {
       continue;
     }

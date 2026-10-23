@@ -172,7 +172,7 @@ export interface LCodeAgentRunAutomationNowResult {
   status: "queued" | "duplicate";
 }
 
-export interface LCodeAgentWorkspaceRuntimeIdentity {
+interface LCodeAgentWorkspaceRuntimeIdentity {
   generation: number;
   identity: string;
   processId?: number;
@@ -255,7 +255,7 @@ export interface LCodeAgentGrantWorkspaceHookTrustParams extends LCodeAgentWorks
   hookDeclarationDigest: string;
 }
 
-export interface LCodeAgentSendPromptParamsBase extends LCodeAgentSessionTarget {
+interface LCodeAgentSendPromptParamsBase extends LCodeAgentSessionTarget {
   modelSelection?: ModelSelection;
   modelExecution?: import("@lcode/shared/lcode-protocol-v4").CommandPayloadMap["sendText"]["modelExecution"];
   inputId?: string;

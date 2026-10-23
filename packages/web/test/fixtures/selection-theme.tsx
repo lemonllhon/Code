@@ -1,3 +1,4 @@
+import "@lcode/ui/styles.css";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { IServiceAccessor } from "@lcode/services";
@@ -29,8 +30,6 @@ import { AppUsagePanel } from "@/settings/usage-stats/AppUsagePanel.js";
 import type { UsageStatsSectionTab } from "@/settings/UsageStatsSection.js";
 import { applyTheme, THEME_OPTIONS, type Theme } from "@/useTheme.js";
 import { platform, services as baseServices, workspacePath } from "./mobile-layout-data.js";
-import "@lcode/ui/styles.css";
-
 const query = new URLSearchParams(location.search);
 const initialTheme =
   THEME_OPTIONS.find((option) => option.id === query.get("theme"))?.id ?? "zai-dark";
@@ -59,13 +58,7 @@ const services = {
     listAllAutomations: async () => [automation],
   },
   clientScenesService: { list: async () => ({ code: 0, msg: "", data: [] }) },
-  codingPlanSubscriptionService: {
-    getOffPeakClientConfig: async () => ({ enabled: true, codingPlanActive: false }),
-  },
-  offPeakTaskService: {
-    list: async () => [],
-    getCodingPlanSupport: async () => ({ supported: false }),
-  },
+  applicationConfigService: {},
   usageStatsService: {
     getAppUsageSnapshot: async ({ range }: AppUsageRequest) =>
       appUsageSnapshotSchema.parse({

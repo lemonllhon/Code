@@ -24,14 +24,14 @@ import {
 import { stageCuaRuntimeTree } from "./windows-cua-runtime-assets.mjs";
 
 export const MAC_CUA_HELPER_APP_NAME = "LCode Computer Use.app";
-export const MAC_CUA_HELPER_DISPLAY_NAME = "LCode Computer Use";
+const MAC_CUA_HELPER_DISPLAY_NAME = "LCode Computer Use";
 export const MAC_CUA_HELPER_BUNDLE_ID = "dev.lcode.cua-helper";
-export const MAC_CUA_HELPER_EXECUTABLE_NAME = "LCode Computer Use";
+const MAC_CUA_HELPER_EXECUTABLE_NAME = "LCode Computer Use";
 export const MAC_CUA_PIP_PRESENTER_EXECUTABLE_NAME = "LCode Computer Use PiP";
 export const MAC_CUA_PIP_PRESENTER_ENV = "LCODE_CUA_PIP_PRESENTER";
-export const MAC_CUA_NODE_EXECUTABLE_ENV = "LCODE_CUA_MAC_NODE_EXECUTABLE";
-export const MAC_CUA_NODE_VERSION_ENV = "LCODE_CUA_MAC_NODE_VERSION";
-export const MAC_CUA_NODE_SHA256_ENV = "LCODE_CUA_MAC_NODE_SHA256";
+const MAC_CUA_NODE_EXECUTABLE_ENV = "LCODE_CUA_MAC_NODE_EXECUTABLE";
+const MAC_CUA_NODE_VERSION_ENV = "LCODE_CUA_MAC_NODE_VERSION";
+const MAC_CUA_NODE_SHA256_ENV = "LCODE_CUA_MAC_NODE_SHA256";
 
 const execFileAsync = promisify(execFile);
 const requireFromScript = createRequire(import.meta.url);
@@ -94,7 +94,7 @@ export function createMacCuaBuildVersion(buildIdentity) {
   return [0, 2, 4].map((offset) => String((digest.readUInt16BE(offset) % 65_535) + 1)).join(".");
 }
 
-export function createMacCuaInfoPlist(appVersion, buildVersion) {
+function createMacCuaInfoPlist(appVersion, buildVersion) {
   if (!/^\d+(?:\.\d+){0,3}$/u.test(appVersion)) {
     throw new Error("[macos-cua-helper-app] app version is not valid for Info.plist");
   }

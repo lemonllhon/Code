@@ -16,7 +16,7 @@ export interface WorkspaceHeaderState {
 
 export type WorkspaceHeaderVariant = "task" | "draft";
 
-export interface WorkspaceHeaderReloadSessionOptions {
+interface WorkspaceHeaderReloadSessionOptions {
   resumeTaskId?: string | null;
   provider?: LCodeProvider | null;
 }

@@ -5,7 +5,7 @@ function keyOf(node: WorkflowRunNode): string {
   return `${node.siteId}@${node.ordinal}`;
 }
 
-export const WORKFLOW_ACTOR_SUPPLEMENT_MAX_LENGTH = 32_768;
+const WORKFLOW_ACTOR_SUPPLEMENT_MAX_LENGTH = 32_768;
 
 export function resolveWorkflowActorSupplementChange(previous: string, next: string): string {
   return next.length <= WORKFLOW_ACTOR_SUPPLEMENT_MAX_LENGTH ? next : previous;

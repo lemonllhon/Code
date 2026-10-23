@@ -10,7 +10,7 @@ export const REMOTE_CONTROL_WS_HEADER_SIZE = 13;
 const REGULAR_FRAME_TYPE = 1;
 
 /** port 内部流控对象(connection-flow-v1);与 packages/rpc MessagePortProtocol 的判定同构。 */
-export interface RemoteControlFlowControlMessage {
+interface RemoteControlFlowControlMessage {
   __lcodeRpcControl: "connection-flow-v1";
   state: "saturated" | "drained";
 }
@@ -32,7 +32,7 @@ export interface RemoteControlFramePumpWsSide {
   close(code: number, reason: string): void;
 }
 
-export interface RemoteControlFramePumpPortSide {
+interface RemoteControlFramePumpPortSide {
   /** 手机→Host 方向:已剥头的 Channel payload。 */
   postMessage(data: Uint8Array): void;
 }

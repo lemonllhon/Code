@@ -1,39 +1,39 @@
+import { createMcpToolDisplay } from "../../tool/executor/result-display.js";
+import type {
+  ExecutableToolCall,
+  MessageId,
+  PermissionBrokerResult,
+  SessionEvent,
+  ToolCall,
+  ToolCallId,
+  ToolDependency,
+  ToolExecutionResult,
+  ToolSchedule,
+  TraceContext,
+} from "../deps.js";
 import {
   RewindScope,
   SessionEventType,
   getCurrentTraceContext,
   traceContextToLogContext,
 } from "../deps.js";
-import type {
-  MessageId,
-  PermissionBrokerResult,
-  SessionEvent,
-  ToolCallId,
-  TraceContext,
-  ToolCall,
-  ToolDependency,
-  ToolSchedule,
-  ExecutableToolCall,
-  ToolExecutionResult,
-} from "../deps.js";
 import {
-  isResolvablePermissionBroker,
-  getFileMutationCheckpointCandidate,
   WORKSPACE_CHECKPOINT_CONTENT_TYPE,
+  createTurnCancelledError,
+  findParallelGroupIndex,
+  getFileMutationCheckpointCandidate,
+  isResolvablePermissionBroker,
+  isTurnCancellationError,
+  recordTurnFileChange,
   stringifyWorkspaceCheckpointArtifact,
   throwIfTurnAborted,
-  createTurnCancelledError,
-  isTurnCancellationError,
-  findParallelGroupIndex,
-  recordTurnFileChange,
 } from "../helpers/index.js";
+import type { AgentRuntimeInternal } from "../internal.js";
 import type {
-  PermissionDecisionResult,
   ExecuteToolsOptions,
   ExecuteToolsResult,
+  PermissionDecisionResult,
 } from "../types.js";
-import type { AgentRuntimeInternal } from "../internal.js";
-import { createMcpToolDisplay } from "../../tool/executor/result-display.js";
 
 export async function scheduleTools(
   this: AgentRuntimeInternal,
@@ -90,7 +90,6 @@ export async function executeTools(
     onToolStart: options?.onToolStart,
     automationTurn: options?.automationTurn,
     automationId: options?.automationId,
-    offPeakTurn: options?.offPeakTurn,
     signal: options?.signal,
     traceContext,
     subagentModelOverride: options?.subagentModelOverride,

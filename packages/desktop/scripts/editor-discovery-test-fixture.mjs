@@ -1,6 +1,6 @@
 import { loadSource } from "./main-runtime-test-fixture.mjs";
 
-export const editorAuditState = `
+const editorAuditState = `
 export const state = {
   files: new Set(['C:/Windows/explorer.exe', '/System/Library/CoreServices/Finder.app']),
   directories: {}, contents: {}, commandErrors: {}, syncCalls: [], commands: [], directoryReads: [],

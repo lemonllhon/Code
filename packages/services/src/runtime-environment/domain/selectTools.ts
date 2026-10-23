@@ -8,7 +8,7 @@ import {
 } from "./declarations.js";
 import { checkEnginesConstraint, intersectSemverRanges } from "./engines.js";
 
-export interface SelectedTool {
+interface SelectedTool {
   key: string;
   version: string;
   source: "project-declaration" | "app-default";

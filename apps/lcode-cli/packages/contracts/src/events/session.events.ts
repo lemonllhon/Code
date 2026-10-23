@@ -1,11 +1,39 @@
-import type { ExecutionOutputPreview } from "../interfaces/execution.port.js";
 import type { RoutingFailureInfo } from "@lcode/shared/provider-routing";
+import type { ExecutionOutputPreview } from "../interfaces/execution.port.js";
 import type { RuntimeInputPresentation } from "../interfaces/runtime-input-presentation.js";
 /* eslint-disable max-lines -- session event 契约集中在单文件导出，避免 app/agent 协议类型分散后漂移。 */
 // ============================================================
 // Session Events - All event types for the agent loop
 // ============================================================
 
+import type { LCodeBackgroundTaskResultConsumedPayload } from "@lcode/shared";
+import type {
+  ExecutionFailoverChangeCause,
+  ExecutionFailoverState,
+  ExecutionFailoverTransition,
+} from "@lcode/shared/lcode-protocol-v4";
+import type {
+  CompactBoundaryPayload,
+  CompactTimelinePayload,
+  MicrocompactBoundaryPayload,
+} from "../compact/index.js";
+import type { HookRunLifecyclePayload } from "../hooks/index.js";
+import type { HttpClientEgressInfo } from "../interfaces/http-client.port.js";
+import type { PermissionOptionsPolicy, PermissionUpdate } from "../interfaces/permission.port.js";
+import type {
+  MessageVisibility,
+  SessionTitleSource,
+  SyntheticUserMessageSource,
+} from "../interfaces/session-store.port.js";
+import type {
+  CollaborationMode,
+  RiskLevel,
+  TurnInputIntentMetadata,
+  TurnSteerCommandKind,
+  TurnSteerDeliveryMode,
+  TurnSteerRejectReason,
+  TurnSteerSource,
+} from "../interfaces/session.port.js";
 import type {
   EventId,
   InteractionRequestOrigin,
@@ -13,46 +41,24 @@ import type {
   PartId,
   QueryId,
   SessionId,
-  TraceId,
   ToolCallId,
+  TraceId,
   TurnId,
 } from "../interfaces/shared.js";
-import type {
-  CollaborationMode,
-  RiskLevel,
-  TurnSteerCommandKind,
-  TurnSteerDeliveryMode,
-  TurnSteerRejectReason,
-  TurnSteerSource,
-  TurnInputIntentMetadata,
-} from "../interfaces/session.port.js";
 import type {
   ModelNetworkStatusEvent,
   ModelSelection,
   ModelUsage,
   ModelUsageSummary,
 } from "../model/index.js";
-import type { HttpClientEgressInfo } from "../interfaces/http-client.port.js";
 import { createModelUsageSummary } from "../model/index.js";
-import type { ModelApiErrorPhase, ModelFailureExceptionKind } from "../telemetry/index.js";
-import type {
-  CompactBoundaryPayload,
-  CompactTimelinePayload,
-  MicrocompactBoundaryPayload,
-} from "../compact/index.js";
-import type { HookRunLifecyclePayload } from "../hooks/index.js";
 import type { CheckpointCreatedPayload, RewindTriggeredPayload } from "../rewind/index.js";
-import type { GoalCompletionVerificationOutput, SessionGoal } from "../tools/target.js";
-import type { ToolSideEffectScope } from "../tools/contract.js";
-import type { ToolResultDisplayPayload } from "../tools/tool-result-metadata.js";
 import type { SkillTelemetryMetadata } from "../skills/index.js";
-import type {
-  MessageVisibility,
-  SessionTitleSource,
-  SyntheticUserMessageSource,
-} from "../interfaces/session-store.port.js";
+import type { ModelApiErrorPhase, ModelFailureExceptionKind } from "../telemetry/index.js";
+import type { ToolSideEffectScope } from "../tools/contract.js";
 import type { SavedWorkflowScope } from "../tools/saved-workflow.js";
-import type { PermissionOptionsPolicy, PermissionUpdate } from "../interfaces/permission.port.js";
+import type { GoalCompletionVerificationOutput, SessionGoal } from "../tools/target.js";
+import type { ToolResultDisplayPayload } from "../tools/tool-result-metadata.js";
 import type {
   StreamRecoveryAnchorPayload,
   StreamRecoveryAnchorSelectedPayload,
@@ -62,12 +68,6 @@ import type {
   StreamRecoveryTailDiscardedPayload,
   StreamingToolLedgerPayload,
 } from "./stream-recovery.events.js";
-import type { LCodeBackgroundTaskResultConsumedPayload } from "@lcode/shared";
-import type {
-  ExecutionFailoverChangeCause,
-  ExecutionFailoverState,
-  ExecutionFailoverTransition,
-} from "@lcode/shared/lcode-protocol-v4";
 
 // Re-export for convenience
 export type { CollaborationMode, RiskLevel } from "../interfaces/session.port.js";
@@ -310,20 +310,13 @@ export interface BackgroundResultOriginMeta {
  * 不得推进 session running/activeWorks，也不应产生“工作中/已工作”状态。
  */
 export type TurnExecutionKind = "agent" | "controlOnly";
-
-export type OffPeakRunType = "init" | "resume";
-
 export type TurnBackgroundAttribution =
-  | { automationId: string; offPeakTaskId?: never; offPeakRunType?: never }
+  | { automationId: string }
   | {
-      offPeakTaskId: string;
-      offPeakRunType?: OffPeakRunType;
       automationId?: never;
     }
   | {
       automationId?: undefined;
-      offPeakTaskId?: undefined;
-      offPeakRunType?: never;
     };
 
 /**

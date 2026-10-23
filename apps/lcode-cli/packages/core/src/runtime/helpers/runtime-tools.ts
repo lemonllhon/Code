@@ -1,28 +1,28 @@
-import { gitAgentContextSchema, decodeProjectNativeValue } from "@lcode/shared";
+import { decodeProjectNativeValue, gitAgentContextSchema } from "@lcode/shared";
+import { shouldSuppressSealedSubagentBashNotification } from "../../runtime-task/notification-policy.js";
 import { createProjectToolRouting } from "../../tool/project-routing.js";
+import type { HookRunner, SessionId, ToolExecutor, TraceContext } from "../deps.js";
 import {
   createConfiguredHookRunner,
   createInMemoryHookRunner,
   createSessionMailboxHookRegistrations,
   createToolExecutor,
   getCurrentTraceContext,
-  registerBuiltInTools,
   traceContextToLogContext,
 } from "../deps.js";
-import type { HookRunner, SessionId, ToolExecutor, TraceContext } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
-import type { AgentRuntimeDeps } from "../types.js";
-import { resolveRuntimeEmbeddedSearchEnabled } from "../methods/embedded-search-branch.js";
+import { isStaleBranchRuntimeTaskEvent } from "../methods/runtime-command-generation.js";
 import { getSessionShellSelectionFromConfig } from "../methods/session-shell-environment.js";
 import { createRuntimeSessionModePort } from "../session-mode-port.js";
-import { shouldSuppressSealedSubagentBashNotification } from "../../runtime-task/notification-policy.js";
+import type { AgentRuntimeDeps } from "../types.js";
+import { resolveEnabledProjectMemoryRoot } from "./project-memory.js";
+import { registerBuiltInTools } from "../deps.js";
+import { resolveRuntimeEmbeddedSearchEnabled } from "../methods/embedded-search-branch.js";
 import {
   resolveBuiltInToolAllowlist,
   resolveRuntimeDisallowedTools,
   resolveRuntimeDynamicWorkflowToolsIncluded,
 } from "./tool-allowlist.js";
-import { isStaleBranchRuntimeTaskEvent } from "../methods/runtime-command-generation.js";
-import { resolveEnabledProjectMemoryRoot } from "./project-memory.js";
 
 const DEFAULT_SUBAGENT_BACKGROUND_BASH_MAX_MS = 3_600_000;
 const EMPTY_RUNTIME_HOOK_CONFIG = {
@@ -69,8 +69,6 @@ function registerRuntimeBuiltInTools(runtime: AgentRuntimeInternal, deps: AgentR
     includeAutomation: Boolean(deps.automationPort) && runtime.config.taskType !== "subagent_child",
     // offPeakPort 只在 host 下发 offPeakToolEnabled 时注入（灰度/远程门在 host 端），
     // 端口存在即代表曝光允许；subagent 子会话与 automation 同规则不暴露。
-    includeOffPeak: Boolean(deps.offPeakPort) && runtime.config.taskType !== "subagent_child",
-    // 动态工作流灰度门：与 off-peak 相反，
     // 这里不能用端口在场做判据——十个工具的端口在任何 CLI 里都装配齐全，灰度是 Host 的决定。
     // 取值收在 tool-allowlist.ts，与分支刷新那个入口共用同一个推导。
     includeDynamicWorkflow: resolveRuntimeDynamicWorkflowToolsIncluded(runtime.config),
@@ -227,7 +225,6 @@ function createRuntimeToolExecutor(
     workflowEscalatePort: deps.workflowEscalatePort,
     artifactStore: deps.artifactStore,
     automationPort: deps.automationPort,
-    offPeakPort: deps.offPeakPort,
     sessionStore: deps.sessionStore,
     sessionModePort: createRuntimeSessionModePort(runtime),
     workflowPort: deps.workflowPort,

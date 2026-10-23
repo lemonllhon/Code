@@ -48,7 +48,7 @@ export interface FeedbackSubmissionCopy {
 
 export type FeedbackSubmissionJobStatus = "running" | "paused-log" | "success" | "error";
 
-export interface FeedbackSubmissionJobState {
+interface FeedbackSubmissionJobState {
   id: string;
   status: FeedbackSubmissionJobStatus;
   progress: FeedbackSubmissionProgressState;

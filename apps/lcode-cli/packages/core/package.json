@@ -37,16 +37,16 @@
   "dependencies": {
     "@lcode/contracts": "workspace:*",
     "@lcode/dynamic-workflow": "workspace:*",
+    "@lcode/lcode-cua": "workspace:*",
     "@lcode/shared": "workspace:*",
     "@lcode/shared-types": "workspace:*",
-    "@lcode/lcode-cua": "workspace:*",
-    "cheerio": "^1.0.0",
     "diff": "^9.0.0",
     "ipaddr.js": "1.9.1",
     "marked": "16.4.2",
     "meriyah": "^7.1.1",
     "unbash": "4.0.1",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.0",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@types/node": "^24.0.0"

@@ -24,7 +24,6 @@ type FormatMessage = (descriptor: { id: string }, values?: Record<string, string
 const REASON_LABEL_KEY: Readonly<Record<string, string>> = {
   rate_limited: "throttle.reason.rateLimited",
   provider_overloaded: "throttle.reason.overloaded",
-  offpeak_queued: "throttle.reason.offpeak",
   server_error: "throttle.reason.server",
   network_error: "throttle.reason.network",
   timeout: "throttle.reason.timeout",
@@ -119,9 +118,12 @@ export function workflowRunConcurrencyEventLine(
   switch (event.type) {
     case "node-admission": {
       // 调度等待与 provider slot 分属不同所有者；只有明确 cause 才显示具体队列原因。
-      const kind = payload.cause === "actor-fifo" || payload.cause === "run-capacity"
-        ? payload.cause
-        : payload.cause === null ? "dispatched" : "queued";
+      const kind =
+        payload.cause === "actor-fifo" || payload.cause === "run-capacity"
+          ? payload.cause
+          : payload.cause === null
+            ? "dispatched"
+            : "queued";
       return withDetail(
         formatMessage({ id: `chat.toolCall.workflow.activity.${kind}` }),
         refText(payload.instance),

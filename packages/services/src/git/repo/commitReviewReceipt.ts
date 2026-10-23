@@ -66,7 +66,7 @@ export async function prepareReviewCommitReceipt(
   });
 }
 
-export class CommitReviewReceiptStore {
+class CommitReviewReceiptStore {
   constructor(private readonly command: GitCommandProvider) {}
   private async git(cwd: string, args: string[]) {
     const result = await this.command.run({ cwd, args });

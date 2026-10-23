@@ -1,9 +1,9 @@
 import type { McpServerConfig, LCodeMcpServer } from "@lcode/shared";
 
-export const MCP_SECTIONS = ["zcodeagentmcp"] as const;
+const MCP_SECTIONS = ["zcodeagentmcp"] as const;
 
 export type ServerScope = (typeof MCP_SECTIONS)[number];
-export type ConfigStorageLevel = "user" | "workspace";
+type ConfigStorageLevel = "user" | "workspace";
 export type McpEditorMode = "form" | "json";
 
 export interface FormState {

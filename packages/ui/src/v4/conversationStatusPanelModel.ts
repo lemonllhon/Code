@@ -15,7 +15,7 @@ import {
   type WorkflowTimelineDisplay,
 } from "@/components/workflow-timeline/timeline-activity.js";
 
-export interface ConversationStatusPanelGitModel {
+interface ConversationStatusPanelGitModel {
   branchName: string | null;
   headRefType: GitRepositorySummary["headRefType"];
   dirtyFileCount: number;
@@ -26,7 +26,7 @@ export interface ConversationStatusPanelGitModel {
   isClean: boolean;
 }
 
-export interface ConversationStatusPanelPlanModel {
+interface ConversationStatusPanelPlanModel {
   items: PlanState["items"];
   displayItems: PlanState["items"];
   completedCount: number;
@@ -42,7 +42,7 @@ export interface ConversationStatusPanelSessionPlanItem {
   planFilePath?: string;
 }
 
-export interface ConversationStatusPanelSessionPlansModel {
+interface ConversationStatusPanelSessionPlansModel {
   items: ConversationStatusPanelSessionPlanItem[];
 }
 

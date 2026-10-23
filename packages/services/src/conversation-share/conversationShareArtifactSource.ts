@@ -5,18 +5,18 @@ import type { IFileService } from "#src/file/file.js";
 
 import { ConversationShareServiceError } from "./conversationShare.js";
 
-export interface ConversationShareArtifactReadInput {
+interface ConversationShareArtifactReadInput {
   workspacePath: string;
   ref: string;
   maxBytes: number;
 }
 
-export interface ConversationShareMaterializedArtifact {
+interface ConversationShareMaterializedArtifact {
   bytes: Uint8Array;
   canonicalPath: string;
 }
 
-export interface ConversationShareArtifactStat {
+interface ConversationShareArtifactStat {
   canonicalPath: string;
   size: number;
   mtimeMs?: number;

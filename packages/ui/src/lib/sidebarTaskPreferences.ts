@@ -1,8 +1,8 @@
 import type { BrowserStorageLike } from "@/lib/browserEnvironment.js";
 import { getSafeLocalStorage } from "@/lib/browserEnvironment.js";
 
-export type SidebarTaskOrganizeBy = "grouped" | "project" | "chronological" | "worktrees";
-export type SidebarTaskSortBy = "created" | "updated";
+type SidebarTaskOrganizeBy = "grouped" | "project" | "chronological" | "worktrees";
+type SidebarTaskSortBy = "created" | "updated";
 export type SidebarContentFocus = "all" | "projects" | "worktrees" | "chats";
 
 interface SidebarTaskPreferences {

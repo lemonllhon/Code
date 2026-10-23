@@ -1,30 +1,29 @@
-import {
-  SessionEventType,
-  createModelUsageSummaryFromEvents,
-  traceContextToLogContext,
-} from "../deps.js";
-import type { SessionGoal, SessionEvent, TraceContext, TurnId } from "../deps.js";
 import type {
   ToolCallResultPayload,
   ToolCallScheduledPayload,
   ToolCallStartedPayload,
 } from "@lcode/contracts";
 import { isMemoryReviewOperation } from "../../memory/extraction.js";
-import type { ExecuteTurnOptions, TurnResult } from "../types.js";
+import type { SessionEvent, SessionGoal, TraceContext, TurnId } from "../deps.js";
+import {
+  SessionEventType,
+  createModelUsageSummaryFromEvents,
+  traceContextToLogContext,
+} from "../deps.js";
+import { logMemoryExtractionSkipped } from "../helpers/project-memory-extraction-outcome.js";
 import type { AgentRuntimeInternal } from "../internal.js";
+import type { ExecuteTurnOptions, TurnResult } from "../types.js";
+import { cleanupTurnBackgroundBash } from "./background.js";
+import { appendBrowserTurnScreenshot } from "./browser-turn-screenshot.js";
+import { recordMemoryEffectTurn } from "./memory-effect-observation.js";
 import { maybeStartDeferredSessionTitleGeneration } from "./session-title.js";
+import { persistStableForkCompletionBoundary } from "./stable-fork-boundary.js";
 import {
   isAutomationMutationRestrictedTurn,
-  isOffPeakCreateRestrictedTurn,
   type RegularTurnLoopState,
 } from "./turn-loop-state.js";
 import { recordTurnUsageFact } from "./usage-observability.js";
-import { persistStableForkCompletionBoundary } from "./stable-fork-boundary.js";
 import { scheduleProjectMemoryExtraction } from "../helpers/project-memory-extraction.js";
-import { logMemoryExtractionSkipped } from "../helpers/project-memory-extraction-outcome.js";
-import { appendBrowserTurnScreenshot } from "./browser-turn-screenshot.js";
-import { cleanupTurnBackgroundBash } from "./background.js";
-import { recordMemoryEffectTurn } from "./memory-effect-observation.js";
 import { markComposerPredictionBoundary } from "./composer-prediction.js";
 
 export async function completeRegularTurn(
@@ -61,6 +60,13 @@ export async function completeRegularTurn(
     traceContext: turnTraceContext,
     usage: turnUsage,
   });
+  markComposerPredictionBoundary(
+    this,
+    !options?.inputSource && !isAutomationMutationRestrictedTurn(loopState)
+      ? loopState.stableBoundaryAssistantMessageId
+      : undefined,
+    turnId,
+  );
   if (loopState.stableProductStartMessageId && loopState.stableBoundaryAssistantMessageId) {
     await persistStableForkCompletionBoundary(this, {
       boundaryMessageId: loopState.stableBoundaryAssistantMessageId,
@@ -75,15 +81,6 @@ export async function completeRegularTurn(
   // 主轮成功时先结算本轮临时后台 Bash，预览服务显式保留；
   // 进程生命周期由 Runtime 拥有，UI 只消费之后的完成事实。
   await cleanupTurnBackgroundBash(this, turnId, turnTraceContext);
-  markComposerPredictionBoundary(
-    this,
-    !options?.inputSource &&
-      !isAutomationMutationRestrictedTurn(loopState) &&
-      !isOffPeakCreateRestrictedTurn(loopState)
-      ? loopState.stableBoundaryAssistantMessageId
-      : undefined,
-    turnId,
-  );
   const completeEvent = this.createEvent(
     SessionEventType.TurnComplete,
     {
@@ -115,6 +112,29 @@ export async function completeRegularTurn(
     turnId,
     userMessageId,
   });
+  if (
+    options?.modelExecution?.memoryExtraction !== "skip" &&
+    !isAutomationMutationRestrictedTurn(loopState) &&
+    !containsForegroundMemoryReview(events, this.sessionId, turnId)
+  ) {
+    scheduleProjectMemoryExtraction(this, {
+      model: loopState.model,
+      traceContext: turnTraceContext,
+      startMessageId: loopState.stableProductStartMessageId ?? loopState.userMessageId,
+      boundaryMessageId: loopState.stableBoundaryAssistantMessageId,
+    });
+  } else {
+    logMemoryExtractionSkipped(
+      this,
+      turnTraceContext,
+      options?.modelExecution?.memoryExtraction === "skip"
+        ? "explicit-skip"
+        : containsForegroundMemoryReview(events, this.sessionId, turnId)
+          ? "foreground-review"
+          : "task-restricted",
+      loopState.stableBoundaryAssistantMessageId,
+    );
+  }
   if (shouldRetryTitleGenerationAfterTurn && userMessageId) {
     // 需要请求前刷新 provider runtime headers 的模型
     // 若在主 turn 前生成标题，会先占用鉴权刷新窗口，导致真正的用户消息失败。
@@ -137,31 +157,6 @@ export async function completeRegularTurn(
     toolCallCount: loopState.toolCallCount,
   });
   // 单轮执行策略只抑制本次成功 Turn 的后台提取，不修改 Session Memory 配置。
-  if (
-    options?.modelExecution?.memoryExtraction !== "skip" &&
-    !isAutomationMutationRestrictedTurn(loopState) &&
-    !isOffPeakCreateRestrictedTurn(loopState) &&
-    !containsForegroundMemoryReview(events, this.sessionId, turnId)
-  ) {
-    scheduleProjectMemoryExtraction(this, {
-      model: loopState.model,
-      traceContext: turnTraceContext,
-      startMessageId: loopState.stableProductStartMessageId ?? loopState.userMessageId,
-      boundaryMessageId: loopState.stableBoundaryAssistantMessageId,
-    });
-  } else {
-    logMemoryExtractionSkipped(
-      this,
-      turnTraceContext,
-      options?.modelExecution?.memoryExtraction === "skip"
-        ? "explicit-skip"
-        : containsForegroundMemoryReview(events, this.sessionId, turnId)
-          ? "foreground-review"
-          : "task-restricted",
-      loopState.stableBoundaryAssistantMessageId,
-    );
-  }
-
   const result: TurnResult = {
     response: loopState.modelResponse,
     turnId,

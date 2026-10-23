@@ -73,11 +73,11 @@ export function requireMemory(
 }
 
 export function assertInteractiveMemoryMutation(
-  context: Pick<ToolExecutionContext, "automationTurn" | "offPeakTurn" | "runtimeScope">,
+  context: Pick<ToolExecutionContext, "automationTurn" | "runtimeScope">,
 ): void {
-  if (context.automationTurn || context.offPeakTurn || context.runtimeScope === "subagent") {
+  if (context.automationTurn || context.runtimeScope === "subagent") {
     throw memoryError(
-      "This memory maintenance entry is unavailable to automation, off-peak and subagent turns.",
+      "This memory maintenance entry is unavailable to automation and subagent turns.",
     );
   }
 }

@@ -107,10 +107,7 @@ export function normalizeWorkspaceInRepoPath(path: string): string {
   return normalized.length > 0 ? normalized : ".";
 }
 
-export function isPathInWorkspaceScope(
-  repoRelativePath: string,
-  workspaceInRepoPath: string,
-): boolean {
+function isPathInWorkspaceScope(repoRelativePath: string, workspaceInRepoPath: string): boolean {
   const normalizedPath = normalizeGitPath(repoRelativePath).replace(/^\.?\//, "");
   const normalizedWorkspace = normalizeWorkspaceInRepoPath(workspaceInRepoPath);
   if (normalizedWorkspace === ".") {

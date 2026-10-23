@@ -1,25 +1,25 @@
-import { app, BrowserWindow, Menu } from "electron";
-import {
-  DesktopCommandIds,
-  desktopMenuMessageIds,
-  getDesktopMenuMessage,
-  isValidShortcutBinding,
-  LCODE_ENV,
-  LCODE_PRODUCT_FLAVOR,
-  type DesktopCommandId,
-  type Locale,
-} from "@lcode/shared";
 import { readLCodeStdioTapDevState } from "@lcode/services/desktop-main";
+import {
+    DesktopCommandIds,
+    desktopMenuMessageIds,
+    getDesktopMenuMessage,
+    isValidShortcutBinding,
+    LCODE_ENV,
+    LCODE_PRODUCT_FLAVOR,
+    type DesktopCommandId,
+    type Locale,
+} from "@lcode/shared";
+import { app, BrowserWindow, Menu } from "electron";
 import { CHECK_FOR_UPDATE_MENU_ID, setAutoUpdaterMenuLocale } from "./autoUpdater.js";
 import {
-  DESKTOP_ZOOM_MAX_LEVEL,
-  DESKTOP_ZOOM_MIN_LEVEL,
-  clampDesktopZoomLevel,
-} from "./desktopZoom.js";
-import {
-  HELP_TOGGLE_LCODE_STDIO_TAP_MENU_ID,
-  HELP_TOGGLE_DEV_TOOLS_MENU_ID,
+    HELP_TOGGLE_DEV_TOOLS_MENU_ID,
+    HELP_TOGGLE_LCODE_STDIO_TAP_MENU_ID,
 } from "./desktopCommandHandlers.js";
+import {
+    clampDesktopZoomLevel,
+    DESKTOP_ZOOM_MAX_LEVEL,
+    DESKTOP_ZOOM_MIN_LEVEL,
+} from "./desktopZoom.js";
 
 const HELP_LCODE_ENDPOINT_PRODUCTION_MENU_ID = "help.lcode-endpoint.production";
 

@@ -22,6 +22,7 @@ import {
 import type { IProviderSettingsService } from "@lcode/services";
 import type { ModelConnectivityResult } from "@lcode/shared";
 import { simulateModelProbeResult } from "./model-provider-probe-result.js";
+import builtinProviderData from "../../../../config/provider/lcode-builtin.json";
 
 export const STORAGE_KEY = "lcode-test-model-provider-settings-fixture-v1";
 export const PROVIDER_ID = "test";
@@ -60,10 +61,28 @@ const recommended = parseModelConfig({
     maxOutputTokens: { max: 8192, map: "{}" },
   },
 });
+const retainedTemplates: Array<readonly [string, ProviderTemplate]> = new URLSearchParams(
+  location.search,
+).has("codingPlanRemoval")
+  ? builtinProviderData.config.providerConfigRules.templateRules
+      .filter((entry) => entry.templateId === "zai-api" || entry.templateId === "bigmodel-api")
+      .map(
+        (entry) =>
+          [
+            entry.templateId,
+            new ProviderTemplate({
+              templateId: entry.templateId,
+              templateNameMap: entry.templateNameMap,
+              config: parseProviderConfig(entry.config),
+            }),
+          ] as const,
+      )
+  : [];
 const builtin: ProviderConfigLayerSnapshot = {
   revision: BUILTIN_REVISION,
   providers: ProviderConfigMap.empty(),
   providerTemplates: new ProviderTemplateMap([
+    ...retainedTemplates,
     [
       TEMPLATE_ID,
       new ProviderTemplate({

@@ -1,9 +1,9 @@
 import { lstat, open, realpath, stat } from "node:fs/promises";
 import { relative, resolve, sep } from "node:path";
 
-export type BackendPlatformName = "win32" | "darwin" | "linux";
-export type BackendArch = "x64" | "arm64";
-export type BackendLibc = "glibc" | "musl";
+type BackendPlatformName = "win32" | "darwin" | "linux";
+type BackendArch = "x64" | "arm64";
+type BackendLibc = "glibc" | "musl";
 
 export interface BackendPlatform {
   platform: BackendPlatformName;
@@ -61,11 +61,21 @@ export function backendExecutableName(platform: BackendPlatform): string {
   return platform.platform === "win32" ? "mise.exe" : "mise";
 }
 
-export function toolExecutableCandidates(key: "node" | "pnpm", platform: BackendPlatform): string[] {
+export function toolExecutableCandidates(
+  key: "node" | "pnpm",
+  platform: BackendPlatform,
+): string[] {
   if (key === "node") return platform.platform === "win32" ? ["node.exe"] : ["bin/node"];
   // pnpm 原生分发与 JS 分发目录不同；.cmd 不能交给 execFile，直接定位其固定 JS payload。
-  const scripts = ["bin/pnpm.cjs", "pnpm.cjs", "node_modules/pnpm/bin/pnpm.cjs", "lib/node_modules/pnpm/bin/pnpm.cjs"];
-  return platform.platform === "win32" ? ["pnpm.exe", ...scripts] : [...scripts, "bin/pnpm", "pnpm"];
+  const scripts = [
+    "bin/pnpm.cjs",
+    "pnpm.cjs",
+    "node_modules/pnpm/bin/pnpm.cjs",
+    "lib/node_modules/pnpm/bin/pnpm.cjs",
+  ];
+  return platform.platform === "win32"
+    ? ["pnpm.exe", ...scripts]
+    : [...scripts, "bin/pnpm", "pnpm"];
 }
 
 export async function isNodeLauncher(toolPath: string): Promise<boolean> {
@@ -93,8 +103,9 @@ export async function resolveToolExecutable(
     if (!entry?.isFile() && !entry?.isSymbolicLink()) continue;
     const executable = await realpathWithin(rootReal, candidate);
     const target = await stat(executable);
-    if (!target.isFile()) throw new Error(`managed ${key} executable is not a regular file: ${candidate}`);
-    const script = key === "pnpm" && await isNodeLauncher(executable);
+    if (!target.isFile())
+      throw new Error(`managed ${key} executable is not a regular file: ${candidate}`);
+    const script = key === "pnpm" && (await isNodeLauncher(executable));
     if (!script && platform.platform !== "win32" && (target.mode & 0o111) === 0) {
       throw new Error(`managed ${key} executable is not executable: ${candidate}`);
     }

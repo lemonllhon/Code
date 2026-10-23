@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
-export const LEGACY_ZCODE_RESERVED_IDENTITY = Object.freeze({
+const LEGACY_ZCODE_RESERVED_IDENTITY = Object.freeze({
   appId: "dev.zcode.app",
   productName: "ZCode",
   linuxExecutableName: "zcode",

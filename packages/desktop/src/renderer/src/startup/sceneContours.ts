@@ -1,4 +1,4 @@
-export type ScenePoint = [number, number];
+type ScenePoint = [number, number];
 export type ScenePath = ScenePoint[];
 
 // noUncheckedIndexedAccess 揭示了像素/中间缓冲越界会把 undefined 传成 NaN；

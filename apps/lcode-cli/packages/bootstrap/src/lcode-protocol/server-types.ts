@@ -1,23 +1,23 @@
+import type { McpTelemetryTracker } from "@lcode/adapters";
 import {
   createRootTraceContext,
   createTraceId,
-  type Logger,
   type BrowserControlPort,
+  type Logger,
   type LoggerFactory,
   type McpPort,
   type SessionEventStorePort,
   type SessionId,
-  type SessionTaskType,
   type SessionStorePort,
+  type SessionTaskType,
   type TraceContext,
 } from "@lcode/contracts";
-import type { McpTelemetryTracker } from "@lcode/adapters";
 import type { WorkspaceHookPolicyProvider } from "@lcode/core";
 import type { AccountProviderConfigSnapshot } from "@lcode/provider";
 import {
   lcodeProtocolErrorCodes,
+  type LCodeAgentMcpServer,
   type LCodeDeliveryKind,
-  type ModelSelection,
   type LCodeModelContextBudgetStrategy,
   type LCodeProtocolMessage,
   type LCodeProtocolMethod,
@@ -27,14 +27,14 @@ import {
   type LCodeProtocolTrace,
   type LCodeSessionPersistence,
   type LCodeWorkspaceRef,
-  type LCodeAgentMcpServer,
+  type ModelSelection,
 } from "@lcode/shared";
+import type { ConversationReadPorts } from "../app/conversation-read-ports.js";
 import type { LCodeApp, LCodeAppOptions } from "../app/types.js";
 import type { V4InteractionRegistry } from "../lcode-protocol-v4/interaction-registry.js";
 import type { ConversationV4Gateway } from "../lcode-protocol-v4/v4-gateway.js";
 import type { SessionResidentPool, SessionResidentPoolOptions } from "./session-resident-pool.js";
 import type { ActivatedSessionForResume } from "./session-resume-flight.js";
-import type { ConversationReadPorts } from "../app/conversation-read-ports.js";
 
 export interface ParamsSchema<T> {
   parse(input: unknown): T;
@@ -126,8 +126,6 @@ export interface LCodeProtocolSessionRecord {
   residencyFinalizationCount?: number;
   /** 当前正在执行的 automation 派发 turn；只在 turn 运行期间存在，禁止递归 CronCreate。 */
   activeAutomationId?: string;
-  /** 当前正在执行的闲时派发 turn；只在 turn 运行期间存在，禁止递归 OffPeakCreate。 */
-  activeOffPeakTaskId?: string;
   restoreWarning?: { message: string; type: string };
   /** 冷恢复候选只供初始投影；新的选模事件立即清除，不能替代 Runtime 执行绑定。 */
   restoredModelSelection?: ModelSelection;
@@ -156,8 +154,6 @@ export interface LCodeProtocolAgentServerContext {
   appRuntimePreferences: {
     askUserQuestionAutoResolutionEnabled: boolean;
     modelIoFullRetentionEnabled: boolean;
-    /** host 同步的 Off-Peak 工具面门禁；缺省 false（fail-closed），供 v4 冷恢复等无 host 参数的路径读取。 */
-    offPeakToolEnabled: boolean;
     /**
      * host 同步的动态工作流灰度门。
      * 缺省 false（fail-closed）：不认识该方法的旧 Host 或还没来得及同步的启动窗口里，

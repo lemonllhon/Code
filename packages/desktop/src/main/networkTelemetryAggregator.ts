@@ -1,7 +1,7 @@
 import { computeAggregateStats, type AggregateStats } from "./resourceMetricsStats.js";
 import type { NetworkObservation, NetworkTransportKind } from "@lcode/rpc";
 
-export type NetworkErrorKind =
+type NetworkErrorKind =
   | "timeout"
   | "dns_failure"
   | "connection_reset"
@@ -91,7 +91,6 @@ const STATIC_HTTP_PATH_SEGMENTS = new Set([
   "mobile-view-state",
   "models",
   "oauth",
-  "off-peak",
   "order",
   "orders",
   "organization",

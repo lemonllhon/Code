@@ -3,6 +3,7 @@ import {
   peers,
   hints,
   bindingKey,
+  findBinding,
   matchesBinding,
   type Repository,
 } from "./gitAuthenticationTarget.js";
@@ -50,14 +51,6 @@ type Profile = {
 };
 type Auth = { account: Account | null; secret?: string };
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
-const findBinding = (profile: Profile, repo: Repository, url: string) => {
-  const found = profile.bindings.filter((b) => matchesBinding(b, repo, url));
-  // 中文依据：旧版按带用户名 URL 分别保存；归并后有冲突必须停止，不能按数组顺序串号。
-  return {
-    binding: found[0],
-    conflict: new Set(found.map((b) => JSON.stringify([b.id, b.revision]))).size > 1,
-  };
-};
 const canonical = (url: string) => {
   try {
     return gitAuthenticationUrl(url).href.replace(/\/$/, "");
@@ -152,8 +145,8 @@ export function createGitAccountRouting(options: {
         : bindingRoot,
     };
   };
-  const choices = async (profile: Profile) => {
-    const detected = (await options.detect()).entries.filter(
+  const choices = async (profile: Profile, discover = true) => {
+    const detected = (discover ? (await options.detect()).entries : []).filter(
       ({ account }) =>
         !profile.accounts.some(
           (a) =>
@@ -174,11 +167,30 @@ export function createGitAccountRouting(options: {
       })),
     ];
   };
-  const view = async (request: GitRepositoryAuthenticationRequest) => {
+  const view = async (request: GitRepositoryAuthenticationRequest, contextOnly = false) => {
     const repo = await repository(request),
       profile = await options.read(),
-      available = await choices(profile),
       legacyId = await git(repo.root, ["config", "--local", "--get", "lcode.accountId"], [0, 1]);
+    const selectionFor = (url: string): string | null => {
+      const state = findBinding(profile, repo, url);
+      if (state.conflict) return "conflict";
+      if (state.binding?.id) return `saved:${state.binding.id}:${state.binding.revision}`;
+      // 自动 tombstone 阻止 legacy origin 复活；选择依据与执行/菜单共用同一条规则。
+      const legacy =
+        !state.binding && repo.remotes.some((r) => r.name === "origin" && r.urls.includes(url))
+          ? legacyId
+          : "";
+      return legacy
+        ? `saved:${legacy}:${profile.accounts.find((a) => a.id === legacy)?.revision ?? "missing"}`
+        : null;
+    };
+    // 已有显式绑定的模型背景读取曾每步扫描系统账号，增加发送前等待；候选不会改变
+    // 显式选择。只跳过这类只读摘要的发现，实时 profile/remote、自动匹配和执行鉴权仍照常。
+    const available = await choices(
+      profile,
+      !contextOnly ||
+        repo.remotes.some((remote) => remote.urls.some((url) => selectionFor(url) === null)),
+    );
     const snapshot: GitRepositoryAuthentication = {
       revision: hash([profile.revision, repo, legacyId]),
       choices: available.map(({ key, account }) => ({
@@ -192,23 +204,7 @@ export function createGitAccountRouting(options: {
       remotes: repo.remotes.map((remote) => ({
         ...remote,
         urls: remote.urls.map((url) => {
-          const state = findBinding(profile, repo, url),
-            binding = state.conflict ? undefined : state.binding;
-          // 兼容账号仅属于原 clone 的 origin，UI 必须展示与执行端一致的有效选择。
-          const legacy =
-            !state.conflict &&
-            !binding &&
-            repo.remotes.some((r) => r.name === "origin" && r.urls.includes(url))
-              ? legacyId
-              : "";
-          const account = profile.accounts.find((a) => a.id === legacy);
-          const selection = state.conflict
-            ? "conflict"
-            : binding?.id
-              ? `saved:${binding.id}:${binding.revision}`
-              : legacy
-                ? `saved:${legacy}:${account?.revision ?? "missing"}`
-                : null;
+          const selection = selectionFor(url);
           return {
             url,
             selection,
@@ -315,6 +311,9 @@ export function createGitAccountRouting(options: {
     return automatic(profile, value);
   };
   return {
+    async getRepositoryContextSnapshot(input: GitRepositoryAuthenticationRequest) {
+      return (await view(gitRepositoryAuthenticationRequestSchema.parse(input), true)).snapshot;
+    },
     async getRepositoryAuthentication(input: GitRepositoryAuthenticationRequest) {
       return (await view(gitRepositoryAuthenticationRequestSchema.parse(input))).snapshot;
     },

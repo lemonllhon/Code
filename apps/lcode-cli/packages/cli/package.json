@@ -28,7 +28,6 @@
     "@lcode/bootstrap": "workspace:*",
     "@lcode/contracts": "workspace:*",
     "@lcode/core": "workspace:*",
-    "@lcode/dynamic-workflow-runtime": "workspace:*",
     "@lcode/i18n": "workspace:*",
     "@lcode/provider-node": "workspace:*",
     "@lcode/shared": "workspace:*",

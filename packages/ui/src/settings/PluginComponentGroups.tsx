@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 /** 详情中单个组件项：名称（mono）+ 可选描述（次行）。 */
-export interface PluginComponentDisplayItem {
+interface PluginComponentDisplayItem {
   name: string;
   description?: string;
 }

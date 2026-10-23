@@ -129,7 +129,7 @@ export interface ProviderSettingsConnectivityTestInput {
   readonly mode?: "temporary";
 }
 
-export type ProviderSettingsConnectivityRequest = ProviderSettingsConnectivityTestInput;
+type ProviderSettingsConnectivityRequest = ProviderSettingsConnectivityTestInput;
 
 export type ProviderSettingsConnectivityTester = (
   input: ProviderSettingsConnectivityTestInput,

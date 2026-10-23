@@ -1,63 +1,54 @@
 import { PROJECT_NATIVE_ROUTE_METHOD, projectNativeResultSchema } from "@lcode/shared";
+import { isReadOnlyChildTaskType, readChildInputFault } from "./child-session-policy.js";
 import {
   withSessionResumeFlight,
   type ActivatedSessionForResume,
 } from "./session-resume-flight.js";
-import { isReadOnlyChildTaskType, readChildInputFault } from "./child-session-policy.js";
 /* eslint-disable max-lines -- LCode Protocol 的 session/workspace 方法共享同一个 server context 与 snapshot helpers，迁移期先集中维护。 */
-import { observeSessionDebug } from "./session-debug.js";
-import type { LCodeAgentMcpServer } from "@lcode/shared";
-import {
-  TASK_LIST_SESSION_TYPES,
-  isTaskListSessionType,
-} from "../lcode-protocol-v4/task-list-session-membership.js";
 import { resolveEffectiveBashShellSelection } from "@lcode/adapters/exec";
-import { integratedTerminalShellToExecutionSelection } from "./integrated-terminal-shell.js";
-import { inputIntentMetadata } from "../lcode-protocol-v4/commands/input-intent.js";
-import { createModelExecutionContext } from "./model-execution.js";
-import type { SendInputOptions } from "../app/types.js";
-import { repairPersistedRemoteSessionPaths, type TurnAttachment } from "@lcode/core";
 import {
   CoreErrorType,
+  RewindScope,
+  RewindStrategy,
   SESSION_ENTRY_TARGET_COMPLETION_VERIFICATION,
+  SessionEventType,
+  createCoreError,
   createMessageId,
   createPartId,
   createSessionId,
-  createCoreError,
   parseRewindTriggeredPayload,
-  RewindScope,
-  RewindStrategy,
+  type CollaborationMode,
   type EventId,
   type ExecutionShellSelection,
-  type MessageWithParts,
-  type ModelSelection,
   type MessageId,
+  type MessageWithParts,
   type ModelId,
   type ModelProviderId,
+  type ModelSelection,
   type QueryId,
   type SessionEvent,
-  SessionEventType,
   type SessionId,
   type SessionInfo,
   type SessionTaskType,
-  type CollaborationMode,
   type TargetCompletionVerificationPayload,
-  type TraceId,
   type TraceContext,
+  type TraceId,
   type TurnBackgroundAttribution,
   type TurnId,
   type UsageStorePort,
   type WorkspaceId,
 } from "@lcode/contracts";
+import { repairPersistedRemoteSessionPaths, type TurnAttachment } from "@lcode/core";
+import type { LCodeAgentMcpServer } from "@lcode/shared";
 import {
   DEFAULT_LCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
   LCODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
+  getConversationMessageProjectionPolicy,
   lcodeProtocolErrorCodes,
   lcodeProtocolMethods,
-  lcodeWorkspaceRefSchema,
   lcodeSessionCancelBackgroundTaskParamsSchema,
-  lcodeSessionCompactParamsSchema,
   lcodeSessionCloseParamsSchema,
+  lcodeSessionCompactParamsSchema,
   lcodeSessionCreateParamsSchema,
   lcodeSessionEventsParamsSchema,
   lcodeSessionForkParamsSchema,
@@ -65,34 +56,46 @@ import {
   lcodeSessionListParamsSchema,
   lcodeSessionMessagesParamsSchema,
   lcodeSessionReadParamsSchema,
-  lcodeSessionRuntimePreferencesResultSchema,
   lcodeSessionResumeParamsSchema,
+  lcodeSessionRuntimePreferencesResultSchema,
   lcodeSessionSendParamsSchema,
   lcodeSessionSetModeParamsSchema,
   lcodeSessionSetModelParamsSchema,
   lcodeSessionSetThoughtLevelParamsSchema,
   lcodeSessionStopParamsSchema,
-  lcodeSessionSubscribeParamsSchema,
   lcodeSessionSubagentsParamsSchema,
+  lcodeSessionSubscribeParamsSchema,
   lcodeTaskTokenUsageParamsSchema,
   lcodeUsageStatsParamsSchema,
   lcodeWorkspaceGenerateTextParamsSchema,
-  getConversationMessageProjectionPolicy,
+  lcodeWorkspaceRefSchema,
   parseRemoteWorkspaceIdentity,
-  type LCodeSessionCreateParams,
-  type WorktreeRepairContext,
-  type LCodeDeliveryKind,
   type IntegratedTerminalShellSelection,
-  type LCodeSessionRuntimePreferencesScope,
-  type LCodeSessionRuntimePreferencesResult,
+  type LCodeDeliveryKind,
   type LCodeModelContextBudgetStrategy,
   type LCodeProtocolTrace,
+  type LCodeSessionCreateParams,
   type LCodeSessionEvent,
   type LCodeSessionHistoryTarget,
-  type LCodeSessionResumeParams,
   type LCodeSessionPersistence,
+  type LCodeSessionResumeParams,
+  type LCodeSessionRuntimePreferencesResult,
+  type LCodeSessionRuntimePreferencesScope,
   type LCodeStateUpdatedNotification,
+  type WorktreeRepairContext,
 } from "@lcode/shared";
+import { projectIdFromDirectory } from "../app/paths.js";
+import type { SendInputOptions } from "../app/types.js";
+import { inputIntentMetadata } from "../lcode-protocol-v4/commands/input-intent.js";
+import { runSessionModelConfigMutation } from "../lcode-protocol-v4/model-config-mutation.js";
+import {
+  TASK_LIST_SESSION_TYPES,
+  isTaskListSessionType,
+} from "../lcode-protocol-v4/task-list-session-membership.js";
+import { createProtocolAutomationPort } from "./automation-port.js";
+import { mapComputerUseOperationEvent } from "./computer-use-operation-event.js";
+import { integratedTerminalShellToExecutionSelection } from "./integrated-terminal-shell.js";
+import { createProtocolInteractionBroker } from "./interaction-broker.js";
 import {
   buildSessionSnapshot,
   buildWorkspaceRef,
@@ -102,7 +105,9 @@ import {
   resolveSessionContextUsage,
   shouldExposeSessionEventToProtocol,
 } from "./mapper.js";
+import { createModelExecutionContext } from "./model-execution.js";
 import { optionalModelSelectionFromString } from "./model-mapper.js";
+import { protocolMcpServersToRuntimeMcpConfig } from "./protocol-mcp-config.js";
 import {
   ProtocolRequestError,
   assertExpectedRevision,
@@ -113,37 +118,31 @@ import {
   type LCodeProtocolSessionRecord,
   type LCodeProtocolToolInputTransmissionState,
 } from "./server-types.js";
-import { createWorkspaceLCodeApp, ensureSessionModelAvailable } from "./workspace-model-runtime.js";
-import { buildAppUsageSnapshot, resolveTzOffsetMs } from "./usage-stats-builder.js";
-import { createProtocolInteractionBroker } from "./interaction-broker.js";
-import { createProtocolAutomationPort } from "./automation-port.js";
-import { createProtocolOffPeakPort } from "./offpeak-port.js";
-import { mapComputerUseOperationEvent } from "./computer-use-operation-event.js";
-import { protocolMcpServersToRuntimeMcpConfig } from "./protocol-mcp-config.js";
-import { projectIdFromDirectory } from "../app/paths.js";
+import { observeSessionDebug } from "./session-debug.js";
+import { runWithSessionResidencyFinalization } from "./session-residency.js";
 import {
   collectSubagentChildSessionIds,
   paginateEndedSubagents,
   projectSessionSubagents,
 } from "./subagent-session-query.js";
-import { runSessionModelConfigMutation } from "../lcode-protocol-v4/model-config-mutation.js";
-import { runWithSessionResidencyFinalization } from "./session-residency.js";
+import { buildAppUsageSnapshot, resolveTzOffsetMs } from "./usage-stats-builder.js";
+import { createWorkspaceLCodeApp, ensureSessionModelAvailable } from "./workspace-model-runtime.js";
 
+import type { PreparedSessionTitle } from "@lcode/core";
 import {
+  gitAccountOperationResultSchema,
+  gitAgentContextSchema,
+  gitCredentialResultSchema,
+} from "@lcode/shared";
+import { createProtocolCheckoutExecutionPort } from "./checkout-execution-port.js";
+import { conversationReadScopeFault } from "./conversation-read-workspace.js";
+import { originWorkspaceRef } from "./workspace.js";
+import {
+  WORKTREE_BINDING_ENTRY,
+  WorktreePreparationError,
   prepareProtocolExecution,
   restoreProtocolExecution,
-  WorktreePreparationError,
-  WORKTREE_BINDING_ENTRY,
 } from "./worktree-execution.js";
-import { originWorkspaceRef } from "./workspace.js";
-import { conversationReadScopeFault } from "./conversation-read-workspace.js";
-import type { PreparedSessionTitle } from "@lcode/core";
-import { createProtocolCheckoutExecutionPort } from "./checkout-execution-port.js";
-import {
-  gitCredentialResultSchema,
-  gitAgentContextSchema,
-  gitAccountOperationResultSchema,
-} from "@lcode/shared";
 
 const PLAN_MODE_GOAL_CONTINUATION_SKIPPED_MESSAGE = "Plan mode 下已记录 goal，但不会自动继续。";
 const SLOW_SNAPSHOT_LOG_THRESHOLD_MS = 1000;
@@ -2174,14 +2173,6 @@ export async function sendPrompt(context: LCodeProtocolAgentServerContext, rawPa
         : undefined,
       queryId: (params.queryId ?? inputId) as QueryId | undefined,
       content: params.content,
-      ...(params.automationId
-        ? { automationId: params.automationId }
-        : params.offPeakTaskId
-          ? {
-              offPeakTaskId: params.offPeakTaskId,
-              ...(params.offPeakRunType ? { offPeakRunType: params.offPeakRunType } : {}),
-            }
-          : {}),
       toolDenylist: params.toolDenylist,
     }),
   ).catch(() => {
@@ -2577,23 +2568,13 @@ async function runPromptTurnInBackground(
   });
   let mutationReason = "prompt_completed";
   const previousAutomationId = record.activeAutomationId;
-  const previousOffPeakTaskId = record.activeOffPeakTaskId;
   const activeAutomationId = resolvePromptTurnAutomationId(params);
-  const activeOffPeakTaskId = resolvePromptTurnOffPeakTaskId(params);
-  const turnToolDisallowlist = buildPromptTurnToolDisallowlist(
-    params,
-    activeAutomationId,
-    activeOffPeakTaskId,
-  );
+  const turnToolDisallowlist = buildPromptTurnToolDisallowlist(params, activeAutomationId);
   if (activeAutomationId) {
     // 附件输入仍走旧 session/send；automation 派发可能漏传 automationId，
     // 但 inputId 会保留 automation-* runId。这里兜底标记，避免 CronCreate 在绑定 active
     // 会话里递归创建定时任务。
     record.activeAutomationId = activeAutomationId;
-  }
-  if (activeOffPeakTaskId) {
-    // 闲时派发轮同型兜底标记，供 offpeak-port 拒绝递归 OffPeakCreate。
-    record.activeOffPeakTaskId = activeOffPeakTaskId;
   }
   try {
     const admission = await record.app.sendInput(
@@ -2609,14 +2590,6 @@ async function runPromptTurnInBackground(
         inputId: params.inputId,
         queryId: params.queryId,
         // 兼容入口从 runId 恢复的身份也必须传入 Core，否则 handler 无可信 ID 而拒绝自删除。
-        ...(activeAutomationId
-          ? { automationId: activeAutomationId }
-          : params.offPeakTaskId
-            ? {
-                offPeakTaskId: params.offPeakTaskId,
-                ...(params.offPeakRunType ? { offPeakRunType: params.offPeakRunType } : {}),
-              }
-            : {}),
         // legacy session/send 复用同一运行时；仅自动派发轮隐藏创建/修改，
         // 自删除继续由 Core 与 session port 校验本轮身份。
         ...(turnToolDisallowlist ? { toolDisallowlist: turnToolDisallowlist } : {}),
@@ -2658,7 +2631,6 @@ async function runPromptTurnInBackground(
       });
     }
     record.activeAutomationId = previousAutomationId;
-    record.activeOffPeakTaskId = previousOffPeakTaskId;
   }
   await afterStateMutation(context, record, mutationReason);
 }
@@ -2666,23 +2638,16 @@ async function runPromptTurnInBackground(
 function buildPromptTurnToolDisallowlist(
   params: {
     automationId?: string;
-    offPeakTaskId?: string;
     inputId?: string;
     toolDenylist?: readonly string[];
   },
   activeAutomationId = params.automationId,
-  activeOffPeakTaskId = params.offPeakTaskId,
 ): readonly string[] | undefined {
   const tools = new Set(params.toolDenylist ?? []);
   if (activeAutomationId) {
     for (const toolName of ["CronCreate", "CronUpdate"]) tools.add(toolName);
   }
-  // 闲时派发轮隐藏 OffPeakCreate（防递归自我派生）；OffPeakList 只读保留。
-  // 注意 automation 轮不加 OffPeakCreate——cron 轮放行（定时派生闲时任务）。
   // SendMessage / Workflow 同样隐藏，与 V4 prompt-turn 及 core turn-loop-state 同值。
-  if (activeOffPeakTaskId) {
-    for (const toolName of ["OffPeakCreate", "SendMessage", "Workflow"]) tools.add(toolName);
-  }
   return tools.size > 0 ? [...tools] : undefined;
 }
 
@@ -2697,21 +2662,6 @@ function resolvePromptTurnAutomationId(params: {
   const separatorIndex = inputId.indexOf(":");
   const automationId = separatorIndex >= 0 ? inputId.slice(0, separatorIndex) : inputId;
   return automationId.length > "automation-".length ? automationId : undefined;
-}
-
-function resolvePromptTurnOffPeakTaskId(params: {
-  offPeakTaskId?: string;
-  inputId?: string;
-}): string | undefined {
-  const explicit = params.offPeakTaskId?.trim();
-  if (explicit) return explicit;
-  // 兜底：续跑派发的 inputId 形如 `offpeak-<uuid>:resume:<uuid>`（首段 traceId 无固定前缀，
-  // 主信号必须是显式 offPeakTaskId）。
-  const inputId = params.inputId?.trim();
-  if (!inputId?.startsWith("offpeak-")) return undefined;
-  const separatorIndex = inputId.indexOf(":");
-  const offPeakTaskId = separatorIndex >= 0 ? inputId.slice(0, separatorIndex) : inputId;
-  return offPeakTaskId.length > "offpeak-".length ? offPeakTaskId : undefined;
 }
 
 async function continueGoalAfterChange(
@@ -3625,10 +3575,6 @@ async function createRecord(
     automationPort: createProtocolAutomationPort(context, () => ownSessionRecord),
     // 只接入 Host 已开放的工具面；缺省不注入。复用现行异步工厂，
     // 不恢复旧 deferred ModelAdapter/Registry overlay，也不改变 Session Selection。
-    ...(("offPeakToolEnabled" in params && params.offPeakToolEnabled === true) ||
-    context.appRuntimePreferences.offPeakToolEnabled === true
-      ? { offPeakPort: createProtocolOffPeakPort(context, () => ownSessionRecord) }
-      : {}),
     resolveBashShellSelection: startupPreferences.resolveBashShellSelection,
     // browser-use：agent.browsers.* 经此把命令转成 interaction/browserExecute 反向请求。
     browserControlPort: context.browserControlPort,

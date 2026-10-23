@@ -29,7 +29,7 @@ async function access(
     db.close();
   }
 }
-export async function validateStartupSceneImage(image: Blob) {
+async function validateStartupSceneImage(image: Blob) {
   await validateStartupSceneMedia(image);
 }
 export async function saveStartupSceneImage(image: Blob): Promise<string> {

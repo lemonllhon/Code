@@ -7,16 +7,16 @@ import type {
   CommandResult,
 } from "@lcode/shared/lcode-protocol-v4";
 import { mapAttachmentRefsToTurnAttachments } from "../attachment-refs.js";
-import { inputIntentMetadata } from "../input-intent.js";
 import { commandAdmissionOf } from "../executor.js";
+import { inputIntentMetadata } from "../input-intent.js";
 import { startPromptTurn } from "../prompt-turn.js";
 import { requireRecord } from "../record-access.js";
 import type { V4CommandCoreHost } from "../types.js";
 import { applyRequestedSessionConfig } from "./model-config.js";
 import {
   hasPromptInput,
-  V4InputAdmissionRejectedError,
   resolveSubmittedExecutionState,
+  V4InputAdmissionRejectedError,
 } from "./session-flow.js";
 
 /**
@@ -52,7 +52,9 @@ async function createSession(
     execution: payload.execution,
     // 原因：正文截断不是任务概括；把冻结首发交给 CLI 命名入口，Host 只接收短名称。
     worktreeTaskNameInput:
-      payload.execution?.mode === "worktree" && !payload.execution.existingBinding && payload.firstInput
+      payload.execution?.mode === "worktree" &&
+      !payload.execution.existingBinding &&
+      payload.firstInput
         ? {
             text: payload.firstInput.text,
             modelSelection: payload.firstInput.modelSelection ?? payload.config?.modelSelection,
@@ -60,7 +62,6 @@ async function createSession(
         : undefined,
     executionRequestId: envelope.commandId,
     mcpServers: payload.mcpServers,
-    offPeakToolEnabled: payload.offPeakToolEnabled,
     dynamicWorkflowEnabled: payload.dynamicWorkflowEnabled,
   });
   // createSession.config 消费——草稿态 UI 的先行选择（模型/思考深度/

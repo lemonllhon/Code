@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 
 export const repositoryRoot = resolve(import.meta.dirname, "..");
 export const noticesFileName = "THIRD-PARTY-NOTICES.md";
-export const releaseReviewBaselineFileName = "third-party/release-review-baseline.json";
+const releaseReviewBaselineFileName = "third-party/release-review-baseline.json";
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
 function normalizeReleaseReviewItems(items, label) {

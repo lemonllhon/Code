@@ -45,14 +45,14 @@ import {
 const PAIRING_DECISION_TIMEOUT_MS = 120_000;
 const RANDOM_ID_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
-export interface RemoteControlControllerLogger {
+interface RemoteControlControllerLogger {
   info: (...args: unknown[]) => void;
   warn: (...args: unknown[]) => void;
   error: (...args: unknown[]) => void;
 }
 
 /** attachRemoteWorkspaceSessionHost 的注入面(测试用 fake 替代,避免依赖 electron runtime)。 */
-export interface RemoteControlAttachmentPort {
+interface RemoteControlAttachmentPort {
   on(event: "message", listener: (event: { data: unknown }) => void): unknown;
   on(event: "close", listener: () => void): unknown;
   start(): void;
@@ -60,7 +60,7 @@ export interface RemoteControlAttachmentPort {
   close(): void;
 }
 
-export interface RemoteControlAttachmentHostProcess {
+interface RemoteControlAttachmentHostProcess {
   postMessage(message: Record<string, unknown>): void;
 }
 

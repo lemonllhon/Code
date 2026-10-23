@@ -10,14 +10,14 @@ import {
 import { stageSeaPackageAssets } from "./sea-workspace-package-assets.mjs";
 
 export const seaTuiAssetPrefix = "lcode-tui-runtime/";
-export const seaTuiManifestAssetKey = `${seaTuiAssetPrefix}manifest.json`;
+const seaTuiManifestAssetKey = `${seaTuiAssetPrefix}manifest.json`;
 
 const workspacePackageParentDirectoryNames = ["packages", "tools"];
 
 const opentuiCorePackageName = "@mbears/opentui-core";
 const opentuiReactPackageName = "@mbears/opentui-react";
 
-export const opentuiNativePackageForTarget = (target) => {
+const opentuiNativePackageForTarget = (target) => {
   const { arch, releasePlatform } = targetParts(target);
   const packagePlatform = releasePlatform === "win" ? "win32" : releasePlatform;
   return `@mbears/opentui-core-${packagePlatform}-${arch}`;

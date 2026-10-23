@@ -54,11 +54,4 @@ test("usage caller bounds its preferred width and wraps the title/summary withou
   assert.match(touchHandler, /event\.pointerType === "touch"/);
   assert.match(touchHandler, /matchMedia\?\.\("\(hover: none\)"\)/);
   assert.match(touchHandler, /if \(!contextOpen\)\s*\{\s*handleContextOpenChange\(true\)/);
-  assert.match(source, /codingPlanUsageRemaining\?\.onAccess \?\? startPlanBalance\?\.onAccess/);
-  assert.match(source, /if \(!open && quotaResetDialogOpenRef\.current\)/);
-  assert.match(
-    source,
-    /<ChatCodingPlanUsageRemainingPanel[\s\S]*onQuotaResetDialogOpenChange=\{handleQuotaResetDialogOpenChange\}/,
-  );
-  assert.match(source, /<ChatStartPlanBalancePanel/);
 });

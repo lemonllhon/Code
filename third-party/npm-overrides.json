@@ -100,18 +100,6 @@
     "source": "https://raw.githubusercontent.com/rive-app/rive-wasm/03586f0e2adb991ba00b79807b7c645d519b1a48/LICENSE"
   },
   {
-    "package": "embla-carousel@8.6.0",
-    "file": "third-party/upstream/992490064b90ec94c302fe5f29dcc14cb44145857064e46f9ffe6c8f511c1093.txt",
-    "sha256": "992490064b90ec94c302fe5f29dcc14cb44145857064e46f9ffe6c8f511c1093",
-    "source": "https://raw.githubusercontent.com/davidjerleke/embla-carousel/0fe65834136f1aa35e4c1a4a477e5ccb4bb5ee54/LICENSE"
-  },
-  {
-    "package": "embla-carousel-react@8.6.0",
-    "file": "third-party/upstream/992490064b90ec94c302fe5f29dcc14cb44145857064e46f9ffe6c8f511c1093.txt",
-    "sha256": "992490064b90ec94c302fe5f29dcc14cb44145857064e46f9ffe6c8f511c1093",
-    "source": "https://raw.githubusercontent.com/davidjerleke/embla-carousel/0fe65834136f1aa35e4c1a4a477e5ccb4bb5ee54/LICENSE"
-  },
-  {
     "package": "omggif@1.0.10",
     "file": "third-party/upstream/fc7d762e0ebf8720d0a03cf00058aaa3a198347e9651be2f50a25e3b3ec13985.txt",
     "sha256": "fc7d762e0ebf8720d0a03cf00058aaa3a198347e9651be2f50a25e3b3ec13985",
@@ -274,25 +262,6 @@
     "source": "https://raw.githubusercontent.com/facebook/react/3cde211b0cb1c707114c27d7fd23683d02086e31/LICENSE"
   },
   {
-    "package": "boolbase@1.0.0",
-    "repo": "fb55/boolbase",
-    "refs": [
-      "v1.0.0",
-      "boolbase@1.0.0",
-      "1.0.0"
-    ],
-    "file": "third-party/upstream/2d2349188616c4b64ceeae33e1386bb546b0658864b4f7f8c9785757cb065b5d.txt",
-    "sha256": "2d2349188616c4b64ceeae33e1386bb546b0658864b4f7f8c9785757cb065b5d",
-    "source": "https://registry.npmjs.org/boolbase/1.0.0",
-    "evidenceKind": "publisher-license-identifier-and-standard-terms",
-    "license": "ISC",
-    "reviewEvidence": {
-      "checkedOn": "2026-09-21",
-      "result": "The versioned npm archive contains no standalone complete LICENSE; existing publisher declaration and original README license sections remain preserved. Upstream authorization/copyright material is still required to close this review.",
-      "npmArchiveSha256": "69628ff8092c5ff940ea4a0f29da98d520615bae138755c9e059033606c6caa8"
-    }
-  },
-  {
     "package": "@open-draft/deferred-promise@2.2.0",
     "repo": "open-draft/deferred-promise",
     "refs": [
@@ -311,12 +280,6 @@
       "sourceTreeUrl": "https://api.github.com/repos/open-draft/deferred-promise/git/trees/b30f1b683311030e92fcdd08d2bd6574d652b77f?recursive=1",
       "upstreamLicenseFiles": []
     }
-  },
-  {
-    "package": "embla-carousel-reactive-utils@8.6.0",
-    "file": "third-party/upstream/992490064b90ec94c302fe5f29dcc14cb44145857064e46f9ffe6c8f511c1093.txt",
-    "sha256": "992490064b90ec94c302fe5f29dcc14cb44145857064e46f9ffe6c8f511c1093",
-    "source": "https://raw.githubusercontent.com/davidjerleke/embla-carousel/0fe65834136f1aa35e4c1a4a477e5ccb4bb5ee54/LICENSE"
   },
   {
     "package": "rehype-katex@7.0.1",

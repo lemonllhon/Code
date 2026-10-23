@@ -42,6 +42,7 @@ export interface GitPaneFileChange extends GitFileChange {
   diff: GitDiffResult | null;
 }
 
+/** @lintignore useSessionGitLastTurn 的公开返回类型间接引用它，声明生成必须保留导出。 */
 export interface GitPaneSection {
   id: GitChangeSectionId;
   changes: GitPaneFileChange[];
@@ -58,7 +59,7 @@ export interface GitPaneDataset {
   isSelectedTurn?: boolean;
 }
 
-export interface GitPaneSourceOption {
+interface GitPaneSourceOption {
   id: GitChangeSourceId;
   count: number;
   readonly: boolean;

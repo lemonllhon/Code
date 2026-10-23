@@ -3,7 +3,7 @@ import type { ProviderApiKey } from "@lcode/provider";
 
 export type ProviderApiKeyState = ProviderApiKey;
 
-export interface ProviderApiKeyOperationToken {
+interface ProviderApiKeyOperationToken {
   readonly scopeKey: string | null;
   readonly generation: number;
 }

@@ -1,12 +1,12 @@
-import { join } from "node:path";
-import { app } from "electron";
 import { HELPER_APP_NAME } from "@lcode/lcode-cua/broker/helperConstants";
 import {
-  canonicalizeCuaHelperInstallerOptions,
-  createCuaHelperInstaller,
-  type CuaHelperInstaller,
-  type CuaHelperInstallerOptions,
+    canonicalizeCuaHelperInstallerOptions,
+    createCuaHelperInstaller,
+    type CuaHelperInstaller,
+    type CuaHelperInstallerOptions,
 } from "@lcode/services/desktop-main";
+import { app } from "electron";
+import { join } from "node:path";
 
 type InstallerFactory = (options: CuaHelperInstallerOptions) => CuaHelperInstaller;
 

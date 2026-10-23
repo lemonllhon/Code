@@ -1,18 +1,19 @@
-import { querySessionDebug } from "./session-debug.js";
-import { getProviderUsageStats } from "./provider-usage-stats.js";
-import { cleanupWorktreeSessions } from "./worktree-session-cleanup.js";
-import { cleanupWorkspaceSessions } from "./workspace-session-cleanup.js";
-import { rebindWorktreeSessions } from "./worktree-session-rebind.js";
-import { workspaceFileMutationJournal } from "./workspace-file-mutation-journal.js";
 import { lcodeProtocolMethods, lcodeWorkspaceHookTrustGrantParamsSchema } from "@lcode/shared";
+import { getProviderUsageStats } from "./provider-usage-stats.js";
+import { querySessionDebug } from "./session-debug.js";
+import { workspaceFileMutationJournal } from "./workspace-file-mutation-journal.js";
+import { cleanupWorkspaceSessions } from "./workspace-session-cleanup.js";
+import { cleanupWorktreeSessions } from "./worktree-session-cleanup.js";
+import { rebindWorktreeSessions } from "./worktree-session-rebind.js";
 
+import type { LCodeProtocolRequest, LCodeProtocolRequestId } from "@lcode/shared";
 import {
-  V4_METHODS,
-  V4_NOTIFICATIONS,
   parseSessionsIndexTopic,
   parseWorkspaceConfigTopic,
+  V4_METHODS,
+  V4_NOTIFICATIONS,
 } from "@lcode/shared/lcode-protocol-v4";
-import type { LCodeProtocolRequest, LCodeProtocolRequestId } from "@lcode/shared";
+import { listChildProcesses } from "./process-child-processes.js";
 import {
   cancelBackgroundTask,
   closeSession,
@@ -20,9 +21,9 @@ import {
   createSession,
   forkSession,
   generateWorkspaceText,
-  goalSession,
   getTaskTokenUsage,
   getUsageStats,
+  goalSession,
   listSessions,
   listSessionSubagents,
   readEvents,
@@ -36,12 +37,16 @@ import {
   stopSession,
   subscribeSession,
 } from "./server-operations.js";
-import { listChildProcesses } from "./process-child-processes.js";
 
+import { updateAccountProviderConfig } from "./account-provider-config.js";
+import { updateDynamicWorkflowPolicy } from "./dynamic-workflow-policy.js";
+import { updateInteractionPreferences } from "./interaction-preferences.js";
+import { listMcpServers } from "./mcp.js";
+import { updateModelIoPreferences } from "./model-io-preferences.js";
 import {
-  readWorkspacePresentation,
-  testProviderModelConnectivity,
-} from "./workspace-model-runtime.js";
+  getPluginReferenceCatalog,
+  resolveSuggestedPluginReference,
+} from "./plugin-reference-catalog.js";
 import {
   addPluginMarketplace,
   configurePlugin,
@@ -59,11 +64,6 @@ import {
   validatePlugin,
 } from "./plugins.js";
 import {
-  getPluginReferenceCatalog,
-  resolveSuggestedPluginReference,
-} from "./plugin-reference-catalog.js";
-import { getSkillReferenceCatalog } from "./skill-reference-catalog.js";
-import {
   deleteSavedWorkflowOp,
   getSavedWorkflowOp,
   listSavedWorkflowRunsOp,
@@ -71,13 +71,12 @@ import {
   moveSavedWorkflowOp,
   updateSavedWorkflowMetaOp,
 } from "./saved-workflows.js";
-import { listMcpServers } from "./mcp.js";
-import { updateInteractionPreferences } from "./interaction-preferences.js";
-import { updateAccountProviderConfig } from "./account-provider-config.js";
-import { updateModelIoPreferences } from "./model-io-preferences.js";
-import { updateOffPeakToolPolicy } from "./off-peak-tool-policy.js";
-import { updateDynamicWorkflowPolicy } from "./dynamic-workflow-policy.js";
+import { getSkillReferenceCatalog } from "./skill-reference-catalog.js";
 import { grantWorkspaceHookTrustForProtocol } from "./workspace-hook-trust.js";
+import {
+  readWorkspacePresentation,
+  testProviderModelConnectivity,
+} from "./workspace-model-runtime.js";
 
 import {
   ProtocolRequestError,
@@ -85,14 +84,14 @@ import {
   type LCodeProtocolSessionRecord,
 } from "./server-types.js";
 
+import type { LCodeProtocolOutboundMessage } from "./server-client-requests.js";
 import {
-  withPluginOperationSignal,
   cancelPluginOperation,
-  withWorkspaceGenerateTextSignal,
   cancelWorkspaceGenerateText,
+  withPluginOperationSignal,
+  withWorkspaceGenerateTextSignal,
   type ProtocolOperationState,
 } from "./server-operation-signals.js";
-import type { LCodeProtocolOutboundMessage } from "./server-client-requests.js";
 
 export interface LCodeProtocolPostResponseBatch {
   readonly messages: readonly LCodeProtocolOutboundMessage[];
@@ -311,8 +310,6 @@ export async function dispatchRequest(host: ProtocolDispatchHost, request: LCode
       return await updateInteractionPreferences(host.context, request.params);
     case lcodeProtocolMethods.workspaceUpdateModelIoPreferences:
       return await updateModelIoPreferences(host.context, request.params);
-    case lcodeProtocolMethods.workspaceUpdateOffPeakToolPolicy:
-      return await updateOffPeakToolPolicy(host.context, request.params);
     case lcodeProtocolMethods.workspaceUpdateDynamicWorkflowPolicy:
       return await updateDynamicWorkflowPolicy(host.context, request.params);
     case lcodeProtocolMethods.workspaceGenerateText:

@@ -1,44 +1,26 @@
-import type { LCodeToolExecResource } from "@lcode/shared";
 import type { AiSdkModelAdapter } from "@lcode/adapters/model";
 import type {
-  AgentRuntimeConfig,
-  AgentRuntimeDeps,
-  ExecuteTurnOptions,
-  ProviderRuntimeHeadersPort,
-  PresentationSurface,
-  TurnAttachment,
-  ModelExecutionContext,
-  TurnResult,
-  WorkspaceHookReviewTarget,
-  WorkspaceHookPolicyProvider,
-} from "@lcode/core";
-import type {
-  WorkspaceHookReviewDecision,
-  WorkspaceHookTrustRevokeTarget,
-} from "@lcode/shared/lcode-protocol-v4";
-import type { EffectiveModelSelectionResult } from "@lcode/shared/model-selection";
-import type { ModelProviderSourceTitle } from "../model-config.js";
-import type { LCodeInstalledPluginData } from "../plugins.js";
-import type {
+  AgentTelemetryRuntimeOwner,
   AutomationPort,
-  OffPeakPort,
+  BrowserControlPort,
   ContextSourcePort,
   ExecutionPort,
-  BrowserControlPort,
+  ExecutionShellSelection,
   FileSystemPort,
   HttpClientPort,
   ImageProcessorPort,
-  PdfDocumentPort,
-  VideoProcessorPort,
   InputDelivery,
   InputHistoryStorePort,
   LoggerFactory,
-  McpPort,
   McpConnectOptions,
+  McpPort,
+  MessageWithParts,
   ModelSelection,
-  PhysicalRequestAccountingPort,
+  PdfDocumentPort,
   PermissionBrokerPort,
+  PhysicalRequestAccountingPort,
   PluginMetadata,
+  QueryId,
   SessionEvent,
   SessionEventSink,
   SessionEventStorePort,
@@ -46,22 +28,40 @@ import type {
   SessionMailboxPort,
   SessionStorePort,
   SkillPort,
+  SupportedLocale,
   ToolArtifactStorePort,
-  QueryId,
   TraceContext,
   TurnId,
-  TurnSteerResult,
   TurnInputIntentMetadata,
-  MessageWithParts,
-  SupportedLocale,
+  TurnSteerResult,
   UiLocale,
+  VideoProcessorPort,
   WorkflowEvent,
-  ExecutionShellSelection,
+  WorkspaceHookPolicy,
 } from "@lcode/contracts";
+import type {
+  AgentRuntimeConfig,
+  AgentRuntimeDeps,
+  ExecuteTurnOptions,
+  ModelExecutionContext,
+  PresentationSurface,
+  ProviderRuntimeHeadersPort,
+  TurnAttachment,
+  TurnResult,
+  WorkspaceHookPolicyProvider,
+  WorkspaceHookReviewTarget,
+} from "@lcode/core";
+import type { LCodeToolExecResource } from "@lcode/shared";
+import type {
+  WorkspaceHookReviewDecision,
+  WorkspaceHookTrustRevokeTarget,
+} from "@lcode/shared/lcode-protocol-v4";
+import type { EffectiveModelSelectionResult } from "@lcode/shared/model-selection";
+import type { ModelProviderSourceTitle } from "../model-config.js";
+import type { LCodeInstalledPluginData } from "../plugins.js";
 import type { NodeReplBrowserBroker } from "./node-repl-browser-broker.js";
-import type { AgentTelemetryRuntimeOwner, WorkspaceHookPolicy } from "@lcode/contracts";
-import type { ProviderRegistryModelSource } from "./provider-registry-model-runtime.js";
 import type { ProjectEnvironmentOverlayResolver } from "./project-environment-execution.js";
+import type { ProviderRegistryModelSource } from "./provider-registry-model-runtime.js";
 
 export interface WorkspaceHookReviewHostContext {
   taskId: string;
@@ -163,7 +163,6 @@ export interface LCodeAppOptions {
   uiLocale?: UiLocale;
   onWorkflowEvent?: (event: WorkflowEvent) => void | Promise<void>;
   automationPort?: AutomationPort;
-  offPeakPort?: OffPeakPort;
   /** 每次独立用户任务开始前解析当前 Host 选择，不缓存首次结果。 */
   resolveBashShellSelection?: (
     traceContext: TraceContext,

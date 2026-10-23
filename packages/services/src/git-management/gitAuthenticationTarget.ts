@@ -48,3 +48,21 @@ export const matchesBinding = (
   b.scope === repo.scope &&
   b.root === repo.bindingRoot &&
   bindingKey(repo, b.url) === bindingKey(repo, url);
+
+export function findBinding<
+  T extends {
+    scope: string;
+    root: string;
+    url: string;
+    id: string | null;
+    revision: string | null;
+  },
+>(profile: { bindings: T[] }, repo: Repository, url: string) {
+  const found = profile.bindings.filter((binding) => matchesBinding(binding, repo, url));
+  // 旧版按带用户名 URL 分别保存；归并后有冲突必须停止，不能按数组顺序串号。
+  return {
+    binding: found[0],
+    conflict:
+      new Set(found.map((binding) => JSON.stringify([binding.id, binding.revision]))).size > 1,
+  };
+}

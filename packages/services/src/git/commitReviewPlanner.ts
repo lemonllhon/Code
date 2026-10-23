@@ -7,7 +7,7 @@ export interface CommitReviewContent {
   headContent: string | null;
   content: string | null;
 }
-export interface PlannedCommitGroup {
+interface PlannedCommitGroup {
   id: string;
   sessionIds: string[];
   label: string;

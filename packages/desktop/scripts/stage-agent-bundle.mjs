@@ -12,7 +12,7 @@ import { copyFile, cp, mkdir, rm, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { stageKoffiIntoBundledAgents } from "./koffi-package-assets.mjs";
 
-export const AGENT_BUNDLE_SOURCE_RELATIVE = "apps/lcode-cli/packages/cli/dist/lcode.cjs";
+const AGENT_BUNDLE_SOURCE_RELATIVE = "apps/lcode-cli/packages/cli/dist/lcode.cjs";
 const LEMON_PLUGIN_SOURCE_RELATIVE = "apps/lcode-cli/packages/lemon-workflow-plugin";
 const LEMON_PLUGIN_REQUIRED_PATHS = [
   ".lcode-plugin/plugin.json",
@@ -60,7 +60,7 @@ async function stageContentPlugin({
   await cp(sourcePluginRoot, stagedPluginRoot, { recursive: true });
 }
 
-export function resolveAgentBundlePaths({ repoRoot, platformKey }) {
+function resolveAgentBundlePaths({ repoRoot, platformKey }) {
   const glmDir = resolve(repoRoot, "packages", "desktop", "bundled-agents", platformKey, "glm");
   return {
     cliBundlePath: resolve(repoRoot, AGENT_BUNDLE_SOURCE_RELATIVE),

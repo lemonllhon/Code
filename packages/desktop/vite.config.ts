@@ -165,8 +165,6 @@ export default defineConfig(({ mode }) => {
     env: lcodeEnv,
     envBaseOrigin: env.LCODE_BASE_URL ?? env.LCODE_ENDPOINT_ORIGIN,
   });
-  const codingPlanWebviewOrigin =
-    env.VITE_CODING_PLAN_WEBVIEW_ORIGIN ?? process.env.VITE_CODING_PLAN_WEBVIEW_ORIGIN ?? "";
   assertRuntimeDevelopmentDataRoot(process.env);
   const desktopPort = resolveDesktopPort(process.env);
   const plugins = [
@@ -210,7 +208,6 @@ export default defineConfig(({ mode }) => {
       "import.meta.env.VITE_LCODE_BASE_URL": JSON.stringify(lcodeEndpointOrigin),
       // 兼容旧 renderer 读取名；新代码统一读 VITE_LCODE_BASE_URL。
       "import.meta.env.VITE_LCODE_ENDPOINT_ORIGIN": JSON.stringify(lcodeEndpointOrigin),
-      "import.meta.env.VITE_CODING_PLAN_WEBVIEW_ORIGIN": JSON.stringify(codingPlanWebviewOrigin),
       "import.meta.env.VITE_REWARDS_WEBVIEW_ORIGIN": JSON.stringify(
         env.VITE_REWARDS_WEBVIEW_ORIGIN ?? process.env.VITE_REWARDS_WEBVIEW_ORIGIN ?? "",
       ),

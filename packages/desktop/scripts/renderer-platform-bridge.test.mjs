@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import "./preload-sandbox.test.mjs";
 import test from "node:test";
 import { loadSource } from "./main-runtime-test-fixture.mjs";
 

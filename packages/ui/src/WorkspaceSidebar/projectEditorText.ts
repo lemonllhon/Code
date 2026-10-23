@@ -80,7 +80,7 @@ export function useProjectEditorText() {
 }
 
 export const PROJECT_PRESET_ROLES = ["frontend", "backend", "shared", "test", "docs"] as const;
-export function isPresetProjectRole(role: string): role is (typeof PROJECT_PRESET_ROLES)[number] {
+function isPresetProjectRole(role: string): role is (typeof PROJECT_PRESET_ROLES)[number] {
   return PROJECT_PRESET_ROLES.some((preset) => preset === role);
 }
 export function useProjectRoleText() {

@@ -1,9 +1,9 @@
+import { setDataBaseDir } from "@lcode/services/desktop-main";
+import { migrateDirCopyStyleSync } from "@lcode/shared/node";
+import { app } from "electron";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { app } from "electron";
-import { migrateDirCopyStyleSync } from "@lcode/shared/node";
-import { setDataBaseDir } from "@lcode/services/desktop-main";
 import { runtimeApplicationName, runtimeUserDataPath } from "./desktopRuntimeEnv.js";
 
 function resolveBootstrapSettingsFile(homePath: string = homedir()): string {
@@ -50,7 +50,7 @@ export function applyEarlyDataBaseDirBootstrap(): string | null {
 }
 
 // 品牌迁移（复制式、幂等）：旧 appData/<ZCode 系身份> → 新 appData/<LCode 系身份>，
-// 并把旧 Chromium 分区目录迁到新分区名，避免丢嵌入式浏览器会话与 Coding Plan 登录态。
+// 并把旧 Chromium 分区目录迁到新分区名，避免丢嵌入式浏览器会话。
 // 旧目录保留（并列安装形态下旧版应用继续读旧 appData，数据不受影响）。
 export function migrateDesktopIdentityDataSync(): void {
   // 默认 userData 隔离模式没有自定义目标；不能向 undefined 迁移或触碰正式用户数据。
@@ -61,7 +61,6 @@ export function migrateDesktopIdentityDataSync(): void {
   migrateDirCopyStyleSync(legacyUserData, runtimeUserDataPath);
   for (const [legacyPartition, partition] of [
     ["persist:zcode-embedded-browser", "persist:lcode-embedded-browser"],
-    ["persist:zcode-coding-plan", "persist:lcode-coding-plan"],
   ] as const) {
     migrateDirCopyStyleSync(
       join(legacyUserData, "Partitions", legacyPartition),

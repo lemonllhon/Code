@@ -3,45 +3,44 @@
 // ============================================================
 
 // Interfaces
-export * from "./interfaces/shared.js";
-export * from "./interfaces/execution.port.js";
+export * from "./interfaces/automation.port.js";
 export * from "./interfaces/browser-control.port.js";
-export * from "./interfaces/file-system.port.js";
-export * from "./interfaces/project-memory.port.js";
 export * from "./interfaces/context-source.port.js";
+export * from "./interfaces/coordinator-response.port.js";
+export * from "./interfaces/dynamic-workflow-run.port.js";
+export * from "./interfaces/dynamic-workflow-snippet.port.js";
+export * from "./interfaces/execution.port.js";
+export * from "./interfaces/file-system.port.js";
 export * from "./interfaces/http-client.port.js";
 export * from "./interfaces/image-processor.port.js";
+export * from "./interfaces/input-history.port.js";
+export * from "./interfaces/mcp.port.js";
+export * from "./interfaces/model-catalog.port.js";
 export * from "./interfaces/pdf-document.port.js";
-export * from "./interfaces/video-processor.port.js";
 export * from "./interfaces/permission.port.js";
-export * from "./interfaces/session.port.js";
+export * from "./interfaces/project-memory.port.js";
 export * from "./interfaces/session-mailbox.port.js";
 export * from "./interfaces/session-store.port.js";
 export * from "./interfaces/session-store/context-capsule.js";
-export * from "./interfaces/input-history.port.js";
+export * from "./interfaces/session.port.js";
+export * from "./interfaces/shared.js";
+export * from "./interfaces/subagent.port.js";
 export * from "./interfaces/tool-artifact-store.port.js";
 export * from "./interfaces/tool-artifact-uri.js";
 export * from "./interfaces/tool-operation-admission.port.js";
-export * from "./interfaces/subagent.port.js";
-export * from "./interfaces/coordinator-response.port.js";
-export * from "./interfaces/workflow.port.js";
-export * from "./interfaces/workflow-submit.port.js";
+export * from "./interfaces/video-processor.port.js";
 export * from "./interfaces/workflow-escalate.port.js";
-export * from "./interfaces/dynamic-workflow-run.port.js";
-export * from "./interfaces/dynamic-workflow-snippet.port.js";
-export * from "./interfaces/model-catalog.port.js";
-export * from "./interfaces/automation.port.js";
-export * from "./interfaces/off-peak.port.js";
-export * from "./interfaces/mcp.port.js";
+export * from "./interfaces/workflow-submit.port.js";
+export * from "./interfaces/workflow.port.js";
 
 export * from "./interfaces/runtime-input-presentation.js";
 
 // Events
+export * from "./events/event-reducer.js";
+export * from "./events/in-memory-session-event-store.js";
+export * from "./events/session-event-retention.js";
 export * from "./events/session.events.js";
 export * from "./events/stream-recovery.events.js";
-export * from "./events/event-reducer.js";
-export * from "./events/session-event-retention.js";
-export * from "./events/in-memory-session-event-store.js";
 
 // Compact
 export * from "./compact/index.js";
@@ -50,8 +49,8 @@ export * from "./compact/index.js";
 export * from "./rewind/index.js";
 
 // Model
-export * from "./model/index.js";
 export * from "./model/image-media.js";
+export * from "./model/index.js";
 export * from "./model/media-policy.js";
 
 // Telemetry
@@ -105,8 +104,8 @@ export {
   VIDEO_INPUT_MAX_BYTES,
 } from "@lcode/shared";
 
-export * from "./tracing/local-turn-preparation.js";
 export type { LocalTtftDetail } from "@lcode/shared";
+export * from "./tracing/local-turn-preparation.js";
 
 export * from "./interfaces/permission-full-access.js";
 export type { ProtocolShutdownContext } from "./interfaces/protocol-shutdown.js";

@@ -22,10 +22,10 @@ import {
 } from "./runner-stream-attempt-cleanup.js";
 import { completeStreamAttempt } from "./runner-stream-completion.js";
 import { consumeStreamAttempt } from "./runner-stream-consume.js";
-import { handleStreamFailure } from "./runner-stream-failure.js";
 import { prepareStreamAttempt } from "./runner-stream-prepare.js";
 import { repairStreamThinkingSignature } from "./runner-stream-signature-repair.js";
 import type { StreamAttemptState, StreamRunnerInput } from "./runner-stream-state.js";
+import { handleStreamFailure } from "./runner-stream-failure.js";
 
 export async function* runStreamText(input: StreamRunnerInput): AsyncGenerator<ModelStreamEvent> {
   // 重试预算档位：只放宽瞬态失败的放弃条件；
@@ -48,7 +48,6 @@ export async function* runStreamText(input: StreamRunnerInput): AsyncGenerator<M
     pendingRetryYield: undefined,
   };
   const retryAttemptOffset = normalizeRetryAttemptOffset(input.request.retryAttemptOffset);
-  // off-peak 排队会回退逻辑 attempt；物理序号独立递增，避免复用 ID 绕过请求预算。
   let physicalAttempt = retryAttemptOffset;
 
   for (
@@ -96,7 +95,6 @@ export async function* runStreamText(input: StreamRunnerInput): AsyncGenerator<M
       emittedRetryBoundaryEvent: false,
       emittedError: false,
       retryScheduledFromStreamChunk: false,
-      offPeakQueueHoldFromStreamChunk: false,
       pendingRetrySafeEvents: [],
       streamIterator: undefined,
       streamReachedNaturalEnd: false,
@@ -133,7 +131,6 @@ export async function* runStreamText(input: StreamRunnerInput): AsyncGenerator<M
         closeBeforeRetryYield,
       );
       if (state.retryScheduledFromStreamChunk) {
-        if (state.offPeakQueueHoldFromStreamChunk) attempt -= 1;
         continue;
       }
       const retryEmptyCompletion = yield* completeStreamAttempt(
@@ -146,7 +143,7 @@ export async function* runStreamText(input: StreamRunnerInput): AsyncGenerator<M
       if (retryEmptyCompletion) continue;
       return;
     } catch (error) {
-      const offPeakQueueHold = await handleStreamFailure(
+      await handleStreamFailure(
         input,
         retryState,
         state,
@@ -157,9 +154,7 @@ export async function* runStreamText(input: StreamRunnerInput): AsyncGenerator<M
         closeBeforeRetryYield,
         retryBudget,
       );
-      if (offPeakQueueHold) attempt -= 1;
     } finally {
-      // off-peak 分支先回退循环计数；清理日志仍读取原 finally 可见的同一计数。
       state.attempt = attempt;
       await cleanupStreamAttempt(input, state, admission);
     }

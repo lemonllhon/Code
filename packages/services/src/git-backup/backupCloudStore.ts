@@ -19,7 +19,7 @@ function xmlText(value: string): string {
           : ({ amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" } as Record<string, string>)[name]!,
   );
 }
-export function parseBackupObjectList(text: string, prefix: string, provider: GitBackupProvider) {
+function parseBackupObjectList(text: string, prefix: string, provider: GitBackupProvider) {
   if (
     text.length > 4 * 1024 * 1024 ||
     /<!DOCTYPE|<!ENTITY/i.test(text) ||

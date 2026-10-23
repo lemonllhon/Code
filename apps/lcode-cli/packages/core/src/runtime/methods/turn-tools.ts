@@ -1,41 +1,37 @@
-import { createPartId, TurnMachineImpl } from "../deps.js";
+import { recordBrowserTurnToolResult } from "../../repl/browser-turn-state.js";
 import type {
   MessageId,
   ModelToolCall,
-  ToolCallId,
-  TraceContext,
   ToolCall,
+  ToolCallId,
   ToolExecutionResult,
+  TraceContext,
 } from "../deps.js";
+import { createPartId, TurnMachineImpl } from "../deps.js";
 import {
   emitStreamingToolLedgerUpdate,
   modelContentForToolResult,
   stringifyToolResultOutput,
   toRecordInput,
 } from "../helpers/index.js";
-import type { RuntimeModelTextResult, StreamedToolExecutionResult } from "../types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
+import type { RuntimeModelTextResult, StreamedToolExecutionResult } from "../types.js";
 import { emitSyntheticStreamedToolError } from "./streaming-tool-synthetic-result.js";
+import { mcpToolPartMetadata } from "./tool-part-metadata.js";
 import {
   persistPendingToolPart,
   projectToolNameForNonEmptyBoundary,
 } from "./tool-part-persistence.js";
-import { persistToolModelStepFinish } from "./turn-step-finish.js";
-import { mcpToolPartMetadata } from "./tool-part-metadata.js";
 import { drainInlineGuideForNextRequest } from "./turn-guide-drain.js";
-import { handleToolCallAnomalyWarnings } from "./turn-tool-warnings.js";
-import { emitNestedModelUsageEvents } from "./turn-nested-model-usage.js";
 import type { RegularTurnLoopState } from "./turn-loop-state.js";
-import {
-  isAutomationMutationRestrictedTurn,
-  isOffPeakCreateRestrictedTurn,
-  recordCompletedToolBatch,
-} from "./turn-loop-state.js";
-import { recordBrowserTurnToolResult } from "../../repl/browser-turn-state.js";
+import { isAutomationMutationRestrictedTurn, recordCompletedToolBatch } from "./turn-loop-state.js";
+import { emitNestedModelUsageEvents } from "./turn-nested-model-usage.js";
+import { persistToolModelStepFinish } from "./turn-step-finish.js";
 import {
   persistModelStepToolResults,
   type ModelStepToolPart,
 } from "./turn-tool-result-persistence.js";
+import { handleToolCallAnomalyWarnings } from "./turn-tool-warnings.js";
 
 export async function executeToolCallsForModelStep(
   this: AgentRuntimeInternal,
@@ -169,7 +165,6 @@ export async function executeToolCallsForModelStep(
     const execution = await this.executeTools(pendingToolCalls, pendingSchedule, {
       automationTurn: isAutomationMutationRestrictedTurn(state),
       automationId: state.automationId,
-      offPeakTurn: isOffPeakCreateRestrictedTurn(state),
       signal: state.turnAbortSignal,
       traceContext: options.modelTraceContext,
       subagentModelOverride: state.subagentModelOverride,

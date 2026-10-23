@@ -506,3 +506,8 @@ nul
 !/packages/web/test/fixtures/routing-recovery-error.tsx
 !/packages/web/test/routing-retry-sessions.test.mjs
 !/packages/web/test/fixtures/routing-retry-sessions.tsx
+
+# Coding Plan 移除后的独立供应商接入回归。
+!/packages/web/test/coding-plan-removal.test.mjs
+!/packages/web/test/fixtures/coding-plan-removal.html
+!/packages/web/test/fixtures/coding-plan-removal.tsx

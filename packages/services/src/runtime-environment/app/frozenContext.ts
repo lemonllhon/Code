@@ -104,7 +104,7 @@ export async function queryFrozenContextForCwd(
 }
 
 /** 只读上下文；环境事实和引用代际由各自 owner 在同一环境锁内裁决。 */
-export async function buildFrozenContext(
+async function buildFrozenContext(
   store: RuntimeEnvironmentStore,
   record: RuntimeEnvironmentRecord,
   executionScope: { workspacePath: string; workspaceIdentity?: string },

@@ -3,7 +3,7 @@ import { createReadStream } from "node:fs";
 import { mkdir, open, rename, rm, stat } from "node:fs/promises";
 import { posix, resolve } from "node:path";
 
-export interface UpdateArtifactManifestFile {
+interface UpdateArtifactManifestFile {
   url?: string | null;
   sha512?: string | null;
   size?: number | null;

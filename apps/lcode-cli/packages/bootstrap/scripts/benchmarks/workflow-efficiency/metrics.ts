@@ -26,7 +26,6 @@ export const FAILURE_REASONS = new Set([
   "timeout",
   "stream_idle_timeout",
   "stale_connection",
-  "offpeak_queued",
   "cancelled",
   "context_exceeded",
   "empty_response",

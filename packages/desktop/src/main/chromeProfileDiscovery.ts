@@ -23,7 +23,7 @@ export { resolveChromeExecutablePath } from "./chromeExecutableDiscovery.js";
 const DISCOVERY_COMMAND_TIMEOUT_MS = 3_000;
 const PROFILE_DIRECTORY_PATTERN = /^(?:Default|Profile \d+)$/;
 
-export interface ChromeProfileSource {
+interface ChromeProfileSource {
   browser: ChromeBrowserKind;
   executablePath?: string;
   passwordStore?: LinuxChromePasswordStore;

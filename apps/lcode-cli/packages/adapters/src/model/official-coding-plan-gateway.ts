@@ -2,11 +2,10 @@ import { resolveRuntimeLCodeEndpointOrigin } from "@lcode/shared";
 import type { EnvRecord } from "./model-execution.js";
 
 /**
- * 官方 Coding Plan 的模型请求经 LCode 平台网关发送。
+ * 保留的 Z.ai / BigModel Coding Plan API Key 模板沿用既有模型网关。
  *
- * Z.ai / BigModel Coding Plan 是 LCode 的官方订阅套餐，模型请求统一发往 LCode 平台网关，
- * 由平台完成套餐权益校验等平台侧处理后转发到对应的模型服务。客户端这里只做一件事：
- * 把官方模型端点替换为对应的网关端点，请求方法、请求体、鉴权头与响应均原样透传。
+ * 应用内购买和订阅服务已移除；这两个独立供应商的 API Key 调用链保持原有路由。
+ * 客户端把下表的模型端点替换为对应网关端点，请求方法、请求体、用户鉴权头与响应原样透传。
  *
  * 只对下表中的官方端点生效，按协议、主机、端口、路径精确匹配，用户自建 provider 与
  * 第三方模型服务不受影响。网关 origin 跟随 LCODE_BASE_URL / LCODE_ENDPOINT_ORIGIN，

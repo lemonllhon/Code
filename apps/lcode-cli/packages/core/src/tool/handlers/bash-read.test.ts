@@ -1,6 +1,3 @@
-import assert from "node:assert/strict";
-import { join } from "node:path";
-import test from "node:test";
 import type {
   BashOutput,
   ExecutionPort,
@@ -11,6 +8,9 @@ import type {
   ReadOutput,
   SessionEvent,
 } from "@lcode/contracts";
+import assert from "node:assert/strict";
+import { join } from "node:path";
+import test from "node:test";
 import type { ToolExecutionContext } from "../types.js";
 import { createBashToolEntry } from "./bash.js";
 import { readToolEntry } from "./read.js";
@@ -116,12 +116,18 @@ test("Bash explicit background uses its lifecycle port and never retries a rejec
       { command: "mock-command", run_in_background: true },
       {
         ...context,
-        offPeakTurn: true,
+        executionPort: {
+          ...context.executionPort,
+          runBashWithBackgroundLifecycle: async () => {
+            backgroundCalls++;
+            throw new Error("fixture background request rejected");
+          },
+        } as unknown as ExecutionPort,
       },
     ),
-    /Idle-time tasks do not support background commands/,
+    /fixture background request rejected/,
   );
-  assert.equal(backgroundCalls, 1);
+  assert.equal(backgroundCalls, 2);
   assert.equal(foregroundCalls, 0);
 });
 

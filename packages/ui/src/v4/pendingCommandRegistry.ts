@@ -20,7 +20,7 @@ interface StorageLike {
   removeItem(key: string): void;
 }
 
-export type PendingCommandRecoveryReason = "discarded";
+type PendingCommandRecoveryReason = "discarded";
 
 export interface PendingCommandEntry {
   commandId: string;

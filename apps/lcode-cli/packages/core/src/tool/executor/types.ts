@@ -1,39 +1,38 @@
 import type {
   AgentExecutionTelemetryPort,
   AgentTelemetryActorKind,
+  AutomationPort,
   BackgroundResultOriginMeta,
+  BrowserControlPort,
   CollaborationMode,
   CoordinatorResponsePort,
   DynamicWorkflowRunPort,
   DynamicWorkflowSnippetPort,
-  ModelCatalogPort,
   EmbeddedSearchBackend,
   ExecutionPort,
-  BrowserControlPort,
   ExecutionShellSelection,
-  AutomationPort,
-  OffPeakPort,
   FileSystemPort,
   HttpClientPort,
   ImageProcessorPort,
-  PdfDocumentPort,
-  VideoProcessorPort,
   Logger,
   Model,
+  ModelCatalogPort,
+  PdfDocumentPort,
   PermissionBrokerPort,
   SessionEvent,
   SessionId,
   SessionModePort,
   SessionStorePort,
   SkillPort,
-  SubagentRunOptions,
   SubagentPort,
+  SubagentRunOptions,
   ToolArtifactStorePort,
   ToolOperationAdmissionPort,
   TraceContext,
   TurnId,
-  WorkflowPort,
+  VideoProcessorPort,
   WorkflowEscalatePort,
+  WorkflowPort,
   WorkflowSubmitPort,
 } from "@lcode/contracts";
 import type { HookRunner } from "../../hooks/index.js";
@@ -41,15 +40,15 @@ import type { PermissionService } from "../../permission/service.js";
 import type { RuntimeTaskRegistry } from "../../runtime-task/registry.js";
 import type { ToolRegistry } from "../registry.js";
 import type { ToolSchedule } from "../scheduler.js";
-import type { ToolExecutionPermits } from "./execution-permits.js";
 import type {
+  BackgroundTaskControlPort,
   ExecutableToolCall,
   ReadFileStateMap,
   ToolBatchEvent,
-  BackgroundTaskControlPort,
   ToolExecutionResult,
   ToolRuntimeScope,
 } from "../types.js";
+import type { ToolExecutionPermits } from "./execution-permits.js";
 
 export interface BackgroundTaskNotificationCommand {
   originMeta?: BackgroundResultOriginMeta;
@@ -115,7 +114,6 @@ export interface ToolExecutorOptions {
   workflowEscalatePort?: WorkflowEscalatePort;
   artifactStore?: ToolArtifactStorePort;
   automationPort?: AutomationPort;
-  offPeakPort?: OffPeakPort;
   sessionStore?: SessionStorePort;
   sessionModePort?: SessionModePort;
   workflowPort?: WorkflowPort;
@@ -180,7 +178,6 @@ export interface ToolExecuteOptions {
   onToolStart?: (toolCallId: string) => Promise<void>;
   automationTurn?: boolean;
   automationId?: string;
-  offPeakTurn?: boolean;
   signal?: AbortSignal;
   traceContext?: TraceContext;
   subagentModelOverride?: SubagentRunOptions["modelOverride"];
@@ -229,7 +226,6 @@ export interface ToolExecutorDeps {
   workflowEscalatePort?: WorkflowEscalatePort;
   artifactStore?: ToolArtifactStorePort;
   automationPort?: AutomationPort;
-  offPeakPort?: OffPeakPort;
   sessionStore?: SessionStorePort;
   sessionModePort?: SessionModePort;
   workflowPort?: WorkflowPort;

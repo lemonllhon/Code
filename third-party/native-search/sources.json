@@ -7,8 +7,8 @@
     "gcc-runtime": "GPL-3.0 with GCC Runtime Library Exception 3.1; this does not relicense LCode as GPL"
   },
   "inputs": {
-    "scripts/native-search-tools-config.mjs": "51483e7c154b76d431703e22b28c6b4687245bf15662e5246ed976d561d086ae",
-    "scripts/remote-native-search-tools-config.mjs": "472322a66f84c7452f96aa9e16e9c4e0600f7c2588a03dc6bc869229161b1cb2"
+    "scripts/native-search-tools-config.mjs": "a060f816ae023eab43a0409a8a81f20582a4ad101e391ae948ffb44956ede05e",
+    "scripts/remote-native-search-tools-config.mjs": "95a525ddbaf4aeddb8ff03d841a86fad42af82c7a02a16afd6caba1171cd854a"
   },
   "archives": [
     {

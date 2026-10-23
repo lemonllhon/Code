@@ -26,7 +26,7 @@ export const normalizeTarget = (target) => {
   return aliases[normalized] ?? normalized;
 };
 
-export const assertSupportedTarget = (target) => {
+const assertSupportedTarget = (target) => {
   if (!supportedTargetSet.has(target)) {
     throw new Error(
       `Unsupported SEA target "${target}". Supported targets: ${supportedTargets.join(", ")}`,

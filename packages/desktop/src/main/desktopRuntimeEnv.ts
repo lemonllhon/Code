@@ -1,42 +1,41 @@
 /* eslint-disable max-lines -- desktop runtime/env 解析需要集中维护 main/host/remote assets 的启动边界，拆分会扩大远程连接回归面。 */
+import { DEV_HELPER_APP_NAME, HELPER_APP_NAME } from "@lcode/lcode-cua/broker/helperConstants";
+import type { ConnectOptions } from "@lcode/server/remote";
+import {
+    getAppConfigDir,
+    getDataBaseDir,
+    LCODE_CUA_BUNDLED_HELPER_APP_PATH_ENV,
+    LCODE_WINDOWS_APP_INSTALL_DIR_ENV, listSSHConfigAliasesFromLocalConfig
+} from "@lcode/services/desktop-main";
+import {
+    buildLCodeToolEnvPassthroughEnv,
+    LCODE_AGENT_RUNTIME,
+    LCODE_APP_VERSION_ENV,
+    LCODE_DYNAMIC_WORKFLOW_MODE_ENV,
+    LCODE_ENV,
+    LCODE_PRODUCT_FLAVOR,
+    LCODE_RUNTIME_ENV_KEY,
+    LCODE_VERSION,
+    normalizeDynamicWorkflowMode,
+    pickProductEndpointEnv,
+    readLCodeAgentTelemetryEnv,
+    readProductEndpointEnv,
+    resolveRuntimeLCodeEndpointOrigin,
+    resolveZaiBusinessBaseUrl,
+    resolveZaiOAuthClientId,
+    resolveZaiOAuthOrigin,
+    sanitizeLCodeRuntimeEnv,
+    type LCodeRuntimeEnv,
+} from "@lcode/shared";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, win32 } from "node:path";
-import type { ConnectOptions } from "@lcode/server/remote";
-import { listSSHConfigAliasesFromLocalConfig } from "@lcode/services/desktop-main";
-import { DEV_HELPER_APP_NAME, HELPER_APP_NAME } from "@lcode/lcode-cua/broker/helperConstants";
-import {
-  LCODE_APP_VERSION_ENV,
-  LCODE_AGENT_RUNTIME,
-  LCODE_DYNAMIC_WORKFLOW_MODE_ENV,
-  LCODE_ENV,
-  LCODE_PRODUCT_FLAVOR,
-  LCODE_RUNTIME_ENV_KEY,
-  LCODE_VERSION,
-  buildLCodeToolEnvPassthroughEnv,
-  resolveRuntimeLCodeEndpointOrigin,
-  readProductEndpointEnv,
-  pickProductEndpointEnv,
-  resolveZaiBusinessBaseUrl,
-  resolveZaiOAuthClientId,
-  resolveZaiOAuthOrigin,
-  normalizeDynamicWorkflowMode,
-  readLCodeAgentTelemetryEnv,
-  sanitizeLCodeRuntimeEnv,
-  type LCodeRuntimeEnv,
-} from "@lcode/shared";
 import { resolvePlatformKeyForPackagedApp } from "../../scripts/target-platform.mjs";
-import {
-  getAppConfigDir,
-  getDataBaseDir,
-  LCODE_CUA_BUNDLED_HELPER_APP_PATH_ENV,
-  LCODE_WINDOWS_APP_INSTALL_DIR_ENV,
-} from "@lcode/services/desktop-main";
-import {
-  resolveRemoteCdnBaseUrls as resolveOrderedRemoteCdnBaseUrls,
-  type ResolveRemoteCdnOptions,
-} from "./remoteCdn.js";
 import { getElectronAppPath, isElectronAppPackaged } from "./desktopElectronApp.js";
+import {
+    resolveRemoteCdnBaseUrls as resolveOrderedRemoteCdnBaseUrls,
+    type ResolveRemoteCdnOptions,
+} from "./remoteCdn.js";
 declare const __LCODE_BUNDLE_REMOTE_ASSETS__: boolean | undefined;
 
 const isLocalDevelopmentRuntime = !isElectronAppPackaged();

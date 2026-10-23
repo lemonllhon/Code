@@ -29,7 +29,7 @@ export interface FileCodeViewerSource extends CodeViewerWorkspaceScope {
   path: string;
 }
 
-export interface CodeReviewAnchor {
+interface CodeReviewAnchor {
   requestId: string;
   title: string;
   body: string;
@@ -95,7 +95,7 @@ export interface MediaCodeViewerSource extends CodeViewerWorkspaceScope {
   url?: string;
 }
 
-export interface PdfCodeViewerSource extends CodeViewerWorkspaceScope {
+interface PdfCodeViewerSource extends CodeViewerWorkspaceScope {
   type: "pdf";
   title: string;
   path: string;

@@ -48,11 +48,13 @@ import {
   memoryEffectWorkspaceKey,
 } from "../../memory/effect-observation.js";
 import { appendSessionHistoryRecallForTurn } from "./turn-session-history-recall.js";
+import { runTimedTurnPreparation } from "./turn-preparation-timing.js";
 
 export async function runRegularTurnLoop(
   this: AgentRuntimeInternal,
   state: RegularTurnLoopState,
 ): Promise<void> {
+  let observeFirstPreparation = true;
   while (true) {
     throwIfTurnAborted(state.turnAbortSignal);
     // 这是跨供应商交接的唯一健康路径：上一 model-step（含完整工具批次）已结束，
@@ -101,22 +103,41 @@ export async function runRegularTurnLoop(
       }
     }
 
-    await compactTurnRequestBeforeModelStep(this, state);
-    throwIfTurnAborted(state.turnAbortSignal);
-
-    await appendProjectMemoryRecallForTurn(this, state);
-    throwIfTurnAborted(state.turnAbortSignal);
-
-    await appendSessionHistoryRecallForTurn(this, state);
-    throwIfTurnAborted(state.turnAbortSignal);
-
-    await appendGitContextForModelStep(this, state);
-    throwIfTurnAborted(state.turnAbortSignal);
-
-    const finishMcp = beginLocalTurnPreparation(state.turnTraceContext, "mcp");
-    await this.initializeMcp(state.turnTraceContext);
-    finishMcp();
-    throwIfTurnAborted(state.turnAbortSignal);
+    // 原日志把记忆 / Git 等待混在工具注册前；仅首次慢准备补一条分段摘要，避免误判为 MCP 建连。
+    const observePreparation = observeFirstPreparation;
+    observeFirstPreparation = false;
+    await runTimedTurnPreparation({
+      signal: state.turnAbortSignal,
+      ensureActive: () => throwIfTurnAborted(state.turnAbortSignal),
+      steps: [
+        ["compaction", () => compactTurnRequestBeforeModelStep(this, state)],
+        ["project_memory", () => appendProjectMemoryRecallForTurn(this, state)],
+        ["session_history", () => appendSessionHistoryRecallForTurn(this, state)],
+        ["git_context", () => appendGitContextForModelStep(this, state)],
+        [
+          "mcp",
+          async () => {
+            const finishMcp = beginLocalTurnPreparation(state.turnTraceContext, "mcp");
+            try {
+              await this.initializeMcp(state.turnTraceContext);
+            } finally {
+              finishMcp();
+            }
+          },
+        ],
+      ],
+      ...(observePreparation
+        ? {
+            onSlow: (summary) =>
+              this.logger?.info("Turn preparation was slow", {
+                ...traceContextToLogContext(state.turnTraceContext),
+                ...summary,
+                event: "turn.preparation.slow",
+                module: "core.runtime",
+              }),
+          }
+        : {}),
+    });
     const finishTools = beginLocalTurnPreparation(state.turnTraceContext, "tools");
     const turnDisallowedTools = buildTurnDisallowedTools(state);
     // automation 派发到已 active 会话或重试恢复时，入口 metadata 可能没有带到

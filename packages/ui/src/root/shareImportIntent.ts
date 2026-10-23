@@ -1,4 +1,4 @@
-export type ShareImportIntentStatus =
+type ShareImportIntentStatus =
   | "received"
   | "waiting_for_auth"
   | "importing"

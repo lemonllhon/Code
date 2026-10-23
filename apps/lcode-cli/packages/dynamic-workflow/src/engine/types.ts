@@ -9,16 +9,15 @@
  *   内存实现与未来 SQLite 实现都能自然落位（同步方法契合 node:sqlite 的 DatabaseSync，且让核心保持确定性）。
  */
 
-import type { WorkflowAskRevision } from "./workflow-ask-revision.js";
-import type { WorkflowImageRef } from "./workflow-image-ref.js";
-import type { ActorSessionSeed } from "./actor-record.js";
 import type {
   PersonaSpec,
   WorkflowActorModelOverride,
   WorkflowModelSelection,
   WorkflowRunModelProvenance,
 } from "./actor-model-provenance.js";
-export type { ActorRecord, ActorSessionSeed } from "./actor-record.js";
+import type { ActorSessionSeed } from "./actor-record.js";
+import type { WorkflowAskRevision } from "./workflow-ask-revision.js";
+import type { WorkflowImageRef } from "./workflow-image-ref.js";
 export type {
   ActorModelBinding,
   ActorModelProvenance,
@@ -27,6 +26,7 @@ export type {
   WorkflowModelSelection,
   WorkflowRunModelProvenance,
 } from "./actor-model-provenance.js";
+export type { ActorRecord, ActorSessionSeed } from "./actor-record.js";
 export type { WorkflowAskRevision } from "./workflow-ask-revision.js";
 export type { WorkflowImageRef } from "./workflow-image-ref.js";
 
@@ -36,6 +36,7 @@ import type {
   ArtifactPresetOp,
   WorldReadOp,
 } from "../facade/registry.js";
+import type { Violation } from "../schema/types.js";
 import type { AskActivity, AskProgress, AskStats } from "./ask-observation-types.js";
 import type { JournalStorePort } from "./journal-types.js";
 import type { NodeAdmissionEvent, NodeQueuedEvent } from "./node-admission-types.js";
@@ -97,7 +98,6 @@ export interface AskMessage {
  * 与 schema 子模块共用同一类型（并行开发期各自声明，落地后统一到 schema/types）。
  */
 export type { Violation } from "../schema/types.js";
-import type { Violation } from "../schema/types.js";
 
 /**
  * 注入的校验函数：`(schema, value) => 违规列表`（空列表即通过）。真正的校验器由另一
@@ -493,7 +493,6 @@ export interface AskWaitInfo {
 export type ConcurrencyChangeReason =
   | "rate_limited"
   | "provider_overloaded"
-  | "offpeak_queued"
   | "recovered"
   | "idle_reset";
 
@@ -927,10 +926,10 @@ export interface NodeRecord {
 }
 
 export type {
-  StoredEvent,
+  JournalStorePort,
   ListEventsOptions,
   RunSettlementRecord,
-  JournalStorePort,
+  StoredEvent,
 } from "./journal-types.js";
 
 // driver 对 ask 的观察词汇表（用量 + 进度）住在 ask-observation-types.ts（同上），此处转出口以保持引用路径。

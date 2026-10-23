@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input.js";
 import { Button } from "@/components/ui/button.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
-export const REVIEW_FILE_PAGE_SIZE = 50;
+const REVIEW_FILE_PAGE_SIZE = 50;
 
 export function useReviewFilePage<T>(files: readonly T[], path: (file: T) => string) {
   const [query, setQuery] = useState("");

@@ -510,7 +510,6 @@ export const DesktopCommandIds = {
   SetLCodeEndpointCustom: "setLCodeEndpointCustom",
   ResetLCodeEndpoint: "resetLCodeEndpoint",
   ClearAllData: "clearAllData",
-  ClearCodingPlanWebviewStorage: "clearCodingPlanWebviewStorage",
   GetCuaOsSupport: "getCuaOsSupport",
 } as const;
 

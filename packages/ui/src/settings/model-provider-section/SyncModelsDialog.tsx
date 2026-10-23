@@ -23,7 +23,7 @@ import {
   type SyncModelProbeResult,
 } from "./syncModelOperations.js";
 
-export interface SyncModelItem {
+interface SyncModelItem {
   readonly id: string;
   readonly enabled: boolean;
 }

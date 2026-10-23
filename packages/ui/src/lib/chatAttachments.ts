@@ -41,7 +41,7 @@ const INLINE_VIDEO_ATTACHMENT_MAX_BYTES = Math.min(
 );
 const INLINE_TEXT_ATTACHMENT_MAX_CHARS = 64 * 1024;
 
-export type ChatComposerAttachmentSourceKind = "clipboard-text";
+type ChatComposerAttachmentSourceKind = "clipboard-text";
 
 export interface ChatComposerAttachment {
   id: string;

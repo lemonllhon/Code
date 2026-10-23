@@ -12,8 +12,8 @@ import {
 import { z } from "zod";
 
 export const REMOTE_CONTROL_ACCESS_KEY_CREDENTIAL_KEY = "remoteControl.accessKey";
-export const REMOTE_CONTROL_CLIENT_ID_CREDENTIAL_KEY = "remoteControl.clientId";
-export const REMOTE_CONTROL_CONFIG_CREDENTIAL_KEY = "remoteControl.config";
+const REMOTE_CONTROL_CLIENT_ID_CREDENTIAL_KEY = "remoteControl.clientId";
+const REMOTE_CONTROL_CONFIG_CREDENTIAL_KEY = "remoteControl.config";
 export const REMOTE_CONTROL_DEVICES_CREDENTIAL_KEY = "remoteControl.devices";
 export const REMOTE_CONTROL_RECOVERY_CREDENTIAL_KEY = "remoteControl.recovery";
 
@@ -28,7 +28,7 @@ const recoverySchema = z
     localTarget: z.boolean(),
   })
   .strict();
-export type RemoteControlRecovery = z.infer<typeof recoverySchema>;
+type RemoteControlRecovery = z.infer<typeof recoverySchema>;
 
 /** 与 @lcode/services ICredentialService 的 load/save/delete 面(测试注入用窄接口)。 */
 export interface RemoteControlCredentialService {
@@ -42,7 +42,7 @@ export interface RemoteControlStoreLogger {
 }
 
 /** 持久化的非敏感配置部分;hasAccessKey 是派生事实,不落盘。 */
-export const remoteControlPersistedConfigSchema = z
+const remoteControlPersistedConfigSchema = z
   .object({
     enabled: z.boolean().default(false),
     workerBaseUrl: z.string().default(DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL),
@@ -51,7 +51,7 @@ export const remoteControlPersistedConfigSchema = z
     idleDisconnectMs: z.number().int().nonnegative().default(0),
   })
   .strict();
-export type RemoteControlPersistedConfig = z.infer<typeof remoteControlPersistedConfigSchema>;
+type RemoteControlPersistedConfig = z.infer<typeof remoteControlPersistedConfigSchema>;
 
 export interface RemoteControlStore {
   loadAccessKey(): Promise<string | null>;

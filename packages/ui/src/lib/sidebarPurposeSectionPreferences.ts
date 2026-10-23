@@ -56,28 +56,6 @@ function normalizeSectionOrder(value: unknown): SidebarPurposeSectionId[] {
   return value as SidebarPurposeSectionId[];
 }
 
-export function reorderSidebarPurposeSections(
-  sectionOrder: readonly SidebarPurposeSectionId[],
-  activeSectionId: string,
-  overSectionId: string,
-): SidebarPurposeSectionId[] {
-  const currentOrder = normalizeSectionOrder(sectionOrder);
-  const activeIndex = currentOrder.indexOf(activeSectionId as SidebarPurposeSectionId);
-  const overIndex = currentOrder.indexOf(overSectionId as SidebarPurposeSectionId);
-  if (activeIndex === -1 || overIndex === -1 || activeIndex === overIndex) {
-    return currentOrder;
-  }
-
-  const nextOrder = [...currentOrder];
-  const activeSection = nextOrder[activeIndex];
-  if (!activeSection) {
-    return currentOrder;
-  }
-  nextOrder.splice(activeIndex, 1);
-  nextOrder.splice(overIndex, 0, activeSection);
-  return nextOrder;
-}
-
 export function readSidebarPurposeSectionPreferences(
   storage: StorageLike | null = getBrowserStorage(),
 ): SidebarPurposeSectionPreferences {
@@ -106,23 +84,5 @@ export function readSidebarPurposeSectionPreferences(
     };
   } catch {
     return getDefaultPreferences();
-  }
-}
-
-export function persistSidebarPurposeSectionPreferences(
-  preferences: SidebarPurposeSectionPreferences,
-  storage: StorageLike | null = getBrowserStorage(),
-) {
-  try {
-    storage?.setItem(
-      SIDEBAR_PURPOSE_SECTION_PREFERENCES_STORAGE_KEY,
-      JSON.stringify({
-        projectsExpanded: preferences.projectsExpanded,
-        conversationsExpanded: preferences.conversationsExpanded,
-        sectionOrder: normalizeSectionOrder(preferences.sectionOrder),
-      }),
-    );
-  } catch {
-    // 受限 WebView 或隐私模式可能禁止写 localStorage；偏好写入失败不能阻断侧栏交互。
   }
 }

@@ -1,5 +1,5 @@
-import { app } from "electron";
 import { getAppConfigDir } from "@lcode/services/desktop-main";
+import { app } from "electron";
 
 type ElectronAppPathName = "appData" | "userData";
 

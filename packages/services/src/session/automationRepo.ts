@@ -6,7 +6,7 @@ import {
    调度状态机写入与运行历史，稳定后再按读写职责拆分。 */
 import { mkdir } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import {
   AUTOMATION_CREATE_LIMIT,
@@ -31,6 +31,14 @@ import { runTasksDatabaseMigrations } from "#src/session/tasksDatabase/migration
 const require = createRequire(import.meta.url);
 const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
 type DatabaseSyncInstance = InstanceType<typeof DatabaseSync>;
+
+// 同一 Host 内 UI、Agent 工具、手机入口使用不同 Repo；失效事件按真实数据库隔离，
+// 不复制自动化状态，也不让 Main 再维护一份任务列表。跨进程仍通过 Host 消息通知。
+const schedulingObservers = new Set<(databasePath: string) => void>();
+function databaseKey(databasePath: string): string {
+  const absolute = resolve(databasePath);
+  return process.platform === "win32" ? absolute.toLowerCase() : absolute;
+}
 
 /** 派发失败退避常量。 */
 export const DISPATCH_RETRY_BASE_MS = 30_000;
@@ -243,6 +251,44 @@ export class AutomationRepo {
     return this.resolvedDbPath ?? getTasksIndexDatabasePath();
   }
 
+  onSchedulingChange(listener: () => void): () => void {
+    const observe = (databasePath: string) => {
+      if (databasePath === databaseKey(this.resolveDbPath())) listener();
+    };
+    schedulingObservers.add(observe);
+    return () => {
+      schedulingObservers.delete(observe);
+    };
+  }
+
+  private notifySchedulingChange(): void {
+    if (!this.dbPath) return;
+    const key = databaseKey(this.dbPath);
+    for (const observer of schedulingObservers) {
+      try {
+        observer(key);
+      } catch {
+        /* 通知失败不能将已提交事务报告成失败。 */
+      }
+    }
+  }
+
+  /** 调度需求由原账本判定；删除定义后仍在途的 run 不能随定义一起消失。 */
+  async hasSchedulingDemand(): Promise<boolean> {
+    await this.ensureReady();
+    const row = this.getDatabase()
+      .prepare(`
+      SELECT CASE WHEN EXISTS(SELECT 1 FROM automations WHERE enabled = 1 OR running = 1)
+        THEN 1 ELSE EXISTS(SELECT 1 FROM automation_runs
+          WHERE (dispatch_status = 'claimed' AND outcome IS NULL)
+             OR outcome = 'running'
+             OR (dispatch_status = 'dispatched' AND outcome IS NULL))
+      END AS needed
+    `)
+      .get() as { needed: number };
+    return row.needed === 1;
+  }
+
   async ensureReady(): Promise<void> {
     const path = this.resolveDbPath();
     if (this.dbPath && this.dbPath !== path) {
@@ -376,6 +422,7 @@ export class AutomationRepo {
         updated_at: now,
       });
       db.exec("COMMIT");
+      this.notifySchedulingChange();
     } catch (error) {
       db.exec("ROLLBACK");
       throw error;
@@ -530,6 +577,7 @@ export class AutomationRepo {
           AND (@workspace_key IS NULL OR workspace_key = @workspace_key)`,
       )
       .run({ id: automationId, workspace_key: workspaceKey ?? null });
+    this.notifySchedulingChange();
     return result.changes > 0;
   }
 
@@ -552,6 +600,7 @@ export class AutomationRepo {
         now: Date.now(),
         workspace_key: workspaceKey ?? null,
       });
+    this.notifySchedulingChange();
   }
 
   /** 终态任务手动重跑：回 active、清计数与重试态，nextRunAt 由调用方重算传入。 */
@@ -585,6 +634,7 @@ export class AutomationRepo {
         now: Date.now(),
         workspace_key: workspaceKey ?? null,
       });
+    this.notifySchedulingChange();
   }
 
   /**
@@ -611,6 +661,7 @@ export class AutomationRepo {
       const row = this.getRow(automationId, workspaceKey);
       if (!row) {
         db.exec("COMMIT");
+        this.notifySchedulingChange();
         return null;
       }
 
@@ -629,6 +680,7 @@ export class AutomationRepo {
         });
       if (claimed.changes !== 1) {
         db.exec("COMMIT");
+        this.notifySchedulingChange();
         return null;
       }
 
@@ -651,6 +703,7 @@ export class AutomationRepo {
         now: options.now,
       });
       db.exec("COMMIT");
+      this.notifySchedulingChange();
       return {
         automation: rowToAutomation({
           ...row,
@@ -739,6 +792,7 @@ export class AutomationRepo {
         }
       }
       db.exec("COMMIT");
+      this.notifySchedulingChange();
       return claimed;
     } catch (error) {
       db.exec("ROLLBACK");
@@ -893,6 +947,7 @@ export class AutomationRepo {
         });
       }
       db.exec("COMMIT");
+      this.notifySchedulingChange();
       return claimed;
     } catch (error) {
       db.exec("ROLLBACK");
@@ -947,6 +1002,7 @@ export class AutomationRepo {
         next_run_at: reachedMax || reachedEnd ? null : options.nextRunAt,
         now: options.dispatchedAt,
       });
+    this.notifySchedulingChange();
   }
 
   /**
@@ -976,6 +1032,7 @@ export class AutomationRepo {
             last_error = @error, updated_at = @now
         WHERE automation_id = @id`,
       ).run({ id: automationId, error: options.error, now });
+      this.notifySchedulingChange();
       return;
     }
     const attempts = row.dispatch_attempts + 1;
@@ -994,6 +1051,7 @@ export class AutomationRepo {
           error: options.error,
           now,
         });
+        this.notifySchedulingChange();
       } else {
         db.prepare(
           `UPDATE automations
@@ -1002,6 +1060,7 @@ export class AutomationRepo {
               last_error = @error, updated_at = @now
           WHERE automation_id = @id`,
         ).run({ id: automationId, error: options.error, now });
+        this.notifySchedulingChange();
       }
       return;
     }
@@ -1019,6 +1078,7 @@ export class AutomationRepo {
       error: options.error,
       now,
     });
+    this.notifySchedulingChange();
   }
 
   /** 关机/退出时释放认领：清 running、保留 next_run_at，不记失败不推进。 */
@@ -1031,6 +1091,7 @@ export class AutomationRepo {
         WHERE automation_id = @id AND running = 1`,
       )
       .run({ id: automationId, now: Date.now() });
+    this.notifySchedulingChange();
   }
 
   /** manual run 结束后只释放 single-flight 锁，不修改 automation 的调度状态。 */
@@ -1045,6 +1106,7 @@ export class AutomationRepo {
           AND running = 1`,
       )
       .run({ id: automationId, workspace_key: workspaceKey, now: Date.now() });
+    this.notifySchedulingChange();
   }
 
   /** host 仍持有 queued/running manual run 时续租，避免长任务被 scheduler 当作僵尸认领回收。 */
@@ -1059,6 +1121,7 @@ export class AutomationRepo {
           AND running = 1`,
       )
       .run({ id: automationId, workspace_key: workspaceKey, now: Date.now() });
+    this.notifySchedulingChange();
   }
 
   /**
@@ -1115,6 +1178,7 @@ export class AutomationRepo {
         ).run({ id: params.automationId, next_run_at: params.nextRunAt, now });
       }
       db.exec("COMMIT");
+      this.notifySchedulingChange();
     } catch (error) {
       db.exec("ROLLBACK");
       throw error;
@@ -1149,6 +1213,7 @@ export class AutomationRepo {
         trigger: params.trigger,
         now,
       });
+    this.notifySchedulingChange();
   }
 
   /** 认领时 upsert 一行 run（run_id 冲突即命中本轮 retry，不新建）。 */
@@ -1185,6 +1250,7 @@ export class AutomationRepo {
         model_selection: serializeAutomationModelSelection(params.modelSelection),
         now,
       });
+    this.notifySchedulingChange();
   }
 
   /**
@@ -1203,6 +1269,7 @@ export class AutomationRepo {
       model_selection: serializeAutomationModelSelection(selection),
       now: Date.now(),
     });
+    this.notifySchedulingChange();
     const row = db
       .prepare(`SELECT model_selection FROM automation_runs WHERE run_id = @run_id`)
       .get({ run_id: runId }) as Pick<AutomationRunRow, "model_selection"> | undefined;
@@ -1235,6 +1302,7 @@ export class AutomationRepo {
         error: params.error ?? null,
         now: Date.now(),
       });
+    this.notifySchedulingChange();
   }
 
   /**
@@ -1264,6 +1332,7 @@ export class AutomationRepo {
         | undefined;
       if (!run || run.dispatch_status === "dispatched") {
         db.exec("COMMIT");
+        this.notifySchedulingChange();
         return false;
       }
 
@@ -1294,6 +1363,7 @@ export class AutomationRepo {
           now: params.dispatchedAt,
         });
       db.exec("COMMIT");
+      this.notifySchedulingChange();
       return automationUpdate.changes > 0;
     } catch (error) {
       db.exec("ROLLBACK");
@@ -1323,6 +1393,7 @@ export class AutomationRepo {
         WHERE run_id = @run_id`,
       )
       .run({ run_id: runId, outcome, error: error ?? null, now: Date.now() });
+    this.notifySchedulingChange();
   }
 
   /** 错过触发窗口：落一条 skipped run（session_id=null），不计 run_count。 */
@@ -1354,6 +1425,7 @@ export class AutomationRepo {
         reason: params.reason,
         now,
       });
+    this.notifySchedulingChange();
   }
 
   async listRuns(automationId: string, workspaceKey?: string): Promise<LCodeAutomationRun[]> {
@@ -1389,6 +1461,7 @@ export class AutomationRepo {
           AND (@workspace_key IS NULL OR workspace_key = @workspace_key)`,
       )
       .run({ run_id: runId, workspace_key: workspaceKey ?? null });
+    this.notifySchedulingChange();
   }
 
   /** 保留策略：删除超过 maxAgeMs 的历史 run（防无限增长）。 */
@@ -1397,6 +1470,7 @@ export class AutomationRepo {
     const res = this.getDatabase()
       .prepare(`DELETE FROM automation_runs WHERE created_at < ?`)
       .run(Date.now() - maxAgeMs);
+    this.notifySchedulingChange();
     return Number(res.changes ?? 0);
   }
 
@@ -1438,5 +1512,6 @@ export class AutomationRepo {
         enabled: row.enabled,
         updated_at: row.updated_at,
       });
+    this.notifySchedulingChange();
   }
 }

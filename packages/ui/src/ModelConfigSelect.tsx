@@ -61,7 +61,7 @@ export interface ModelSelectGroupItem {
   modelId?: string;
 }
 
-export interface ModelSelectConnectionOption {
+interface ModelSelectConnectionOption {
   key: string;
   label: string;
   badgeLabel?: string;

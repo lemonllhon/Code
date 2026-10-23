@@ -3,7 +3,7 @@ import { prepareNativeSearchTools } from "../../../../../scripts/prepare-native-
 import { resolveNativeSearchReleasePlan } from "../../../../../scripts/native-search-tools-config.mjs";
 import { targetParts } from "./sea-targets.mjs";
 
-export const resolveSeaRuntimeToolPreparationPlan = ({ root, target }) => {
+const resolveSeaRuntimeToolPreparationPlan = ({ root, target }) => {
   const { arch, releasePlatform } = targetParts(target);
   const platform = releasePlatform === "win" ? "win32" : releasePlatform;
   const platformKey = `${platform}-${arch}`;
@@ -19,11 +19,7 @@ export const resolveSeaRuntimeToolPreparationPlan = ({ root, target }) => {
   };
 };
 
-export const prepareSeaRuntimeToolAssets = async ({
-  root,
-  target,
-  prebuiltPlan,
-}) => {
+export const prepareSeaRuntimeToolAssets = async ({ root, target, prebuiltPlan }) => {
   const plan = resolveSeaRuntimeToolPreparationPlan({ root, target });
 
   if (plan.enabled) {

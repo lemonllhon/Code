@@ -127,7 +127,7 @@ export interface AppProps {
   supportsEmbeddedBrowser?: boolean;
 }
 
-export interface GitChangeSummary {
+interface GitChangeSummary {
   added: number;
   removed: number;
 }

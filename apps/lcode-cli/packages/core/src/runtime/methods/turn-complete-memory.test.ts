@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import {
   MEMORY_HISTORY_TOOL_NAME,
   MEMORY_REVIEW_APPLY_TOOL_NAME,
@@ -8,9 +6,11 @@ import {
   createRootTraceContext,
   type SessionEvent,
 } from "@lcode/contracts";
+import assert from "node:assert/strict";
+import test from "node:test";
 import type { AgentRuntimeInternal } from "../internal.js";
-import type { RegularTurnLoopState } from "./turn-loop-state.js";
 import { completeRegularTurn } from "./turn-complete.js";
+import type { RegularTurnLoopState } from "./turn-loop-state.js";
 
 function event(
   type: SessionEvent["type"],
@@ -168,21 +168,6 @@ test("tool completion must match the scheduled call and this turn/session", asyn
   foreign.sessionId = "foreign-session" as SessionEvent["sessionId"];
   assert.equal(await complete([scheduled, foreign]), 1);
 });
-
-test("automation and off-peak attribution suppresses background review without a new session flag", async () => {
-  const traceContext = createRootTraceContext();
-  for (const patch of [
-    { automationId: "automation-fixture" },
-    { offPeakTaskId: "offpeak-fixture" },
-    { toolDisallowlist: ["CronCreate", "CronUpdate", "CronDelete"] },
-    { toolDisallowlist: ["OffPeakCreate"] },
-    { turnTraceContext: { ...traceContext, queryId: "automation-resume" } },
-    { turnTraceContext: { ...traceContext, queryId: "offpeak-resume" } },
-  ]) {
-    assert.equal(await complete([], false, patch as Partial<RegularTurnLoopState>), 0);
-  }
-});
-
 test("explicit per-turn skip remains effective without changing the session memory setting", async () => {
   assert.equal(await complete([], true), 0);
 });

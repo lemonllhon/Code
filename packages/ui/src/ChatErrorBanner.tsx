@@ -28,10 +28,7 @@ import { toast } from "./components/ui/toast.js";
 import { useFeedbackStore } from "@/feedback/feedbackStore.js";
 import { getProviderBusinessErrorMessageId } from "@/lib/providerBusinessError.js";
 import { buildErrorFeedbackDescription } from "@/lib/errorFeedbackDraft.js";
-import {
-  isSuspiciousEmptyModelResultMessage,
-  resolveOffPeakTicketExpiredBusinessCode,
-} from "@/lib/providerBusinessError.js";
+import { isSuspiciousEmptyModelResultMessage } from "@/lib/providerBusinessError.js";
 import type { LCodeUiError } from "@/lib/lcodeUiError.js";
 import { formatRoutingErrorMessage, routingErrorDetail } from "@/lib/chatRoutingError.js";
 
@@ -78,8 +75,7 @@ export function resolveChatErrorBannerDisplayMessage(
   const routingMessage = formatRoutingErrorMessage(error, intl);
   if (routingMessage) return routingMessage;
 
-  const providerBusinessCode =
-    resolveOffPeakTicketExpiredBusinessCode(error.code, error.message) ?? error.code;
+  const providerBusinessCode = error.code;
   const providerBusinessMessageId = getProviderBusinessErrorMessageId(providerBusinessCode);
   if (providerBusinessMessageId) {
     return intl.formatMessage({ id: providerBusinessMessageId });

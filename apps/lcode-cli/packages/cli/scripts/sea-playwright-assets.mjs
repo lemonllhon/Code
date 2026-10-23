@@ -4,8 +4,8 @@ import { createRequire } from "node:module";
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
-export const seaPlaywrightAssetPrefix = "lcode-playwright-runtime/";
-export const seaPlaywrightManifestAssetKey = `${seaPlaywrightAssetPrefix}manifest.json`;
+const seaPlaywrightAssetPrefix = "lcode-playwright-runtime/";
+const seaPlaywrightManifestAssetKey = `${seaPlaywrightAssetPrefix}manifest.json`;
 
 export const collectSeaPlaywrightAssets = async ({ root, stagingDirectory, target }) => {
   const packageRoot = resolvePlaywrightPackageRoot(root);

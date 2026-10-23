@@ -1,4 +1,3 @@
-import type { AgentRuntime, TurnAttachment, TurnResult } from "@lcode/core";
 import {
   SessionEventType,
   traceContextToLogContext,
@@ -10,13 +9,14 @@ import {
   type ToolArtifactStorePort,
   type TraceContext,
 } from "@lcode/contracts";
+import type { AgentRuntime, TurnAttachment, TurnResult } from "@lcode/core";
 import {
   externalizePromptAttachments,
   materializeInputHistoryEntry,
   normalizePromptInput,
   projectInputHistoryAttachments,
 } from "./prompt-input.js";
-import type { PrepareUserExecutionBoundary, SubmitPromptOptions, LCodeApp } from "./types.js";
+import type { LCodeApp, PrepareUserExecutionBoundary, SubmitPromptOptions } from "./types.js";
 
 type InputFacade = Pick<
   LCodeApp,
@@ -116,14 +116,7 @@ export function createInputFacade(deps: CreateInputFacadeDeps): InputFacade {
       traceContext: options?.traceContext ?? deps.traceContext,
     });
     const runtimePromptText = resolvedCommandPrompt ?? promptInput.text;
-    const turnAttribution = options?.automationId
-      ? { automationId: options.automationId }
-      : options?.offPeakTaskId
-        ? {
-            offPeakTaskId: options.offPeakTaskId,
-            ...(options.offPeakRunType ? { offPeakRunType: options.offPeakRunType } : {}),
-          }
-        : {};
+    const turnAttribution = options?.automationId ? { automationId: options.automationId } : {};
     return await deps.runtime.executeTurn(runtimePromptText, storedAttachments, {
       abortSignal: options?.abortSignal,
       browserAmbientContext: options?.browserAmbientContext,

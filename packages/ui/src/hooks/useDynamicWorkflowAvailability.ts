@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import type { ICodingPlanSubscriptionService } from "@lcode/services";
+import type { IApplicationConfigService } from "@lcode/services";
 import {
   useDynamicWorkflowAvailabilityStore,
   type DynamicWorkflowAvailabilitySnapshot,
@@ -22,9 +22,7 @@ export function useDynamicWorkflowAvailability(): DynamicWorkflowAvailabilitySna
  * app 会话级取数，挂在 Root 里一次。service 换了（手机 `/remote` 完成工作区桥接）会重试，
  * 取数与失败重试的规则见 dynamicWorkflowAvailabilityStore。
  */
-export function useDynamicWorkflowAvailabilityLoader(
-  service: ICodingPlanSubscriptionService,
-): void {
+export function useDynamicWorkflowAvailabilityLoader(service: IApplicationConfigService): void {
   const ensureLoaded = useDynamicWorkflowAvailabilityStore((state) => state.ensureLoaded);
   useEffect(() => {
     void ensureLoaded(service);
