@@ -34,12 +34,18 @@ nodes:
         symbol: runtimeMemoryBudget
       - file: packages/services/src/lcode-agent/lcodeAgentProcessManager.ts
         symbol: LCodeAgentProcessManager
+      - file: packages/desktop/src/main/startupWorkspace.ts
+        symbol: resolveStartupWindowBootstrap
+      - file: packages/desktop/src/host/hostInitialization.ts
+        symbol: resolveHostAgentWarmupTargets
       - file: packages/desktop/src/host/windowRemoteConnectionRegistry.ts
         symbol: createWindowRemoteConnectionRegistry
       - file: apps/lcode-cli/packages/node-repl-host/src/server.ts
         symbol: createNodeReplMcpRuntime
     invariants:
       - "Remote blank drafts do not prewarm execution; trusted builtin tools remain discoverable before their first process starts."
+      - "Local startup prewarms only the visible valid local workspace; an explicit empty InitLocal list survives window/Host recovery without fallback."
+      - "Plugin and MCP-status lanes retain independent queues and reclaim only after operations, reverse Host responses and storage preparation settle."
       - "Memory reservations belong to existing process/Worker owners until confirmed cleanup, and never become another accepted command queue."
       - "Cached SSH transport does not retain an idle workspace Agent after its last logical owner; running tasks and reattach generations preserve existing release fences."
   - id: capability.remote-device-management

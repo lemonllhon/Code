@@ -252,7 +252,7 @@
     "apps/lcode-cli/packages/tui/package.json": "35cd6fcd941d6abfb2e1f9129493abf04ef108bc8ceaa057c0c9a45c0c192294",
     "apps/lcode-cli/tools/prompt-trajectory/package.json": "adda451b1c3981fa364530ad0ce303f7f428c3180b8b20c3f4be47d35116a1e9",
     "apps/lcode-cli/tools/typescript/package.json": "2f33883fe33cc9d878a3d6d78a0d262eb0db134fc02042ed7563c3dc50d797f7",
-    "package.json": "ccae14c67cdc8c2f32b9281c69543af7b8020bb368dca9cda13d4525e936022a",
+    "package.json": "d40fc9f2cfac6a0703c534782aebe1e289f9b3813e6b64b611fbebd8d4444f8e",
     "packages/client/package.json": "6cfcb57428c4728a98b7cf4504d29304cf6e9e547e136f0ab1edcef8f821b452",
     "packages/desktop/package.json": "ee7170706dd11c3d068a007f3a933cf095c885914bb8d169c0599fc53bd17da6",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
@@ -1541,7 +1541,7 @@
     "packages/rpc/src/remote.ts": "a11e072d5df7e1c1ce64814a68f72afc081246b364f0da409b5c9d22bc815957",
     "packages/rpc/src/serialization.ts": "9720698411e17c31869c4bc974c381e4201bf3d51cf8e849ea7375eb54399dc6",
     "packages/server/package.json": "e948e5289a561fc96bc85f986954ee017ad4c63a56dcadfab6b203db5f99bd0f",
-    "packages/services/package.json": "1ac78615a02d0d4c551d1066ee0c7e6a2946590f8d4a76bb26ee088eea8f2d33",
+    "packages/services/package.json": "5ef8630ff812a1f9f20e811f25f27a78f6c1bb9915874b6e5718668aa9a5e9ae",
     "packages/shared/package.json": "d088a8361e1b46adcc11d7b93240dc9c17e0ecef24f007ab746a8cb7be5adcf6",
     "packages/shared/src/lcode-protocol-v4/wire-codec.ts": "4e895f7c3ea4067ad9540649e779661055c46c09be7247fb33533489f814cd2c",
     "packages/ui/package.json": "e07c28e515d0a5e726e3f773b47788388b2ed6273e70b01ef691e0cd51778045",
@@ -1615,16 +1615,16 @@
     "packages/ui/src/components/ui/card.tsx": "cdfb5121c2647a4b496a377609acb05d14513f7975858482b911a3873c3695b3",
     "packages/ui/src/components/ui/chart.tsx": "272efec5aa60d34665104b45341d9f2b8cad4480070bca91e9d5409713b6fecd",
     "packages/ui/src/components/ui/checkbox.tsx": "5b3cb5612ed7654218e1cdd86fc41c7b490475721948d50a603996133245bace",
-    "packages/ui/src/components/ui/code-viewer.tsx": "42e10649746cc7a6ed9e50369874d979edb33e61c34db82158c6289b1e63dd63",
+    "packages/ui/src/components/ui/code-viewer.tsx": "a6350e6bf637aa5e32a3d059a40de5fdd2313e614e3b969bf73c94088a62e325",
     "packages/ui/src/components/ui/collapsible.tsx": "e00f7ad26cc4c168f8c6b20e6078512807ddca05e375e47b6c9dbbd50fcbef52",
     "packages/ui/src/components/ui/command.tsx": "7c754bc80704163ce505d08d961a5a4b3e57107e7d53ea319483a896d448cbdb",
     "packages/ui/src/components/ui/context-menu.tsx": "9ce43fa2f504b3d2c34c9746f4517a73b6d2a8e6c76023900f2466200ff0d5de",
     "packages/ui/src/components/ui/dialog.tsx": "4f322e807430e97d4458a377d82f081cf63f0bfb4aad7af1ffdc6bfb4a40bca7",
-    "packages/ui/src/components/ui/diff-viewer.tsx": "d829a6f2f5d0d3e389c1e61475d9a96c8a5508ec366fba398f97db610c1ab7d8",
+    "packages/ui/src/components/ui/diff-viewer.tsx": "dcfa8e3222c730bf6a0461d0dd42f2d8c41e3f2e2bfecf566fa1b40833a63561",
     "packages/ui/src/components/ui/dropdown-menu.tsx": "644bd9ac0b8788920ed01589d729638e45fd4a8e21f5ef9a2b8b675bcb079b10",
     "packages/ui/src/components/ui/flip-metric-value.tsx": "ce2d6cf063003e1023191b0fa4e3eb9b365e04a14eb0d498b897326600bf4071",
     "packages/ui/src/components/ui/GlmMonochromeIcon.tsx": "1a1db9e6b61e49c524cfffb1d5d323a23c5d7f62ffb1cbc7d480da41ed73061d",
-    "packages/ui/src/components/ui/highlighted-lightweight-diff-preview.tsx": "c04bb6009683ab74cb72ff8f1e1157ffbdd06be4a46dc3c725c63e0bc43fea72",
+    "packages/ui/src/components/ui/highlighted-lightweight-diff-preview.tsx": "9f15ead11e59986d8ef072074118e3192f5d7dc27968dbb76f88d5998d2103ba",
     "packages/ui/src/components/ui/hover-card.tsx": "28e49fb55a3fd4f5bfc5d61f336854304bc92c5a7098305b208274913b226f3d",
     "packages/ui/src/components/ui/input-group.tsx": "fe6c3288aeb35c1924601ce8c1ff11c4f710f1087bb32daa836f5dc850429505",
     "packages/ui/src/components/ui/input.tsx": "828e3ed2a362644c357484e753bbb204317d8b9f3ac8b6ff01f6d0388884a59c",
@@ -20140,7 +20140,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/code-viewer.tsx",
-          "sha256": "42e10649746cc7a6ed9e50369874d979edb33e61c34db82158c6289b1e63dd63"
+          "sha256": "a6350e6bf637aa5e32a3d059a40de5fdd2313e614e3b969bf73c94088a62e325"
         },
         {
           "file": "packages/ui/src/components/ui/collapsible.tsx",
@@ -20160,7 +20160,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/diff-viewer.tsx",
-          "sha256": "d829a6f2f5d0d3e389c1e61475d9a96c8a5508ec366fba398f97db610c1ab7d8"
+          "sha256": "dcfa8e3222c730bf6a0461d0dd42f2d8c41e3f2e2bfecf566fa1b40833a63561"
         },
         {
           "file": "packages/ui/src/components/ui/dropdown-menu.tsx",
@@ -20172,7 +20172,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/highlighted-lightweight-diff-preview.tsx",
-          "sha256": "ffdc29d908e6b645d26aa27eb87fb53ae4a5a61613a9c8e4ceb007c63647fe74"
+          "sha256": "9f15ead11e59986d8ef072074118e3192f5d7dc27968dbb76f88d5998d2103ba"
         },
         {
           "file": "packages/ui/src/components/ui/hover-card.tsx",
