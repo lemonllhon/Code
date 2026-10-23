@@ -82,6 +82,7 @@ import {
   HostMessageTypes,
 } from "@lcode/shared";
 import { logger } from "./logger.js";
+import { logWindowsBundledRuntimeIntegrityDiagnostic } from "./bundledRuntimeDiagnostic.js";
 import {
   applyDesktopImmediateAppSettings,
   type ImmediateAppSettingsPatch,
@@ -155,7 +156,6 @@ import {
   listAvailableDockerContainers,
   listAvailableWSLDistros,
   loadHostProcessEnvFromLocalFiles,
-  resolveBundledGlmBinaryPath,
   resolveRemoteAssetDirs,
   resolveLCodeEndpointEnvBaseOrigin,
   desktopRuntimeEnv,
@@ -1233,30 +1233,6 @@ function logWindowsPackagedResourceWritableProbe(stage: string) {
   }
 }
 
-function logWindowsBundledRuntimeIntegrityDiagnostic() {
-  if (process.platform !== "win32" || !app.isPackaged) {
-    return;
-  }
-
-  const binaryPaths = {
-    glm: resolveBundledGlmBinaryPath(),
-  };
-  const missingProviders = Object.entries(binaryPaths)
-    .filter(([, binaryPath]) => !binaryPath)
-    .map(([provider]) => provider);
-  if (missingProviders.length === 0) {
-    return;
-  }
-
-  // bundled runtime 缺失不一定影响用户当前 provider，启动阶段只静默落日志。
-  // 这样既能在下次用户日志里确认安装资源是否已损坏，也不会因为未使用的 provider 缺失打断启动。
-  logger.warn(
-    `[startup] Windows bundled runtime missing providers: ${missingProviders.join(", ")} resources=${JSON.stringify(
-      snapshotWindowsPackagedResources(process.resourcesPath),
-    )}`,
-  );
-}
-
 async function prepareWindowsProcessesForUpdateInstall() {
   const trackedAgentCount = listRegisteredHostAgentProcessIds().length;
 
@@ -1956,7 +1932,12 @@ app.whenReady().then(async () => {
   }
 
   await hydratePendingPostUpdateReleaseNotes(mainSettingService);
-  logWindowsBundledRuntimeIntegrityDiagnostic();
+  await logWindowsBundledRuntimeIntegrityDiagnostic({
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    logger,
+  });
 
   // 启动自动更新检查（后台执行，不阻塞主界面）
   // Preview 身份无论连接哪个后端都不自动更新：stable feed 上只分发正式 LCode 安装包，

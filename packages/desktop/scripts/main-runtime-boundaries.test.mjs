@@ -12,7 +12,7 @@ import {
   loadMacUpdateRuntime,
 } from "./main-runtime-test-fixture.mjs";
 
-test("macOS system helper lifecycle regressions run in the release gate", async () => {
+test("bundled Agent diagnostics and macOS helper lifecycle run in the release gate", async () => {
   const { stdout } = await promisify(execFile)(
     process.execPath,
     [
@@ -21,6 +21,7 @@ test("macOS system helper lifecycle regressions run in the release gate", async 
       "--test",
       "--test-reporter=tap",
       resolve(desktopRoot, "src/main/macUpdateInstall.test.ts"),
+      resolve(desktopRoot, "src/main/bundledRuntimeDiagnostic.test.ts"),
     ],
     {
       cwd: resolve(desktopRoot, "../.."),
@@ -29,7 +30,7 @@ test("macOS system helper lifecycle regressions run in the release gate", async 
       env: { ...process.env, NODE_TEST_CONTEXT: undefined },
     },
   );
-  assert.match(stdout, /# pass 4\b/u);
+  assert.match(stdout, /# pass 14\b/u);
 });
 
 test("macOS update IPC prepares once, exits through the helper, and preserves ready on handoff failure", async (t) => {
