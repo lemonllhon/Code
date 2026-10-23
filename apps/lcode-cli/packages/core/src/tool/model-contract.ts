@@ -8,19 +8,16 @@ export function resolveToolEntryModelContract(
   context: ToolExecutionModelContext,
 ): ToolEntry {
   const projection = entry.resolveModelContract?.(context);
-  if (!projection) return entry;
+  const inputSchema = projection?.inputSchema ?? entry.inputSchema;
   return {
     ...entry,
-    ...(projection.inputSchema
-      ? {
-          inputSchema: PROJECT_NATIVE_TOOLS.has(entry.metadata.name)
-            ? withProjectMemberSelector(projection.inputSchema)
-            : projection.inputSchema,
-        }
-      : {}),
+    inputSchema:
+      context.projectRoutingAvailable && PROJECT_NATIVE_TOOLS.has(entry.metadata.name)
+        ? withProjectMemberSelector(inputSchema)
+        : inputSchema,
     metadata: {
       ...entry.metadata,
-      ...(projection.description !== undefined ? { description: projection.description } : {}),
+      ...(projection?.description !== undefined ? { description: projection.description } : {}),
     },
   };
 }
@@ -32,16 +29,14 @@ export function projectToolModelContract(
 ): ModelToolContract {
   if (!entry) return contract;
   const projection = entry.resolveModelContract?.(context);
-  if (!projection) return contract;
+  const inputSchema = projection?.inputSchema ?? contract.inputSchema;
   return {
     ...contract,
-    ...(projection.description !== undefined ? { description: projection.description } : {}),
-    ...(projection.inputSchema
-      ? {
-          inputSchema: PROJECT_NATIVE_TOOLS.has(entry.metadata.name)
-            ? withProjectMemberSelector(projection.inputSchema)
-            : projection.inputSchema,
-        }
-      : {}),
+    ...(projection?.description !== undefined ? { description: projection.description } : {}),
+    // 模型曾能看到当前 Runtime 无法执行的选择器；仅原生工具且真实范围/resolver 同时存在时发布。
+    inputSchema:
+      context.projectRoutingAvailable && PROJECT_NATIVE_TOOLS.has(entry.metadata.name)
+        ? withProjectMemberSelector(inputSchema)
+        : inputSchema,
   };
 }

@@ -12,6 +12,7 @@ import { createToolExecutor } from "./executor/impl.js";
 import { ToolRegistryImpl } from "./registry.js";
 import { PermissionService } from "../permission/service.js";
 import { createBashToolEntry } from "./handlers/bash.js";
+import { readToolEntry } from "./handlers/read.js";
 
 function fixture(): ProjectContextSnapshot {
   const members = ["local", "A", "B"].map((id) => ({
@@ -358,4 +359,79 @@ test("strict-provider null selector preserves standalone CLI native execution wi
   });
   assert.equal(outcome.success, true, JSON.stringify(outcome));
   assert.equal(calls, 1);
+});
+
+test("image Read uses the selected device's bytes and rejects unsupported routing before IO", async () => {
+  const snapshot = fixture();
+  const requests: ProjectNativeRequest[] = [];
+  const pixels = new Uint8Array([137, 80, 78, 71]);
+  const routing = createProjectToolRouting({
+    ownerId: "image-fixture",
+    snapshot: () => snapshot,
+    call: async (request) => {
+      requests.push(request);
+      assert.equal(request.operation.method, "readBinaryFile");
+      return encodeProjectNativeValue({ content: pixels, sizeBytes: pixels.byteLength });
+    },
+  });
+  const registry = new ToolRegistryImpl();
+  registry.register(readToolEntry);
+  const options = {
+    registry,
+    sessionId: "image-fixture" as never,
+    permissionService: new PermissionService(),
+    emitEvent: async () => {},
+    getMode: () => "yolo" as const,
+    getWorkingDirectory: () => "/app",
+    getWorkspaceRoot: () => "/app",
+    resolveProjectToolScope: routing.resolve,
+    fileSystemPort: {
+      readBinaryFile: async () => {
+        throw new Error("origin IO must not run");
+      },
+    } as never,
+    imageProcessorPort: {
+      prepareForModel: async () => ({
+        data: pixels,
+        mediaType: "image/png",
+        width: 1,
+        height: 1,
+        originalWidth: 1,
+        originalHeight: 1,
+        transformedSizeBytes: pixels.byteLength,
+        resized: false,
+        compressed: false,
+        strategy: "none",
+      }),
+    } as never,
+  };
+  const executor = createToolExecutor(options);
+  const result = await executor.execute({
+    id: "image",
+    name: "Read",
+    input: { file_path: "/app/sample.png", projectMemberId: "A" },
+  });
+  assert.equal(result.success, true, JSON.stringify(result.error));
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0]!.routeToken, "A");
+  assert.equal(
+    (result.output as { base64: string }).base64,
+    Buffer.from(pixels).toString("base64"),
+  );
+  assert.match(JSON.stringify(result.modelContent), /image/);
+  for (const resolveProjectToolScope of [undefined, () => undefined]) {
+    const unavailable = createToolExecutor({ ...options, resolveProjectToolScope });
+    const denied = await unavailable.execute({
+      id: "unavailable",
+      name: "Read",
+      input: { file_path: "/app/sample.png", projectMemberId: "A" },
+    });
+    assert.equal(denied.success, false);
+    assert.match(denied.error!.message, /routing is unavailable/);
+  }
+  assert.equal(
+    requests.length,
+    1,
+    "unavailable selectors must not silently fall back to origin IO",
+  );
 });

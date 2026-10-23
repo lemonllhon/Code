@@ -152,6 +152,9 @@ export function getTools(this: AgentRuntimeInternal, model?: Model): ModelToolCo
     .map((tool) =>
       projectToolModelContract(tool, this.registry.get(tool.name), {
         model,
+        projectRoutingAvailable: Boolean(
+          this.projectContextForTools && this.resolveProjectToolScope,
+        ),
       }),
     );
 }

@@ -259,6 +259,8 @@ export interface ToolRuntimePermissionCapabilityContext {
 
 export interface ToolExecutionModelContext {
   model?: Model;
+  /** 由 Runtime 当前准入快照与执行 resolver 派生，不是持久化授权。 */
+  projectRoutingAvailable?: boolean;
 }
 
 // -----------------------------------------------

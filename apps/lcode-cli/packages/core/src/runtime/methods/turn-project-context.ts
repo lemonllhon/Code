@@ -11,7 +11,13 @@ export async function prepareTurnProjectContext(
   intent: TurnInputIntentMetadata | undefined,
   signal: AbortSignal,
   traceContext?: TraceContext,
+  options?: { preserveCurrentScope?: boolean },
 ): Promise<void> {
+  signal.throwIfAborted();
+  // 后台/子智能体消息不是新用户准入；清空范围会让同一会话续跑失去目录路由。
+  // 只保留当前 Runtime 已接受的范围，冷恢复历史和通知文本均不能授予新能力。
+  if (options?.preserveCurrentScope && !intent?.projectContext && runtime.projectContextForTools)
+    return;
   const entries = runtime.messageHistory.borrowReadOnlyRuntimeEntries();
   const previousScope = entries.some((entry) => entry.metadata?.source === "project_scope");
   if (previousScope)
@@ -52,6 +58,8 @@ export async function prepareTurnProjectContext(
   }
   if (traceContext && !snapshot.members.some((member) => member.routeToken))
     await prepareProjectFilesystemMcp(runtime, snapshot, traceContext);
+  // 最后一次 stat/MCP await 可能在取消后才完成，发布范围与 cwd 前必须再验证本轮仍有效。
+  signal.throwIfAborted();
   runtime.projectContextForTools = snapshot;
   if (snapshot.members.some((member) => member.routeToken) && runtime.registry)
     refreshBranchAwareBuiltInTools(runtime);

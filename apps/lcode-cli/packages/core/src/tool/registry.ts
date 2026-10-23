@@ -1,4 +1,3 @@
-import { PROJECT_NATIVE_TOOLS } from "./project-routing.js";
 // ============================================================
 // Tool Registry - Tool registration and lookup
 // ============================================================
@@ -111,9 +110,8 @@ export class ToolRegistryImpl implements ToolRegistry {
         capability: entry.capability,
         executionMode: entry.executionMode,
         providerNative: entry.providerNative,
-        inputSchema: PROJECT_NATIVE_TOOLS.has(entry.metadata.name)
-          ? withProjectMemberSelector(entry.inputSchema)
-          : entry.inputSchema,
+        // registry 不拥有运行时项目范围，能力相关参数必须在每次模型请求的最终投影中派生。
+        inputSchema: entry.inputSchema,
         outputSchema: entry.outputSchema,
         ...(entry.strict === undefined ? {} : { strict: entry.strict }),
         readOnly: entry.metadata.readOnly,
