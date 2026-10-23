@@ -121,6 +121,7 @@ export { ISystemService } from "./system/system.js";
 
 // Terminal service — ITerminalService is both a type (interface) and value (descriptor)
 export { ITerminalService } from "./terminal/terminal.js";
+export type { TerminalOutputFrame } from "./terminal/terminal.js";
 
 // Setting service — ISettingService is both a type (interface) and value (descriptor)
 export { ISettingService } from "./setting/setting.js";

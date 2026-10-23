@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { isDeepStrictEqual } from "node:util";
+import { ChannelClient, ChannelServer, Emitter, ProxyChannel, type VSBuffer } from "@lcode/rpc";
+import type { ITerminalService } from "./terminal.js";
 import type { AppSettings } from "@lcode/shared";
 import type { IPty } from "node-pty";
 import { createPublicTerminalService, createTerminalService } from "./terminalService.js";
@@ -14,10 +16,13 @@ test("public terminal facade cannot expose trusted owner stop methods", async ()
   const { service } = fixture();
   const facade = createPublicTerminalService(service);
   assert.deepEqual(Object.keys(facade).sort(), [
+    "acknowledgeOutput",
+    "beginOutputFlowControl",
     "create",
     "dispose",
     "onDynamicData",
     "onDynamicExit",
+    "onDynamicOutput",
     "resize",
     "write",
   ]);
@@ -48,12 +53,28 @@ const request = {
   environmentRef,
 };
 
-function fakePty() {
+function fakePty(withFlow = false) {
   let exit: (event: { exitCode: number }) => void = () => {};
+  let data: (chunk: string) => void = () => {};
+  let pauses = 0;
+  let resumes = 0;
   let kills = 0;
   let failKill = false;
   const pty = {
-    onData: () => ({ dispose() {} }),
+    onData: (handler: typeof data) => {
+      data = handler;
+      return { dispose() {} };
+    },
+    ...(withFlow
+      ? {
+          pause() {
+            pauses++;
+          },
+          resume() {
+            resumes++;
+          },
+        }
+      : {}),
     onExit: (handler: typeof exit) => {
       exit = handler;
       return { dispose() {} };
@@ -67,6 +88,13 @@ function fakePty() {
   } as unknown as IPty;
   return {
     pty,
+    data: (chunk: string) => data(chunk),
+    get pauses() {
+      return pauses;
+    },
+    get resumes() {
+      return resumes;
+    },
     exit: (exitCode = 0) => exit({ exitCode }),
     failKill: () => {
       failKill = true;
@@ -77,7 +105,11 @@ function fakePty() {
   };
 }
 
-function fixture(runtimeEnvironment?: RuntimeTerminalEnvironmentPort, spawnError?: Error) {
+function fixture(
+  runtimeEnvironment?: RuntimeTerminalEnvironmentPort,
+  spawnError?: Error,
+  withFlow = false,
+) {
   const spawns: { shell: string; env: NodeJS.ProcessEnv; cwd: string }[] = [];
   const ptys: ReturnType<typeof fakePty>[] = [];
   const settings = {
@@ -97,7 +129,7 @@ function fixture(runtimeEnvironment?: RuntimeTerminalEnvironmentPort, spawnError
       spawn(shell, _args, options) {
         if (spawnError) throw spawnError;
         spawns.push({ shell, env: options?.env ?? {}, cwd: options?.cwd ?? "" });
-        const process = fakePty();
+        const process = fakePty(withFlow);
         ptys.push(process);
         return process.pty;
       },
@@ -105,6 +137,118 @@ function fixture(runtimeEnvironment?: RuntimeTerminalEnvironmentPort, spawnError
   });
   return { service, spawns, ptys };
 }
+
+test("output consumption pressure is scoped to one PTY and released when the last subscriber leaves", async () => {
+  const { service, ptys } = fixture(undefined, undefined, true);
+  const a = await service.create({ cols: 80, rows: 24, cwd: workspacePath });
+  const b = await service.create({ cols: 80, rows: 24, cwd: workspacePath });
+  assert.equal(a.outputFlowControl, true);
+  const frames: import("./terminal.js").TerminalOutputFrame[] = [];
+  const sub = service.onDynamicOutput!(a.id)((frame) => frames.push(frame));
+  await service.beginOutputFlowControl!({ id: a.id });
+  ptys[0]!.data("a".repeat(64 * 1024));
+  assert.equal(ptys[0]!.pauses, 1);
+  assert.equal(ptys[1]!.pauses, 0);
+  await assert.rejects(
+    service.acknowledgeOutput!({ id: a.id, leaseId: frames[0]!.flow!.leaseId, offset: -1 }),
+  );
+  await service.acknowledgeOutput!({ id: a.id, ...frames[0]!.flow! });
+  assert.equal(ptys[0]!.resumes, 1);
+  ptys[0]!.data("tail".repeat(32 * 1024));
+  assert.equal(ptys[0]!.pauses, 2);
+  sub.dispose();
+  sub.dispose();
+  assert.equal(ptys[0]!.resumes, 2);
+  assert.equal(ptys[0]!.kills, 0, "unsubscribe restores output; it does not kill a command");
+  const closing = service.disposeAllAndWait();
+  ptys[0]!.exit();
+  ptys[1]!.exit();
+  await closing;
+  await service.acknowledgeOutput!({ id: a.id, ...frames[0]!.flow! });
+  assert.equal(b.outputFlowControl, true);
+});
+
+test("paused terminal close still waits for physical exit; extra observers disable exclusive pressure", async () => {
+  let released = 0;
+  const { service, ptys } = fixture(
+    {
+      async acquire() {
+        return {
+          envOverlay: {},
+          async release() {
+            released++;
+          },
+        };
+      },
+    },
+    undefined,
+    true,
+  );
+  const terminal = await service.create({ ...scope, cols: 80, rows: 24 });
+  const sub = service.onDynamicOutput!(terminal.id)(() => {});
+  await service.beginOutputFlowControl!({ id: terminal.id });
+  ptys[0]!.data("x".repeat(64 * 1024));
+  assert.equal(ptys[0]!.pauses, 1);
+  const observer = service.onDynamicOutput!(terminal.id)(() => {});
+  assert.equal(ptys[0]!.resumes, 1);
+  observer.dispose();
+  await service.beginOutputFlowControl!({ id: terminal.id });
+  ptys[0]!.data("y".repeat(64 * 1024));
+  const stopping = service.dispose({ id: terminal.id });
+  await new Promise(setImmediate);
+  assert.equal(ptys[0]!.kills, 1);
+  assert.equal(released, 0);
+  ptys[0]!.exit();
+  await stopping;
+  assert.equal(released, 1);
+  sub.dispose();
+  await service.disposeAllAndWait();
+});
+
+test("terminal frames and consumption ACKs round-trip through the public serialized RPC facade", async () => {
+  const toServer = new Emitter<VSBuffer>();
+  const toClient = new Emitter<VSBuffer>();
+  const client = new ChannelClient({
+    onMessage: toClient.event,
+    send: (data) => queueMicrotask(() => toServer.fire(data)),
+  });
+  const server = new ChannelServer(
+    { onMessage: toServer.event, send: (data) => queueMicrotask(() => toClient.fire(data)) },
+    "terminal-fixture",
+  );
+  const { service, ptys } = fixture(undefined, undefined, true);
+  server.registerChannel(
+    "terminal",
+    ProxyChannel.fromService(createPublicTerminalService(service)),
+  );
+  const remote = ProxyChannel.toService<ITerminalService>(client.getChannel("terminal"));
+  const terminal = await remote.create({ cols: 80, rows: 24, cwd: workspacePath });
+  assert.equal(terminal.outputFlowControl, true);
+  let received = "";
+  const sub = remote.onDynamicOutput!(terminal.id)((frame) => {
+    received += frame.data;
+    if (frame.flow) void remote.acknowledgeOutput!({ id: terminal.id, ...frame.flow });
+  });
+  await remote.beginOutputFlowControl!({ id: terminal.id });
+  const data = "\u001b[32m" + "字".repeat(64 * 1024) + "\u001b[0m";
+  ptys[0]!.data(data);
+  assert.equal(ptys[0]!.pauses, 1);
+  await new Promise(setImmediate);
+  assert.equal(received, data, "UTF-16 offsets do not alter Unicode or ANSI payloads");
+  assert.equal(ptys[0]!.resumes, 1);
+  await assert.rejects(
+    (remote as unknown as { disposeAll(): Promise<void> }).disposeAll(),
+    /Method not found/,
+  );
+  sub.dispose();
+  const closing = service.disposeAllAndWait();
+  ptys[0]!.exit();
+  await closing;
+  client.dispose();
+  server.dispose();
+  toServer.dispose();
+  toClient.dispose();
+});
 
 async function turn() {
   await new Promise<void>((resolve) => setImmediate(resolve));

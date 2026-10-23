@@ -29,7 +29,7 @@ import {
   type TerminalInputFallbackKeydownCandidate,
   type TerminalInputFallbackHandledData,
 } from "@/terminal/terminalComposedInputFallback.js";
-import { normalizePowerShellReadlineRedraw } from "@/terminal/terminalDataTransform.js";
+import { subscribeTerminalOutput } from "@/terminal/terminalOutputSubscription.js";
 import { getHttpLinksForTerminalBufferLine } from "@/terminal/terminalLinks.js";
 import { mergeTerminalTheme } from "@/terminal/terminalTheme.js";
 import {
@@ -557,155 +557,164 @@ export function TerminalSession({
       // 创建 PTY（异步）
       const initialCreateSize = initialTerminalSize ?? { cols: term.cols, rows: term.rows };
       void createTerminal({ cols: initialCreateSize.cols, rows: initialCreateSize.rows, cwd })
-        .then(({ id, shell, fontFamily, fontSize, theme, fontFamilySource, windowsPty }) => {
-          if (ptyCancelled) {
-            // cleanup 已发生：杀掉这个孤儿 PTY，不进 entry
-            void services.terminalService.dispose({ id });
-            return;
-          }
-          entry.terminalId = id;
-          terminalIdRef.current = id;
-          // 与原路径对称：id ready 后立即 flush 创建期间排队的 resize（pendingTerminalSizeRef）。
-          // 否则 scheduleFitAndResize("init") 会因 pendingSize 去重跳过，PTY 停在错误 cols/rows。
-          flushTerminalServiceResize();
-          term.options.windowsPty = normalizeWindowsPtyOption(windowsPty);
-          term.options.fontFamily = fontFamily || DEFAULT_TERMINAL_FONT_FAMILY;
-          const nextFontSize = normalizeTerminalFontSize(fontSize);
-          if (nextFontSize) {
-            term.options.fontSize = nextFontSize;
-          }
-          terminalProfileThemeRef.current = theme as ITheme | undefined;
-          // profile theme 所有权上移到 registry entry，
-          // 跨组件生命周期复用不丢（原仅写组件局部 ref，重挂后新组件 ref=undefined → 复用 observer 用 undefined 合并 → 丢失）。
-          entry.profileTheme = theme as ITheme | undefined;
-          term.options.theme = mergeTerminalTheme(entry.profileTheme);
-          const nextShellLabel = formatShellLabel(shell);
-          logger.info("[Terminal] shell resolved (persistent):", {
-            cwd,
-            fontFamilySource,
+        .then(
+          ({
+            id,
             shell,
-            shellLabel: nextShellLabel,
-            terminalId: id,
-            terminalTabId: sessionId,
-          });
-          onShellLabelChange(sessionId, nextShellLabel);
-          scheduleFitAndResize("init");
-          if (isVisibleRef.current) {
-            requestFocus();
-          }
+            fontFamily,
+            fontSize,
+            theme,
+            fontFamilySource,
+            windowsPty,
+            outputFlowControl,
+          }) => {
+            if (ptyCancelled) {
+              // cleanup 已发生：杀掉这个孤儿 PTY，不进 entry
+              void services.terminalService.dispose({ id });
+              return;
+            }
+            entry.terminalId = id;
+            terminalIdRef.current = id;
+            // 与原路径对称：id ready 后立即 flush 创建期间排队的 resize（pendingTerminalSizeRef）。
+            // 否则 scheduleFitAndResize("init") 会因 pendingSize 去重跳过，PTY 停在错误 cols/rows。
+            flushTerminalServiceResize();
+            term.options.windowsPty = normalizeWindowsPtyOption(windowsPty);
+            term.options.fontFamily = fontFamily || DEFAULT_TERMINAL_FONT_FAMILY;
+            const nextFontSize = normalizeTerminalFontSize(fontSize);
+            if (nextFontSize) {
+              term.options.fontSize = nextFontSize;
+            }
+            terminalProfileThemeRef.current = theme as ITheme | undefined;
+            // profile theme 所有权上移到 registry entry，
+            // 跨组件生命周期复用不丢（原仅写组件局部 ref，重挂后新组件 ref=undefined → 复用 observer 用 undefined 合并 → 丢失）。
+            entry.profileTheme = theme as ITheme | undefined;
+            term.options.theme = mergeTerminalTheme(entry.profileTheme);
+            const nextShellLabel = formatShellLabel(shell);
+            logger.info("[Terminal] shell resolved (persistent):", {
+              cwd,
+              fontFamilySource,
+              shell,
+              shellLabel: nextShellLabel,
+              terminalId: id,
+              terminalTabId: sessionId,
+            });
+            onShellLabelChange(sessionId, nextShellLabel);
+            scheduleFitAndResize("init");
+            if (isVisibleRef.current) {
+              requestFocus();
+            }
 
-          // data 订阅 → term.write（进 registry，detached 时仍累积 scrollback）
-          registryDisposers.push(
-            services.terminalService.onDynamicData(id)((data) => {
-              term.write(normalizePowerShellReadlineRedraw(data, shell));
-            }),
-          );
-          // exit 订阅（进 registry，与原路径对称：有 onExit 则回调，否则写退出提示）
-          registryDisposers.push(
-            services.terminalService.onDynamicExit(id)((exitCode) => {
-              const exitHandler = exitHandlerRef.current;
-              logger.info("[Terminal] persistent session exited", {
-                autoClose: Boolean(exitHandler),
-                exitCode,
-                terminalId: id,
-                terminalTabId: sessionId,
-              });
-              if (exitHandler) {
-                exitHandler(sessionId, exitCode);
-                return;
-              }
-              // side pane Terminal 不传 onExit，保留退出提示。
-              term.write(`\r\n${exitedMessageRef.current}\r\n`);
-            }),
-          );
-
-          // onData（进 registry，随 term 常驻）：
-          // 不能放 localDisposers：cleanup(detach) 时会被取消，而复用路径不重绑，
-          // 导致切回 workspace 后 scrollback 在但无法输入交互。
-          // 输入订阅生命周期必须 = entry 生命周期（随 term 常驻），detach 不取消。
-          //
-          // 与原路径（下侧 terminal）的 onData 完全一致：维护 keydown candidate 去重历史，
-          // 供 Windows 输入法 textarea 兜底消费（IME composition committed text 的三段去重闭环）。
-          // 注：本段只处理「已提交 composition 文本」的去重，与 Shift 切换输入法动作无关——
-          // Shift 切换是输入法系统级行为（customKeyEventHandler 对 Shift 直接 return true 放行）；
-          // 「Shift 切英文后字符丢失」的真根因是 isWindowsDesktop 未透传（已在 WorkspaceShellLayout 修复）。
-          registryDisposers.push(
-            term.onData((data) => {
-              const now = performance.now();
-              const inputFallbackKeydownCandidate = inputFallbackKeydownCandidateRef.current;
-              const handledData = recordTerminalInputFallbackHandledData({
-                candidate: inputFallbackKeydownCandidate,
-                data,
-                history: recentInputFallbackHandledDataRef.current,
-                maxAgeMs: TERMINAL_INPUT_FALLBACK_RECENT_DATA_MS,
-                now,
-              });
-              recentInputFallbackHandledDataRef.current = handledData.usedCandidate
-                ? handledData.history
-                : recordTerminalInputFallbackRecentData({
-                    data,
-                    history: handledData.history,
-                    maxAgeMs: TERMINAL_INPUT_FALLBACK_RECENT_DATA_MS,
-                    now,
-                  });
-              if (handledData.usedCandidate) {
-                inputFallbackKeydownCandidateRef.current = null;
-              }
-              markTerminalInputFallbackHandled(pendingInputFallbacksRef.current, data);
-              void services.terminalService.write({ id, data });
-            }),
-          );
-
-          // Windows 输入法兜底（进 registry，随 term 常驻，与 onData 同生命周期）。
-          // textarea 元素随 term 实例常驻，监听绑一次即可；detach 不取消，重挂后中文输入法兜底仍生效。
-          const textarea =
-            isWindowsDesktop &&
-            (term as unknown as { _core: { textarea: HTMLTextAreaElement } })._core?.textarea;
-          if (textarea) {
-            const handleInput = (e: InputEvent) => {
-              if (e.inputType !== "insertText" || !e.data || !e.composed) return;
-              const insertedText = e.data;
-              const now = performance.now();
-              const pendingFallback = createPendingTerminalInputFallback(insertedText);
-              pendingInputFallbacksRef.current.push(pendingFallback);
-              consumeTerminalInputFallbackHandledData({
-                history: recentInputFallbackHandledDataRef.current,
-                inputEventTimeStamp: e.timeStamp,
-                maxAgeMs: TERMINAL_INPUT_FALLBACK_RECENT_DATA_MS,
-                maxInputDelayMs: TERMINAL_INPUT_FALLBACK_KEYDOWN_INPUT_MS,
-                now,
-                pending: pendingFallback,
-              });
-              setTimeout(() => {
-                pendingInputFallbacksRef.current = pendingInputFallbacksRef.current.filter(
-                  (item) => item !== pendingFallback,
-                );
-                // 不检查 ptyCancelled：订阅已随 entry 常驻（registryDisposers），
-                // ptyCancelled 是单次 effect 闭包变量，detach 后会变 true 导致 fallback 永久失效。
-                // release 时 entry.dispose 会移除本监听；PTY disposed 后 write 为 no-op，安全。
-                const fallbackAction = resolveTerminalInputFallbackAction({
-                  pending: pendingFallback,
-                  textareaValue: textarea.value,
+            // data 订阅 → term.write（进 registry，detached 时仍累积 scrollback）
+            registryDisposers.push(
+              subscribeTerminalOutput(services.terminalService, id, term, shell, outputFlowControl),
+            );
+            // exit 订阅（进 registry，与原路径对称：有 onExit 则回调，否则写退出提示）
+            registryDisposers.push(
+              services.terminalService.onDynamicExit(id)((exitCode) => {
+                const exitHandler = exitHandlerRef.current;
+                logger.info("[Terminal] persistent session exited", {
+                  autoClose: Boolean(exitHandler),
+                  exitCode,
+                  terminalId: id,
+                  terminalTabId: sessionId,
                 });
-                if (fallbackAction.shouldWrite) {
-                  logger.debug("[Terminal] flush composed input fallback (persistent)", {
-                    length: insertedText.length,
-                    terminalId: id,
-                    terminalTabId: sessionId,
+                if (exitHandler) {
+                  exitHandler(sessionId, exitCode);
+                  return;
+                }
+                // side pane Terminal 不传 onExit，保留退出提示。
+                term.write(`\r\n${exitedMessageRef.current}\r\n`);
+              }),
+            );
+
+            // onData（进 registry，随 term 常驻）：
+            // 不能放 localDisposers：cleanup(detach) 时会被取消，而复用路径不重绑，
+            // 导致切回 workspace 后 scrollback 在但无法输入交互。
+            // 输入订阅生命周期必须 = entry 生命周期（随 term 常驻），detach 不取消。
+            //
+            // 与原路径（下侧 terminal）的 onData 完全一致：维护 keydown candidate 去重历史，
+            // 供 Windows 输入法 textarea 兜底消费（IME composition committed text 的三段去重闭环）。
+            // 注：本段只处理「已提交 composition 文本」的去重，与 Shift 切换输入法动作无关——
+            // Shift 切换是输入法系统级行为（customKeyEventHandler 对 Shift 直接 return true 放行）；
+            // 「Shift 切英文后字符丢失」的真根因是 isWindowsDesktop 未透传（已在 WorkspaceShellLayout 修复）。
+            registryDisposers.push(
+              term.onData((data) => {
+                const now = performance.now();
+                const inputFallbackKeydownCandidate = inputFallbackKeydownCandidateRef.current;
+                const handledData = recordTerminalInputFallbackHandledData({
+                  candidate: inputFallbackKeydownCandidate,
+                  data,
+                  history: recentInputFallbackHandledDataRef.current,
+                  maxAgeMs: TERMINAL_INPUT_FALLBACK_RECENT_DATA_MS,
+                  now,
+                });
+                recentInputFallbackHandledDataRef.current = handledData.usedCandidate
+                  ? handledData.history
+                  : recordTerminalInputFallbackRecentData({
+                      data,
+                      history: handledData.history,
+                      maxAgeMs: TERMINAL_INPUT_FALLBACK_RECENT_DATA_MS,
+                      now,
+                    });
+                if (handledData.usedCandidate) {
+                  inputFallbackKeydownCandidateRef.current = null;
+                }
+                markTerminalInputFallbackHandled(pendingInputFallbacksRef.current, data);
+                void services.terminalService.write({ id, data });
+              }),
+            );
+
+            // Windows 输入法兜底（进 registry，随 term 常驻，与 onData 同生命周期）。
+            // textarea 元素随 term 实例常驻，监听绑一次即可；detach 不取消，重挂后中文输入法兜底仍生效。
+            const textarea =
+              isWindowsDesktop &&
+              (term as unknown as { _core: { textarea: HTMLTextAreaElement } })._core?.textarea;
+            if (textarea) {
+              const handleInput = (e: InputEvent) => {
+                if (e.inputType !== "insertText" || !e.data || !e.composed) return;
+                const insertedText = e.data;
+                const now = performance.now();
+                const pendingFallback = createPendingTerminalInputFallback(insertedText);
+                pendingInputFallbacksRef.current.push(pendingFallback);
+                consumeTerminalInputFallbackHandledData({
+                  history: recentInputFallbackHandledDataRef.current,
+                  inputEventTimeStamp: e.timeStamp,
+                  maxAgeMs: TERMINAL_INPUT_FALLBACK_RECENT_DATA_MS,
+                  maxInputDelayMs: TERMINAL_INPUT_FALLBACK_KEYDOWN_INPUT_MS,
+                  now,
+                  pending: pendingFallback,
+                });
+                setTimeout(() => {
+                  pendingInputFallbacksRef.current = pendingInputFallbacksRef.current.filter(
+                    (item) => item !== pendingFallback,
+                  );
+                  // 不检查 ptyCancelled：订阅已随 entry 常驻（registryDisposers），
+                  // ptyCancelled 是单次 effect 闭包变量，detach 后会变 true 导致 fallback 永久失效。
+                  // release 时 entry.dispose 会移除本监听；PTY disposed 后 write 为 no-op，安全。
+                  const fallbackAction = resolveTerminalInputFallbackAction({
+                    pending: pendingFallback,
+                    textareaValue: textarea.value,
                   });
-                  void services.terminalService.write({ id, data: insertedText });
-                }
-                if (fallbackAction.shouldClearTextarea) {
-                  textarea.value = "";
-                }
-              }, TERMINAL_INPUT_FALLBACK_FLUSH_DELAY_MS);
-            };
-            textarea.addEventListener("input", handleInput, true);
-            registryDisposers.push({
-              dispose: () => textarea.removeEventListener("input", handleInput, true),
-            } as IDisposable);
-          }
-        })
+                  if (fallbackAction.shouldWrite) {
+                    logger.debug("[Terminal] flush composed input fallback (persistent)", {
+                      length: insertedText.length,
+                      terminalId: id,
+                      terminalTabId: sessionId,
+                    });
+                    void services.terminalService.write({ id, data: insertedText });
+                  }
+                  if (fallbackAction.shouldClearTextarea) {
+                    textarea.value = "";
+                  }
+                }, TERMINAL_INPUT_FALLBACK_FLUSH_DELAY_MS);
+              };
+              textarea.addEventListener("input", handleInput, true);
+              registryDisposers.push({
+                dispose: () => textarea.removeEventListener("input", handleInput, true),
+              } as IDisposable);
+            }
+          },
+        )
         .catch((error) => {
           if (ptyCancelled) return;
           const message = error instanceof Error ? error.message : String(error);
@@ -894,153 +903,162 @@ export function TerminalSession({
     // 优先使用 workspace 路径作为 terminal 工作目录，未设置时后端回退到 HOME
     const initialCreateSize = initialTerminalSize ?? { cols: term.cols, rows: term.rows };
     createTerminal({ cols: initialCreateSize.cols, rows: initialCreateSize.rows, cwd })
-      .then(({ id, shell, fontFamily, fontSize, theme, fontFamilySource, windowsPty }) => {
-        if (disposed) {
-          terminalService.dispose({ id });
-          return;
-        }
-
-        terminalIdRef.current = id;
-        // 首次 fit 或 ResizeObserver 可能早于 terminal id ready，先把 resize
-        // 暂存在 pendingTerminalSizeRef；id ready 后必须主动 flush，否则相同尺寸会被去重逻辑跳过。
-        flushTerminalServiceResize();
-        // Windows ConPTY 在 resize 增高时不会像传统 Unix PTY 一样把 scrollback 拉回 viewport，
-        // 不开启 xterm 的 windowsPty 兼容会让 PSReadLine 后续按旧坐标重绘输入，覆盖到上一条命令输出行。
-        term.options.windowsPty = normalizeWindowsPtyOption(windowsPty);
-        term.options.fontFamily = fontFamily || DEFAULT_TERMINAL_FONT_FAMILY;
-        const nextFontSize = normalizeTerminalFontSize(fontSize);
-        if (nextFontSize) {
-          term.options.fontSize = nextFontSize;
-        }
-        terminalProfileThemeRef.current = theme as ITheme | undefined;
-        term.options.theme = mergeTerminalTheme(terminalProfileThemeRef.current);
-        const nextShellLabel = formatShellLabel(shell);
-        logger.info("[Terminal] shell resolved:", {
-          cwd,
-          fontFamilySource,
+      .then(
+        ({
+          id,
           shell,
-          shellLabel: nextShellLabel,
-          terminalId: id,
-          terminalTabId: sessionId,
-        });
-        onShellLabelChange(sessionId, nextShellLabel);
-        scheduleFitAndResize("init");
-        if (isVisibleRef.current) {
-          requestFocus();
-        }
+          fontFamily,
+          fontSize,
+          theme,
+          fontFamilySource,
+          windowsPty,
+          outputFlowControl,
+        }) => {
+          if (disposed) {
+            terminalService.dispose({ id });
+            return;
+          }
 
-        disposables.push(
-          terminalService.onDynamicData(id)((data) => {
-            term.write(normalizePowerShellReadlineRedraw(data, shell));
-          }),
-        );
+          terminalIdRef.current = id;
+          // 首次 fit 或 ResizeObserver 可能早于 terminal id ready，先把 resize
+          // 暂存在 pendingTerminalSizeRef；id ready 后必须主动 flush，否则相同尺寸会被去重逻辑跳过。
+          flushTerminalServiceResize();
+          // Windows ConPTY 在 resize 增高时不会像传统 Unix PTY 一样把 scrollback 拉回 viewport，
+          // 不开启 xterm 的 windowsPty 兼容会让 PSReadLine 后续按旧坐标重绘输入，覆盖到上一条命令输出行。
+          term.options.windowsPty = normalizeWindowsPtyOption(windowsPty);
+          term.options.fontFamily = fontFamily || DEFAULT_TERMINAL_FONT_FAMILY;
+          const nextFontSize = normalizeTerminalFontSize(fontSize);
+          if (nextFontSize) {
+            term.options.fontSize = nextFontSize;
+          }
+          terminalProfileThemeRef.current = theme as ITheme | undefined;
+          term.options.theme = mergeTerminalTheme(terminalProfileThemeRef.current);
+          const nextShellLabel = formatShellLabel(shell);
+          logger.info("[Terminal] shell resolved:", {
+            cwd,
+            fontFamilySource,
+            shell,
+            shellLabel: nextShellLabel,
+            terminalId: id,
+            terminalTabId: sessionId,
+          });
+          onShellLabelChange(sessionId, nextShellLabel);
+          scheduleFitAndResize("init");
+          if (isVisibleRef.current) {
+            requestFocus();
+          }
 
-        disposables.push(
-          terminalService.onDynamicExit(id)((exitCode) => {
-            const exitHandler = exitHandlerRef.current;
-            logger.info("[Terminal] terminal session exited", {
-              autoClose: Boolean(exitHandler),
-              exitCode,
-              terminalId: id,
-              terminalTabId: sessionId,
-            });
-            if (exitHandler) {
-              exitHandler(sessionId, exitCode);
-              return;
-            }
+          disposables.push(
+            subscribeTerminalOutput(terminalService, id, term, shell, outputFlowControl),
+          );
 
-            // side pane Terminal 不属于底部 tab registry，未传 onExit 时继续保留退出提示。
-            term.write(`\r\n${exitedMessageRef.current}\r\n`);
-          }),
-        );
-
-        disposables.push(
-          term.onData((data) => {
-            const now = performance.now();
-            const inputFallbackKeydownCandidate = inputFallbackKeydownCandidateRef.current;
-            const handledData = recordTerminalInputFallbackHandledData({
-              candidate: inputFallbackKeydownCandidate,
-              data,
-              history: recentInputFallbackHandledDataRef.current,
-              maxAgeMs: TERMINAL_INPUT_FALLBACK_RECENT_DATA_MS,
-              now,
-            });
-            recentInputFallbackHandledDataRef.current = handledData.usedCandidate
-              ? handledData.history
-              : recordTerminalInputFallbackRecentData({
-                  data,
-                  history: handledData.history,
-                  maxAgeMs: TERMINAL_INPUT_FALLBACK_RECENT_DATA_MS,
-                  now,
-                });
-            if (handledData.usedCandidate) {
-              inputFallbackKeydownCandidateRef.current = null;
-            }
-            markTerminalInputFallbackHandled(pendingInputFallbacksRef.current, data);
-            terminalService.write({ id, data });
-          }),
-        );
-
-        // Windows desktop 下某些输入法会把 composed text 留在 textarea 里，
-        // xterm 可能只处理到一半；这里保留兜底。但 Linux Wayland 已确认会和 xterm 的
-        // onData 路径重复写入，所以必须显式收窄到 Windows，避免把正常链路误伤。
-        const textarea =
-          isWindowsDesktop &&
-          (term as unknown as { _core: { textarea: HTMLTextAreaElement } })._core?.textarea;
-        if (textarea) {
-          const handleInput = (e: InputEvent) => {
-            // 只处理组合文本的 insertText
-            if (e.inputType !== "insertText" || !e.data || !e.composed) return;
-            const insertedText = e.data;
-            const now = performance.now();
-            const pendingFallback = createPendingTerminalInputFallback(insertedText);
-            pendingInputFallbacksRef.current.push(pendingFallback);
-            // 普通空格会先经 keydown 被 xterm onData 写入 PTY，随后浏览器才派发 composed input。
-            // 搜狗输入法也会在没有稳定 keydown candidate 的情况下先触发 xterm onData、后触发 composed input。
-            // 这里消费同一次输入附近的未消费 onData，避免把同一段组合文本再兜底写入一次。
-            consumeTerminalInputFallbackHandledData({
-              history: recentInputFallbackHandledDataRef.current,
-              inputEventTimeStamp: e.timeStamp,
-              maxAgeMs: TERMINAL_INPUT_FALLBACK_RECENT_DATA_MS,
-              maxInputDelayMs: TERMINAL_INPUT_FALLBACK_KEYDOWN_INPUT_MS,
-              now,
-              pending: pendingFallback,
-            });
-
-            // 延迟检查：等 xterm 的 onData 先认领 pending，再判断是否需要兜底写入。
-            setTimeout(() => {
-              pendingInputFallbacksRef.current = pendingInputFallbacksRef.current.filter(
-                (item) => item !== pendingFallback,
-              );
-              if (disposed) {
+          disposables.push(
+            terminalService.onDynamicExit(id)((exitCode) => {
+              const exitHandler = exitHandlerRef.current;
+              logger.info("[Terminal] terminal session exited", {
+                autoClose: Boolean(exitHandler),
+                exitCode,
+                terminalId: id,
+                terminalTabId: sessionId,
+              });
+              if (exitHandler) {
+                exitHandler(sessionId, exitCode);
                 return;
               }
-              const fallbackAction = resolveTerminalInputFallbackAction({
-                pending: pendingFallback,
-                textareaValue: textarea.value,
-              });
-              if (fallbackAction.shouldWrite) {
-                // 普通空格也会触发 composed input，且 xterm 已经通过 onData 写入 PTY。
-                // 只看 textarea.value 会把空格再手动写一次；这里必须确认 onData 没处理过才兜底。
-                logger.debug("[Terminal] flush composed input fallback", {
-                  length: insertedText.length,
-                  terminalId: id,
-                  terminalTabId: sessionId,
-                });
-                terminalService.write({ id, data: insertedText });
-              }
-              if (fallbackAction.shouldClearTextarea) {
-                textarea.value = "";
-              }
-            }, TERMINAL_INPUT_FALLBACK_FLUSH_DELAY_MS);
-          };
 
-          textarea.addEventListener("input", handleInput, true);
-          disposables.push({
-            dispose: () => textarea.removeEventListener("input", handleInput, true),
-          } as IDisposable);
-        }
-      })
+              // side pane Terminal 不属于底部 tab registry，未传 onExit 时继续保留退出提示。
+              term.write(`\r\n${exitedMessageRef.current}\r\n`);
+            }),
+          );
+
+          disposables.push(
+            term.onData((data) => {
+              const now = performance.now();
+              const inputFallbackKeydownCandidate = inputFallbackKeydownCandidateRef.current;
+              const handledData = recordTerminalInputFallbackHandledData({
+                candidate: inputFallbackKeydownCandidate,
+                data,
+                history: recentInputFallbackHandledDataRef.current,
+                maxAgeMs: TERMINAL_INPUT_FALLBACK_RECENT_DATA_MS,
+                now,
+              });
+              recentInputFallbackHandledDataRef.current = handledData.usedCandidate
+                ? handledData.history
+                : recordTerminalInputFallbackRecentData({
+                    data,
+                    history: handledData.history,
+                    maxAgeMs: TERMINAL_INPUT_FALLBACK_RECENT_DATA_MS,
+                    now,
+                  });
+              if (handledData.usedCandidate) {
+                inputFallbackKeydownCandidateRef.current = null;
+              }
+              markTerminalInputFallbackHandled(pendingInputFallbacksRef.current, data);
+              terminalService.write({ id, data });
+            }),
+          );
+
+          // Windows desktop 下某些输入法会把 composed text 留在 textarea 里，
+          // xterm 可能只处理到一半；这里保留兜底。但 Linux Wayland 已确认会和 xterm 的
+          // onData 路径重复写入，所以必须显式收窄到 Windows，避免把正常链路误伤。
+          const textarea =
+            isWindowsDesktop &&
+            (term as unknown as { _core: { textarea: HTMLTextAreaElement } })._core?.textarea;
+          if (textarea) {
+            const handleInput = (e: InputEvent) => {
+              // 只处理组合文本的 insertText
+              if (e.inputType !== "insertText" || !e.data || !e.composed) return;
+              const insertedText = e.data;
+              const now = performance.now();
+              const pendingFallback = createPendingTerminalInputFallback(insertedText);
+              pendingInputFallbacksRef.current.push(pendingFallback);
+              // 普通空格会先经 keydown 被 xterm onData 写入 PTY，随后浏览器才派发 composed input。
+              // 搜狗输入法也会在没有稳定 keydown candidate 的情况下先触发 xterm onData、后触发 composed input。
+              // 这里消费同一次输入附近的未消费 onData，避免把同一段组合文本再兜底写入一次。
+              consumeTerminalInputFallbackHandledData({
+                history: recentInputFallbackHandledDataRef.current,
+                inputEventTimeStamp: e.timeStamp,
+                maxAgeMs: TERMINAL_INPUT_FALLBACK_RECENT_DATA_MS,
+                maxInputDelayMs: TERMINAL_INPUT_FALLBACK_KEYDOWN_INPUT_MS,
+                now,
+                pending: pendingFallback,
+              });
+
+              // 延迟检查：等 xterm 的 onData 先认领 pending，再判断是否需要兜底写入。
+              setTimeout(() => {
+                pendingInputFallbacksRef.current = pendingInputFallbacksRef.current.filter(
+                  (item) => item !== pendingFallback,
+                );
+                if (disposed) {
+                  return;
+                }
+                const fallbackAction = resolveTerminalInputFallbackAction({
+                  pending: pendingFallback,
+                  textareaValue: textarea.value,
+                });
+                if (fallbackAction.shouldWrite) {
+                  // 普通空格也会触发 composed input，且 xterm 已经通过 onData 写入 PTY。
+                  // 只看 textarea.value 会把空格再手动写一次；这里必须确认 onData 没处理过才兜底。
+                  logger.debug("[Terminal] flush composed input fallback", {
+                    length: insertedText.length,
+                    terminalId: id,
+                    terminalTabId: sessionId,
+                  });
+                  terminalService.write({ id, data: insertedText });
+                }
+                if (fallbackAction.shouldClearTextarea) {
+                  textarea.value = "";
+                }
+              }, TERMINAL_INPUT_FALLBACK_FLUSH_DELAY_MS);
+            };
+
+            textarea.addEventListener("input", handleInput, true);
+            disposables.push({
+              dispose: () => textarea.removeEventListener("input", handleInput, true),
+            } as IDisposable);
+          }
+        },
+      )
       .catch((error) => {
         // 之前没有接住 create() 的拒绝态，终端启动失败会直接变成 Uncaught Promise。
         // 这里显式记录错误，并在终端区域提示用户，方便定位到底是 shell 还是 cwd 出了问题。

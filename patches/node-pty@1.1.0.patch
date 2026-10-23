@@ -1,0 +1,34 @@
+diff --git a/lib/windowsPtyAgent.js b/lib/windowsPtyAgent.js
+index a358ffb177357e177661033c1b092f9c9d0e5f5a..b7c7b57e77853fe63d18e856067e6e34e2599ab2 100644
+--- a/lib/windowsPtyAgent.js
++++ b/lib/windowsPtyAgent.js
+@@ -85,6 +85,12 @@ var WindowsPtyAgent = /** @class */ (function () {
+             writable: true
+         });
+         this._inSocket.setEncoding('utf8');
++        // 输出管道 close 已确认 EOF/尾部 drain；自然退出也必须释放输入管道和 Conout Worker。
++        // 仅清理本实例资源，不能再按已退出的旧 PID kill。
++        this._outSocket.once('close', function () {
++            _this._inSocket.destroy();
++            _this._conoutSocketWorker.dispose();
++        });
+         if (this._useConpty) {
+             var connect = this._ptyNative.connect(this._pty, commandLine, cwd, env, this._useConptyDll, function (c) { return _this._$onProcessExit(c); });
+             this._innerPid = connect.pid;
+diff --git a/src/windowsPtyAgent.ts b/src/windowsPtyAgent.ts
+index d7054449516f0c9a62af351c2caa17331206d530..03043b783331d517f478adec313f99697c35a1ef 100644
+--- a/src/windowsPtyAgent.ts
++++ b/src/windowsPtyAgent.ts
+@@ -114,6 +114,12 @@ export class WindowsPtyAgent {
+       writable: true
+     });
+     this._inSocket.setEncoding('utf8');
++    // 输出管道 close 已确认 EOF/尾部 drain；自然退出也必须释放输入管道和 Conout Worker。
++    // 仅清理本实例资源，不能再按已退出的旧 PID kill。
++    this._outSocket.once('close', () => {
++      this._inSocket.destroy();
++      this._conoutSocketWorker.dispose();
++    });
+ 
+     if (this._useConpty) {
+       const connect = (this._ptyNative as IConptyNative).connect(this._pty, commandLine, cwd, env, this._useConptyDll, c => this._$onProcessExit(c));

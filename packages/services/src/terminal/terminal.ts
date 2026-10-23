@@ -43,6 +43,19 @@ export const terminalCreateParamsSchema = z
   });
 export type TerminalCreateParams = z.infer<typeof terminalCreateParamsSchema>;
 
+export interface TerminalOutputFrame {
+  data: string;
+  flow?: { leaseId: string; offset: number };
+}
+export const terminalOutputFlowStartSchema = z.object({ id: scopeText }).strict();
+export const terminalOutputFlowAckSchema = z
+  .object({
+    id: scopeText,
+    leaseId: z.string().uuid(),
+    offset: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  })
+  .strict();
+
 export interface RuntimeTerminalScope {
   workspacePath: string;
   workspaceIdentity?: string;
@@ -76,12 +89,17 @@ export interface ITerminalService {
     theme?: TerminalThemeProfile;
     fontFamilySource: TerminalFontFamilySource;
     windowsPty?: TerminalWindowsPtyInfo;
+    outputFlowControl?: boolean;
   }>;
   write(params: { id: string; data: string }): Promise<void>;
   resize(params: { id: string; cols: number; rows: number }): Promise<void>;
   dispose(params: { id: string }): Promise<void>;
   onDynamicData(id: string): Event<string>;
   onDynamicExit(id: string): Event<number>;
+  /** create capability 为 true 时才调用；旧 Host 保留 string 输出事件兼容。 */
+  onDynamicOutput?(id: string): Event<TerminalOutputFrame>;
+  beginOutputFlowControl?(params: { id: string }): Promise<void>;
+  acknowledgeOutput?(params: { id: string; leaseId: string; offset: number }): Promise<void>;
 }
 
 export const ITerminalService = createServiceDescriptor<ITerminalService>(ServiceChannels.Terminal);

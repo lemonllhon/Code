@@ -6,12 +6,16 @@ import type { ISettingService } from "../setting/setting.js";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import {
   terminalCreateParamsSchema,
+  terminalOutputFlowStartSchema,
+  terminalOutputFlowAckSchema,
   type ITerminalService,
   type RuntimeTerminalEnvironmentLease,
   type RuntimeTerminalEnvironmentPort,
   type RuntimeTerminalScope,
   type TerminalCreateParams,
+  type TerminalOutputFrame,
 } from "./terminal.js";
+import { TerminalOutputChannel } from "./terminalOutputChannel.js";
 import { resolveTerminalFontProfile } from "./terminalProfile.js";
 import { registerMemoryDiagnosticsProvider } from "#src/memoryDiagnostics.js";
 import { resolveConfiguredTerminalShell } from "./terminalShellSelection.js";
@@ -39,6 +43,7 @@ interface TerminalInstance {
   pty?: IPty;
   dataEmitter: Emitter<string>;
   exitEmitter: Emitter<number>;
+  output: TerminalOutputChannel;
   subscriptions: IDisposable[];
   admitted: ReturnType<typeof Promise.withResolvers<void>>;
   exit: ReturnType<typeof Promise.withResolvers<void>>;
@@ -55,17 +60,7 @@ export interface TerminalServiceOwner extends ITerminalService {
   stopCheckoutAndWait(scope: RuntimeTerminalScope): Promise<void>;
 }
 
-/** 显式 RPC 白名单；TypeScript interface/cast 不会阻止 ProxyChannel 调用 owner 的内部方法。 */
-export function createPublicTerminalService(owner: ITerminalService): ITerminalService {
-  return {
-    create: owner.create.bind(owner),
-    write: owner.write.bind(owner),
-    resize: owner.resize.bind(owner),
-    dispose: owner.dispose.bind(owner),
-    onDynamicData: owner.onDynamicData.bind(owner),
-    onDynamicExit: owner.onDynamicExit.bind(owner),
-  };
-}
+export { createPublicTerminalService } from "./terminalPublicService.js";
 
 function scopeKey(scope: RuntimeTerminalScope): string {
   const path = resolve(scope.workspacePath);
@@ -91,6 +86,14 @@ export function createTerminalService(dependencies: {
   const memoryDiagnostics = registerMemoryDiagnosticsProvider("terminal", () => ({
     open: [...terminals.values()].filter((terminal) => terminal.pty && !terminal.exited).length,
     retained: [...terminals.values()].filter((terminal) => terminal.lease).length,
+    outputPaused: [...terminals.values()].reduce(
+      (sum, terminal) => sum + terminal.output.diagnostics.paused,
+      0,
+    ),
+    pendingOutputChars: [...terminals.values()].reduce(
+      (sum, terminal) => sum + terminal.output.diagnostics.pendingChars,
+      0,
+    ),
   }));
 
   function matchesScope(terminal: TerminalInstance, key: string): boolean {
@@ -117,6 +120,7 @@ export function createTerminalService(dependencies: {
     for (const subscription of terminal.subscriptions) subscription.dispose();
     terminal.subscriptions = [];
     terminal.dataEmitter.dispose();
+    terminal.output.close();
     terminal.exitEmitter.dispose();
   }
 
@@ -126,6 +130,8 @@ export function createTerminalService(dependencies: {
     terminal.releasing = (async () => {
       await terminal.lease?.release();
       terminal.lease = undefined;
+      // 物理退出与 lease 结算均已确认；迟到 UI 订阅不再强引用旧 PTY 原生包装和压力回调。
+      terminal.pty = undefined;
       // 迟到的旧代际回调只能结算自己，不删除同 key 的新 owner。
       if (terminals.get(terminal.id) === terminal) terminals.delete(terminal.id);
     })();
@@ -186,6 +192,7 @@ export function createTerminalService(dependencies: {
         : undefined,
       dataEmitter: new Emitter<string>(),
       exitEmitter: new Emitter<number>(),
+      output: new TerminalOutputChannel(),
       subscriptions: [],
       admitted: Promise.withResolvers<void>(),
       exit: Promise.withResolvers<void>(),
@@ -262,12 +269,17 @@ export function createTerminalService(dependencies: {
           `Failed to start terminal with shell '${shell}' in '${cwd}': ${errorMessage(error)}`,
         );
       }
+      terminal.output.bind(terminal.pty);
       terminal.subscriptions.push(
         terminal.pty.onExit(({ exitCode }) => onExit(terminal, exitCode)),
       );
       terminal.subscriptions.push(
         terminal.pty.onData((data) => {
-          if (!terminal.exited) terminal.dataEmitter.fire(data);
+          if (terminal.exited) return;
+          // xterm 的 write 是异步解析；按已消费 offset 背压，避免大输出无界积压。
+          // 原 string 事件继续兼容老客户端，chunk 边界和 ANSI 顺序保持不变。
+          terminal.output.fire(data);
+          terminal.dataEmitter.fire(data);
         }),
       );
       return {
@@ -278,6 +290,7 @@ export function createTerminalService(dependencies: {
         theme: fontProfile.theme,
         fontFamilySource: fontProfile.source,
         windowsPty: resolveTerminalWindowsPtyInfo(),
+        ...(terminal.output.supported ? { outputFlowControl: true } : {}),
       };
     } catch (error) {
       if (!terminal.pty) {
@@ -313,6 +326,18 @@ export function createTerminalService(dependencies: {
     },
     onDynamicExit(id: string): Event<number> {
       return getTerminal(id).exitEmitter.event;
+    },
+    onDynamicOutput(id: string): Event<TerminalOutputFrame> {
+      return getTerminal(id).output.event;
+    },
+    async beginOutputFlowControl(params): Promise<void> {
+      const { id } = terminalOutputFlowStartSchema.parse(params);
+      getTerminal(id).output.begin();
+    },
+    async acknowledgeOutput(params): Promise<void> {
+      const { id, leaseId, offset } = terminalOutputFlowAckSchema.parse(params);
+      // onExit/关闭可早于最后一个 write callback；迟到 ACK 只结算原代，不复活终端。
+      terminals.get(id)?.output.acknowledge(leaseId, offset);
     },
     disposeAll(): void {
       // 关闭 admission 必须先于等待；迟到的 acquire/settings/loader 不能再启动孤儿 PTY。

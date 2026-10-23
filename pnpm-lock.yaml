@@ -6,8 +6,8 @@ settings:
 
 overrides:
   '@ai-sdk/anthropic': 3.0.81
-  '@ai-sdk/provider-utils@>=4 <4.0.33': 4.0.33
   '@ai-sdk/openai-compatible': 2.0.60
+  '@ai-sdk/provider-utils@>=4 <4.0.33': 4.0.33
   '@arms/rum-electron': 0.0.3
   '@jimp/core@0.22.12>file-type': 21.3.3
   '@tailwindcss/typography>postcss-selector-parser': 7.1.6
@@ -20,6 +20,7 @@ overrides:
   http-mitm-proxy>uuid: 11.1.1
   katex@<0.19: 0.19.0
   node-forge: 1.4.0
+  node-pty: 1.1.0
   oxfmt>tinypool: 2.2.0
   react: 19.2.7
   react-dom: 19.2.7
@@ -49,6 +50,9 @@ patchedDependencies:
   node-forge@1.4.0:
     hash: 1ddd6eb75462781c8c67f8010e3c6fe3eb89972d1ac19b10ef54fa95639854fe
     path: patches/node-forge@1.4.0.patch
+  node-pty@1.1.0:
+    hash: 43795a0952ae06fd69288025e3ee3a6a7644d1698ac048b00eaef51ccb18d81d
+    path: patches/node-pty@1.1.0.patch
 
 importers:
 
@@ -738,8 +742,8 @@ importers:
         specifier: 1.4.0
         version: 1.4.0(patch_hash=1ddd6eb75462781c8c67f8010e3c6fe3eb89972d1ac19b10ef54fa95639854fe)
       node-pty:
-        specifier: ^1.0.0
-        version: 1.1.0
+        specifier: 1.1.0
+        version: 1.1.0(patch_hash=43795a0952ae06fd69288025e3ee3a6a7644d1698ac048b00eaef51ccb18d81d)
       playwright-core:
         specifier: 1.59.1
         version: 1.59.1
@@ -1010,8 +1014,8 @@ importers:
         specifier: 1.4.0
         version: 1.4.0(patch_hash=1ddd6eb75462781c8c67f8010e3c6fe3eb89972d1ac19b10ef54fa95639854fe)
       node-pty:
-        specifier: ^1.0.0
-        version: 1.1.0
+        specifier: 1.1.0
+        version: 1.1.0(patch_hash=43795a0952ae06fd69288025e3ee3a6a7644d1698ac048b00eaef51ccb18d81d)
       proxy-from-env:
         specifier: ^1.1.0
         version: 1.1.0
@@ -1086,8 +1090,8 @@ importers:
         specifier: 1.4.0
         version: 1.4.0(patch_hash=1ddd6eb75462781c8c67f8010e3c6fe3eb89972d1ac19b10ef54fa95639854fe)
       node-pty:
-        specifier: ^1.0.0
-        version: 1.1.0
+        specifier: 1.1.0
+        version: 1.1.0(patch_hash=43795a0952ae06fd69288025e3ee3a6a7644d1698ac048b00eaef51ccb18d81d)
       semver:
         specifier: 7.7.4
         version: 7.7.4
@@ -17195,7 +17199,7 @@ snapshots:
 
   node-int64@0.4.0: {}
 
-  node-pty@1.1.0:
+  node-pty@1.1.0(patch_hash=43795a0952ae06fd69288025e3ee3a6a7644d1698ac048b00eaef51ccb18d81d):
     dependencies:
       node-addon-api: 7.1.1
 
