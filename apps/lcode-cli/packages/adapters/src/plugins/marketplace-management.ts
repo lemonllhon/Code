@@ -41,6 +41,7 @@ export async function ensureMarketplaceManifestAvailable(input: {
     (item) => item.id === input.marketplace,
   );
   if (!record) return null;
+  if (record.source.source === "builtin") return record;
   // 受信任的内部懒加载：用 known record 的规范 source 拉取，并以 record.id 作为 trustedId，
   // 使官方 id 只能由本来就是该官方 id 的记录刷新得到。
   return await addMarketplace({
@@ -184,6 +185,10 @@ export async function updateMarketplace(input: {
   const updated: KnownMarketplaceRecord[] = [];
   for (const record of selected) {
     throwIfPluginOperationAborted(input.signal);
+    if (record.source.source === "builtin") {
+      updated.push(record);
+      continue;
+    }
 
     // 受信任的刷新会重新拉取已知 marketplace 自带的 source；record.id 作为 trustedId，
     // 使官方 id 只能由原本就是该 id 的记录刷新得到。

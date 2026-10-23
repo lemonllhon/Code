@@ -1,6 +1,12 @@
 /* eslint-disable max-lines -- lcode-cli 配置 schema 需要集中维护文件解析和 provider 继承，拆散会让配置语义更难对齐。 */
 import { z } from "zod";
 import type { RuntimeConfigPatch } from "@lcode/contracts";
+import {
+  canonicalizeLCodePluginId,
+  canonicalizeLCodePluginConfigRecord,
+  lcodePluginIdAliases,
+  LCODE_CUA_OFFICIAL_PLUGIN_ID,
+} from "@lcode/shared";
 
 const stringRecordSchema = z.record(z.string(), z.string());
 const positiveNumberSchema = z.number().finite().positive();
@@ -179,16 +185,14 @@ const pluginsSchema = z.object({
 });
 
 export const LEGACY_CUA_PLUGIN_ID = "zcode-cua@zcode-plugins-official";
-export const CANONICAL_CUA_PLUGIN_ID = "computer-use@zcode-plugins-official";
+export const CANONICAL_CUA_PLUGIN_ID = LCODE_CUA_OFFICIAL_PLUGIN_ID;
 
 export function canonicalizePluginId(pluginId: string): string {
-  return pluginId === LEGACY_CUA_PLUGIN_ID ? CANONICAL_CUA_PLUGIN_ID : pluginId;
+  return canonicalizeLCodePluginId(pluginId);
 }
 
 export function pluginIdAliases(pluginId: string): readonly string[] {
-  return canonicalizePluginId(pluginId) === CANONICAL_CUA_PLUGIN_ID
-    ? [CANONICAL_CUA_PLUGIN_ID, LEGACY_CUA_PLUGIN_ID]
-    : [pluginId];
+  return lcodePluginIdAliases(pluginId);
 }
 
 const skillToggleSchema = z.object({
@@ -436,16 +440,12 @@ function normalizePluginConfig(
   plugins: LCodeConfigFile["plugins"],
 ): NonNullable<RuntimeConfigPatch["plugins"]> {
   if (!plugins) return {};
-  const enabledPlugins = plugins.enabledPlugins ? { ...plugins.enabledPlugins } : undefined;
-  if (enabledPlugins?.[LEGACY_CUA_PLUGIN_ID] !== undefined) {
-    if (enabledPlugins[CANONICAL_CUA_PLUGIN_ID] === undefined) {
-      enabledPlugins[CANONICAL_CUA_PLUGIN_ID] = enabledPlugins[LEGACY_CUA_PLUGIN_ID];
-    }
-    delete enabledPlugins[LEGACY_CUA_PLUGIN_ID];
-  }
+  const enabledPlugins = plugins.enabledPlugins
+    ? canonicalizeLCodePluginConfigRecord(plugins.enabledPlugins)
+    : undefined;
   const suppressedBuiltins = plugins.suppressedBuiltins
     ? plugins.suppressedBuiltins.reduce<string[]>((ids, id) => {
-        const canonicalId = id === LEGACY_CUA_PLUGIN_ID ? CANONICAL_CUA_PLUGIN_ID : id;
+        const canonicalId = canonicalizePluginId(id);
         if (canonicalId === CANONICAL_CUA_PLUGIN_ID && ids.includes(CANONICAL_CUA_PLUGIN_ID)) {
           return ids;
         }
@@ -453,13 +453,9 @@ function normalizePluginConfig(
         return ids;
       }, [])
     : undefined;
-  const options = plugins.options ? { ...plugins.options } : undefined;
-  if (options?.[LEGACY_CUA_PLUGIN_ID] !== undefined) {
-    if (options[CANONICAL_CUA_PLUGIN_ID] === undefined) {
-      options[CANONICAL_CUA_PLUGIN_ID] = options[LEGACY_CUA_PLUGIN_ID];
-    }
-    delete options[LEGACY_CUA_PLUGIN_ID];
-  }
+  const options = plugins.options
+    ? canonicalizeLCodePluginConfigRecord(plugins.options)
+    : undefined;
   return {
     ...plugins,
     ...(enabledPlugins ? { enabledPlugins } : {}),

@@ -11,6 +11,10 @@ import {
 import type { PluginLoadOutcome } from "@lcode/contracts";
 import { isOfficialMarketplaceId } from "@lcode/contracts";
 import {
+  isRetiredOfficialPluginMarketplaceSource,
+  LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
+} from "@lcode/shared";
+import {
   createMarketplaceSourceRepointDiagnostic,
   createReservedMarketplaceDeclarationDiagnostic,
   MarketplaceSourceRepointError,
@@ -20,12 +24,16 @@ export function resolveDeclaredMarketplaceSources(input: {
   configResult: ConfigResult;
 }): Map<string, MarketplaceSource> {
   return new Map(
-    Object.entries(input.configResult.config.plugins.extraKnownMarketplaces ?? {}).map(
-      ([marketplaceId, declaration]) => {
+    Object.entries(input.configResult.config.plugins.extraKnownMarketplaces ?? {})
+      .filter(
+        ([id, declaration]) =>
+          id !== LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID ||
+          !isRetiredOfficialPluginMarketplaceSource(declaration.source),
+      )
+      .map(([marketplaceId, declaration]) => {
         const baseDirectory = dirname(input.configResult.sources.plugins.paths.user);
         return [marketplaceId, resolveDeclaredMarketplaceSource(declaration.source, baseDirectory)];
-      },
-    ),
+      }),
   );
 }
 

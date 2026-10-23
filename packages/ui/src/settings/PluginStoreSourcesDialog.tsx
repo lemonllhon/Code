@@ -54,7 +54,11 @@ export function PluginStoreSourcesDialog({
   operationId: string | null;
 }) {
   const { intl, locale } = useLCodeIntl();
-  const sortedMarketplaces = sortMarketplaceSources(marketplaces, locale);
+  // builtin 只保留本地插件归属，没有可管理的网络源；停用旧源后不再显示一条假订阅。
+  const sortedMarketplaces = sortMarketplaceSources(
+    marketplaces.filter((marketplace) => marketplace.source.source !== "builtin"),
+    locale,
+  );
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent

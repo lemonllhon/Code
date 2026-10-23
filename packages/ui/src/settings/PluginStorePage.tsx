@@ -125,13 +125,12 @@ export function PluginStorePage({
     });
   }, [initialize, pluginManagementService, workspaceIdentity, workspacePath]);
 
-  // 目录自动刷新（Catalog Auto-Refresh）：只针对 LCode 官方市场。每次进入商店页都刷新 CDN 目录，
-  // 否则新上架插件要等用户手动点刷新才可见；以 10 分钟窗口节流，并在发起时占位防抖（失败/在飞不重复），
-  // 判据见 officialMarketplaceAutoRefresh。状态放模块级而非组件 ref，因为每次进入都是重新挂载。
+  // 无网络源的 builtin 只读本地目录，不触发订阅刷新；未来显式接入网络源后沿用现有节流。
   useEffect(() => {
     const official = marketplaces.find((item) => item.id === LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID);
     if (
       official &&
+      official.source.source !== "builtin" &&
       claimMarketplaceAutoRefresh(LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID, official.lastUpdated)
     ) {
       void updateMarketplace(LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID, pluginManagementService);

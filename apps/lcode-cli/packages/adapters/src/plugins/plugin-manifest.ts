@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PluginDiagnostic, PluginManifest } from "@lcode/contracts";
 import { LCODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@lcode/contracts";
+import { canonicalizeLCodePluginId } from "@lcode/shared";
 import {
   directoryExists,
   fileExists,
@@ -91,7 +92,7 @@ export function loadPlugin(
   const manifest = readManifest(manifestPath, diagnostics);
   if (!manifest) return null;
   return {
-    id: `${manifest.name}@${candidate.marketplace}`,
+    id: canonicalizeLCodePluginId(`${manifest.name}@${candidate.marketplace}`),
     manifest,
     manifestPath,
     marketplace: candidate.marketplace,

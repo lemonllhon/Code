@@ -1,4 +1,5 @@
 import { LCODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@lcode/contracts";
+import { canonicalizeLCodePluginId, LCODE_CUA_OFFICIAL_PLUGIN_ID } from "@lcode/shared";
 
 // 内置插件的商店信息 seed（原样写入官方 marketplace.json 的条目 raw，键名与 CDN 目录
 // schema 一致：displayName_i18n / examplePrompts_i18n 等），解析复用 adapter 的
@@ -32,7 +33,7 @@ export const OFFICIAL_BROWSER_USE_PLUGIN_ID = `${OFFICIAL_BROWSER_USE_PLUGIN_NAM
 export const OFFICIAL_NODE_REPL_HOST_PLUGIN_NAME = "node-repl-host";
 export const OFFICIAL_NODE_REPL_HOST_PLUGIN_ID = `${OFFICIAL_NODE_REPL_HOST_PLUGIN_NAME}@${LCODE_OFFICIAL_PLUGIN_MARKETPLACE}`;
 const OFFICIAL_CUA_PLUGIN_NAME = "computer-use";
-export const OFFICIAL_CUA_PLUGIN_ID = `${OFFICIAL_CUA_PLUGIN_NAME}@${LCODE_OFFICIAL_PLUGIN_MARKETPLACE}`;
+export const OFFICIAL_CUA_PLUGIN_ID = LCODE_CUA_OFFICIAL_PLUGIN_ID;
 
 export interface OfficialPluginDefinition {
   // 内容型 plugin (无 MCP server / 无系统依赖) 可以设为 true,
@@ -373,7 +374,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     // 显式 true，不受本次默认值变更影响。改回默认开启时，需同步
     // packages/shared/src/plugin-marketplaces.ts 的名单（bootstrap 单测机械对照两者）
     // 与输入框入口 hidden 默认值的联动语义；internal gate 只保留为开发 bypass。
-    name: "computer-use",
+    name: OFFICIAL_CUA_PLUGIN_NAME,
     hostMcpServerNames: ["node_repl"],
     // 用户露出名统一为「Computer Use / 电脑控制」。公开内容包沿用 lcode-cua-plugin 路径，
     // 原生 Helper identity 则由独立 Helper 发布契约维护；EN 描述基线走 manifest
@@ -419,7 +420,9 @@ export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set(
 
 export function resolveOfficialPluginHostMcpServerNames(pluginId: string): string[] {
   const definition = OFFICIAL_PLUGIN_DEFINITIONS.find(
-    (candidate) => `${candidate.name}@${LCODE_OFFICIAL_PLUGIN_MARKETPLACE}` === pluginId,
+    (candidate) =>
+      canonicalizeLCodePluginId(`${candidate.name}@${LCODE_OFFICIAL_PLUGIN_MARKETPLACE}`) ===
+      canonicalizeLCodePluginId(pluginId),
   );
   return definition?.hostMcpServerNames ? [...definition.hostMcpServerNames] : [];
 }

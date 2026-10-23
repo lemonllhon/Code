@@ -54,6 +54,7 @@ export async function parseMarketplaceSourceInput(input: string): Promise<Market
 
 export function defaultMarketplaceSourceFromString(source: string): MarketplaceSource {
   const trimmed = source.trim();
+  if (trimmed === "builtin") return { source: "builtin" };
   if (/^[^/]+\/[^/]+(?:[#@].+)?$/u.test(trimmed) && !trimmed.includes(":")) {
     const { ref, url } = splitGitHubShorthand(trimmed);
     return ref ? { source: "github", repo: url, ref } : { source: "github", repo: url };

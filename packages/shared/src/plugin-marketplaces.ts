@@ -9,6 +9,28 @@ export interface DefaultPluginMarketplace {
 
 export const LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID = "zcode-plugins-official";
 
+/** 仅用于停用历史源，不作为默认联网地址。 */
+export function isRetiredOfficialPluginMarketplaceSource(source: unknown): boolean {
+  if (
+    !source ||
+    typeof source !== "object" ||
+    !("source" in source) ||
+    source.source !== "url" ||
+    !("url" in source) ||
+    typeof source.url !== "string"
+  )
+    return false;
+  try {
+    const url = new URL(source.url);
+    return (
+      url.hostname.toLowerCase() === "cdn-zcode.z.ai" &&
+      url.pathname.replace(/\/+$/u, "") === "/lcode/official-plugin/marketplace.json"
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** Settings 三类资源发现共用；Bootstrap 单测与官方 definition 的 defaultEnabled 机械对照。 */
 export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set([
   "browser-use@zcode-plugins-official",
@@ -32,10 +54,9 @@ export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set(
 
 export const DEFAULT_PLUGIN_MARKETPLACES: DefaultPluginMarketplace[] = [
   {
-    // LCode 官方唯一市场：本地 seed 分片与 CDN 分片在 Agent storage 内合并。
-    // CDN manifest 的 name 必须与该 canonical id 一致。
+    // 原市场仅保留本地目录归属；自建源尚未配置，不再自动订阅旧官方 CDN。
     id: LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
-    source: "https://cdn-zcode.z.ai/lcode/official-plugin/marketplace.json",
+    source: "builtin",
     name: LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
     description: "Official LCode plugins marketplace: built-in and community plugins for LCode.",
     pluginCount: 0,

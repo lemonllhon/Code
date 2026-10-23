@@ -1,6 +1,10 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import { DEFAULT_PLUGIN_MARKETPLACES } from "@lcode/shared";
+import {
+  DEFAULT_PLUGIN_MARKETPLACES,
+  isRetiredOfficialPluginMarketplaceSource,
+  LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
+} from "@lcode/shared";
 import { isRecord } from "./helpers.js";
 import {
   activateDirectoryAtomically,
@@ -25,6 +29,21 @@ import type {
 } from "./marketplace-types.js";
 
 export function loadKnownMarketplacesSync(storageRoot: string): KnownMarketplaceRecord[] {
+  return loadStoredKnownMarketplacesSync(storageRoot).map(retireLegacyOfficialSource);
+}
+
+function retireLegacyOfficialSource(record: KnownMarketplaceRecord): KnownMarketplaceRecord {
+  if (
+    record.id !== LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID ||
+    !isRetiredOfficialPluginMarketplaceSource(record.source)
+  )
+    return record;
+  // 只撤销历史订阅；目录、cache、安装记录和插件开关均继续属于原 Host inventory。
+  const { lastRefreshFailure: _failure, ...retained } = record;
+  return { ...retained, source: { source: "builtin" } };
+}
+
+function loadStoredKnownMarketplacesSync(storageRoot: string): KnownMarketplaceRecord[] {
   const parsed = readJsonFileSync(join(storageRoot, KNOWN_MARKETPLACES_FILE));
   if (!isRecord(parsed)) return [];
   const value = parsed.marketplaces;
@@ -34,7 +53,8 @@ export function loadKnownMarketplacesSync(storageRoot: string): KnownMarketplace
 }
 
 export function ensureDefaultPluginMarketplaces(storageRoot: string): KnownMarketplaceRecord[] {
-  const known = loadKnownMarketplacesSync(storageRoot);
+  const stored = loadStoredKnownMarketplacesSync(storageRoot);
+  const known = stored.map(retireLegacyOfficialSource);
   const existingIds = new Set(known.map((record) => record.id));
   const now = new Date().toISOString();
   const missing = DEFAULT_PLUGIN_MARKETPLACES.filter(
@@ -50,7 +70,8 @@ export function ensureDefaultPluginMarketplaces(storageRoot: string): KnownMarke
       pluginCount: marketplace.pluginCount,
     }),
   );
-  if (missing.length === 0) return known;
+  if (missing.length === 0 && known.every((record, index) => record === stored[index]))
+    return known;
   const next = [...known, ...missing];
   writeKnownMarketplacesSync(storageRoot, next);
   return next;

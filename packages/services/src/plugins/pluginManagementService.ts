@@ -2,7 +2,7 @@
 // 插件安装/市场/启停的事实源在 lcode-cli 进程（读写 ~/.lcode 插件目录并热更新
 // 运行态），host 无副本，故实现保持 agent 协议往返；收敛价值在 UI 层不再直触
 // ILCodeAgentService，词表消费面从 UI 散点收拢到本文件一处。
-import { LCODE_CUA_OFFICIAL_PLUGIN_ID } from "@lcode/shared";
+import { canonicalizeLCodePluginId, LCODE_CUA_OFFICIAL_PLUGIN_ID } from "@lcode/shared";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import type { ILCodeAgentService } from "../lcode-agent/lcodeAgent.js";
 import type { IPluginManagementService } from "./pluginManagement.js";
@@ -59,7 +59,10 @@ export function createPluginManagementService(
     describePlugin: (params) => agent.describePlugin(params),
     setPluginEnabled: async (params) => {
       const result = await agent.setPluginEnabled(params);
-      if (params.pluginId.trim().toLowerCase() !== LCODE_CUA_OFFICIAL_PLUGIN_ID) {
+      if (
+        canonicalizeLCodePluginId(params.pluginId.trim().toLowerCase()) !==
+        LCODE_CUA_OFFICIAL_PLUGIN_ID
+      ) {
         return result;
       }
 

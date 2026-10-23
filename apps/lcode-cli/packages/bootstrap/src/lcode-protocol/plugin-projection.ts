@@ -4,6 +4,7 @@ import {
   type LCodePluginDiagnostic,
   type LCodePluginInfo,
   type LCodePluginMarketplaceSummary,
+  resolveLCodePluginStorageId,
 } from "@lcode/shared";
 
 import type { PluginDiagnostic, PluginMetadata } from "@lcode/contracts";
@@ -95,8 +96,9 @@ export function createMissingConfiguredPluginInfos(
   ]);
   return [...configuredPluginIds].flatMap((pluginId) => {
     if (discoveredPluginIds.has(pluginId)) return [];
-    const separatorIndex = pluginId.lastIndexOf("@");
-    if (separatorIndex <= 0 || separatorIndex === pluginId.length - 1) {
+    const storageId = resolveLCodePluginStorageId(pluginId);
+    const separatorIndex = storageId.lastIndexOf("@");
+    if (separatorIndex <= 0 || separatorIndex === storageId.length - 1) {
       return [];
     }
     const enabledSource = configResult.sources.plugins.enabled[pluginId];
@@ -104,10 +106,10 @@ export function createMissingConfiguredPluginInfos(
     return [
       {
         id: pluginId,
-        name: pluginId.slice(0, separatorIndex),
+        name: storageId.slice(0, separatorIndex),
         enabled: configResult.config.plugins.enabledPlugins[pluginId] ?? false,
         source: "missing",
-        marketplace: pluginId.slice(separatorIndex + 1),
+        marketplace: storageId.slice(separatorIndex + 1),
         skillCount: 0,
         skillRootCount: 0,
         commandRootCount: 0,

@@ -6,6 +6,7 @@ import type {
 } from "@lcode/contracts";
 import {
   getCapturedLCodeCuaBrokerCredentials,
+  canonicalizeLCodePluginId,
   isLCodeCuaMcpCommand,
   isLCodeCuaMcpPackageArg,
   LCODE_CUA_BROKER_SOCKET_ENV_KEY,
@@ -176,7 +177,8 @@ function isLCodeCuaStdioServer(
   // 上面的 name/command/args 三条都匹配不到。_plugin id 由 adapters resolver 权威写入 env
   // （manifest/user env 不可覆盖），用它识别 official plugin server。
   if (
-    config.env?.[LCODE_PLUGIN_ID_ENV_KEY]?.trim().toLowerCase() === LCODE_CUA_OFFICIAL_PLUGIN_ID
+    canonicalizeLCodePluginId(config.env?.[LCODE_PLUGIN_ID_ENV_KEY]?.trim().toLowerCase() ?? "") ===
+    LCODE_CUA_OFFICIAL_PLUGIN_ID
   ) {
     return true;
   }

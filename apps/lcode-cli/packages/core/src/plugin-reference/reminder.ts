@@ -4,6 +4,7 @@
 // 以保证 unit 可测且行为对 retry / provider replay 确定。
 import type { PluginReferenceCatalog, PluginReferenceCatalogEntry } from "@lcode/contracts";
 import { isValidPluginStableId } from "./references.js";
+import { findPluginReferenceCatalogEntry } from "./catalog.js";
 
 export const MAX_PLUGIN_REFERENCE_SKILLS = 32;
 export const MAX_PLUGIN_REFERENCE_MCP_SERVERS = 16;
@@ -200,7 +201,7 @@ export function buildPluginReferenceReminderBody(
       skipped.push({ pluginId, reason: "invalid_identifier" });
       continue;
     }
-    const entry = input.catalog?.plugins.find((candidate) => candidate.pluginId === pluginId);
+    const entry = findPluginReferenceCatalogEntry(input.catalog, pluginId);
     if (!entry) {
       skipped.push({ pluginId, reason: "unknown" });
       continue;

@@ -18,6 +18,7 @@ import {
   validateMarketplaceSource,
 } from "@lcode/adapters/plugins";
 import { LCODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@lcode/contracts";
+import { canonicalizeLCodePluginId, resolveLCodePluginStorageId } from "@lcode/shared";
 import { withPluginStorageLock } from "../lib/plugin-storage-lock.js";
 import {
   type LCodeInstalledPluginData,
@@ -91,7 +92,7 @@ export async function installLCodeMarketplacePlugin(
       ).map(toPluginDiagnostic),
     };
   }
-  const pluginId = `${options.pluginName}@${options.marketplace}`;
+  const pluginId = canonicalizeLCodePluginId(`${options.pluginName}@${options.marketplace}`);
   const bundledEntry = loadMarketplaceManifestSync(
     pluginStorageRoot,
     options.marketplace,
@@ -195,7 +196,8 @@ export async function installLCodeMarketplacePlugin(
   const enabledIdSet = new Set(enabledIds);
   // 已有显式配置的，沿用其当前启用态；本次新置默认启用的标记为 true。
   const enabledById = (id: string): boolean =>
-    enabledIdSet.has(id) || (configResult.config.plugins.enabledPlugins[id] ?? false);
+    enabledIdSet.has(canonicalizeLCodePluginId(id)) ||
+    (configResult.config.plugins.enabledPlugins[canonicalizeLCodePluginId(id)] ?? false);
   return {
     dependencyClosure: installed.closure,
     installedPlugins: installed.installed.map((record) =>
@@ -218,11 +220,11 @@ export async function uninstallLCodeMarketplacePlugin(
     // 导致 UI 永远保持 installed、无法重装。持久化安装记录是 marketplace 所有权的权威证据，
     // 必须优先于运行时来源分类；同时清掉可能遗留的错误 suppression，让状态自愈。
     const installedRecord = listInstalledPluginRecords(pluginStorageRoot).find(
-      (record) => record.id === pluginId,
+      (record) => canonicalizeLCodePluginId(record.id) === pluginId,
     );
     if (installedRecord) {
       const removed = await uninstallMarketplacePlugin({
-        pluginId,
+        pluginId: resolveLCodePluginStorageId(pluginId),
         // 卸载语义即彻底清除：除非调用方显式传 removeCache=false，否则连缓存与 data 目录一起删。
         removeCache: options.removeCache ?? true,
         keepData: options.keepData,
@@ -286,7 +288,8 @@ export async function updateLCodeMarketplacePlugin(
 ): Promise<LCodePluginUpdateData> {
   const { pluginStorageRoot } = resolvePluginContext(options);
   const record = listInstalledPluginRecords(pluginStorageRoot).find(
-    (installed) => installed.id === options.pluginId,
+    (installed) =>
+      canonicalizeLCodePluginId(installed.id) === canonicalizeLCodePluginId(options.pluginId),
   );
   if (!record) throw new Error(`Plugin not installed: ${options.pluginId}`);
   const refreshed = await updateLCodePluginMarketplace({

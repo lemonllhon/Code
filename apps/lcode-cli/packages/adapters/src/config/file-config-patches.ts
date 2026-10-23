@@ -1,10 +1,6 @@
 import type { UiLocale } from "@lcode/contracts";
-import {
-  CANONICAL_CUA_PLUGIN_ID,
-  canonicalizePluginId,
-  LEGACY_CUA_PLUGIN_ID,
-  pluginIdAliases,
-} from "./schema.js";
+import { canonicalizePluginId, pluginIdAliases } from "./schema.js";
+import { canonicalizeLCodePluginConfigRecord } from "@lcode/shared";
 
 export function migratePluginConfigInFile(value: unknown): Record<string, unknown> | undefined {
   if (!isRecord(value) || !isRecord(value.plugins)) return undefined;
@@ -13,22 +9,20 @@ export function migratePluginConfigInFile(value: unknown): Record<string, unknow
   let changed = false;
 
   if (isRecord(plugins.enabledPlugins)) {
-    const enabledPlugins = { ...plugins.enabledPlugins };
-    for (const [id, enabled] of Object.entries(plugins.enabledPlugins)) {
-      if (id === LEGACY_CUA_PLUGIN_ID) {
-        const canonicalId = CANONICAL_CUA_PLUGIN_ID;
-        if (enabledPlugins[canonicalId] === undefined) enabledPlugins[canonicalId] = enabled;
-        delete enabledPlugins[id];
-        changed = true;
-      }
+    if (Object.keys(plugins.enabledPlugins).some((id) => canonicalizePluginId(id) !== id)) {
+      nextPlugins.enabledPlugins = canonicalizeLCodePluginConfigRecord(plugins.enabledPlugins);
+      changed = true;
     }
-    if (changed) nextPlugins.enabledPlugins = enabledPlugins;
   }
 
   if (Array.isArray(plugins.suppressedBuiltins)) {
-    const suppressedBuiltins = plugins.suppressedBuiltins.map((id) =>
-      id === LEGACY_CUA_PLUGIN_ID ? CANONICAL_CUA_PLUGIN_ID : id,
-    );
+    const suppressedBuiltins = [
+      ...new Set(
+        plugins.suppressedBuiltins.map((id) =>
+          typeof id === "string" ? canonicalizePluginId(id) : id,
+        ),
+      ),
+    ];
     if (JSON.stringify(suppressedBuiltins) !== JSON.stringify(plugins.suppressedBuiltins)) {
       nextPlugins.suppressedBuiltins = suppressedBuiltins;
       changed = true;
@@ -36,16 +30,10 @@ export function migratePluginConfigInFile(value: unknown): Record<string, unknow
   }
 
   if (isRecord(plugins.options)) {
-    const options = { ...plugins.options };
-    for (const [id, pluginOptions] of Object.entries(plugins.options)) {
-      if (id === LEGACY_CUA_PLUGIN_ID) {
-        const canonicalId = CANONICAL_CUA_PLUGIN_ID;
-        if (options[canonicalId] === undefined) options[canonicalId] = pluginOptions;
-        delete options[id];
-        changed = true;
-      }
+    if (Object.keys(plugins.options).some((id) => canonicalizePluginId(id) !== id)) {
+      nextPlugins.options = canonicalizeLCodePluginConfigRecord(plugins.options);
+      changed = true;
     }
-    if (changed) nextPlugins.options = options;
   }
 
   return changed ? { ...value, plugins: nextPlugins } : undefined;
@@ -99,12 +87,7 @@ export function patchPluginOptions(
   const currentOptions = isRecord(plugins.options) ? plugins.options : {};
   const canonicalPluginId = canonicalizePluginId(pluginId);
   const aliases = pluginIdAliases(canonicalPluginId);
-  const legacyPluginId = aliases.length > 1 ? aliases[1] : undefined;
-  const currentPluginOptions = isRecord(currentOptions[canonicalPluginId])
-    ? currentOptions[canonicalPluginId]
-    : legacyPluginId && isRecord(currentOptions[legacyPluginId])
-      ? currentOptions[legacyPluginId]
-      : {};
+  const currentPluginOptions = aliases.map((id) => currentOptions[id]).find(isRecord) ?? {};
   const nextOptions = { ...currentOptions };
   for (const id of aliases) delete nextOptions[id];
   const clearedOptionKeySet = new Set(clearOptionKeys);

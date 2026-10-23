@@ -17,7 +17,11 @@ test(
   async () => {
     await promisify(execFile)(
       process.execPath,
-      ["--test", resolve(desktopRoot, "scripts/active-task-metadata.e2e.test.mjs")],
+      [
+        "--test",
+        resolve(desktopRoot, "scripts/active-task-metadata.e2e.test.mjs"),
+        resolve(desktopRoot, "scripts/plugin-source-retirement.e2e.test.mjs"),
+      ],
       {
         cwd: resolve(desktopRoot, "../.."),
         timeout: 35_000,

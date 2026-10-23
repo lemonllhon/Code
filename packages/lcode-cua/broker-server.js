@@ -44,8 +44,13 @@ export {
 } from "./broker-helper-constants.js";
 
 const PLUGIN_AUTHORITY_ENV = "LCODE_CUA_PLUGIN_AUTHORITY";
-const OFFICIAL_CUA_PLUGIN_ID = "computer-use@zcode-plugins-official";
-const LEGACY_CUA_PLUGIN_ID = "zcode-cua@zcode-plugins-official";
+const OFFICIAL_CUA_PLUGIN_ID = "computer-use@lcode-plugins-official";
+// 独立 JS Helper 不依赖 TS 工作区；别名集合与 shared/plugin-identity 由回归测试机械核对。
+const CUA_PLUGIN_ID_ALIASES = [
+  OFFICIAL_CUA_PLUGIN_ID,
+  "computer-use@zcode-plugins-official",
+  "zcode-cua@zcode-plugins-official",
+];
 const DEFAULT_HEALTH_TIMEOUT_MS = 30_000;
 const DEFAULT_STARTUP_DEADLINE_MS = 1_000;
 const DEFAULT_PERMISSION_LAUNCH_TIMEOUT_MS = 10_000;
@@ -1384,20 +1389,14 @@ function readPluginEnabled(config) {
   if (!isRecord(config?.plugins)) return undefined;
   const enabled = config.plugins.enabledPlugins;
   if (!isRecord(enabled)) return undefined;
-  if (typeof enabled[OFFICIAL_CUA_PLUGIN_ID] === "boolean") {
-    return enabled[OFFICIAL_CUA_PLUGIN_ID];
-  }
-  return typeof enabled[LEGACY_CUA_PLUGIN_ID] === "boolean"
-    ? enabled[LEGACY_CUA_PLUGIN_ID]
-    : undefined;
+  const id = CUA_PLUGIN_ID_ALIASES.find((candidate) => typeof enabled[candidate] === "boolean");
+  return id === undefined ? undefined : enabled[id];
 }
 
 function hasOfficialCuaPluginSuppression(config) {
   return (
     Array.isArray(config?.plugins?.suppressedBuiltins) &&
-    config.plugins.suppressedBuiltins.some(
-      (id) => id === OFFICIAL_CUA_PLUGIN_ID || id === LEGACY_CUA_PLUGIN_ID,
-    )
+    config.plugins.suppressedBuiltins.some((id) => CUA_PLUGIN_ID_ALIASES.includes(id))
   );
 }
 
@@ -1514,7 +1513,7 @@ export function isPotentialLCodeCuaAgentMcpServer(server) {
   if (
     serverEnvironmentEntries(server).some((entry) => {
       if (!isRecord(entry) || entry.name !== "LCODE_PLUGIN_ID") return false;
-      return entry.value === OFFICIAL_CUA_PLUGIN_ID || entry.value === LEGACY_CUA_PLUGIN_ID;
+      return CUA_PLUGIN_ID_ALIASES.includes(entry.value);
     })
   ) {
     return true;

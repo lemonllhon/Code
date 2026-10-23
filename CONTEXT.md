@@ -7,7 +7,7 @@
 ### 市场与来源
 
 **Official Marketplace（官方市场）**:
-LCode 官方运营的唯一分发渠道，市场 id 为 `zcode-plugins-official`，内容 = 内置插件 + CDN 插件。是"分发渠道"而非"作者归属"——其中可以收录社区作者的插件。
+现有分发归属 id 为 `zcode-plugins-official`，保留内置插件和已缓存/已安装插件。旧官方网络源已停用，当前来源为本地 `builtin`；自建市场完成后再显式配置新来源。电脑控制身份为 `computer-use@lcode-plugins-official`，通过精确别名复用原市场缓存和数据，其他插件 ID 保持现状。市场是分发归属，不表示作者归属。
 _Avoid_: "官方"泛指一切受信市场
 
 **Builtin Plugin（内置插件）**:

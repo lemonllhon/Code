@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { type Logger } from "@lcode/contracts";
-import { LCODE_CUA_OFFICIAL_PLUGIN_ID } from "@lcode/shared";
+import { canonicalizeLCodePluginId, LCODE_CUA_OFFICIAL_PLUGIN_ID } from "@lcode/shared";
 import {
   createOfficialPluginCacheRetryBudget,
   getOfficialPluginCacheRetryAttempts,
@@ -51,7 +51,9 @@ function seedBundledOfficialPlugins(input: {
   const seedLockDeadlineAt = Date.now() + SEED_LOCK_TOTAL_BUDGET_MS;
   const failedSeeds: OfficialPluginDefinition[] = [];
   for (const plugin of source.plugins) {
-    const pluginId = `${plugin.definition.name}@${OFFICIAL_PLUGIN_MARKETPLACE}`;
+    const pluginId = canonicalizeLCodePluginId(
+      `${plugin.definition.name}@${OFFICIAL_PLUGIN_MARKETPLACE}`,
+    );
     const targetRoot = officialPluginCacheRoot(input.storageRoot, plugin.definition);
     // 入口旁的插件拷贝可能与新定义错配（升级中的桌面包、旧 checkout 未构建 dist）。
     // 缺 requiredSeedPaths 时 seed 源解析曾直接抛错，一个残缺插件把全部插件连同会话恢复
@@ -187,7 +189,10 @@ export function resolveOfficialPluginRoots(input: {
   const fallbackRoots = failedSeeds.flatMap((definition) => {
     // CUA 的 frame contract 随 wrapper 与 producer 原子升级。加载旧版本
     // cache 会把旧 block 布局接到新 consumer 上；当前 cache 不可用时宁可不注册 CUA。
-    if (`${definition.name}@${OFFICIAL_PLUGIN_MARKETPLACE}` === LCODE_CUA_OFFICIAL_PLUGIN_ID) {
+    if (
+      canonicalizeLCodePluginId(`${definition.name}@${OFFICIAL_PLUGIN_MARKETPLACE}`) ===
+      LCODE_CUA_OFFICIAL_PLUGIN_ID
+    ) {
       return [];
     }
     const fallbackRoot = findUsableOfficialPluginFallback(input.storageRoot, definition);

@@ -5,6 +5,7 @@ import {
 } from "@lcode/adapters/plugins";
 import type { PluginMetadata } from "@lcode/contracts";
 import { isOfficialMarketplaceId } from "@lcode/contracts";
+import { canonicalizeLCodePluginId } from "@lcode/shared";
 import {
   type LCodeMarketplaceSummaryData,
   type LCodeAvailablePluginData,
@@ -42,7 +43,7 @@ export function toAvailablePluginData(
   marketplace: string,
   installedIds: ReadonlySet<string>,
 ): LCodeAvailablePluginData {
-  const id = `${entry.name}@${marketplace}`;
+  const id = canonicalizeLCodePluginId(`${entry.name}@${marketplace}`);
   return {
     id,
     name: entry.name,
@@ -61,7 +62,7 @@ export function toInstalledPluginData(
   loaded?: PluginMetadata,
 ): LCodeInstalledPluginData {
   return {
-    id: record.id,
+    id: canonicalizeLCodePluginId(record.id),
     name: record.name,
     marketplace: record.marketplace,
     ...((loaded?.description ?? undefined) ? { description: loaded?.description } : {}),

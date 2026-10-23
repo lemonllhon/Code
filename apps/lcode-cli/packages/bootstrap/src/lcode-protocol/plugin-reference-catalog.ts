@@ -3,6 +3,8 @@
 // 且 plugins.ts 已接近 max-lines 门禁。
 import {
   LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
+  canonicalizeLCodePluginId,
+  resolveLCodePluginStorageId,
   lcodeProtocolNotifications,
   lcodePluginsReferenceCatalogParamsSchema,
   lcodePluginsResolveSuggestedReferenceParamsSchema,
@@ -69,10 +71,11 @@ export async function resolveSuggestedPluginReference(
   signal?: AbortSignal,
 ): Promise<LCodePluginsResolveSuggestedReferenceResult> {
   const params = parseParams(lcodePluginsResolveSuggestedReferenceParamsSchema, rawParams);
-  const stableId = params.stableId.trim();
-  const at = stableId.lastIndexOf("@");
-  const pluginName = at > 0 ? stableId.slice(0, at) : "";
-  const marketplace = at > 0 ? stableId.slice(at + 1) : "";
+  const stableId = canonicalizeLCodePluginId(params.stableId.trim());
+  const storageId = resolveLCodePluginStorageId(stableId);
+  const at = storageId.lastIndexOf("@");
+  const pluginName = at > 0 ? storageId.slice(0, at) : "";
+  const marketplace = at > 0 ? storageId.slice(at + 1) : "";
   const diagnostic = (code: string, message: string): SharedPluginDiagnostic => ({
     code,
     message,
@@ -272,10 +275,11 @@ function toReferenceCatalogEntry(
   displayByPluginId: ReadonlyMap<string, PluginReferenceListingDisplay>,
   includeCategory = false,
 ): LCodePluginReferenceCatalogEntry {
-  const display = displayByPluginId.get(entry.pluginId);
+  const pluginId = canonicalizeLCodePluginId(entry.pluginId);
+  const display = displayByPluginId.get(pluginId);
   return {
     ...(includeCategory ? { category: display?.category ?? "other" } : {}),
-    pluginId: entry.pluginId,
+    pluginId,
     name: entry.name,
     marketplace: entry.marketplace,
     ...(display?.icon ? { icon: display.icon } : {}),
@@ -284,7 +288,7 @@ function toReferenceCatalogEntry(
     ...(display?.description ? { description: display.description } : {}),
     ...(display?.descriptionI18n ? { descriptionI18n: display.descriptionI18n } : {}),
     enabled: entry.enabled,
-    conflictingPluginIds: entry.conflictingPluginIds,
+    conflictingPluginIds: entry.conflictingPluginIds.map(canonicalizeLCodePluginId),
     skillQualifiedNames: entry.skillQualifiedNames,
     mcpServerNames: entry.mcpServerNames,
     subagentNames: entry.subagentNames ?? [],

@@ -25,7 +25,11 @@ import type {
   SkillsListResult,
   SkillsCapability,
 } from "@lcode/shared";
-import { DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS } from "@lcode/shared";
+import {
+  DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS,
+  canonicalizeLCodePluginId,
+  canonicalizeLCodePluginConfigRecord,
+} from "@lcode/shared";
 import type { ISkillsService } from "./skills.js";
 import { SKILL_FILE_NAME, walkSkillMarkdownPaths } from "./skillDiscoveryWalk.js";
 import { readInstalledPluginRoots } from "#src/plugins/installedPluginRoots.js";
@@ -614,9 +618,9 @@ function readPluginConfigFromConfig(config: Record<string, unknown>): PluginConf
   return {
     dirs: readStringArray(plugins.dirs),
     enabled: typeof plugins.enabled === "boolean" ? plugins.enabled : true,
-    enabledPlugins: readBooleanRecord(plugins.enabledPlugins),
+    enabledPlugins: canonicalizeLCodePluginConfigRecord(readBooleanRecord(plugins.enabledPlugins)),
     storageDir: readStorageDirFromConfig(config),
-    suppressedBuiltins: readStringArray(plugins.suppressedBuiltins),
+    suppressedBuiltins: readStringArray(plugins.suppressedBuiltins).map(canonicalizeLCodePluginId),
   };
 }
 
@@ -803,7 +807,7 @@ async function resolvePluginSkillRootDescriptors(): Promise<SkillRootDescriptor[
     if (!manifest) {
       continue;
     }
-    const pluginId = `${manifest.name}@${candidate.marketplace}`;
+    const pluginId = canonicalizeLCodePluginId(`${manifest.name}@${candidate.marketplace}`);
     // 内置官方插件被「卸载」后只在 CLI config 写入 suppressedBuiltins；desktop 直接扫
     // 官方 cache 时不经过 CLI resolve 的过滤，需要在这里同样跳过，否则被卸载的内置插件
     // 仍会从 cache 贡献技能。

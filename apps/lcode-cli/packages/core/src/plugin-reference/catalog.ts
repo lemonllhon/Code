@@ -6,6 +6,7 @@ import type {
   PluginReferenceCatalog,
   PluginReferenceCatalogEntry,
 } from "@lcode/contracts";
+import { canonicalizeLCodePluginId } from "@lcode/shared";
 
 function collectDeclaredSkillQualifiedNames(plugin: PluginMetadata): string[] {
   const names = new Set<string>();
@@ -75,5 +76,7 @@ export function findPluginReferenceCatalogEntry(
   catalog: PluginReferenceCatalog | undefined,
   pluginId: string,
 ): PluginReferenceCatalogEntry | undefined {
-  return catalog?.plugins.find((entry) => entry.pluginId === pluginId);
+  return catalog?.plugins.find(
+    (entry) => canonicalizeLCodePluginId(entry.pluginId) === canonicalizeLCodePluginId(pluginId),
+  );
 }

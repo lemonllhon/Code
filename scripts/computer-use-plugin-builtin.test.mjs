@@ -19,11 +19,12 @@ import {
   seaOfficialPluginAssetPrefix,
 } from "../apps/lcode-cli/packages/cli/scripts/sea-official-plugin-assets.mjs";
 import "./computer-use-plugin-staging-cases.mjs";
+import "./computer-use-identity-migration.test.mjs";
 import { findOfficialCuaFrameContentPair } from "../packages/lcode-cua/frame-contract.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pluginRoot = join(repoRoot, "apps/lcode-cli/packages/lcode-cua-plugin");
-const computerUsePluginId = "computer-use@zcode-plugins-official";
+const computerUsePluginId = "computer-use@lcode-plugins-official";
 const requiredPluginAssets = [
   ".lcode-plugin/plugin.json",
   "docs/computer-use.md",

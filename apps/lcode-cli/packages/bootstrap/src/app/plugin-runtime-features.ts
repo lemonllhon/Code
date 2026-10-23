@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import type { AgentRuntimeConfig } from "@lcode/core";
 import type { PluginLoadOutcome } from "@lcode/contracts";
+import { canonicalizeLCodePluginId } from "@lcode/shared";
 import {
   OFFICIAL_BROWSER_USE_PLUGIN_ID,
   OFFICIAL_CUA_PLUGIN_ID,
@@ -15,7 +16,7 @@ export function resolvePluginRuntimeFeatures(
     (plugin) => plugin.id === OFFICIAL_BROWSER_USE_PLUGIN_ID && plugin.enabled,
   );
   const cuaPlugin = pluginOutcome.plugins.find(
-    (plugin) => plugin.id === OFFICIAL_CUA_PLUGIN_ID && plugin.enabled,
+    (plugin) => canonicalizeLCodePluginId(plugin.id) === OFFICIAL_CUA_PLUGIN_ID && plugin.enabled,
   );
   if (!browserUsePlugin && !cuaPlugin) {
     return {};

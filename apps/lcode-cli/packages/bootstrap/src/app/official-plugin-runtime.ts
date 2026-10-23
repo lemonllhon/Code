@@ -5,7 +5,7 @@ import {
   LCODE_PLUGIN_HOST_COMMAND,
   type McpServerConfig,
 } from "@lcode/contracts";
-import { LCODE_PLUGIN_ID_ENV_KEY } from "@lcode/shared";
+import { canonicalizeLCodePluginId, LCODE_PLUGIN_ID_ENV_KEY } from "@lcode/shared";
 import {
   createOfficialPluginCacheRetryBudget,
   type OfficialPluginCacheRetryBudget,
@@ -75,7 +75,9 @@ export function writeOfficialPluginRuntimeManifest(input: OfficialRuntimeManifes
       // 权威写入插件身份（pluginName@marketplace，来自本地 plugin registry，manifest/user env 不可覆盖）。
       // 其他 official plugin 仍带上不可伪造的 plugin identity；CUA broker 凭据由 shared
       // node_repl 的可信配置注入，不再写入独立 server。
-      [LCODE_PLUGIN_ID_ENV_KEY]: `${input.pluginName}@${LCODE_OFFICIAL_PLUGIN_MARKETPLACE}`,
+      [LCODE_PLUGIN_ID_ENV_KEY]: canonicalizeLCodePluginId(
+        `${input.pluginName}@${LCODE_OFFICIAL_PLUGIN_MARKETPLACE}`,
+      ),
     };
     mcpServers[serverKey] = mcpServer;
   }

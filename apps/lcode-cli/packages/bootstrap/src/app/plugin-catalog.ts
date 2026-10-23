@@ -11,6 +11,7 @@ import {
 } from "@lcode/adapters/plugins";
 import type { PluginLoadOutcome, PluginStoreListing } from "@lcode/contracts";
 import { LCODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@lcode/contracts";
+import { canonicalizeLCodePluginId } from "@lcode/shared";
 import { resolveOfficialPluginRoots } from "./bundled-plugins.js";
 import {
   DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS,
@@ -95,7 +96,7 @@ export function getLCodePluginsOverview(
     workingDirectory,
   });
   const installed = listInstalledPluginRecords(pluginStorageRoot);
-  const installedIds = new Set(installed.map((record) => record.id));
+  const installedIds = new Set(installed.map((record) => canonicalizeLCodePluginId(record.id)));
 
   // 每个市场的 manifest 只读一次：同时取 entries（目录条目）与 featured（策展名单）。
   // zcode-plugins-official 的内置与 CDN 分片已在 adapter 层合并为唯一 canonical manifest。
@@ -148,13 +149,13 @@ export function getLCodePluginsOverview(
   const suppressed = new Set(configResult.config.plugins.suppressedBuiltins);
   // 恢复入口只反映 suppression；internal gate 是开发 bypass，不能让正式插件从恢复面消失。
   const restorableBuiltins: LCodeAvailablePluginData[] = OFFICIAL_PLUGIN_DEFINITIONS.filter((def) =>
-    suppressed.has(`${def.name}@${LCODE_OFFICIAL_PLUGIN_MARKETPLACE}`),
+    suppressed.has(canonicalizeLCodePluginId(`${def.name}@${LCODE_OFFICIAL_PLUGIN_MARKETPLACE}`)),
   ).map((def) => {
     const listing = def.listing
       ? parseEntryStoreListing({ name: def.name, ...def.listing })
       : undefined;
     return {
-      id: `${def.name}@${LCODE_OFFICIAL_PLUGIN_MARKETPLACE}`,
+      id: canonicalizeLCodePluginId(`${def.name}@${LCODE_OFFICIAL_PLUGIN_MARKETPLACE}`),
       name: def.name,
       marketplace: LCODE_OFFICIAL_PLUGIN_MARKETPLACE,
       version: def.version,
@@ -167,9 +168,10 @@ export function getLCodePluginsOverview(
     marketplaces: catalogs.map((catalog) => catalog.summary),
     availablePlugins,
     installedPlugins: installed.map((record) => {
-      const enabled = configResult.config.plugins.enabledPlugins[record.id] ?? false;
-      const data = toInstalledPluginData(record, enabled, loadedById.get(record.id));
-      const pin = latestPinByPluginId.get(record.id);
+      const id = canonicalizeLCodePluginId(record.id);
+      const enabled = configResult.config.plugins.enabledPlugins[id] ?? false;
+      const data = toInstalledPluginData(record, enabled, loadedById.get(id));
+      const pin = latestPinByPluginId.get(id);
       const installedSha = readPluginSourceIdentityPin(record.source);
       const updateStatus = comparePluginUpdate({
         installedVersion: data.version,
@@ -179,7 +181,7 @@ export function getLCodePluginsOverview(
       });
       // latestVersion 展示：优先用 manifest 的 version；否则用最新 sha（短 7 位）让 UI 有可读提示。
       const latestLabel = pin?.version ?? (pin?.sha ? pin.sha.slice(0, 7) : undefined);
-      const listing = listingByPluginId.get(record.id);
+      const listing = listingByPluginId.get(id);
       return {
         ...data,
         updateStatus,
@@ -226,7 +228,10 @@ function loadPluginListingsById(storageRoot: string): Record<string, PluginStore
     if (!definition.listing) continue;
     const listing = parseEntryStoreListing({ name: definition.name, ...definition.listing });
     if (listing) {
-      listings.set(`${definition.name}@${LCODE_OFFICIAL_PLUGIN_MARKETPLACE}`, listing);
+      listings.set(
+        canonicalizeLCodePluginId(`${definition.name}@${LCODE_OFFICIAL_PLUGIN_MARKETPLACE}`),
+        listing,
+      );
     }
   }
 
@@ -234,7 +239,8 @@ function loadPluginListingsById(storageRoot: string): Record<string, PluginStore
   for (const marketplace of loadKnownMarketplacesSync(storageRoot)) {
     const manifest = loadMarketplaceManifestSync(storageRoot, marketplace.id);
     for (const entry of manifest?.plugins ?? []) {
-      if (entry.listing) listings.set(`${entry.name}@${marketplace.id}`, entry.listing);
+      if (entry.listing)
+        listings.set(canonicalizeLCodePluginId(`${entry.name}@${marketplace.id}`), entry.listing);
     }
   }
 

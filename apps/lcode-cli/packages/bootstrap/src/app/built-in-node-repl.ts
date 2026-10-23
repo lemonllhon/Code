@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { withRuntimeHeapLimit, resolveRuntimeHeapMb } from "@lcode/shared/node";
 import type { McpServerConfig, PluginLoadOutcome } from "@lcode/contracts";
 import { LCODE_PLUGIN_HOST_COMMAND } from "@lcode/contracts/plugins";
+import { canonicalizeLCodePluginId } from "@lcode/shared";
 import { createBundledMcpRuntimeConfig } from "./official-plugin-runtime.js";
 import {
   OFFICIAL_BROWSER_USE_PLUGIN_ID,
@@ -27,7 +28,7 @@ export function resolveBuiltInNodeReplMcpServers(input: {
     (plugin) => plugin.id === OFFICIAL_BROWSER_USE_PLUGIN_ID && plugin.enabled,
   );
   const cuaPackage = input.pluginOutcome.plugins.find(
-    (plugin) => plugin.id === OFFICIAL_CUA_PLUGIN_ID && plugin.enabled,
+    (plugin) => canonicalizeLCodePluginId(plugin.id) === OFFICIAL_CUA_PLUGIN_ID && plugin.enabled,
   );
   if (!browserUsePackage && !cuaPackage) return {};
   // 宿主自己不参与启用判断：它没有 skill、不对用户露出，缺失就意味着没有宿主可跑，

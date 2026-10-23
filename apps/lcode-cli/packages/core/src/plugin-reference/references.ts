@@ -5,10 +5,11 @@
 // - 拒绝 query、fragment、credentials、空白、控制字符和 `%`（不做隐式 percent-decoding）。
 // - 身份只来自 destination；label 永不参与解析。
 
+import { canonicalizeLCodePluginId } from "@lcode/shared";
+
 const PLUGIN_REFERENCE_SCHEME = "plugin://";
 // 与 mentionMarkdown 的链接语法保持一致：label 支持 \ 转义，destination 支持 <...> 或裸形式。
-const MARKDOWN_LINK_PATTERN =
-  /\[(?:\\.|[^\\\]])*\]\((?:<((?:\\.|[^>])*?)>|((?:\\.|[^)\s])*))\)/g;
+const MARKDOWN_LINK_PATTERN = /\[(?:\\.|[^\\\]])*\]\((?:<((?:\\.|[^>])*?)>|((?:\\.|[^)\s])*))\)/g;
 const PLUGIN_ID_SEGMENT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 export const MAX_PLUGIN_REFERENCES_PER_TURN = 8;
@@ -42,7 +43,7 @@ function parsePluginDestination(destination: string): string | null {
   if (!isValidPluginStableId(stableId)) {
     return null;
   }
-  return stableId;
+  return canonicalizeLCodePluginId(stableId);
 }
 
 function isPluginSchemeDestination(destination: string): boolean {

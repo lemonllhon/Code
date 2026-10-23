@@ -146,11 +146,11 @@ export const featureSuggestedPrompts: FeatureRecommendedPrompt[] = [
       en: "Review a website’s complete first-time user journey",
     },
     prompt: {
-      cn: "帮我设置一个闲时任务，使用 [@电脑控制](plugin://computer-use@zcode-plugins-official) 打开 [目标网站]，像第一次来的用户一样实际操作。请选出这个网站最核心的一条公开用户旅程，从首页走到完成任务前的最后一步，记录每一步的页面、困惑点和无法继续的地方，并附关键截图。最后给我一份详细的用户体验报告，按影响程度列出问题、依据和具体改进建议。不要注册、付款或提交真实信息；遇到登录限制就说明未覆盖的步骤。如果还没有选择本地项目，先让我选择一个用于保存报告。",
-      en: "Set up an idle-time task using [@Computer Use](plugin://computer-use@zcode-plugins-official) to open [target website] and act like a first-time user. Follow its main public journey from the home page to the step before final submission, documenting each step, confusion, blockers, and key screenshots. Produce a detailed UX report with evidence and prioritized improvements. Do not register, pay, or submit real information. If no local project is selected, ask me to choose one for the report.",
+      cn: "帮我设置一个闲时任务，使用 [@电脑控制](plugin://computer-use@lcode-plugins-official) 打开 [目标网站]，像第一次来的用户一样实际操作。请选出这个网站最核心的一条公开用户旅程，从首页走到完成任务前的最后一步，记录每一步的页面、困惑点和无法继续的地方，并附关键截图。最后给我一份详细的用户体验报告，按影响程度列出问题、依据和具体改进建议。不要注册、付款或提交真实信息；遇到登录限制就说明未覆盖的步骤。如果还没有选择本地项目，先让我选择一个用于保存报告。",
+      en: "Set up an idle-time task using [@Computer Use](plugin://computer-use@lcode-plugins-official) to open [target website] and act like a first-time user. Follow its main public journey from the home page to the step before final submission, documenting each step, confusion, blockers, and key screenshots. Produce a detailed UX report with evidence and prioritized improvements. Do not register, pay, or submit real information. If no local project is selected, ask me to choose one for the report.",
     },
     plugin: {
-      stableId: "computer-use@zcode-plugins-official",
+      stableId: "computer-use@lcode-plugins-official",
       label: { cn: "电脑控制", en: "Computer Use" },
     },
   },
@@ -261,11 +261,11 @@ export const featureSuggestedPrompts: FeatureRecommendedPrompt[] = [
       en: "File my downloaded screenshots by month",
     },
     prompt: {
-      cn: "请使用 [@电脑控制](plugin://computer-use@zcode-plugins-official) 打开这台电脑的文件管理软件，把下载文件夹里的截图按月份分类，先给我看会移动哪些文件、分别放到哪里；我确认后再批量归档。不要处理其他图片或删除文件。",
-      en: "Use [@Computer Use](plugin://computer-use@zcode-plugins-official) to open this computer’s file manager and sort screenshots in Downloads by month. Show me which files would move and where; after I approve, file them in batches. Leave other images alone and do not delete files.",
+      cn: "请使用 [@电脑控制](plugin://computer-use@lcode-plugins-official) 打开这台电脑的文件管理软件，把下载文件夹里的截图按月份分类，先给我看会移动哪些文件、分别放到哪里；我确认后再批量归档。不要处理其他图片或删除文件。",
+      en: "Use [@Computer Use](plugin://computer-use@lcode-plugins-official) to open this computer’s file manager and sort screenshots in Downloads by month. Show me which files would move and where; after I approve, file them in batches. Leave other images alone and do not delete files.",
     },
     plugin: {
-      stableId: "computer-use@zcode-plugins-official",
+      stableId: "computer-use@lcode-plugins-official",
       label: { cn: "电脑控制", en: "Computer Use" },
     },
   },

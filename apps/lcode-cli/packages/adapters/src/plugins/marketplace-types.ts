@@ -3,6 +3,7 @@ import type { PluginComponentGroup } from "./plugin-components.js";
 import type { AtomicDirectoryActivation } from "./atomic-directory.js";
 
 export type MarketplaceSource =
+  | { source: "builtin" }
   | { source: "url"; headers?: Record<string, string>; url: string }
   | { path?: string; ref?: string; repo: string; source: "github"; sparsePaths?: string[] }
   | { path?: string; ref?: string; source: "git"; sparsePaths?: string[]; url: string }

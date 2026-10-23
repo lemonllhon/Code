@@ -2,6 +2,11 @@
 
 ## 背景与范围
 
+2026-10-23：电脑控制 canonical ID 迁移为 `computer-use@lcode-plugins-official`，精确兼容旧配置与引用；
+历史市场归属及缓存不迁移。旧官方网络源停用，仅保留本地插件目录。当前规则见
+`specs/computer-use-plugin-identity.md`；下文旧 ID 的记录作为历史背景保留。
+macOS 安装临时包保留 `.app` 后缀，完整事务与实机验证见 `specs/computer-use-macos-helper-install.md`。
+
 macOS SEA 完成注入后补充不依赖证书的 ad-hoc 本机封印并验签，再生成资源清单；用户已明确允许此系统执行要求。发行仍不需要 Developer ID 或公证。
 
 2026-10-22 用户确认允许未签名发行包：共享安装器 `signaturePolicy` 默认 `optional`，不将签名、TeamIdentifier 或 Gatekeeper 设为启动前提；显式 `required` 才严格验签。Main 与 Host 共用该策略，身份/架构/资源完整性及 capability/generation 验证保持原有边界。socket 与重连修复的完整规则见 `specs/log-followup-lifecycle-compatibility.md`。

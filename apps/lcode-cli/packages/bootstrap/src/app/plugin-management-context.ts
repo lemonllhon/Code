@@ -1,6 +1,7 @@
 import { join, resolve, win32 } from "node:path";
 import { createConfig, resolvePath, type ConfigResult } from "@lcode/adapters/config";
 import type { PluginMetadata } from "@lcode/contracts";
+import { canonicalizeLCodePluginId } from "@lcode/shared";
 import { getCliStorageRoot, getPluginStorageRoot } from "./paths.js";
 import {
   type ResolveLCodePluginsOptions,
@@ -32,7 +33,7 @@ export function resolvePluginContext(options: ResolveLCodePluginsOptions): {
 }
 
 export function resolvePluginSelector(selector: string, plugins: PluginMetadata[]): PluginMetadata {
-  const normalized = selector.trim();
+  const normalized = canonicalizeLCodePluginId(selector.trim());
   const exact = plugins.find((plugin) => plugin.id === normalized);
   if (exact) return exact;
 
@@ -47,9 +48,9 @@ export function resolvePluginSelector(selector: string, plugins: PluginMetadata[
 export function resolvePluginIdForMutation(
   options: UninstallLCodeMarketplacePluginOptions,
 ): string {
-  if (options.pluginId) return options.pluginId;
+  if (options.pluginId) return canonicalizeLCodePluginId(options.pluginId);
   if (options.pluginName && options.marketplace) {
-    return `${options.pluginName}@${options.marketplace}`;
+    return canonicalizeLCodePluginId(`${options.pluginName}@${options.marketplace}`);
   }
   throw new Error("pluginId or pluginName + marketplace is required");
 }

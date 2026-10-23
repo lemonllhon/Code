@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { resolveLCodePluginStorageId } from "@lcode/shared";
 import { recoverAtomicTargetSync, writeFileAtomically } from "./atomic-directory.js";
 import { fileExists, resolveInside, sanitizePluginId } from "./helpers.js";
 
@@ -93,6 +94,7 @@ export function getPluginDataDir(storageRoot: string, pluginId: string): string 
 }
 
 export function parsePluginId(pluginId: string): { marketplace: string; name: string } {
+  pluginId = resolveLCodePluginStorageId(pluginId);
   const at = pluginId.lastIndexOf("@");
   if (at <= 0 || at === pluginId.length - 1) {
     throw new Error(`Plugin id must use <name>@<marketplace>: ${pluginId}`);

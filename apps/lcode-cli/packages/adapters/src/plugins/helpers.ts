@@ -1,5 +1,6 @@
 import { statSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
+import { resolveLCodePluginStorageId } from "@lcode/shared";
 
 const PLUGIN_SOURCE_CLEANUP_RETRY_DELAYS_MS = [0, 25, 100] as const;
 
@@ -12,7 +13,7 @@ export function resolveInside(rootPath: string, rawPath: string): string | null 
 }
 
 export function sanitizePluginId(pluginId: string): string {
-  return pluginId.replace(/[^a-zA-Z0-9_.@-]/g, "-");
+  return resolveLCodePluginStorageId(pluginId).replace(/[^a-zA-Z0-9_.@-]/g, "-");
 }
 
 export function parsePathList(value: unknown): string[] {

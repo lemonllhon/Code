@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { isRetiredOfficialPluginMarketplaceSource } from "@lcode/shared";
 import { createNodeWebFetchHttpClientAdapter } from "../http/index.js";
 import { appendPluginSourceCleanupError, cleanupPluginSourceBestEffort } from "./helpers.js";
 import { findMarketplaceManifestPath, throwIfPluginOperationAborted } from "./marketplace-files.js";
@@ -73,7 +74,12 @@ export async function loadMarketplaceFromSource(
   options: { persist: boolean; signal?: AbortSignal },
 ): Promise<LoadMarketplaceResult> {
   throwIfPluginOperationAborted(options.signal);
+  if (isRetiredOfficialPluginMarketplaceSource(source)) {
+    throw new Error("旧官方插件市场源已停用，请在自建市场就绪后显式添加新的来源。");
+  }
   switch (source.source) {
+    case "builtin":
+      throw new UnsupportedMarketplaceSourceError("builtin sources use the local plugin catalog");
     case "settings":
       return { manifest: normalizeMarketplaceManifest(source.marketplace) };
     case "file": {
