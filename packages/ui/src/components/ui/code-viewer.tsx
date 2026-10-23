@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Trash2Icon } from "lucide-react";
 import type { FileContents, LineAnnotation, SupportedLanguages } from "@pierre/diffs";
 import { File, type FileOptions } from "@pierre/diffs/react";
+import { DiffsWorkerLease } from "@/lib/diffsWorkerPoolContext.js";
 import type { BundledTheme } from "shiki";
 
 import { cn } from "@/components/lib/utils.js";
@@ -756,36 +757,41 @@ export function CodeViewer({
           showRange={topCommentShowRange}
         />
       ) : null}
-      <File
-        key={file.cacheKey}
-        file={file}
-        options={options}
-        lineAnnotations={lineAnnotations}
-        selectedLines={selectedLines}
-        className="min-h-full w-full"
-        style={viewerStyle}
-        renderAnnotation={(annotation) =>
-          annotation.metadata.kind === "draft" ? (
-            <CommentDraft
-              range={annotation.metadata.range}
-              labels={labels}
-              value={draftText}
-              onValueChange={setDraftText}
-              onSubmit={handleSubmitDraft}
-              onCancel={() => {
-                setActiveDraftRange(null);
-                setDraftText("");
-              }}
-            />
-          ) : (
-            <CodeCommentAnnotation
-              comment={annotation.metadata.comment}
-              labels={labels}
-              onDelete={onDeleteCodeComment}
-            />
-          )
-        }
-      />
+      <DiffsWorkerLease
+        enabled={enableSyntaxHighlighting && file.lang !== "text"}
+        fallback={<pre className="whitespace-pre font-mono">{file.contents}</pre>}
+      >
+        <File
+          key={file.cacheKey}
+          file={file}
+          options={options}
+          lineAnnotations={lineAnnotations}
+          selectedLines={selectedLines}
+          className="min-h-full w-full"
+          style={viewerStyle}
+          renderAnnotation={(annotation) =>
+            annotation.metadata.kind === "draft" ? (
+              <CommentDraft
+                range={annotation.metadata.range}
+                labels={labels}
+                value={draftText}
+                onValueChange={setDraftText}
+                onSubmit={handleSubmitDraft}
+                onCancel={() => {
+                  setActiveDraftRange(null);
+                  setDraftText("");
+                }}
+              />
+            ) : (
+              <CodeCommentAnnotation
+                comment={annotation.metadata.comment}
+                labels={labels}
+                onDelete={onDeleteCodeComment}
+              />
+            )
+          }
+        />
+      </DiffsWorkerLease>
     </div>
   );
 }

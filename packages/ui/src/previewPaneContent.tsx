@@ -24,6 +24,7 @@ import type { OfficeFilePreviewKind } from "@/lib/officeFilePreview.js";
 import { PreviewPaneOfficeContent } from "@/previewPaneOfficeContent.js";
 import type { PptxElementReferenceSource } from "@/lib/pptxElementReference.js";
 import type { MediaCodeViewerSource, PptxReferencePreviewNavigation } from "@/lib/codeViewer.js";
+import { createPreviewDiffFiles } from "@/lib/previewDiffFileIdentity.js";
 import { resolveCodeReviewContentProjection } from "@/previewPaneCodeReview.js";
 
 interface PreviewPaneContentProps {
@@ -145,18 +146,7 @@ export function PreviewPaneContent({
 
     // DiffViewer 是 memo 组件，预览 pane 父级滚动/加载状态刷新时，
     // JSX 内联 oldFile/newFile 会生成新对象并强制 diff 重新渲染。
-    return {
-      oldFile: {
-        name: source.path ?? source.title,
-        contents: source.beforeContent,
-        cacheKey: `old:${source.path ?? source.title}:${source.beforeContent.length}:${source.beforeContent.slice(0, 100)}:${source.beforeContent.slice(-100)}`,
-      },
-      newFile: {
-        name: source.path ?? source.title,
-        contents: source.afterContent,
-        cacheKey: `new:${source.path ?? source.title}:${source.afterContent.length}:${source.afterContent.slice(0, 100)}:${source.afterContent.slice(-100)}`,
-      },
-    };
+    return createPreviewDiffFiles(source);
   }, [
     source.type,
     source.type === "multi-file-diff" ? source.afterContent : null,

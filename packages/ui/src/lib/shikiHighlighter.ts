@@ -1,5 +1,6 @@
 import type { BundledLanguage, BundledTheme, HighlighterGeneric, ThemedToken } from "shiki";
 import { bundledLanguages, bundledLanguagesInfo, createHighlighter } from "shiki";
+import { CodeHighlightCache } from "./codeHighlightCache.js";
 import { logger } from "@/logger.js";
 import { uiMemoryDiagnosticsRegistry } from "@/lib/memoryDiagnostics.js";
 
@@ -53,18 +54,47 @@ function normalizeCodeLanguage(language: string): BundledLanguage {
   return FALLBACK_CODE_LANGUAGE;
 }
 
-const highlighterCache = new Map<
-  string,
-  Promise<HighlighterGeneric<BundledLanguage, BundledTheme>>
->();
-const tokensCache = new Map<string, TokenizedCode>();
-const subscribers = new Map<string, Set<(result: TokenizedCode) => void>>();
-// 内存诊断计数器：tokensCache 目前无淘汰，是审计里
-// renderer 最可疑的增长点，先把条数落到日志里。
-uiMemoryDiagnosticsRegistry.register("shiki", () => ({
-  tokensCache: tokensCache.size,
-  highlighters: highlighterCache.size,
-}));
+const cache = new CodeHighlightCache<
+  TokenizedCode,
+  HighlighterGeneric<BundledLanguage, BundledTheme>
+>({
+  maxEntries: 128,
+  maxBytes: 8 * 1024 * 1024,
+  maxEngines: 4,
+  createEngine: async (language, theme) =>
+    createHighlighter({ langs: [language as BundledLanguage], themes: [theme as BundledTheme] }),
+  tokenize: (engine, code, language, theme) => {
+    const result = engine.codeToTokens(code, {
+      lang: language as BundledLanguage,
+      theme: theme as BundledTheme,
+    });
+    return { bg: "transparent", fg: result.fg ?? "inherit", tokens: result.tokens };
+  },
+  estimateBytes: (key, result) =>
+    key.length * 2 +
+    result.tokens.reduce(
+      (sum, line) =>
+        sum +
+        24 +
+        line.reduce(
+          (bytes, token) => bytes + 96 + token.content.length * 2 + (token.color?.length ?? 0) * 2,
+          0,
+        ),
+      0,
+    ),
+  onError: (error) => logger.warn("[ShikiHighlighter] 代码高亮失败", error),
+});
+uiMemoryDiagnosticsRegistry.register("shiki", () => {
+  const stats = cache.stats();
+  return {
+    tokensCache: stats.entries,
+    highlighters: stats.engines,
+    estimatedBytes: stats.bytes,
+    inflight: stats.inflight,
+    subscribers: stats.subscribers,
+    evictions: stats.evictions,
+  };
+});
 
 const getResolvedCodeTheme = (theme?: BundledTheme): BundledTheme => {
   if (theme) {
@@ -76,30 +106,6 @@ const getResolvedCodeTheme = (theme?: BundledTheme): BundledTheme => {
   }
 
   return "github-light";
-};
-
-const getCodeTokensCacheKey = (code: string, language: BundledLanguage, theme: BundledTheme) => {
-  const start = code.slice(0, 100);
-  const end = code.length > 100 ? code.slice(-100) : "";
-  return `${theme}:${language}:${code.length}:${start}:${end}`;
-};
-const getHighlighter = (
-  language: BundledLanguage,
-  theme: BundledTheme,
-): Promise<HighlighterGeneric<BundledLanguage, BundledTheme>> => {
-  const cacheKey = `${theme}:${language}`;
-  const cached = highlighterCache.get(cacheKey);
-  if (cached) {
-    return cached;
-  }
-
-  const highlighterPromise = createHighlighter({
-    langs: [language],
-    themes: [theme],
-  });
-
-  highlighterCache.set(cacheKey, highlighterPromise);
-  return highlighterPromise;
 };
 
 const createRawCodeTokens = (code: string): TokenizedCode => ({
@@ -134,64 +140,15 @@ export const highlightCode = (
 
   const resolvedTheme = getResolvedCodeTheme(theme);
   const resolvedLanguage = normalizeCodeLanguage(language);
-  const tokensCacheKey = getCodeTokensCacheKey(code, resolvedLanguage, resolvedTheme);
-
-  const cached = tokensCache.get(tokensCacheKey);
-  if (cached) {
-    // 缓存命中时也需要通知 effect，但不能同步触发 setState。
-    // 历史消息恢复时大量代码块会在同一次提交后挂载；同步 callback 会把 cache-hit 变成嵌套更新，
-    // 和 Streamdown 的重渲染叠在一起时容易触发 React #185。推迟到微任务后再交给幂等 setter。
-    if (callback) {
-      queueMicrotask(() => callback(cached));
-    }
-    return cached;
-  }
-
-  if (callback) {
-    if (!subscribers.has(tokensCacheKey)) {
-      subscribers.set(tokensCacheKey, new Set());
-    }
-    subscribers.get(tokensCacheKey)?.add(callback);
-  }
-
-  getHighlighter(resolvedLanguage, resolvedTheme)
-    // oxlint-disable-next-line eslint-plugin-promise(prefer-await-to-then)
-    .then((highlighter) => {
-      const availableLangs = highlighter.getLoadedLanguages();
-      const langToUse = availableLangs.includes(resolvedLanguage)
-        ? resolvedLanguage
-        : FALLBACK_CODE_LANGUAGE;
-
-      const result = highlighter.codeToTokens(code, {
-        lang: langToUse,
-        theme: resolvedTheme,
-      });
-
-      const tokenized: TokenizedCode = {
-        bg: "transparent",
-        fg: result.fg ?? "inherit",
-        tokens: result.tokens,
-      };
-
-      tokensCache.set(tokensCacheKey, tokenized);
-
-      const subs = subscribers.get(tokensCacheKey);
-      if (subs) {
-        for (const sub of subs) {
-          sub(tokenized);
-        }
-      }
-      subscribers.delete(tokensCacheKey);
-    })
-    // oxlint-disable-next-line eslint-plugin-promise(prefer-await-to-then), eslint-plugin-promise(prefer-await-to-callbacks)
-    .catch((error) => {
-      // Shiki 加载或 tokenize 失败，组件会停留在无高亮的 rawTokens 状态。
-      logger.error(
-        `[ShikiHighlighter] 代码高亮失败: language=${resolvedLanguage}, theme=${resolvedTheme}`,
-        error,
-      );
-      subscribers.delete(tokensCacheKey);
-    });
-
-  return null;
+  return cache.highlight(code, resolvedLanguage, resolvedTheme, callback);
 };
+
+/** 释放当前组件的回调，不取消其他预览正在使用的同键高亮。 */
+export function unsubscribeHighlightCode(
+  code: string,
+  language: string,
+  theme: BundledTheme | undefined,
+  callback: (result: TokenizedCode) => void,
+): void {
+  cache.unsubscribe(code, normalizeCodeLanguage(language), getResolvedCodeTheme(theme), callback);
+}

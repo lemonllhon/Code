@@ -220,6 +220,7 @@ export function useWorkspaceTaskLists(params: {
   );
   const setQueryResults = useTaskQueryCacheStore((state) => state.setQueryResults);
   const resultsByQueryKey = useTaskQueryCacheStore((state) => state.resultsByQueryKey);
+  const activeQueries = useTaskQueryCacheStore((state) => state.activeQueries);
   const taskMetaByEntityKey = useTaskQueryCacheStore((state) => state.taskMetaByEntityKey);
   const taskUnreadOverlayByEntityKey = useTaskQueryCacheStore(
     (state) => state.taskUnreadOverlayByEntityKey,
@@ -337,6 +338,18 @@ export function useWorkspaceTaskLists(params: {
       taskListVersionByWorkspaceKey,
     ],
   );
+  const queryLeaseSignature = JSON.stringify(
+    queryConfigs.map((config) => [config.queryKey, config.descriptor.workspaceKeys]),
+  );
+  useEffect(() => {
+    const releases = (JSON.parse(queryLeaseSignature) as Array<[string, string[]]>).map(
+      ([key, scopes]) => useTaskQueryCacheStore.getState().retainQuery(key, scopes),
+    );
+    return () => {
+      for (const release of releases) release();
+    };
+  }, [queryLeaseSignature]);
+  const queryLeasesReady = queryConfigs.every((config) => activeQueries[config.queryKey]);
   const endpointShards = useMemo(() => {
     const shardMap = new Map<
       string,
@@ -447,10 +460,11 @@ export function useWorkspaceTaskLists(params: {
         `membership=${membershipVersion}`,
         ...pendingConfigs.map(
           (config) =>
-            `${config.workspaceKey}:${config.remoteSessionId ?? "base"}:limit=${config.visibleLimit}:${config.queryKey}:invalidation=${resultsByQueryKey[config.queryKey]?.invalidationVersion ?? 0}`,
+            `${config.workspaceKey}:${config.remoteSessionId ?? "base"}:limit=${config.visibleLimit}:${config.queryKey}:lease=${activeQueries[config.queryKey]?.generation ?? 0}:invalidation=${resultsByQueryKey[config.queryKey]?.invalidationVersion ?? 0}`,
         ),
       ].join("||"),
     [
+      activeQueries,
       membershipVersion,
       pendingConfigs,
       params.sortBy,
@@ -472,6 +486,8 @@ export function useWorkspaceTaskLists(params: {
   };
 
   const refresh = useCallback(async () => {
+    // 首次 lease 登记后再发请求；硬失效旋转代次会进入原 rerun 分支，不丢掉恢复机会。
+    if (!queryLeasesReady) return;
     if (pendingConfigs.length === 0) {
       if (inFlightRequestRef.current === null) {
         setLoading((current) => updateBlockingLoadingState(current, []));
@@ -499,6 +515,7 @@ export function useWorkspaceTaskLists(params: {
     };
     inFlightRequestRef.current = flight;
     const sessionsForRequest = sessionsIndexItems;
+    const queryGenerations = useTaskQueryCacheStore.getState().activeQueries;
     const expectedInvalidationVersionByQueryKey = new Map(
       pendingConfigs.map((config) => [
         config.queryKey,
@@ -567,6 +584,7 @@ export function useWorkspaceTaskLists(params: {
                 total: classifiedItems.length,
                 hasMore: classifiedItems.length > visibleItems.length,
                 unreadTaskKeys: group.unreadTaskKeys.filter((key) => classifiedKeys.has(key)),
+                expectedQueryGeneration: queryGenerations[config.queryKey]?.generation ?? -1,
                 expectedInvalidationVersion: expectedInvalidationVersionByQueryKey.get(
                   config.queryKey,
                 ),
@@ -613,6 +631,7 @@ export function useWorkspaceTaskLists(params: {
     }
   }, [
     endpointShards,
+    queryLeasesReady,
     membershipVersion,
     pendingConfigs,
     params.sortBy,

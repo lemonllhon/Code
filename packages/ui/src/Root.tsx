@@ -69,6 +69,7 @@ import { useRemoteBrowserNavigationStore } from "@/store/remoteBrowserNavigation
 import { registerBaseWorkspaceServices } from "@/store/remoteWorkspaceSessionStore.js";
 import type { RootProps } from "@/root/types.js";
 import { DiffsWorkerPoolProvider } from "@/root/DiffsWorkerPoolProvider.js";
+import { useWorkspaceCacheReclamation } from "@/hooks/useWorkspaceCacheReclamation.js";
 import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
 import { useRemoteConnectionLogs } from "@/hooks/useRemoteConnectionLogs.js";
 import {
@@ -342,6 +343,7 @@ function RootInner({
 
   const tabs = useTabStore((state) => state.tabs);
   const windowWorkspaceTabs = useMemo(() => tabs.filter(isWorkspaceTab), [tabs]);
+  useWorkspaceCacheReclamation(windowWorkspaceTabs);
   const activeTabId = useTabStore((state) => state.activeTabId);
   const activeWorkspacePath = useTabStore((state) => state.activeWorkspacePath);
   const activeWorkspaceIdentity = useTabStore((state) => state.activeWorkspaceIdentity);

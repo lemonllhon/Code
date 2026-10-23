@@ -311,6 +311,14 @@ nul
 !/packages/ui/src/lib/sshProxyMode.test.ts
 !/packages/ui/src/lib/wallpaperMarketColors.ts
 !/packages/ui/src/lib/wallpaperMarketColors.test.ts
+!/packages/ui/src/lib/codeHighlightCache.ts
+!/packages/ui/src/lib/codeHighlightCache.test.ts
+!/packages/ui/src/lib/diffsWorkerPoolOwner.ts
+!/packages/ui/src/lib/diffsWorkerPoolOwner.test.ts
+!/packages/ui/src/lib/diffsWorkerPoolContext.tsx
+!/packages/ui/src/lib/taskQueryCacheBudget.ts
+!/packages/ui/src/lib/previewDiffFileIdentity.ts
+!/packages/ui/src/lib/previewDiffFileIdentity.test.ts
 # RPC 订阅失败隔离属于永久回归，覆盖维护者全局 test/ 忽略。
 !/packages/rpc/test/
 !/packages/rpc/test/channelServer.test.ts

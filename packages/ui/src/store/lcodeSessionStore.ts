@@ -12,6 +12,7 @@ import { createNavigationSlice } from "./lcodeSessionStoreNavigation.js";
 import { createTaskSlice } from "./lcodeSessionStoreTaskSlice.js";
 import { createWorkspaceSlice } from "./lcodeSessionStoreWorkspaceSlice.js";
 import { uiMemoryDiagnosticsRegistry } from "@/lib/memoryDiagnostics.js";
+import { isWorkspaceCacheProtected } from "./lcodeSessionCacheReclamation.js";
 
 export const useLCodeSessionStore = create<LCodeSessionStoreState>()((set, get) => ({
   workspaces: {},
@@ -47,7 +48,10 @@ export type {
   WorkspaceNavEntry,
 } from "@/lib/taskNavigationHistory.js";
 
-// 内存诊断计数器：workspace 桶全仓无删除路径，先落日志。
+// 桶保留用户状态；单独报告保护集合，不能把它当成可驱逐缓存。
 uiMemoryDiagnosticsRegistry.register("sessionStore", () => ({
   workspaces: Object.keys(useLCodeSessionStore.getState().workspaces).length,
+  protected: Object.values(useLCodeSessionStore.getState().workspaces).filter(
+    isWorkspaceCacheProtected,
+  ).length,
 }));

@@ -8,6 +8,7 @@ import { MultiFileDiff, PatchDiff } from "@pierre/diffs/react";
 
 import { cn } from "@/components/lib/utils.js";
 import { DIFFS_PREFERRED_HIGHLIGHTER } from "@/lib/diffsHighlighterEngine.js";
+import { DiffsWorkerLease } from "@/lib/diffsWorkerPoolContext.js";
 
 type DiffViewerStyle = CSSProperties & {
   "--diffs-bg"?: string;
@@ -133,7 +134,16 @@ function DiffViewerComponent(props: DiffViewerProps) {
       style={viewerStyle}
       {...divProps}
     >
-      {diffNode}
+      <DiffsWorkerLease
+        enabled={!disableWorkerPool}
+        fallback={
+          <pre className="whitespace-pre font-mono">
+            {rendersPatch ? props.patch : props.newFile.contents}
+          </pre>
+        }
+      >
+        {diffNode}
+      </DiffsWorkerLease>
     </div>
   );
 }

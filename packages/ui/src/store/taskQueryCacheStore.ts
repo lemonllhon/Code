@@ -1,5 +1,6 @@
 /* eslint-disable max-lines -- task query cache 的 descriptor、membership 与 mutation 必须在同一 Zustand 事务里维护，拆散会增加缓存一致性风险。 */
-import { create } from "zustand";
+import { create, type StoreApi } from "zustand";
+import { pruneTaskQueryCache, type ActiveQueryLease } from "../lib/taskQueryCacheBudget.js";
 import type { LCodeTaskListItem } from "@lcode/services";
 import type { LCodeTaskMeta } from "@lcode/shared";
 import { matchesTaskListMembershipKind } from "@lcode/shared/lcode-protocol-v4";
@@ -23,6 +24,11 @@ interface TaskListMembershipState {
 }
 
 interface TaskQueryCacheState {
+  activeQueries: Record<string, ActiveQueryLease>;
+  retainQuery: (queryKey: string, workspaceKeys?: readonly string[]) => () => void;
+  rejectedWrites: number;
+  evictedQueries: number;
+  evictedMetas: number;
   resultsByQueryKey: Record<TaskListCacheKey, CachedTaskListResult>;
   taskMetaByEntityKey: Record<TaskEntityKey, CachedTaskListItem>;
   /** 覆盖正在提交或等待 membership 确认的 unreadAt 字段；null 表示清除。 */
@@ -51,6 +57,7 @@ interface TaskQueryCacheState {
       failedShardKeys?: string[];
       /** 该异步查询启动时观察到的 invalidationVersion；不匹配时整条结果丢弃。 */
       expectedInvalidationVersion?: number;
+      expectedQueryGeneration?: number;
     }>,
   ) => void;
   upsertTaskMeta: (task: LCodeTaskMeta) => void;
@@ -346,7 +353,42 @@ function preserveFreshLocalTaskKeys(params: {
   };
 }
 
-export const useTaskQueryCacheStore = create<TaskQueryCacheState>()((set) => ({
+let queryGeneration = 0;
+const createTaskQueryCacheState = (
+  set: StoreApi<TaskQueryCacheState>["setState"],
+): TaskQueryCacheState => ({
+  activeQueries: {},
+  rejectedWrites: 0,
+  evictedQueries: 0,
+  evictedMetas: 0,
+  retainQuery: (queryKey, workspaceKeys = []) => {
+    set((state) => {
+      const existing = state.activeQueries[queryKey];
+      return {
+        activeQueries: {
+          ...state.activeQueries,
+          [queryKey]: {
+            references: (existing?.references ?? 0) + 1,
+            generation: existing?.generation ?? ++queryGeneration,
+            workspaceKeys: existing?.workspaceKeys ?? workspaceKeys,
+          },
+        },
+      };
+    });
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      set((state) => {
+        const activeQueries = { ...state.activeQueries };
+        const lease = activeQueries[queryKey];
+        if (!lease) return state;
+        if (lease.references === 1) delete activeQueries[queryKey];
+        else activeQueries[queryKey] = { ...lease, references: lease.references - 1 };
+        return { activeQueries };
+      });
+    };
+  },
   resultsByQueryKey: {},
   taskMetaByEntityKey: {},
   taskUnreadOverlayByEntityKey: {},
@@ -484,8 +526,17 @@ export const useTaskQueryCacheStore = create<TaskQueryCacheState>()((set) => ({
       };
       const nextResultsByQueryKey = { ...state.resultsByQueryKey };
       let resultsChanged = false;
+      let rejectedWrites = state.rejectedWrites;
 
       for (const entry of entries) {
+        // Query 已卸载或重开时，旧代回包不能复活被驱逐结果或释放别人的 overlay。
+        if (
+          entry.expectedQueryGeneration !== undefined &&
+          state.activeQueries[entry.queryKey]?.generation !== entry.expectedQueryGeneration
+        ) {
+          rejectedWrites++;
+          continue;
+        }
         const previousResult = state.resultsByQueryKey[entry.queryKey];
         const currentInvalidationVersion = previousResult?.invalidationVersion ?? 0;
         if (
@@ -586,11 +637,17 @@ export const useTaskQueryCacheStore = create<TaskQueryCacheState>()((set) => ({
         nextResultsByQueryKey[entry.queryKey] = buildCachedTaskListResult(resultParams);
       }
 
-      if (!taskMetaChanged && !resultsChanged && !taskUnreadOverlayChanged) {
+      if (
+        !taskMetaChanged &&
+        !resultsChanged &&
+        !taskUnreadOverlayChanged &&
+        rejectedWrites === state.rejectedWrites
+      ) {
         return state;
       }
 
       return {
+        rejectedWrites,
         resultsByQueryKey: resultsChanged ? nextResultsByQueryKey : state.resultsByQueryKey,
         taskMetaByEntityKey: taskMetaChanged ? nextTaskMetaByEntityKey : state.taskMetaByEntityKey,
         taskUnreadOverlayByEntityKey: taskUnreadOverlayChanged
@@ -901,36 +958,76 @@ export const useTaskQueryCacheStore = create<TaskQueryCacheState>()((set) => ({
       }
 
       const invalidatedWorkspaceKeySet = new Set(workspaceKeys);
+      const isInvalidated = (queryKey: string) => {
+        const result = state.resultsByQueryKey[queryKey];
+        const scopes =
+          result?.descriptor.workspaceKeys ?? state.activeQueries[queryKey]?.workspaceKeys;
+        return scopes?.length
+          ? scopes.some((key) => invalidatedWorkspaceKeySet.has(key))
+          : workspaceKeys.some(
+              (key) => queryKey.includes(`workspaces=${key}`) || queryKey.includes(`|${key}`),
+            );
+      };
+      const activeQueries = Object.fromEntries(
+        Object.entries(state.activeQueries).map(([key, lease]) => [
+          key,
+          isInvalidated(key) ? { ...lease, generation: ++queryGeneration } : lease,
+        ]),
+      );
       const nextResultsByQueryKey = Object.fromEntries(
-        Object.entries(state.resultsByQueryKey).filter(([queryKey]) => {
-          return ![...invalidatedWorkspaceKeySet].some(
-            (workspaceKey) =>
-              queryKey.includes(`workspaces=${workspaceKey}`) ||
-              queryKey.includes(`|${workspaceKey}`),
-          );
-        }),
+        Object.entries(state.resultsByQueryKey).filter(([queryKey]) => !isInvalidated(queryKey)),
       );
       const nextTaskMetaByEntityKey = Object.fromEntries(
-        Object.entries(state.taskMetaByEntityKey).filter(([entityKey]) => {
-          const workspaceKey = entityKey.split("::")[0] ?? "";
+        Object.entries(state.taskMetaByEntityKey).filter(([, task]) => {
+          const workspaceKey = buildTaskWorkspaceKey(task.workspacePath, task.workspaceIdentity);
           return !invalidatedWorkspaceKeySet.has(workspaceKey);
         }),
       );
 
       return {
+        activeQueries,
         resultsByQueryKey: nextResultsByQueryKey,
         taskMetaByEntityKey: nextTaskMetaByEntityKey,
       };
     }),
   clearAll: () =>
     set(() => ({
+      activeQueries: Object.fromEntries(
+        Object.entries(useTaskQueryCacheStore.getState().activeQueries).map(([key, lease]) => [
+          key,
+          { ...lease, generation: ++queryGeneration },
+        ]),
+      ),
       // clearAll 是 Zustand action，必须通过 set 写回 store。
       // 之前只返回对象，测试和开发态清理 query cache 时旧 task meta 会继续残留。
       resultsByQueryKey: {},
       taskMetaByEntityKey: {},
       taskUnreadOverlayByEntityKey: {},
     })),
-}));
+});
+
+export const useTaskQueryCacheStore = create<TaskQueryCacheState>()((rawSet) => {
+  const set: StoreApi<TaskQueryCacheState>["setState"] = (partial) =>
+    rawSet((state) => {
+      const patch = typeof partial === "function" ? partial(state) : partial;
+      if (patch === state) return state;
+      const next = { ...state, ...patch };
+      const pruned = pruneTaskQueryCache(next);
+      return {
+        ...next,
+        ...pruned,
+        evictedQueries:
+          next.evictedQueries +
+          Object.keys(next.resultsByQueryKey).length -
+          Object.keys(pruned.resultsByQueryKey).length,
+        evictedMetas:
+          next.evictedMetas +
+          Object.keys(next.taskMetaByEntityKey).length -
+          Object.keys(pruned.taskMetaByEntityKey).length,
+      };
+    });
+  return createTaskQueryCacheState(set);
+});
 
 export function invalidateTaskQueryCacheByScopes(
   scopes: Array<{ workspacePath: string; workspaceIdentity?: string }>,
@@ -1002,11 +1099,15 @@ export function removeTaskFromTaskQueryCaches(
   return removed;
 }
 
-// 内存诊断计数器：版本化 queryKey 只增不删，先落日志。
+// 缓存预算只约束非活跃数据；保护集合独立报告，不能靠删业务状态达标。
 uiMemoryDiagnosticsRegistry.register("taskQueryCache", () => {
   const state = useTaskQueryCacheStore.getState();
   return {
     queryKeys: Object.keys(state.resultsByQueryKey).length,
+    activeQueries: Object.keys(state.activeQueries).length,
+    rejectedWrites: state.rejectedWrites,
+    evictedQueries: state.evictedQueries,
+    evictedMetas: state.evictedMetas,
     taskMetas: Object.keys(state.taskMetaByEntityKey).length,
   };
 });
