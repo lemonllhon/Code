@@ -20,7 +20,7 @@ import { useTokenRefresh } from "@/hooks/useTokenRefresh.js";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { SSHDialog } from "@/SSHDialog.js";
-import { SettingsPage } from "@/SettingsPage.js";
+import { LazySettingsPage as SettingsPage } from "@/root/LazySettingsPage.js";
 import { WelcomeScreen, type LoginCompleteReason } from "@/WelcomeScreen.js";
 import { setDefaultFileDisplayBasePath } from "@/lib/fileDisplay.js";
 import { setPendingSettingsSection } from "@/lib/settingsNavigation.js";

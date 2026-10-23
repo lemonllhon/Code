@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button.js";
 import * as pdfZoom from "@/components/ui/usePdfZoomOverlay.js";
 import { isAppleKeyboardPlatform } from "@/lib/keyboardShortcuts.js";
 import { createPdfJsDocumentOptions } from "@/lib/pdfJsAssets.js";
+import { PdfRangeRequests } from "@/lib/pdfRangeRequests.js";
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
@@ -53,24 +54,23 @@ function isPdfViewerRangeSource(source: PdfViewerSource): source is PdfViewerRan
 }
 
 class PdfViewerRangeTransport extends pdfjs.PDFDataRangeTransport {
-  private readonly rangeSource: PdfViewerRangeSource;
-  private readonly onRequestError: (error: Error) => void;
+  private readonly requests: PdfRangeRequests;
 
   constructor(rangeSource: PdfViewerRangeSource, onRequestError: (error: Error) => void) {
     super(rangeSource.totalBytes, rangeSource.initialData ?? null);
-    this.rangeSource = rangeSource;
-    this.onRequestError = onRequestError;
+    this.requests = new PdfRangeRequests(
+      (begin, length) => rangeSource.requestRange(begin, length),
+      (begin, chunk) => this.onDataRange(begin, chunk),
+      onRequestError,
+    );
   }
 
   override requestDataRange(begin: number, end: number): void {
-    this.rangeSource
-      .requestRange(begin, end - begin)
-      .then((chunk) => {
-        this.onDataRange(begin, chunk);
-      })
-      .catch((error: unknown) => {
-        this.onRequestError(error instanceof Error ? error : new Error(String(error)));
-      });
+    this.requests.request(begin, end);
+  }
+
+  override abort(): void {
+    this.requests.abort();
   }
 }
 
@@ -102,7 +102,12 @@ export interface PdfViewerProps extends HTMLAttributes<HTMLDivElement> {
   onLoadError?: (error: Error) => void;
 }
 
-type PdfDocumentFile = string | Blob | { data: Uint8Array } | { range: PdfViewerRangeTransport };
+type PdfDocumentFile =
+  | string
+  | Blob
+  | { data: Uint8Array }
+  | { range: PdfViewerRangeTransport }
+  | null;
 
 function normalizePdfSource(
   source: Exclude<PdfViewerSource, PdfViewerRangeSource>,
@@ -139,29 +144,31 @@ export function PdfViewer({ source, labels, onLoadError, className, ...props }: 
   onLoadErrorRef.current = onLoadError;
   const { clearZoomOverlay, pageViewportRef, stageZoomOverlay } = pdfZoom.usePdfZoomOverlay();
 
-  const rangeTransport = useMemo(() => {
+  const [rangeResource, setRangeResource] = useState<{
+    source: PdfViewerRangeSource;
+    transport: PdfViewerRangeTransport;
+  } | null>(null);
+  const rangeTransport = rangeResource?.source === source ? rangeResource.transport : null;
+
+  useLayoutEffect(() => {
     if (!isPdfViewerRangeSource(source)) {
-      return null;
+      setRangeResource(null);
+      return;
     }
-    return new PdfViewerRangeTransport(source, (error) => {
+    // PDFDataRangeTransport 没有移除 range listener 的接口，不能跨加载代际复用。
+    // 每次 effect 建立独立资源，StrictMode 的试探清理和新文档都不会复活已 abort 的 transport。
+    const transport = new PdfViewerRangeTransport(source, (error) => {
       setRangeError(true);
       onLoadErrorRef.current?.(error);
     });
+    setRangeResource({ source, transport });
+    return () => transport.abort();
   }, [source]);
 
   const file = useMemo<PdfDocumentFile>(() => {
-    if (rangeTransport) {
-      return { range: rangeTransport };
-    }
+    if (isPdfViewerRangeSource(source)) return rangeTransport ? { range: rangeTransport } : null;
     return normalizePdfSource(source as Exclude<PdfViewerSource, PdfViewerRangeSource>);
   }, [rangeTransport, source]);
-
-  useEffect(() => {
-    return () => {
-      // 文档切换/卸载时中止 range 传输，让 pdf.js 停止等待未完成的分段请求
-      rangeTransport?.abort();
-    };
-  }, [rangeTransport]);
 
   useEffect(() => {
     setNumPages(null);

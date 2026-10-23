@@ -29,6 +29,8 @@ interface SessionDataLayerOptions {
   transport: ConversationTransport;
   /** 引用归零后延迟退订窗口（ms），默认 30s。 */
   keepWarmMs?: number;
+  /** 仅限制无引用且无待确认提交的暖投影，不限制正在显示的会话。 */
+  maxKeepWarmEntries?: number;
 }
 
 const SESSION_DATA_LAYER_KEEP_WARM_MS = 30_000;
@@ -57,6 +59,7 @@ export class SessionDataLayer {
   readonly liveOutputRates = new LiveOutputRateRegistry();
   private readonly transport: ConversationTransport;
   private readonly keepWarmMs: number;
+  private readonly maxKeepWarmEntries: number;
   private readonly entries = new Map<string, SessionEntry>();
   private readonly offFrame: () => void;
   private disposed = false;
@@ -64,6 +67,7 @@ export class SessionDataLayer {
   constructor(options: SessionDataLayerOptions) {
     this.transport = options.transport;
     this.keepWarmMs = options.keepWarmMs ?? resolveSessionDataLayerKeepWarmMs();
+    this.maxKeepWarmEntries = options.maxKeepWarmEntries ?? 8;
     // 连接级单监听：按 topic 扇入到各 store（pane 间共享的正是这一条连接）。
     this.offFrame = this.transport.onFrame((frame, context) => {
       this.entries.get(frame.topic)?.store.handleFrame(frame, context);
@@ -154,6 +158,7 @@ export class SessionDataLayer {
     }
     // 关 pane ≠ 停 session：这里只是退订视图，session 在 CLI 里照跑。
     entry.keepWarmTimer = setTimeout(() => {
+      if (this.entries.get(topic) !== entry || entry.refCount !== 0) return;
       this.entries.delete(topic);
       entry.stopRateObservation();
       logger.lifecycle.info("v4 session data keep-warm expired", {
@@ -165,6 +170,28 @@ export class SessionDataLayer {
       });
       void entry.store.close();
     }, this.keepWarmMs);
+    // 30 秒内快速切换大量长会话仍会累积重型 snapshot；数量预算只回收无 pane 的派生视图。
+    this.entries.delete(topic);
+    this.entries.set(topic, entry);
+    const eligible = [...this.entries].filter(
+      ([, candidate]) =>
+        candidate.refCount === 0 && candidate.store.getState().optimisticCommands.length === 0,
+    );
+    for (const [oldTopic, candidate] of eligible.slice(
+      0,
+      Math.max(0, eligible.length - this.maxKeepWarmEntries),
+    )) {
+      if (candidate.keepWarmTimer !== null) clearTimeout(candidate.keepWarmTimer);
+      candidate.keepWarmTimer = null;
+      this.entries.delete(oldTopic);
+      candidate.stopRateObservation();
+      void candidate.store.close();
+      logger.lifecycle.info("v4 session data warm projection evicted", {
+        event: "v4.session_data.keep_warm_evicted",
+        module: "ui.v4.session_data_layer",
+        status: "completed",
+      });
+    }
     logger.lifecycle.info("v4 session data lease released", {
       event: "v4.session_data.release",
       keepWarmMs: this.keepWarmMs,

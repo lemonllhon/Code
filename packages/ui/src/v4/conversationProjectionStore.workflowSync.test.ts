@@ -119,6 +119,32 @@ function harness() {
   return { store, recovery, transport };
 }
 
+test("close releases conversation content before unsubscribe settles and fences late frames", async () => {
+  const { store, transport } = harness();
+  const other = harness().store;
+  const unsubscribed = Promise.withResolvers<void>();
+  transport.unsubscribe = () => unsubscribed.promise;
+  await store.connect();
+  store.handleFrame(frame("sub-1", 1), { deliveryKind: "initial" });
+  await other.connect();
+  other.handleFrame(frame("sub-1", 1), { deliveryKind: "initial" });
+  let notifications = 0;
+  store.subscribe(() => notifications++);
+  const closing = store.close();
+  assert.equal(store.getState().status, "closed");
+  assert.equal(store.getState().snapshot, null);
+  assert.deepEqual(store.getState().sessionPlans, []);
+  assert.deepEqual(store.getState().optimisticCommands, []);
+  assert.equal(notifications, 1, "existing consumers see the closed state once");
+  store.handleFrame(frame("sub-1", 2), { deliveryKind: "online" });
+  assert.equal(store.getState().snapshot, null);
+  assert.equal(other.getState().snapshot?.seq, 1);
+  unsubscribed.resolve();
+  await closing;
+  await store.close();
+  await other.close();
+});
+
 for (const profile of ["desktop-continuous", "web-remote-replayable"] as const) {
   test(`${profile}: ACK is not a current projection; initial and recovery are display-only syncing`, async (t) => {
     const { store, recovery } = harness();

@@ -4,6 +4,7 @@ import { useWallpaperMedia } from "@/hooks/useWallpaperMedia.js";
 import { useAemeathWallpaper } from "@/hooks/useAemeathWallpaper.js";
 import type { WallpaperRecord } from "@/store/wallpaperStorage.js";
 import type { WallpaperAppearance } from "@/store/wallpaperAppearance.js";
+import { releaseMediaDecoder } from "@/lib/releaseMediaDecoder.js";
 
 function AemeathWallpaper({
   reduced,
@@ -34,6 +35,7 @@ function WallpaperMedia({
   useEffect(() => {
     const element = video.current;
     if (!element) return;
+    if (url && element.getAttribute("src") !== url) element.setAttribute("src", url);
     if (reduced) element.pause();
     else
       void element.play().catch(() => {
@@ -42,11 +44,10 @@ function WallpaperMedia({
   }, [reduced, url]);
   useEffect(() => {
     const element = video.current;
+    if (element && url && element.getAttribute("src") !== url) element.setAttribute("src", url);
     return () => {
       if (element) {
-        element.pause();
-        element.removeAttribute("src");
-        element.load();
+        releaseMediaDecoder(element);
       }
     };
   }, [record.source, url]);

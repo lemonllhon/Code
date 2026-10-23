@@ -376,11 +376,13 @@ export class ConversationProjectionStore {
   }
 
   subscribe(listener: () => void): () => void {
+    if (this.closed) return () => {};
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
 
   onOnlineModelTransition(listener: (transition: SessionModelTransition) => void): () => void {
+    if (this.closed) return () => {};
     this.modelTransitionListeners.add(listener);
     return () => this.modelTransitionListeners.delete(listener);
   }
@@ -1347,7 +1349,12 @@ export class ConversationProjectionStore {
     this.subscriptionHasAppliedBase = false;
     this.generation++;
     const { subscriptionId } = this.state;
-    this.setState({ status: "closed", subscriptionId: null });
+    // 已关闭 store 可能仍被异步退订/旧组件引用；原先只改 status 会保留整段大历史。
+    // snapshot 是可恢复投影，立即释放，不影响 CLI 中的任务、队列和持久历史。
+    this.turnNavigatorHydrationTerminal = null;
+    this.sessionOpenRendererTiming = {};
+    this.setState({ ...INITIAL_STATE, status: "closed" });
+    this.listeners.clear();
     if (subscriptionId) {
       try {
         await this.transport.unsubscribe(subscriptionId);

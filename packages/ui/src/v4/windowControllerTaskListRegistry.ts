@@ -34,6 +34,7 @@ export interface WindowControllerTaskListVersion {
 }
 
 const registries = new WeakMap<object, WindowControllerTaskListRegistry>();
+const SETTLED_QUERY_LIMIT = 40;
 
 function taskAddressKey(address: WindowHostControllerTaskRow["address"]): string {
   return JSON.stringify([
@@ -81,6 +82,7 @@ export function getWindowControllerTaskListRegistry(
       versionKey: string;
       promise: Promise<WindowHostControllerTaskListResult>;
       query: LCodeTaskListQuery;
+      settled: boolean;
     }
   >();
   const taskRows = new Map<string, WindowHostControllerTaskRow>();
@@ -89,6 +91,18 @@ export function getWindowControllerTaskListRegistry(
   let generation = 0;
   let notificationScheduled = false;
   let frameDisposable: { dispose(): void } | null = null;
+
+  const pruneQueries = (): void => {
+    // 上层 Query store 已有预算，但本 registry 仍会用 Promise 强引用所有历史查询结果。
+    // 只驱逐可重新读取的已结算结果；在途单飞不因 LRU 压力变成重复 RPC。
+    let settled = [...queryCache.values()].filter((entry) => entry.settled).length;
+    for (const [key, entry] of queryCache) {
+      if (settled <= SETTLED_QUERY_LIMIT) break;
+      if (!entry.settled) continue;
+      queryCache.delete(key);
+      settled--;
+    }
+  };
 
   const notifyOnce = (): void => {
     if (notificationScheduled) return;
@@ -218,13 +232,24 @@ export function getWindowControllerTaskListRegistry(
     list(queryKey, version, query) {
       const versionKey = cacheVersionKey(version);
       const cached = queryCache.get(queryKey);
-      if (cached?.versionKey === versionKey) return cached.promise;
+      if (cached?.versionKey === versionKey) {
+        queryCache.delete(queryKey);
+        queryCache.set(queryKey, cached);
+        return cached.promise;
+      }
       const promise = controller.listTaskList(query);
-      const entry = { versionKey, promise, query };
+      const entry = { versionKey, promise, query, settled: false };
       queryCache.set(queryKey, entry);
-      void promise.catch(() => {
-        if (queryCache.get(queryKey) === entry) queryCache.delete(queryKey);
-      });
+      void promise.then(
+        () => {
+          if (queryCache.get(queryKey) !== entry) return;
+          entry.settled = true;
+          pruneQueries();
+        },
+        () => {
+          if (queryCache.get(queryKey) === entry) queryCache.delete(queryKey);
+        },
+      );
       return promise;
     },
   };
