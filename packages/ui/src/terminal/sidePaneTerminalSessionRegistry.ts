@@ -16,6 +16,7 @@
 import type { FitAddon } from "@xterm/addon-fit";
 import type { ITheme, Terminal as XTerm } from "@xterm/xterm";
 import { uiMemoryDiagnosticsRegistry } from "@/lib/memoryDiagnostics.js";
+import { logger } from "@/logger.js";
 
 /**
  * 一个 side pane terminal 会话的常驻资源。
@@ -53,8 +54,16 @@ export interface SidePaneTerminalSessionEntry {
 
 // 模块级状态：跨 workspace、跨 React 组件树常驻。
 const sessions = new Map<string, SidePaneTerminalSessionEntry>();
-// 内存诊断计数器：常驻 xterm 实例数无上限，先落日志。
-uiMemoryDiagnosticsRegistry.register("xterm", () => ({ sessions: sessions.size }));
+uiMemoryDiagnosticsRegistry.register("xterm", () => ({
+  sessions: sessions.size,
+  detached: [...sessions.values()].filter(
+    (entry) => entry.hostEl.parentElement === stashDiv && stashDiv !== null,
+  ).length,
+  scrollbackLines: [...sessions.values()].reduce(
+    (sum, entry) => sum + (entry.term?.buffer?.active.length ?? 0),
+    0,
+  ),
+}));
 
 // 隐藏暂存容器：存放 detached 的 hostEl，避免被 React 卸载渲染容器时连带销毁 xterm DOM。
 let stashDiv: HTMLDivElement | null = null;
@@ -83,10 +92,14 @@ function releaseEntry(key: string): void {
     // 风险：PTY 可能残留，由 terminalService disposeAll 在 host 退出时兜底回收。
     if (typeof console !== "undefined") {
       // eslint-disable-next-line no-console
-      console.warn("[sidePaneTerminalSessionRegistry] release dispose failed", error);
+      logger.warn("[sidePaneTerminalSessionRegistry] release dispose failed", error);
     }
   }
   entry.hostEl.remove();
+  if (sessions.size === 0) {
+    stashDiv?.remove();
+    stashDiv = null;
+  }
 }
 
 /**
@@ -106,6 +119,9 @@ export const sidePaneTerminalSessionRegistry = {
 
   /** TerminalSession persistentKey 路径首次创建资源后，把 entry 存入 registry 常驻。 */
   register(key: string, entry: SidePaneTerminalSessionEntry): void {
+    if (sessions.get(key) === entry) return;
+    // async 创建交错时仅覆盖 Map 会遗失旧 PTY/xterm 的释放入口；先结清旧 owner。
+    releaseEntry(key);
     sessions.set(key, entry);
   },
 
