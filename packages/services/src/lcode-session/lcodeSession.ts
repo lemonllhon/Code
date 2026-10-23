@@ -143,6 +143,7 @@ export interface ILCodeSessionService {
   createSession(params: LCodeSessionCreateParams): Promise<LCodeSessionStateSnapshot>;
   resumeSession(params: LCodeSessionResumeParams): Promise<LCodeSessionStateSnapshot>;
   listSessions(params: LCodeSessionListParams): Promise<LCodeSessionInfo[]>;
+  /** 读取已活跃 Runtime 的完整会话事实；冷会话元数据展示应使用 task service 的 getTaskMeta。 */
   readSession(params: LCodeSessionReadParams): Promise<LCodeSessionStateSnapshot>;
   readSessionMessages(params: LCodeSessionMessagesParams): Promise<LCodeMessageWithParts[]>;
   readSessionEvents(params: LCodeSessionEventsParams): Promise<LCodeSessionEvent[]>;

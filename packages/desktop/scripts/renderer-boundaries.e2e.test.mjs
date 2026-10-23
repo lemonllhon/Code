@@ -2,12 +2,30 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { join, resolve } from "node:path";
 import { _electron } from "playwright-core";
 import { cleanupFixtureDirectory, desktopRoot } from "./main-runtime-test-fixture.mjs";
 
 const require = createRequire(import.meta.url);
 const { build } = createRequire(require.resolve("tsup"))("esbuild");
+
+test(
+  "cold metadata recovery runs in the Renderer UI regression entry",
+  { timeout: 40_000 },
+  async () => {
+    await promisify(execFile)(
+      process.execPath,
+      ["--test", resolve(desktopRoot, "scripts/active-task-metadata.e2e.test.mjs")],
+      {
+        cwd: resolve(desktopRoot, "../.."),
+        timeout: 35_000,
+        env: { ...process.env, NODE_TEST_CONTEXT: undefined },
+      },
+    );
+  },
+);
 
 test(
   "isolated Electron Renderer uses the real preload and shared startup drawing",
