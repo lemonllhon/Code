@@ -5,7 +5,7 @@
 - 连接 SSH、打开远端项目或空白草稿不创建执行会话。远端草稿不做后台 Agent 预热；首次提交沿用现有 prepare/send 与 CommandInbox admission。显式打开历史、配置探测或工具调用属于真实需求。
 - 远端草稿的命令目录不在连接时水合；用户输入 `/` 请求命令候选时，沿用已有 workspace presentation RPC 按需水合，不创建草稿会话或启动 REPL。
 - 启用 Browser Use / Computer Use 仅注册内置 node_repl 的可信工具描述，不启动 MCP 子进程。首次 js 调用通过原 MCP adapter/pool 建连；并发首次调用共享同一 connecting promise，保持 workspace isolation、environment 授权与 generation 防护。用户配置不能注入宿主工具描述。
-- 本地草稿预热保持原行为。桌面 continuous 和手机 replayable 复用相同 runtime owner；手机 attachment 不新建 Agent。
+- 本地启动仅预热当前可见且有效的一个本地 workspace；远程 active 时不预热隐藏本地标签或最近项目。首次真实需求继续复用既有进程 single-flight。桌面 continuous 和手机 replayable 复用相同 runtime owner；手机 attachment 不新建 Agent。
 - 全部能力开启时仍按实际使用加载。Node REPL 控制进程不加载执行器；执行器仅在一次性 Worker 内加载。低内存环境下，同一工作区共享 REPL 宿主的跨会话调用只允许一个执行 Worker，超出预算返回明确可重试的资源错误，不额外保存已接受任务队列。
 - 调用成功、异常、取消、超时、Worker 堆耗尽都须等待 Worker 真正退出后释放预算。失败不能击穿 MCP 控制进程，下一次调用可恢复。未执行的 js 不产生 Worker。
 
@@ -49,7 +49,7 @@ sequenceDiagram
 
 ## 验收与回归
 
-1. 远端空白草稿不预热；本地草稿仍预热；首次发送、取消及重连 generation 仍正确。
+1. 远端空白草稿不预热；可见有效本地草稿最多预热一个；首次发送、取消及重连 generation 仍正确。
 2. 内置工具在发现阶段可见但进程数为零；首次并发调用只启动一个 MCP；禁用、配置变化、close 后旧 completion 不覆盖新 owner。显式第三方 MCP 兼容。
 3. 全部官方能力启用后只注册一个共享 node_repl；重复/跨会话 js 调用不会叠加 Worker；取消后无残留，堆耗尽后可再用。真实 browser/CUA 操作以环境实际提供的 broker 为界，不能用普通 JS 冒充设备回归。
 4. 预算不足、并发启动、启动失败、退出、再次启动均有测试；不可把业务已接受队列迁移到 Renderer 或预算层。

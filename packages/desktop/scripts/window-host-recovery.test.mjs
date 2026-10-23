@@ -69,6 +69,7 @@ test("window exit wiring rebuilds exactly one Host, preserves reload reattach an
     windowHostProcessMap: map,
     spawnHostProcess: (_win, _label, init, retry) => {
       assert.equal(init.type, "init-local");
+      assert.deepEqual(init.agentWarmupTargets, [], "明确空名单在 spawn 和重建 Host 时均不能丢失");
       const child = Object.assign(new EventEmitter(), {
         pid: children.length + 1,
         postMessage() {},
@@ -90,6 +91,7 @@ test("window exit wiring rebuilds exactly one Host, preserves reload reattach an
     disposeRemoteWorkspaceSessionsForWindow() {},
     reattachRemoteWorkspaceSessionsForWindow() {},
     agentSpawnFallbackCwd: "fixture",
+    agentWarmupTargets: [],
     deviceMid: "fixture",
     runtimeProcessEnvFallbackPatch: {},
   });

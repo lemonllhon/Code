@@ -142,7 +142,10 @@ import { createRemotePromptAttachmentTransferService } from "./promptAttachmentT
 import { shouldReportHostConsoleError, stringifyHostLogArg } from "./hostLog.js";
 import { flushHostE2ECoverage } from "./e2eCoverage.js";
 import { runHostShutdownPhases, type HostShutdownResult } from "./hostShutdownPhases.js";
-import { initializeHostApiNetworkTransportOwner } from "./hostInitialization.js";
+import {
+  initializeHostApiNetworkTransportOwner,
+  resolveHostAgentWarmupTargets,
+} from "./hostInitialization.js";
 import { createHostUncaughtExceptionHandler } from "./hostUncaughtExceptionGuard.js";
 import {
   recordCronRunOutcomeBestEffort,
@@ -3111,19 +3114,8 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
         wireLocalResourceTelemetry(services);
         hasDisposedHostResources = false;
         disposeHostResourcesInFlight = null;
-        const agentWarmupTargets =
-          msg.agentWarmupTargets && msg.agentWarmupTargets.length > 0
-            ? msg.agentWarmupTargets
-            : msg.workspacePath
-              ? [
-                  {
-                    workspacePath: msg.workspacePath,
-                    ...(msg.workspaceIdentity ? { workspaceIdentity: msg.workspaceIdentity } : {}),
-                  },
-                ]
-              : [];
-        // Main 已按最近使用顺序把启动预热限制为 3 个；Host 必须显式消费这份
-        // 固定名单，不能让后续 task-list observer 再隐式扩大，也不能因单个失败扫描补位。
+        const agentWarmupTargets = resolveHostAgentWarmupTargets(msg);
+        // Main 已确定可见本地标签的单目标/空名单；Host 不扫描补位，沿用原初始化单飞。
         agentWarmupTargets.forEach((target, index) => {
           warmUpLCodeAgent(
             services,

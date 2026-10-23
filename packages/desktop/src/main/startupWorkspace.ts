@@ -1,11 +1,6 @@
 import { constants } from "node:fs";
 import { access, mkdir, readFile, stat } from "node:fs/promises";
-import {
-  appSettingsSchema,
-  formatZodError,
-  resolveStartupLocalWorkspaceSessionIndex,
-  type WorkspacePurpose,
-} from "@lcode/shared";
+import { appSettingsSchema, formatZodError, type WorkspacePurpose } from "@lcode/shared";
 
 interface StartupWorkspaceLogger {
   info?: (...args: unknown[]) => void;
@@ -36,8 +31,6 @@ export interface StartupWorkspaceWarmupTarget {
   workspacePath: string;
   workspaceIdentity?: string;
 }
-
-const STARTUP_AGENT_WARMUP_LIMIT = 3;
 
 export interface StartupWindowBootstrap {
   restoreSession?: boolean;
@@ -71,34 +64,6 @@ function resolvePersistedActiveSession(
   return sessions[activeIndex];
 }
 
-function resolveStartupAgentWarmupTargets(
-  settings: Pick<ReturnType<typeof appSettingsSchema.parse>, "recentProjects">,
-  activeTarget: StartupWorkspaceWarmupTarget,
-): StartupWorkspaceWarmupTarget[] {
-  const candidates: StartupWorkspaceWarmupTarget[] = [
-    activeTarget,
-    ...(settings.recentProjects ?? []).map((workspacePath) => ({
-      workspacePath,
-    })),
-  ];
-  const seen = new Set<string>();
-  const targets: StartupWorkspaceWarmupTarget[] = [];
-
-  for (const candidate of candidates) {
-    const workspaceKey = candidate.workspaceIdentity?.trim() || candidate.workspacePath;
-    if (!workspaceKey || seen.has(workspaceKey)) {
-      continue;
-    }
-    seen.add(workspaceKey);
-    targets.push(candidate);
-    if (targets.length === STARTUP_AGENT_WARMUP_LIMIT) {
-      break;
-    }
-  }
-
-  return targets;
-}
-
 export function createOpenWorkspaceStartupBootstrap(workspacePath: string): StartupWindowBootstrap {
   return {
     initialWorkspacePath: workspacePath,
@@ -122,7 +87,15 @@ export async function resolveStartupWindowBootstrap({
   // 不可用时创建它；远程 active 后选中已删除的对话目录会让存储 Worker 在握手前退出。
   // 每次主窗口启动都先幂等准备 app 管理的目录，显式打开项目也走此入口，不恢复用户项目。
   await mkdir(conversationWorkspaceDir, { recursive: true });
-  if (explicitBootstrap) return explicitBootstrap;
+  if (explicitBootstrap) {
+    const path = explicitBootstrap.initialWorkspacePath;
+    const available = path && (await isAvailableWorkspaceDirectory(path));
+    return {
+      ...explicitBootstrap,
+      ...(path && !available ? { unavailableWorkspacePath: path } : {}),
+      agentWarmupTargets: available ? [{ workspacePath: path }] : [],
+    };
+  }
 
   const settings = await readStartupSettings(settingsFile, logger);
   const sessions = settings.lastWorkspaceSession ?? [];
@@ -145,25 +118,15 @@ export async function resolveStartupWindowBootstrap({
         unavailableWorkspacePath,
       );
     }
-    const localActiveSessionIndex = resolveStartupLocalWorkspaceSessionIndex(
-      sessions,
-      settings.lastActiveTabIndex,
-    );
-    const activeSession =
-      localActiveSessionIndex == null ? undefined : sessions[localActiveSessionIndex];
-    if (activeSession?.kind === "local") {
-      // 被动 sessions-index 全量恢复不能再启动全部 workspace，但只预热当前一个又让
-      // 用户在最近项目间切换重新承担完整冷启动。Main 在唯一启动边界固定选出最近 3 个，
-      // Host 仍走原 initializeWorkspace 路径；失败不继续扫描第 4 个补位。
-      const agentWarmupTargets = resolveStartupAgentWarmupTargets(settings, {
-        workspacePath: activeSession.workspacePath,
-      });
-      return {
-        ...(unavailableWorkspacePath ? { unavailableWorkspacePath } : {}),
-        agentWarmupTargets,
-      };
-    }
-    return unavailableWorkspacePath ? { unavailableWorkspacePath } : {};
+    // 预热资格只来自可见且有效的本地标签；隐藏项目/最近项目不是执行需求。
+    // 远程 active 也必须发送明确空名单，避免 Host 兼容路径误启动本地 Agent。
+    return {
+      ...(unavailableWorkspacePath ? { unavailableWorkspacePath } : {}),
+      agentWarmupTargets:
+        persistedActiveSession?.kind === "local" && !unavailableWorkspacePath
+          ? [{ workspacePath: persistedActiveSession.workspacePath }]
+          : [],
+    };
   }
 
   // UI 可以没有项目，但 Agent 必须始终有真实 cwd。首次启动统一预热

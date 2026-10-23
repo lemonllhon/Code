@@ -38,7 +38,7 @@ test("有效本地项目恢复也创建已删除的默认对话目录", async (t
   assert.equal((await stat(paths.conversationWorkspaceDir)).isDirectory(), true);
 });
 
-test("远程 active 后的本地对话目录先恢复再用于存储预热", async (t) => {
+test("远程 active 准备备用 cwd，但不预热隐藏本地标签和最近项目", async (t) => {
   const paths = await fixture(t);
   const project = join(paths.root, "project");
   await mkdir(project);
@@ -61,10 +61,7 @@ test("远程 active 后的本地对话目录先恢复再用于存储预热", asy
   const before = await readFile(paths.settingsFile, "utf8");
   const result = await resolveStartupWindowBootstrap(paths);
   assert.deepEqual(result, {
-    agentWarmupTargets: [
-      { workspacePath: paths.conversationWorkspaceDir },
-      { workspacePath: project },
-    ],
+    agentWarmupTargets: [],
   });
   assert.equal((await stat(paths.conversationWorkspaceDir)).isDirectory(), true);
   assert.equal(await readFile(paths.settingsFile, "utf8"), before);
@@ -73,7 +70,7 @@ test("远程 active 后的本地对话目录先恢复再用于存储预热", asy
 test("只有远程标签仍准备本地备用目录", async (t) => {
   const paths = await fixture(t, { lastWorkspaceSession: [remoteSession] });
   const result = await resolveStartupWindowBootstrap(paths);
-  assert.deepEqual(result, {});
+  assert.deepEqual(result, { agentWarmupTargets: [] });
   assert.equal((await stat(paths.conversationWorkspaceDir)).isDirectory(), true);
 });
 
@@ -87,7 +84,7 @@ test("已删除的用户项目保持不可用且不重新创建", async (t) => {
   const result = await resolveStartupWindowBootstrap(paths);
   assert.deepEqual(result, {
     unavailableWorkspacePath: project,
-    agentWarmupTargets: [{ workspacePath: project }],
+    agentWarmupTargets: [],
   });
   assert.equal((await stat(paths.conversationWorkspaceDir)).isDirectory(), true);
   await assert.rejects(stat(project), { code: "ENOENT" });
@@ -112,6 +109,34 @@ test("首次启动创建默认目录并选择对话 workspace", async (t) => {
     agentWarmupTargets: [{ workspacePath: paths.conversationWorkspaceDir }],
   });
   assert.equal((await stat(paths.conversationWorkspaceDir)).isDirectory(), true);
+});
+
+test("可见本地项目是唯一预热目标，最近项目不补位", async (t) => {
+  const paths = await fixture(t);
+  const projects = ["active", "recent-a", "recent-b"].map((name) => join(paths.root, name));
+  await Promise.all(projects.map((path) => mkdir(path)));
+  await writeFile(
+    paths.settingsFile,
+    JSON.stringify({
+      lastWorkspaceSession: projects.map((workspacePath) => ({ kind: "local", workspacePath })),
+      recentProjects: projects.slice(1),
+    }),
+  );
+  assert.deepEqual((await resolveStartupWindowBootstrap(paths)).agentWarmupTargets, [
+    { workspacePath: projects[0] },
+  ]);
+});
+
+test("显式项目在解析前被删除时保留路径且不启动 Agent", async (t) => {
+  const paths = await fixture(t);
+  const project = join(paths.root, "missing-explicit");
+  const explicitBootstrap = createOpenWorkspaceStartupBootstrap(project);
+  assert.deepEqual(await resolveStartupWindowBootstrap({ ...paths, explicitBootstrap }), {
+    ...explicitBootstrap,
+    unavailableWorkspacePath: project,
+    agentWarmupTargets: [],
+  });
+  await assert.rejects(stat(project), { code: "ENOENT" });
 });
 
 test("目录准备幂等保留内容，删除后下次启动重新创建", async (t) => {

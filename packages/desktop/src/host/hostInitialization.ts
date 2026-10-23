@@ -3,6 +3,25 @@ import { runHostShutdownPhases } from "./hostShutdownPhases.js";
 
 const DEFAULT_UNOWNED_TRANSPORT_DISPOSE_TIMEOUT_MS = 3_500;
 
+export function resolveHostAgentWarmupTargets(message: {
+  workspacePath?: string;
+  workspaceIdentity?: string;
+  agentWarmupTargets?: Array<{ workspacePath: string; workspaceIdentity?: string }>;
+}): Array<{ workspacePath: string; workspaceIdentity?: string }> {
+  // 空数组是 Main 明确的零预热决策；只有旧调用方缺失字段时才兼容本地路径。
+  return (
+    message.agentWarmupTargets ??
+    (message.workspacePath
+      ? [
+          {
+            workspacePath: message.workspacePath,
+            ...(message.workspaceIdentity ? { workspaceIdentity: message.workspaceIdentity } : {}),
+          },
+        ]
+      : [])
+  );
+}
+
 export async function initializeHostApiNetworkTransportOwner<T>(params: {
   transport: Pick<HostApiNetworkTransport, "disposeAndWait">;
   establishOwner: () => T;

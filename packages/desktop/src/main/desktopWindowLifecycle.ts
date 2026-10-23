@@ -220,7 +220,8 @@ export function createWindow(options: {
           deviceMid: options.deviceMid,
           workspacePath: primaryWarmupTarget?.workspacePath,
           workspaceIdentity: primaryWarmupTarget?.workspaceIdentity,
-          ...(options.agentWarmupTargets && options.agentWarmupTargets.length > 0
+          // 明确空名单必须穿过窗口 spawn/重建入口，不能退化成旧调用方缺省合同。
+          ...(options.agentWarmupTargets !== undefined
             ? { agentWarmupTargets: [...options.agentWarmupTargets] }
             : {}),
           runtimeProcessEnvPatch,
