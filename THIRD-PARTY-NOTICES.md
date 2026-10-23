@@ -2604,6 +2604,8 @@ Electron/Chromium target-specific notices are shipped separately under Resources
 
 - node-forge@1.4.0: modified by LCode; the changes are recorded in patches/node-forge@1.4.0.patch in the source repository.
 
+- node-pty@1.1.0: modified by LCode; the changes are recorded in patches/node-pty@1.1.0.patch in the source repository.
+
 ## License and NOTICE texts
 
 ### Notice b4f9adb7c568904834d0dd6cc98d16c390d21ca32fc17ae7a267715269bd5529

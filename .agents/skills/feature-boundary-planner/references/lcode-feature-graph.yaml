@@ -25,6 +25,26 @@ rules:
     - invariant-only
     - evidence-only
 nodes:
+  - id: state.renderer-resource-lifecycle
+    kind: state-owner
+    label: Derived Renderer resources and terminal output consumption
+    aliases: [显示资源回收, 终端背压, 暖会话预算, settings lazy loading]
+    codeSeeds:
+      - file: packages/ui/src/v4/sessionDataLayer.ts
+        symbol: SessionDataLayer
+      - file: packages/ui/src/v4/windowControllerTaskListRegistry.ts
+        symbol: getWindowControllerTaskListRegistry
+      - file: packages/ui/src/root/LazySettingsPage.tsx
+        symbol: LazySettingsPage
+      - file: packages/ui/src/lib/pdfRangeRequests.ts
+        symbol: PdfRangeRequests
+      - file: packages/services/src/terminal/terminalOutputFlow.ts
+        symbol: TerminalOutputFlow
+    invariants:
+      - "Only unreferenced derived projections and settled request caches are evicted; active panes, drafts and pending optimistic input remain protected. Closing a projection never stops CLI work."
+      - "Settings use one lazy entry within the original scope/providers; loading cannot remount Root or the composer."
+      - "PDF abort fences late results by generation; completed ranges retain no binary cache. Media consumers release decoders independently from URL/preview ownership."
+      - "TerminalService owns PTY pressure and consumer generation; only xterm parse completion acknowledges output. Last subscriber departure resumes output, while physical exit alone releases environment consumers. Legacy clients keep string events."
   - id: state.runtime-memory-admission
     kind: state-owner
     label: Demand-driven runtime memory admission and owner cleanup
@@ -1922,6 +1942,16 @@ nodes:
       - "Menus append editable drafts through the scoped existing receiver; only an explicit send admits context."
       - "Capsule IDs are independent typed references and never share URLs; the target store validates source history again."
 edges:
+  - from: state.renderer-resource-lifecycle
+    to: boundary.workspace-key
+    type: preserves-derived-resource-scope
+    rank: must-inspect
+    condition: Warm projections and query budgets reuse their original scoped layer/Controller; terminal IDs retain their service incarnation.
+  - from: state.renderer-resource-lifecycle
+    to: capability.conversation-runtime
+    type: releases-only-display-projections-of
+    rank: invariant-only
+    condition: Eviction does not replay accepted input, stop execution, merge queues or change desktop continuous/mobile replayable delivery.
   - from: capability.git-management
     to: capability.project-memory-recall
     type: supplies-live-facts-alongside-durable-workflow-memory
