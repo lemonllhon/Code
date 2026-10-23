@@ -1,4 +1,5 @@
 import { runWallpaperTests } from "./startup-wallpaper.e2e.mjs";
+import { runStartupPerformanceTests } from "./startup-performance.e2e.mjs";
 import { openWallpaperFixture } from "./startup-wallpaper-runtime.mjs";
 import { runStartupSceneColdTest, runStartupSceneEditorTest } from "./startup-scene.e2e.mjs";
 import { runStartupSceneResourceTests } from "./startup-scene-resources.e2e.mjs";
@@ -138,6 +139,11 @@ test(
       assert.deepEqual(errors, []);
       return;
     }
+    if (hasMedia) await runStartupPerformanceTests({ t, page, navigate, artifacts });
+    if (process.env.LCODE_STARTUP_PERFORMANCE_ONLY === "1") {
+      assert.deepEqual(errors, []);
+      return;
+    }
     await t.test(
       "Esc reveals pending project without admitting input",
       { skip: !hasMedia },
@@ -228,10 +234,10 @@ test(
       "broken media, preview skip button, and mobile entry remain usable",
       { skip: !hasMedia },
       async () => {
-        await page.route("**/startup-media/baili.mp4", (route) => route.abort());
+        await page.route("**/startup-media/baili*.mp4", (route) => route.abort());
         await navigate("cinematic", true);
         await page.waitForFunction(() => !document.getElementById("loading"));
-        await page.unroute("**/startup-media/baili.mp4");
+        await page.unroute("**/startup-media/baili*.mp4");
         await page.evaluate(() =>
           window.startupFixture.preview({ mode: "cinematic", volume: 0, preset: "baili" }),
         );
@@ -265,7 +271,7 @@ test(
           },
         });
         await assertStartupMediaPackaging(desktopRoot, outDir);
-        for (const name of ["baili.mp4", "baili-wallpaper.mp4"]) {
+        for (const name of ["baili.mp4", "baili-lite.mp4", "baili-wallpaper.mp4"]) {
           assert.ok((await readFile(resolve(outDir, "startup-media", name))).length > 0);
         }
         const { createPackage } = createRequire(import.meta.url)("@electron/asar");

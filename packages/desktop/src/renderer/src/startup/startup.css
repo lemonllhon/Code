@@ -21,6 +21,8 @@ body.lcode-startup-ready #loading.startup-preview {
   height: 100%;
   object-fit: contain;
   background: #000;
+  background-size: cover;
+  background-position: center;
 }
 .startup-skip {
   position: absolute;

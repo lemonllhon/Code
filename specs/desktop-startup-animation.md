@@ -2,6 +2,33 @@
 
 ## 产品规则
 
+### 启动绘制预算（2026-10-23）
+
+- 白璃 4K / 60 fps / 16 秒视频保留为母版与高分辨率播放源；新增从同一母版生成的 1920×1080 / 30 fps 轻量播放文件，音轨直接复制、阶段时间不变。按完整显示（contain）计算，实际视频显示宽度不超过 1920 物理像素，或设备报告不超过 4 个逻辑核 / 4 GiB 内存时，单次播放只加载轻量文件；其它大屏保留母版。播放期间不因 resize 换源、重新解码或重播。缺失资源继续明确降级，不连试多个视频。
+- 用户确认采用「完整画面＋柔和背景填满空余区域」：视频层使用 contain，保留全部标题、字幕和人物；空余区域由同一母版预生成的 480×270 模糊暗化静态图 cover 填满。该图随媒体校验与打包，维护导入时同步重建。仅使用一个 video，不增加背景视频或运行时 blur / 抓帧循环，不改变原生窗口尺寸。
+- 视频版本由 Renderer 读取视口与只读设备能力选择，不增加设置、RPC 或业务状态。轻量素材必须进入同一白名单、SHA-256 校验、开发服务、生产输出及 ASAR 校验。维护导入母版时同步重建轻量版，防止两个版本内容不同；普通构建不运行转码器。
+- 保留原有独立启动壳与业务入口并行的装配路径。simple / off 不创建视频或 Canvas 资源实例；模板加载期间 skip / attention / pagehide 结束后，晚到资源不能重建画布。Root、欢迎、时钟和准入唯一所有者不变。
+- Canvas 按实际容器与 DPR 限制总像素：常规至多 1920×1080 像素量，受限设备至多 1280×720，受限设备最多绘制 30 fps；阶段仍由原单调时钟推进，不能累积帧数拖慢或加速动画。高屏 / 竖屏同样有总像素预算。
+- 彩色展示期间轮廓已经汇聚，复用由同一片段生成的 Path2D，避免每帧重算几千个碎片的三角函数。静态背景的同色 / 同眨眼帧复用已有离屏纹理；视频帧继续更新。换图、着色进度、眨眼与卸载正确失效和清理，不改透明资源下可见的轮廓。
+- 验收增加：轻量 / 母版选择边界和未知设备、竖屏像素预算、真实 Electron 解码尺寸 / 片长 / 音轨与原欢迎交接、Canvas 纹理复用 / 视频不误缓存、受限设备绘制频率与暂停 / 卸载。Windows 本机和其它 OS 未实测范围分别报告。
+
+```mermaid
+sequenceDiagram
+    participant A as document 展示控制器
+    participant P as 只读播放预算
+    participant D as 本地视频 / Canvas 资源
+    participant R as Root 准入 owner
+    A->>P: 当前视口、DPR、设备能力
+    P-->>A: 本次唯一视频源 / 像素帧预算
+    A->>D: 按需加载与绘制（不切源）
+    par 装饰播放
+        D-->>A: 原时钟进度
+    and 业务初始化
+        R-->>A: loading / welcome / ready / attention
+    end
+    A->>D: 原交接或 skip 后释放，晚到资源忽略
+```
+
 - 欢迎卡片的鼠标点击必须适用于 Windows/Linux 无边框及 macOS 隐藏标题栏窗口：卡片及欢迎期间的全屏动画底层明确为 `app-region: no-drag`，只保留顶部标题拖动条。鼠标点击「进入」与键盘回车沿同一原 onComplete(skip) 路径，处理中幂等；不能只使用有边框测试窗口或仅验证回车。
 - 欢迎出现后画面和声音继续：原版白璃视频循环播放且保持用户音量；Canvas 模板保持完整彩色场景，独立推进同一渲染器的背景展示时钟（眨眼、动态视频继续），不重新播放碎片或提前收拢。卡片一旦出现，在视频循环回片头时仍保持可见。确认后准备项目期间继续动态背景；只有真实 Root ready 才结束循环并收拢/淡出，静态资源依旧是静态。Canvas 沿用后台暂停与前台续播；错误/减少动态效果/跳过仍释放媒体。
 - 时间所有者仍在 Renderer：动画状态机只拥有 welcome/ambient 展示阶段；Canvas 时钟唯一拥有剧情位置和派生媒体时钟，背景续播不生成业务 ready。新验收使用与安装版一致的无边框 Electron，验证 no-drag、真实鼠标进入、视频音量及进度继续、眨眼继续、视频循环后卡片不消失、确认后 loading 不放行及 ready 后清理。
@@ -135,7 +162,7 @@ flowchart LR
 
 - 共享配置 schema 校验 mode、preset 和 0–1 有限音量；完整设置 schema 与 patch schema 使用同一契约。Bootstrap 中只携带配置，不携带任意文件路径或可执行内容。
 - Root callback 仅投影 loading / welcome / ready / attention；welcome 仅为首次欢迎，ready 包括已恢复的项目，attention 包括其它登录、确认、迁移失败及错误边界。
-- 本地视频以受控相对 URL 加载，播放器 object-fit:contain，字幕/按钮按窗口适配；使用 metadata 校验白璃时间轴与片长。
+- 本地视频以受控相对 URL 加载，播放器 object-fit:contain 完整显示；白璃的空余区域由预生成的柔和背景填满。字幕/按钮按窗口适配，使用 metadata 校验白璃时间轴与片长。不改变原生窗口尺寸或自动全屏。
 - 第一轮使用同窗淡入；透视屏幕、截图或 WebContentsView 迁移不属于本轮。无需 OS 屏幕捕获权限、原生 DWM 或持续抓帧。
 
 ## 验收
@@ -184,7 +211,7 @@ pnpm bundle:desktop -- --os win --arch x64
 
 在「设置 → 外观 → 启动动画」选择原始、白璃、爱弥斯、自定义或关闭；同页「壁纸」独立选择关闭、白璃动态、爱弥斯动态或自选图片。旧安装包不会因源码改变自动更新，需要重新打包安装。旧输出缺少素材时不能跳过构建直接出包。
 
-只有维护内置素材时才运行 `node packages/desktop/scripts/import-startup-media.mjs [startup.mp4]`，一并审阅 `assets/startup-media` 中视频、来源声明与校验清单。普通构建不运行导入脚本。
+只有维护内置素材时才运行 `node packages/desktop/scripts/import-startup-media.mjs [startup.mp4]`，一并审阅 `assets/startup-media` 中视频、来源声明与校验清单。维护机需提供 ffmpeg（或设置 `FFMPEG_PATH`），同步生成轻量版与补边图；普通构建不运行转码器或导入脚本。
 
 ```powershell
 pnpm test:startup-animation
@@ -211,3 +238,16 @@ UI 回归默认使用本机 Electron；Linux 无显示环境使用 xvfb-run。Wi
 - Windows 正式版安装包生成于 `packages/desktop/.e2e-artifacts/startup-animation/release-welcome-live-production/LCode-3.19.1-win-x64.exe`（239966003 字节）；生产 build、资源/实际 ASAR、运行依赖、mise、产品身份与体积检查通过，并读回 ASAR 确认欢迎卡片及底层 no-drag。退出当前应用后安装到原目录生效，未替换正在运行的安装。macOS/Linux 沿用 CI matrix，本机未实测。
 - 补充完整包隔离探测到达 ready，但未触发欢迎卡片（前置场景未建立），不计入完整 Host 欢迎交接通过项；业务交接验证仍以 fixture 范围为准。
 - 本次统计的启动 Renderer、startup\* 脚本/共享协议、制作区/hooks、Root/Welcome、本地化及相关 spec/CI/图谱文本路径相对 HEAD 累计净增 5712 行（包含此前未提交实现，非本轮单独补丁）；本轮新增 Canvas 展示时钟、欢迎持续播放与无边框鼠标回归，保留其它本地改动。
+
+## 性能与完整画面验证（2026-10-23）
+
+- 修复前的真实 Electron 在普通窗口也解码 3840×2160 视频；新增回归确认失败后修复。最终显示按用户确认采用完整视频加柔和背景填边，横屏 / 竖屏均已检查，标题不再被 cover 裁切。单个 video，补边图在导入时预生成，无运行时 blur。
+- 母版保持 3840×2160 / 60 fps / 16 秒、13242109 字节；轻量版为 1920×1080 / 30 fps / 16 秒、4656620 字节，每秒解码像素量为母版的 1/8。音轨包流 SHA-256 一致。补边图 480×270、3282 字节。该比例不是整个应用内存或 CPU 降幅。
+- Canvas 增加总像素和受限设备 30 fps 预算，继续使用原单调时钟；静态资源复用纹理、汇聚后复用 Path2D。回归证明最终片段坐标一致，换图 / 着色 / 眨眼会失效，视频不会误用静态缓存，暂停和卸载停止帧回调。
+- `pnpm test:startup-animation`：76 项通过；`pnpm test:startup-animation:ui`：Windows 原生 Electron 29 项通过，含轻量解码、完整显示和真实补边图解码、resize 不切源、低核绘制频率 / 时钟、欢迎 / 跳过 / 减少动态效果、设置、资源、壁纸及实际 ASAR。
+- `pnpm typecheck`、`pnpm lint`、本轮格式检查通过。`pnpm architecture:check --changed` 为 0 violations / 0 baseline / 0 new；现有 desktop Renderer / 构建脚本边界内改动，Root、SettingService、展示控制器与时钟的所有者不变，无协议或平台合同变更。
+- 完整 Desktop Renderer Vite 生产构建通过（输出在隔离的 node_modules/.cache 目录），产物共 10 个媒体 / 声明 / 清单文件的字节校验通过；保留已有大 chunk、use-client 及 Office 预览动态导入提示。媒体维护才需要 ffmpeg，普通构建和运行均不需要转码器。
+- 启动源码、脚本与回归本轮净增 494 行（含 6 个新文本文件，不含文档、二进制、前轮编辑器修复或其它本地改动）。业务部分仍使用隔离 fixture，不等同于实际用户数据下的完整 Host / Agent 冷启动或低端机器实测；macOS / Linux 未在本机执行。
+- 效果截图位于 `packages/desktop/.e2e-artifacts/startup-animation/baili-complete-soft-fill.png` 与 `baili-complete-soft-fill-portrait.png`。本轮未覆盖正在运行的安装包，已安装实例需要新构建后才能使用这些动画改动。
+
+提交前复核（2026-10-23）：重新执行 `pnpm test:startup-animation` 76/76、`pnpm test:startup-animation:ui` 29/29，均通过，覆盖轻量视频、完整画面及柔和补边、受限设备 Canvas 预算、跳过/错误/交接和实际 ASAR 资源。保留原构建提示，不把隔离 Electron 场景当作用户数据冷启动或低端实机基准。

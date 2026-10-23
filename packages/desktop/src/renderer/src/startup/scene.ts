@@ -1,7 +1,6 @@
 import {
   sceneEase,
   aemeathBlink,
-  sceneFragmentArrival,
   sceneTiming,
   startupSceneSchema,
   sceneResourceTime,
@@ -14,10 +13,12 @@ import {
 import { readStartupSceneImage } from "./sceneImages.js";
 import { loadAemeathClosedEyes } from "./aemeathPortrait.js";
 import { createSceneArtwork } from "./sceneArtwork.js";
-import { createSceneFragments, sampleSceneContours } from "./sceneContours.js";
+import { sampleSceneContours } from "./sceneContours.js";
+import { createSceneFragmentDrawing } from "./sceneFragmentDrawing.js";
 import { loadSceneResource, type SceneResource } from "./sceneResource.js";
 import { customSceneArtwork } from "./customArtwork.js";
 import { StartupSceneClock } from "./sceneClock.js";
+import { getCanvasPlaybackBudget, readPlaybackViewport } from "./playbackPolicy.js";
 
 type Point = [number, number];
 type Path = Point[];
@@ -58,7 +59,9 @@ export function createStartupScene(
     resumeOnVisible = false;
   let resource: SceneResource | undefined, loadAbort: AbortController | undefined;
   const artwork = createSceneArtwork();
-  let pieces: ReturnType<typeof createSceneFragments> = [];
+  let fragments: ReturnType<typeof createSceneFragmentDrawing> | undefined;
+  let frameIntervalMs = 1000 / 60,
+    lastFrameTime = -Infinity;
   function draw() {
     if (!ctx || disposed) return;
     const elapsed = clock.elapsed;
@@ -110,25 +113,7 @@ export function createStartupScene(
       ctx.globalAlpha = 1;
       ctx.strokeStyle = settings.accent;
       ctx.lineWidth = 1.35;
-      ctx.beginPath();
-      for (const piece of pieces) {
-        const arrival = sceneFragmentArrival(settings.easing, assembled, piece.x / 1536);
-        const startX = 768 + (piece.sx - 768) * spread,
-          startY = 512 + (piece.sy - 512) * spread;
-        const x = startX + (piece.x - startX) * arrival,
-          y = startY + (piece.y - startY) * arrival;
-        const angle = piece.angle * (1 - arrival),
-          size = 0.2 + 0.8 * arrival,
-          cs = Math.cos(angle) * size,
-          sn = Math.sin(angle) * size;
-        piece.points.forEach(([px, py], i) => {
-          const nx = x + (px - piece.x) * cs - (py - piece.y) * sn,
-            ny = y + (px - piece.x) * sn + (py - piece.y) * cs;
-          if (i) ctx.lineTo(nx, ny);
-          else ctx.moveTo(nx, ny);
-        });
-      }
-      ctx.stroke();
+      fragments?.draw(ctx, settings.easing, spread, assembled, elapsed >= colorStart);
       if (resource && color > 0)
         artwork.draw(
           ctx,
@@ -204,9 +189,10 @@ export function createStartupScene(
       pause();
       return;
     }
-    const ratio = Math.min(devicePixelRatio || 1, 2, 1920 / Math.max(1, r.width));
-    canvas.width = Math.max(320, Math.round(r.width * ratio));
-    canvas.height = Math.max(180, Math.round(r.height * ratio));
+    const budget = getCanvasPlaybackBudget(readPlaybackViewport(r.width, r.height));
+    canvas.width = budget.width;
+    canvas.height = budget.height;
+    frameIntervalMs = budget.frameIntervalMs;
     draw();
   }
   const resize = new ResizeObserver(size);
@@ -282,7 +268,7 @@ export function createStartupScene(
       resource.element.addEventListener("error", mediaError);
       closedEyes = closed;
       paths = lines;
-      pieces = createSceneFragments(paths);
+      fragments = createSceneFragmentDrawing(paths);
       loaded = true;
       canvas.dataset.resourceOrigin = custom ? "custom" : "builtin";
       syncResource(true);
@@ -303,7 +289,14 @@ export function createStartupScene(
     if (resource?.kind === "video") resource.element.pause();
   }
   function tick(now: number) {
+    frame = 0;
     if (!playing || disposed) return;
+    // 受限设备只降低绘制频率；时间仍取单调时钟，欢迎/ready/收拢节点不依赖帧数。
+    if (now - lastFrameTime + 0.01 < frameIntervalMs) {
+      frame = requestAnimationFrame(tick);
+      return;
+    }
+    lastFrameTime = now;
     clock.advance(now, sceneTiming(settings).duration);
     syncResource();
     draw();
@@ -322,6 +315,7 @@ export function createStartupScene(
     }
     if (clock.elapsed >= sceneTiming(settings).duration) clock.seek(0, performance.now());
     playing = true;
+    lastFrameTime = -Infinity;
     clock.resume(performance.now());
     syncResource(true);
     frame = requestAnimationFrame(tick);
@@ -383,7 +377,7 @@ export function createStartupScene(
       artwork.dispose();
       closedEyes = undefined;
       paths = [];
-      pieces = [];
+      fragments = undefined;
       canvas.remove();
     },
   };

@@ -3,6 +3,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { STARTUP_MEDIA_FILES, STARTUP_MEDIA_NOTICE_FILES } from "./startup-media-assets.mjs";
+import {
+  transcodeStartupPlaybackVideo,
+  generateStartupFillImage,
+} from "./startup-media-transcode.mjs";
 
 const desktopRoot = resolve(import.meta.dirname, "..");
 const args = process.argv.slice(2);
@@ -38,7 +42,20 @@ for (const [input, name] of files) {
   if (sha256 !== (await hash(temporary))) throw new Error("Local animation copy checksum mismatch");
   await rename(temporary, resolve(destination, name));
 }
-await writeFile(resolve(destination, "baili-NOTICE.md"), notice, "utf8");
+await transcodeStartupPlaybackVideo(
+  resolve(destination, "baili.mp4"),
+  resolve(destination, "baili-lite.mp4"),
+);
+await generateStartupFillImage(
+  resolve(destination, "baili.mp4"),
+  resolve(destination, "baili-fill.jpg"),
+);
+await writeFile(
+  resolve(destination, "baili-NOTICE.md"),
+  notice +
+    "\n\nLCode 同时从本母版生成 1920×1080 / 30 fps 的轻量启动播放版本，保留音轨与 16 秒时间轴，并从第 14 秒生成 480×270 的模糊暗化静态补边图。\n",
+  "utf8",
+);
 // 更新白璃时也保留并校验其它模板资源，不能重置整个媒体清单。
 const hashes = Object.fromEntries(
   await Promise.all(

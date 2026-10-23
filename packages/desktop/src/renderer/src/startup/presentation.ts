@@ -7,6 +7,7 @@ import {
 import { StartupAnimationState, type AnimationFinishReason } from "./animationState.js";
 import { getStartupAnimationPresets } from "./media.js";
 import { createStartupScene } from "./scene.js";
+import { readPlaybackViewport, selectStartupVideoFile } from "./playbackPolicy.js";
 import { createStartupWelcome } from "./welcome.js";
 
 let active: ReturnType<typeof createPresentation> | undefined;
@@ -318,7 +319,16 @@ function createPresentation(
       video.muted = settings.volume === 0;
       video.volume = settings.volume;
       video.preload = "auto";
-      video.src = new URL(`./startup-media/${settings.preset}.mp4`, document.baseURI).href;
+      const file =
+        settings.preset === "baili"
+          ? selectStartupVideoFile(readPlaybackViewport())
+          : `${settings.preset}.mp4`;
+      video.src = new URL(`./startup-media/${file}`, document.baseURI).href;
+      if (settings.preset === "baili") {
+        // cover 会裁掉视频内的品牌与字幕；主体完整显示，用已模糊的小静态图填边，不再开解码器。
+        const fill = new URL("./startup-media/baili-fill.jpg", document.baseURI).href;
+        video.style.backgroundImage = `linear-gradient(#0008,#0008),url(${JSON.stringify(fill)})`;
+      }
       video.setAttribute("aria-hidden", "true");
       loading.prepend(video);
       listen(video, "error", () => finish("media-error"));

@@ -13,6 +13,8 @@ for (const command of ["serve", "build"] as const) {
     const config = await (plugin.config as Function)({}, { command });
     assert.deepEqual(JSON.parse(config.define.__LCODE_STARTUP_MEDIA_FILES__), [
       "baili.mp4",
+      "baili-lite.mp4",
+      "baili-fill.jpg",
       "baili-wallpaper.mp4",
       "aemeath-artwork.jpg",
       "aemeath-closed-eyes.png",
@@ -26,6 +28,8 @@ for (const command of ["serve", "build"] as const) {
       emitted.sort(),
       [
         "baili.mp4",
+        "baili-lite.mp4",
+        "baili-fill.jpg",
         "baili-wallpaper.mp4",
         "aemeath-artwork.jpg",
         "aemeath-closed-eyes.png",

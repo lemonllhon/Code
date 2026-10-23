@@ -7,6 +7,10 @@ export function createSceneArtwork() {
   art.width = 1536;
   art.height = 1024;
   const paint = art.getContext("2d")!;
+  let cachedResource: SceneResource | undefined;
+  let cachedEyes: HTMLImageElement | undefined;
+  let cachedColor = -1,
+    cachedBlink = -1;
   return {
     draw(
       target: CanvasRenderingContext2D,
@@ -15,6 +19,17 @@ export function createSceneArtwork() {
       color: number,
       blink: number,
     ) {
+      // 静态展示原来每帧重绘整幅纹理；相同像素直接复用，视频不能按对象身份误缓存。
+      if (
+        resource.kind === "image" &&
+        resource === cachedResource &&
+        closedEyes === cachedEyes &&
+        color === cachedColor &&
+        blink === cachedBlink
+      ) {
+        target.drawImage(art, 0, 0);
+        return;
+      }
       paint.globalCompositeOperation = "source-over";
       paint.clearRect(0, 0, 1536, 1024);
       if (closedEyes && resource.kind === "image")
@@ -40,9 +55,15 @@ export function createSceneArtwork() {
         paint.fillRect(0, 0, 1536, 1024);
       }
       target.drawImage(art, 0, 0);
+      cachedResource = resource;
+      cachedEyes = closedEyes;
+      cachedColor = color;
+      cachedBlink = blink;
     },
     dispose() {
       art.width = art.height = 1;
+      cachedResource = undefined;
+      cachedEyes = undefined;
     },
   };
 }

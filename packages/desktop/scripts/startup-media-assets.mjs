@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 
 export const STARTUP_MEDIA_FILES = [
   "baili.mp4",
+  "baili-lite.mp4",
+  "baili-fill.jpg",
   "baili-wallpaper.mp4",
   "aemeath-artwork.jpg",
   "aemeath-closed-eyes.png",
