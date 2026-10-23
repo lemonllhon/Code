@@ -39,6 +39,13 @@ runtime.
 
 ## Ownership and interfaces
 
+2026-10-23: prior-session previews remain optional historical background, not current progress,
+account state or permission. Apply relevant facts silently; an explicit user question or relevant
+changed fact/error may still be explained. ReadSessionContext is required only when relying on
+details beyond the preview, not as an unconditional next action. Format each bounded source before
+combining it so escaping or large titles cannot truncate the final source identity or read guidance.
+The existing three-result, 600-preview and 3,200-attachment caps and all isolation checks remain.
+
 - Persisted session truth remains owned by `SessionStorePort`.
 - Workspace isolation, active-branch projection, lexical ranking, and failure discrimination are shared
   with explicit `SessionHistorySearch`; automatic recall must not fork those rules.
@@ -147,26 +154,26 @@ passing the engineering gate. The reproducible corpus is defined in
 
 ## Acceptance cases
 
-| ID     | Setup / action                                              | Assertions                                                                    |
-| ------ | ----------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| SAR-1  | Setting absent or `false`                                   | No session-store read and no attachment                                       |
-| SAR-2  | Setting `true`, Project Memory disabled                     | Session recall still runs; the two switches are independent                   |
-| SAR-3  | Real user query has a same-workspace positive match         | One `session_recall` overlay, bounded and labelled untrusted                  |
-| SAR-4  | Remote A and same-path remote B                             | Only exact A is read; current session and B are excluded                      |
-| SAR-5  | No positive match or search unavailable                     | No overlay; main turn continues                                               |
-| SAR-6  | Tool step / provider failover after first request           | Search is not repeated; the same overlay remains available                    |
-| SAR-7  | Compact before or during the turn                           | Recall overlays are excluded from summary/persistence and restored afterward  |
-| SAR-8  | Model-only, resume, automation, off-peak, or child runtime  | No automatic search                                                           |
-| SAR-9  | Adversarial title/preview contains reminder markup          | Markup is sanitized and attachment stays within 3,200 characters              |
-| SAR-10 | Multilingual offline ranking fixture                        | Precision/false-positive thresholds are computed deterministically            |
-| SAR-11 | SQLite bounded snapshot capability                          | Automatic path sends the stricter row/byte limits and propagates truncation   |
-| SAR-12 | Reproducible production-SQLite benchmark                    | Quality and latency gates are recorded without reading a user database        |
-| SAR-13 | App setting absent or an old Host omits the protocol field  | UI and protocol both resolve to disabled                                      |
-| SAR-14 | User enables the Memory-page switch, then creates a session | Setting persists; the new runtime receives `sessionRecall.enabled = true`     |
-| SAR-15 | User toggles the setting while a session is already running | Active runtime is unchanged; the next materialized session uses the new value |
-| SAR-16 | Pointer hovers or keyboard focuses the `?` trigger          | Localized help text explains purpose, scope, read-only behavior, and timing   |
-| SAR-17 | Onboarding preferences page opened with recall enabled in Settings | The checkbox shows checked; saving without touching it writes no `sessionRecallEnabled` |
-| SAR-18 | User checks the onboarding checkbox, then completes onboarding | Settings → Memory reads back enabled; skipping that page writes nothing and leaves the prior value |
+| ID     | Setup / action                                                     | Assertions                                                                                         |
+| ------ | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| SAR-1  | Setting absent or `false`                                          | No session-store read and no attachment                                                            |
+| SAR-2  | Setting `true`, Project Memory disabled                            | Session recall still runs; the two switches are independent                                        |
+| SAR-3  | Real user query has a same-workspace positive match                | One `session_recall` overlay, bounded and labelled untrusted                                       |
+| SAR-4  | Remote A and same-path remote B                                    | Only exact A is read; current session and B are excluded                                           |
+| SAR-5  | No positive match or search unavailable                            | No overlay; main turn continues                                                                    |
+| SAR-6  | Tool step / provider failover after first request                  | Search is not repeated; the same overlay remains available                                         |
+| SAR-7  | Compact before or during the turn                                  | Recall overlays are excluded from summary/persistence and restored afterward                       |
+| SAR-8  | Model-only, resume, automation, off-peak, or child runtime         | No automatic search                                                                                |
+| SAR-9  | Adversarial title/preview contains reminder markup                 | Markup is sanitized and attachment stays within 3,200 characters                                   |
+| SAR-10 | Multilingual offline ranking fixture                               | Precision/false-positive thresholds are computed deterministically                                 |
+| SAR-11 | SQLite bounded snapshot capability                                 | Automatic path sends the stricter row/byte limits and propagates truncation                        |
+| SAR-12 | Reproducible production-SQLite benchmark                           | Quality and latency gates are recorded without reading a user database                             |
+| SAR-13 | App setting absent or an old Host omits the protocol field         | UI and protocol both resolve to disabled                                                           |
+| SAR-14 | User enables the Memory-page switch, then creates a session        | Setting persists; the new runtime receives `sessionRecall.enabled = true`                          |
+| SAR-15 | User toggles the setting while a session is already running        | Active runtime is unchanged; the next materialized session uses the new value                      |
+| SAR-16 | Pointer hovers or keyboard focuses the `?` trigger                 | Localized help text explains purpose, scope, read-only behavior, and timing                        |
+| SAR-17 | Onboarding preferences page opened with recall enabled in Settings | The checkbox shows checked; saving without touching it writes no `sessionRecallEnabled`            |
+| SAR-18 | User checks the onboarding checkbox, then completes onboarding     | Settings → Memory reads back enabled; skipping that page writes nothing and leaves the prior value |
 
 ### UI interaction scenario
 

@@ -1238,9 +1238,13 @@ nodes:
         symbol: ProjectMemoryRecallIndex
       - file: apps/lcode-cli/packages/core/src/runtime/methods/turn-loop.ts
         symbol: appendProjectMemoryRecallForTurn
+      - file: apps/lcode-cli/packages/core/src/memory/recall/excerpt.ts
+        symbol: selectMemoryExcerpt
     invariants:
       - "Project Memory files are the durable fact source; runtime caches and turn overlays are
         derived views and cannot become additional writers."
+      - "Reference excerpts use a soft presentation budget within unchanged hard caps; only exact
+        same-source/version/metadata excerpts deduplicate. Distinct constraints and sources remain."
   - id: persistence.project-memory-files
     kind: persistence
     label: Workspace-scoped Project Memory Markdown files
@@ -1362,6 +1366,8 @@ nodes:
     invariants:
       - "Automatic recall is default-off, uses stricter bounds than the explicit tool, runs once for
         an eligible real-user turn, and never performs an automatic deep read."
+      - "Historical previews are silent background, not current account state or permission; source
+        identities and conditional deep-read guidance survive per-source escaping and budgeting."
   - id: capability.session-history-recall-benchmark
     kind: capability
     label: Reproducible production-SQLite recall latency gate

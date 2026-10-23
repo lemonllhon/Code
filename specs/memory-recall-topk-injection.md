@@ -21,18 +21,28 @@ No positive lexical match means no recall attachment. There is no “inject the 
 - I/O: only `FileSystemPort`; ranking code performs no I/O.
 - No database, protocol, setting, or network dependency is added.
 
-The index is keyed by file path and `mtimeMs`. Reconcile removes deleted/unreadable entries, rereads changed entries, and reuses unchanged content. Because `FileSystemPort.stat().mtimeMs` is optional, a candidate without `mtimeMs` is never considered cache-valid and is reread on every reconcile. A scan is bounded before per-file reads and uses fixed concurrency. Reconcile precomputes each document's term-frequency map, token length, and metadata token set; query-time ranking does not rebuild those structures.
+The runtime index is a bounded derived view of currently verified file content, not an authority based
+on `mtimeMs`. Every eligible turn reconciles and reads current sources; unchanged timestamps or sizes
+do not prove unchanged text or permission. Deleted/unreadable sources are removed. Reconcile
+precomputes term frequencies, token length and metadata tokens for ranking. Late reads cannot publish
+an older request/root over a newer index.
+
+The current Node Project Memory port supplies paged candidate/content access: two streaming passes
+compute corpus statistics then retain a bounded set of candidate pages. The 64 KiB page size and
+original-file revision checks bound each read; files beyond 200 entries or the former 4 MiB corpus
+remain searchable, including late matches. Adapters without that capability use the bounded legacy
+directory/read fallback below. Neither path introduces a durable cache or another memory writer.
 
 ## Ranking and budgets
 
-- Candidate files: regular `.md` files except `MEMORY.md`, maximum 200. Symlinks are rejected and
+- Legacy fallback candidate files: regular `.md` files except `MEMORY.md`, maximum 200. Symlinks are rejected and
   do not consume the candidate budget.
-- Core traversal visits at most 128 directories and processes at most 4,096 directory entries.
+- Legacy fallback core traversal visits at most 128 directories and processes at most 4,096 directory entries.
   Each request passes the remaining entry budget through `FileSystemPort.listDirectory.limit`, so the
   Node adapter never accumulates more entries for that call than core can still accept. Core retains a
   defensive slice for alternate/test adapters. The directory queue uses a cursor rather than
   front-removal.
-- Maximum indexed read per file: 64 KiB; maximum derived corpus: 4 MiB. The full read and manifest
+- Legacy fallback maximum indexed read per file: 64 KiB; maximum derived corpus: 4 MiB. The full read and manifest
   preview both pass the named per-file `maxBytes` guard. Stat results are admitted in stable path
   order until the corpus budget is full.
 - Tokenization: Unicode-normalized Latin/number/identifier tokens, identifier sub-parts, and Han bigrams.
@@ -49,6 +59,28 @@ may reuse a frozen candidate selector without additional body reads; full target
 independently read and revision-checked. See agent-memory-learning-v2.md.
 
 These are named constants. Changing them is a behavior change and requires updating this spec and its fixtures.
+
+### 2026-10-23: focused reference excerpts
+
+The hard limits stay unchanged. Only `reference` topics use a 1,200-character presentation budget;
+user, feedback, project and untyped topics retain the 4,000-character limit. This is a request excerpt,
+not a rewrite of the memory file or a change to evidence verification. Matching paragraphs retain
+their immediate neighbors and section heading; several separated matches may share the budget in
+source order with explicit omission markers. Short text stays complete. When a neighborhood cannot
+fit, the original Unicode-safe contiguous excerpt remains the fallback. No-hit metadata matches retain
+their prefix. Negations and exceptions must remain in the selected neighborhood; full source reads
+remain necessary before depending on omitted details.
+
+Exact repeated excerpts from the same file, revision, type and description are emitted once, then the
+formatter considers the next ranked candidate until four distinct results or the attachment budget.
+Different files, revisions, types, descriptions, conflicting facts and distinct sections are not merged.
+BM25 admission, expiration, workspace roots, writer/CAS, once-per-turn admission and persistence
+filters remain unchanged. Background wording asks for silent application of relevant facts, with
+explicit user requests, changed facts and actual errors still reportable.
+
+Additional acceptance: labeled release/UI/no-repository/troubleshooting queries exclude zero-match
+material; reference excerpts reduce unrelated context while preserving adjacent restrictions and
+multiple relevant sections; duplicate pages do not displace distinct results; conflicts survive.
 
 ## Ordering and idempotency
 

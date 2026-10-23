@@ -35,6 +35,34 @@ const context = (username: string): GitAgentContext => ({
     },
   ],
 });
+
+test("background Git facts are silent by default and leave operational account rules to Git tools", () => {
+  for (const value of [context("fixture-user"), { status: "unavailable" } as const]) {
+    const text = formatGitAgentContext(value);
+    assert.match(text, /silently/i);
+    assert.match(text, /user asks/i);
+    assert.match(text, /authentication/i);
+    assert.doesNotMatch(text, /Compare user-approved|Use Git inspect\/bind|Use separate Git/);
+  }
+  const noGit: GitAgentContext = {
+    status: "available",
+    partial: false,
+    repositories: [
+      {
+        workspacePath: "/plain-project",
+        revision: null,
+        status: "unavailable",
+        partial: false,
+        remotes: [],
+      },
+    ],
+  };
+  const text = formatGitAgentContext(noGit);
+  assert.match(text, /Non-Git projects/);
+  assert.match(text, /do not initialize/i);
+  assert.match(text, /"status":"unavailable"/);
+  assert.match(text, /"remotes":\[\]/);
+});
 test("Git facts refresh every step alongside memory, never enter recorded/compact history, and failures remove old accounts", async () => {
   const user = createRuntimeUserEntry("提交改动"),
     memory = systemReminderAttachmentEntry("memory_recall", "提交遵守 Conventional Commits");
