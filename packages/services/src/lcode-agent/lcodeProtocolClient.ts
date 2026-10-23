@@ -82,6 +82,7 @@ export class LCodeProtocolClient implements IDisposable {
   private readonly closeEmitter = new Emitter<void>();
   private readonly disposables: IDisposable[] = [];
   private nextRequestId = 1;
+  private readonly pendingHostRequests = new Set<string>();
   private disposed = false;
   private readonly requestTimeoutMs: number;
 
@@ -110,6 +111,20 @@ export class LCodeProtocolClient implements IDisposable {
     let count = 0;
     for (const pending of this.pending.values()) if (!pending.observation) count += 1;
     return count;
+  }
+
+  get pendingHostRequestCount(): number {
+    return this.pendingHostRequests.size;
+  }
+
+  private settleHostResponse(id: LCodeProtocolRequestId): void {
+    if (
+      this.pendingHostRequests.delete(String(id)) &&
+      this.pendingHostRequests.size === 0 &&
+      this.pendingOperationRequestCount === 0 &&
+      !this.disposed
+    )
+      this.pendingDrainedEmitter.fire();
   }
 
   constructor(
@@ -238,6 +253,8 @@ export class LCodeProtocolClient implements IDisposable {
   async respond(id: LCodeProtocolRequestId, result: unknown): Promise<void> {
     this.assertNotDisposed();
     await this.transport.send({ id, result });
+    // 反向请求可能仍在准备凭据、文件或等待授权；只有真实写入完成才能解除空闲保护。
+    this.settleHostResponse(id);
   }
 
   async respondError(
@@ -246,6 +263,7 @@ export class LCodeProtocolClient implements IDisposable {
   ): Promise<void> {
     this.assertNotDisposed();
     await this.transport.send({ id, error });
+    this.settleHostResponse(id);
   }
 
   dispose(): void {
@@ -302,6 +320,7 @@ export class LCodeProtocolClient implements IDisposable {
     }
 
     if ("method" in message && "id" in message) {
+      this.pendingHostRequests.add(String((message as LCodeProtocolRequest).id));
       this.requestEmitter.fire(message as LCodeProtocolRequest);
       return;
     }
@@ -385,6 +404,7 @@ export class LCodeProtocolClient implements IDisposable {
   }
 
   private disposeLocalResources(): void {
+    this.pendingHostRequests.clear();
     this.rejectAll(new Error("LCode Protocol client disposed"));
     for (const disposable of this.disposables) {
       disposable.dispose();

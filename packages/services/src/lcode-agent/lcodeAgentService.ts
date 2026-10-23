@@ -897,6 +897,8 @@ interface CreateLCodeAgentServiceOptions extends Omit<
 > {
   /** 仅供 MCP 状态探测进程使用，不能把空闲回收传给 chat。 */
   mcpStatusIdleTimeoutMs?: number;
+  /** 插件控制面结清后保留期；执行 chat 不使用此策略。 */
+  pluginIdleTimeoutMs?: number;
   worktreeService?: import("../worktree/contract.js").IWorktreeService;
   projectExecutionSetService?: import("../project-execution-set/contract.js").ProjectExecutionSetHostService;
   /** 执行 Host 的持久 admission；后台读取和重启同样不能重新占用已关闭的工作树。 */
@@ -1212,6 +1214,10 @@ export function createLCodeAgentService(
     presentationSurface: options?.presentationSurface,
     requestTimeoutMs: options?.requestTimeoutMs,
     resolveSpawnEnv: options?.resolveSpawnEnv,
+    processLifecycleReporter: options?.processLifecycleReporter,
+    lane: "plugin",
+    // 插件管理 RPC 在写入完成后才返回；反向 Host 请求也由 manager 的空闲资格保护。
+    idleTimeoutMs: options?.pluginIdleTimeoutMs ?? MCP_STATUS_LANE_IDLE_TIMEOUT_MS,
     waitForSpawnAdmission,
     onProcessCleanupCompleted: settleWorktreeClient,
   });
@@ -1299,6 +1305,14 @@ export function createLCodeAgentService(
     seqStates: sessionEventSequenceStates.size,
     pendingPermissions: pendingPermissions.size,
     pendingUserInputs: pendingUserInputs.size,
+    ...Object.fromEntries(
+      [processManager, pluginProcessManager, mcpStatusProcessManager].flatMap((manager, index) =>
+        Object.entries(manager.getResourceCounts()).map(([key, value]) => [
+          `${["chat", "plugin", "mcpStatus"][index]}.${key}`,
+          value,
+        ]),
+      ),
+    ),
   }));
   const pendingProviderRuntimeHeaders = new Map<string, PendingProviderRuntimeHeadersRequest>();
   const projectNativeBridge = new ProjectNativeBridge();

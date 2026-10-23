@@ -73,8 +73,8 @@ export interface LCodeAgentProcessManagerOptions {
   lane?: string;
   /**
    * 空闲回收阈值：连接上没有请求在飞持续超过该时长，就主动回收整棵进程树，
-   * 下次 getClient 透明重新拉起。只给 mcp-status 这类“按需探测、进程内挂着 MCP 子进程”
-   * 的控制面 lane 使用；chat / plugin 缺省不回收。
+   * 下次 getClient 透明重新拉起。只给 plugin / mcp-status 控制面使用；
+   * chat 缺省不回收，反向 Host 请求和数据库启动同样受保护。
    */
   idleTimeoutMs?: number;
   /**
@@ -656,6 +656,7 @@ export class LCodeAgentProcessManager {
       // 自定义 Agent 的旧启动请求可能先结清，再继续数据库准备；无在飞 RPC 不代表迁移空闲。
       if (
         managed.client.pendingOperationRequestCount > 0 ||
+        managed.client.pendingHostRequestCount > 0 ||
         managed.client.storageStartup.isWaiting
       ) {
         return;
@@ -961,6 +962,22 @@ export class LCodeAgentProcessManager {
       ...[...this.ownedProcesses].map((managed) => managed.workspace),
       ...[...this.startingByWorkspaceKey.values()].map((starting) => starting.workspace),
     ];
+  }
+
+  /** 只读进程归属计数，不把遥测变成第二份准入状态。 */
+  getResourceCounts(): { live: number; starting: number; retiring: number; protected: number } {
+    const owned = [...this.ownedProcesses];
+    return {
+      live: owned.filter((entry) => !entry.exited).length,
+      starting: this.startingByWorkspaceKey.size,
+      retiring: owned.filter((entry) => entry.firstCleanupReason !== undefined).length,
+      protected: owned.filter(
+        (entry) =>
+          entry.client.pendingOperationRequestCount > 0 ||
+          entry.client.pendingHostRequestCount > 0 ||
+          entry.client.storageStartup.isWaiting,
+      ).length,
+    };
   }
 
   /** 资源管理器：当前仍存活的受管 runtime（pid + workspace + client） */
