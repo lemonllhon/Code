@@ -119,6 +119,7 @@ nul
 !/packages/web/test/mixed-project-devices.test.mjs
 !/packages/web/test/project-delete-archive.test.mjs
 !/packages/web/test/project-sidebar-removal.test.mjs
+!/packages/web/test/sidebar-context-menu-review.test.mjs
 !/packages/web/test/remote-directory-picker.test.mjs
 !/packages/web/test/fixtures/
 /packages/web/test/fixtures/*

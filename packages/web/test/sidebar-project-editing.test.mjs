@@ -59,7 +59,11 @@ test(
       await editor.getByRole("button", { name: "repo · 移除目录", exact: true }).isDisabled(),
       true,
     );
-    await editor.getByRole("button", { name: "backend · 上移", exact: true }).click();
+    // 当前 spec 要求主要目录始终为首行；旧场景尝试越过主要目录，等待禁用按钮导致假失败。
+    assert.equal(
+      await editor.getByRole("button", { name: "backend · 上移", exact: true }).isDisabled(),
+      true,
+    );
     await setPurpose(editor, "前后端共用协议，接口变更需同步。");
     await editor.getByRole("button", { name: "保存", exact: true }).click();
     await editor.waitFor({ state: "detached" });
@@ -71,7 +75,11 @@ test(
     assert.deepEqual(project.sourceFolderPaths, ["/fixture/repo", "/fixture/backend"]);
     assert.equal(
       project.members.find((member) => member.id === project.memberOrder[0]).path,
-      "/fixture/backend",
+      "/fixture/repo",
+    );
+    assert.equal(
+      project.members.find((member) => member.id === project.primaryMemberId).path,
+      "/fixture/repo",
     );
     assert.equal(await page.evaluate(() => globalThis.__sidebarOrganization.facts.drafts), 0);
     assert.equal(
@@ -202,9 +210,10 @@ test(
     await page.getByText("远程服务", { exact: true }).waitFor();
     await page.evaluate(() => globalThis.__sidebarOrganization.offline());
     editor = await openProject("远程服务");
+    // 当前跨设备项目允许离线编辑元数据与添加本地目录；远端目录另走设备选择器。
     assert.equal(
       await editor.getByRole("button", { name: "添加目录", exact: true }).isDisabled(),
-      true,
+      false,
     );
     await editor.getByLabel("项目名称", { exact: true }).fill("远程协作");
     await editor.getByRole("button", { name: "保存", exact: true }).click();
@@ -214,23 +223,28 @@ test(
     await page.evaluate(() => globalThis.__sidebarOrganization.online());
     editor = await openProject("远程协作");
     await editor.getByRole("button", { name: "添加目录", exact: true }).click();
-    await editor.getByPlaceholder("输入路径", { exact: true }).fill("/fixture/remote-api");
-    await editor.getByRole("button", { name: "前往", exact: true }).click();
-    await editor.getByRole("button", { name: "选择此目录", exact: true }).click();
-    await editor.locator('[data-project-member="/fixture/remote-api"]').waitFor();
+    await editor.locator('[data-project-member="/fixture/backend"]').waitFor();
     await editor.getByRole("button", { name: "保存", exact: true }).click();
     await editor.waitFor({ state: "detached" });
     const calls = await page.evaluate(() => globalThis.__sidebarOrganization.calls);
-    assert.equal(
-      calls.filter(
-        (call) => call.method === "localStat" && call.params.path === "/fixture/remote-api",
-      ).length,
-      0,
-    );
     assert.ok(
-      calls.some(
-        (call) => call.method === "remoteStat" && call.params.path === "/fixture/remote-api",
-      ),
+      calls.some((call) => call.method === "localStat" && call.params.path === "/fixture/backend"),
+    );
+    assert.equal(
+      calls.some((call) => call.method === "remoteStat" && call.params.path === "/fixture/backend"),
+      false,
+    );
+    const remoteProject = await page.evaluate(() =>
+      globalThis.__sidebarOrganization
+        .settings()
+        .projectDefinitions.projects.find(
+          (project) => project.workspaceIdentity === globalThis.__sidebarOrganization.identity,
+        ),
+    );
+    assert.equal(remoteProject.primaryFolderPath, "/fixture/repo");
+    assert.equal(
+      remoteProject.members.find((member) => member.path === "/fixture/backend").source.kind,
+      "local",
     );
     await mkdir(".artifacts/sidebar-collaboration", { recursive: true });
     for (const [index, theme] of [

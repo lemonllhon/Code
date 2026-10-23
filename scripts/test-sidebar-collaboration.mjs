@@ -32,6 +32,8 @@ const browser = [
   "sidebar-organize-position",
   "sidebar-focus",
   "worktree-sidebar-menus",
+  "sidebar-context-menu-review",
+  "project-delete-archive",
   "project-sidebar-removal",
   "sidebar-project-editing",
   "project-form-details",

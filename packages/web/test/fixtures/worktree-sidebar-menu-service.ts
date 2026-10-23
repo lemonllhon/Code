@@ -12,7 +12,11 @@ export function installSidebarMenuServices(
   getTasks: () => SidebarFixtureTask[],
   setTasks: (tasks: SidebarFixtureTask[]) => void,
 ) {
-  const control = { sessionFileExists: true, failExecutionRead: false };
+  const control = {
+    sessionFileExists: true,
+    failExecutionRead: false,
+    failMutation: "",
+  };
   const event = () => ({ dispose() {} });
   const update = (
     method: string,
@@ -20,6 +24,7 @@ export function installSidebarMenuServices(
     patch: Partial<SidebarFixtureTask>,
   ) => {
     calls.push({ method, params });
+    if (control.failMutation === method) throw new Error(`Fixture rejected ${method}`);
     const next = { ...getTasks().find((task) => task.taskId === params.taskId)!, ...patch };
     setTasks(getTasks().map((task) => (task.taskId === next.taskId ? next : task)));
     return structuredClone(next);

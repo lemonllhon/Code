@@ -39,9 +39,11 @@ import "@/styles.css";
 const noop = () => {};
 const subscribe = () => ({ dispose: noop });
 const origin = "/fixture/repo";
-const target = { kind: "ssh" as const, host: "example.invalid", username: "fixture", port: 22 };
-const identity = buildRemoteWorkspaceIdentity(origin, target);
 const params = new URLSearchParams(location.search);
+const target = params.has("wsl")
+  ? { kind: "wsl" as const, distro: "FixtureDistro" }
+  : { kind: "ssh" as const, host: "example.invalid", username: "fixture", port: 22 };
+const identity = buildRemoteWorkspaceIdentity(origin, target);
 const savedHistory = params.has("saved-history");
 let { tasks, bindings, tabs, facts } = createSidebarFixtureData(origin, identity, target);
 let snapshot: SidebarOrganization =
@@ -187,7 +189,7 @@ const services = {
     },
   },
 } as IServiceAccessor;
-installSidebarMenuServices(
+const menuControl = installSidebarMenuServices(
   services,
   calls,
   () => tasks,
@@ -303,6 +305,8 @@ if (!savedHistory) registerRemote();
 Object.assign(globalThis, {
   __sidebarOrganization: {
     projectTaskSnapshot: () => structuredClone(tasks),
+    menuControl,
+    tasks: () => structuredClone(tasks),
     facts,
     calls,
     snapshot: () => snapshot,
@@ -401,6 +405,7 @@ function Fixture({
       <div className="w-80 max-w-full shrink-0 bg-sidebar">
         {ready ? (
           <WorkspaceSidebar
+            isDesktop={params.has("desktop")}
             workspacePath={origin}
             theme={theme as never}
             onSelectTask={(path, id, scope) => {
@@ -442,6 +447,14 @@ createRoot(document.getElementById("root")!).render(
   <PlatformProvider
     platform={{
       ...platform,
+      openInEditor: async (editorId, path, options) => {
+        calls.push({ method: "open-editor", params: { editorId, path, options } });
+        return { success: true };
+      },
+      openInFileManager: async (path) => {
+        calls.push({ method: "open-native-folder", params: { path } });
+        return { success: true };
+      },
       canSelectFilePath: true,
       selectDirectory: async () => "/fixture/backend",
       syncAppSettings: () => {

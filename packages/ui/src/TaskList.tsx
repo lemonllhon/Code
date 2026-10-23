@@ -72,6 +72,8 @@ export const TaskList = memo(function TaskList({
   groupByDate?: boolean;
 }) {
   const { intl, locale } = useLCodeIntl();
+  const intlRef = useRef(intl);
+  intlRef.current = intl;
   const pinnedTaskIdSet = useMemo(
     () => new Set(pinnedTasks.map((task) => task.taskId)),
     [pinnedTasks],
@@ -127,6 +129,23 @@ export const TaskList = memo(function TaskList({
     startDraft(workspacePath, undefined, workspaceIdentity, { createSource: "project" });
   }, [readOnlyReason, startDraft, workspaceIdentity, workspacePath]);
 
+  const handleArchiveTask = useCallback(
+    async (taskId: string) => {
+      if (readOnlyReason) {
+        return;
+      }
+      setPendingArchiveTaskId(null);
+      handleCancelRenameTask();
+      // 菜单与行内确认共用此入口；拒绝时保留事实并提示，不能让点击事件产生未处理拒绝。
+      try {
+        await onArchiveTaskRef.current(taskId);
+      } catch {
+        toast(intlRef.current.formatMessage({ id: "taskList.archiveFailed" }));
+      }
+    },
+    [handleCancelRenameTask, readOnlyReason],
+  );
+
   const handleArchiveTaskFromInline = useCallback(
     async (e: React.MouseEvent, taskId: string) => {
       e.stopPropagation();
@@ -145,10 +164,9 @@ export const TaskList = memo(function TaskList({
         return;
       }
 
-      setPendingArchiveTaskId(null);
-      await onArchiveTaskRef.current(taskId);
+      await handleArchiveTask(taskId);
     },
-    [handleCancelRenameTask, readOnlyReason],
+    [handleArchiveTask, handleCancelRenameTask, readOnlyReason],
   );
 
   const handleStartRenameTask = useCallback(
@@ -174,24 +192,14 @@ export const TaskList = memo(function TaskList({
       if (readOnlyReason) {
         return;
       }
-      const updatedTask = await onSetTaskPinnedRef.current(taskId, pinned);
-      if (!updatedTask) {
-        return;
+      try {
+        await onSetTaskPinnedRef.current(taskId, pinned);
+      } catch {
+        // 上层 owner 已回滚乐观置顶；这里保留可重试入口并呈现操作失败。
+        toast(intlRef.current.formatMessage({ id: "taskList.pinFailed" }));
       }
     },
     [readOnlyReason],
-  );
-
-  const handleArchiveTask = useCallback(
-    async (taskId: string) => {
-      if (readOnlyReason) {
-        return;
-      }
-      setPendingArchiveTaskId(null);
-      handleCancelRenameTask();
-      await onArchiveTaskRef.current(taskId);
-    },
-    [handleCancelRenameTask, readOnlyReason],
   );
 
   const handleSubmitRenameTask = useCallback(
@@ -249,7 +257,9 @@ export const TaskList = memo(function TaskList({
           workspaceIdentity,
           message: error instanceof Error ? error.message : String(error),
         });
-        throw error;
+        // 重命名失败保留当前草稿供重试；事件回调不再向浏览器抛出未处理拒绝。
+        toast(intl.formatMessage({ id: "taskList.renameFailed" }));
+        return;
       }
       logger.info("[TaskList] rename submit onRenameTask resolved", {
         taskId,
@@ -292,7 +302,9 @@ export const TaskList = memo(function TaskList({
       if (readOnlyReason) {
         return;
       }
-      void onSetTaskUnreadRef.current(taskId, true);
+      void onSetTaskUnreadRef.current(taskId, true).catch(() => {
+        toast(intlRef.current.formatMessage({ id: "taskList.markAsUnreadFailed" }));
+      });
     },
     [readOnlyReason],
   );

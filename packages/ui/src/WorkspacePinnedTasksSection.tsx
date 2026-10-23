@@ -190,6 +190,7 @@ export function WorkspacePinnedTasksSection({
 
     return { item, services };
   }, []);
+  // 右键与行操作共用最新 item/services；RPC 拒绝时保留列表事实并提示，避免未处理拒绝。
   const archivePinnedItem = useCallback(
     (itemKey: string) => {
       const current = getCurrentPinnedItemContext(itemKey);
@@ -219,6 +220,10 @@ export function WorkspacePinnedTasksSection({
             previousState: { pinned: true, archived: false },
             nextState: { pinned: false, archived: true },
           });
+        })
+        .catch(() => {
+          // 仅成功回执更新投影；失败不移除会话、不伪造未读事实，允许再次操作。
+          toast(intlRef.current.formatMessage({ id: "taskList.archiveFailed" }));
         });
     },
     [getCurrentPinnedItemContext],
@@ -348,6 +353,10 @@ export function WorkspacePinnedTasksSection({
             previousState: { pinned: true, archived: false },
             nextState: { pinned: true, archived: false },
           });
+        })
+        .catch(() => {
+          // 仅成功回执更新投影；失败不移除会话、不伪造未读事实，允许再次操作。
+          toast(intlRef.current.formatMessage({ id: "taskList.markAsUnreadFailed" }));
         });
     },
     [getCurrentPinnedItemContext],
@@ -559,7 +568,7 @@ export function WorkspacePinnedTasksSection({
             })}
           </ul>
         </ContextMenuTrigger>
-        {contextMenuItem && contextMenuServices ? (
+        {contextMenuItem && contextMenuServices && contextMenuItemKey ? (
           <TaskListItemContextMenuContent
             onForkCreated={(path, taskId, identity) => {
               setContextMenuItemKey(null);
@@ -574,157 +583,10 @@ export function WorkspacePinnedTasksSection({
             task={contextMenuItem}
             isPinned
             intl={intl}
-            onTogglePinTask={(_taskId, pinned) => {
-              if (contextMenuItem.workspaceIdentity) {
-                useRemotePinnedTaskStore
-                  .getState()
-                  .removeTask(
-                    contextMenuItem.workspacePath,
-                    contextMenuItem.taskId,
-                    contextMenuItem.workspaceIdentity,
-                  );
-                if (!pinned) {
-                  useRemoteTimelineTaskStore.getState().upsertTask(contextMenuItem, taskSortBy);
-                }
-              }
-              applyTaskQueryCacheMutation({
-                previousTask: contextMenuItem,
-                nextTask: contextMenuItem,
-                previousState: { pinned: true, archived: false },
-                nextState: { pinned, archived: false },
-              });
-              void contextMenuServices.lcodeTaskService
-                .setTaskPinned({
-                  taskId: contextMenuItem.taskId,
-                  workspacePath: contextMenuItem.workspacePath,
-                  ...(contextMenuItem.workspaceIdentity
-                    ? { workspaceIdentity: contextMenuItem.workspaceIdentity }
-                    : {}),
-                  pinned,
-                })
-                .then((meta) => {
-                  removeOptimisticTaskListItem(
-                    contextMenuItem.workspacePath,
-                    contextMenuItem.taskId,
-                    contextMenuItem.workspaceIdentity,
-                  );
-                  if (contextMenuItem.workspaceIdentity && pinned) {
-                    useRemotePinnedTaskStore.getState().upsertTask(meta);
-                    useRemoteTimelineTaskStore
-                      .getState()
-                      .removeTask(
-                        contextMenuItem.workspacePath,
-                        contextMenuItem.taskId,
-                        contextMenuItem.workspaceIdentity,
-                      );
-                  }
-                  if (contextMenuItem.workspaceIdentity && !pinned) {
-                    useRemoteTimelineTaskStore.getState().upsertTask(meta, taskSortBy);
-                  }
-                  applyTaskQueryCacheMutation({
-                    previousTask: contextMenuItem,
-                    nextTask: meta,
-                    previousState: { pinned, archived: false },
-                    nextState: { pinned, archived: false },
-                  });
-                })
-                .catch(() => {
-                  if (contextMenuItem.workspaceIdentity) {
-                    useRemotePinnedTaskStore.getState().upsertTask(contextMenuItem);
-                    useRemoteTimelineTaskStore
-                      .getState()
-                      .removeTask(
-                        contextMenuItem.workspacePath,
-                        contextMenuItem.taskId,
-                        contextMenuItem.workspaceIdentity,
-                      );
-                  }
-                  applyTaskQueryCacheMutation({
-                    previousTask: contextMenuItem,
-                    nextTask: contextMenuItem,
-                    previousState: { pinned, archived: false },
-                    nextState: { pinned: true, archived: false },
-                  });
-                  toast(intl.formatMessage({ id: "taskList.pinFailed" }));
-                });
-            }}
-            onStartRenameTask={(_taskId, currentTitle) => {
-              setPendingArchiveItemKey(null);
-              setRenamingItemKey(contextMenuItemKey);
-              setRenameDraft(currentTitle);
-            }}
-            onArchiveTask={() => {
-              void contextMenuServices.lcodeTaskService
-                .archiveTask({
-                  taskId: contextMenuItem.taskId,
-                  workspacePath: contextMenuItem.workspacePath,
-                  ...(contextMenuItem.workspaceIdentity
-                    ? { workspaceIdentity: contextMenuItem.workspaceIdentity }
-                    : {}),
-                })
-                .then((meta) => {
-                  removeTaskState(
-                    contextMenuItem.workspacePath,
-                    contextMenuItem.taskId,
-                    contextMenuItem.workspaceIdentity,
-                  );
-                  if (contextMenuItem.workspaceIdentity) {
-                    useRemotePinnedTaskStore
-                      .getState()
-                      .removeTask(
-                        contextMenuItem.workspacePath,
-                        contextMenuItem.taskId,
-                        contextMenuItem.workspaceIdentity,
-                      );
-                    useRemoteTimelineTaskStore
-                      .getState()
-                      .removeTask(
-                        contextMenuItem.workspacePath,
-                        contextMenuItem.taskId,
-                        contextMenuItem.workspaceIdentity,
-                      );
-                  }
-                  applyTaskQueryCacheMutation({
-                    previousTask: contextMenuItem,
-                    nextTask: meta,
-                    previousState: { pinned: true, archived: false },
-                    nextState: { pinned: false, archived: true },
-                  });
-                });
-            }}
-            onMarkTaskAsUnread={() => {
-              void contextMenuServices.lcodeTaskService
-                .setTaskUnread({
-                  taskId: contextMenuItem.taskId,
-                  workspacePath: contextMenuItem.workspacePath,
-                  ...(contextMenuItem.workspaceIdentity
-                    ? { workspaceIdentity: contextMenuItem.workspaceIdentity }
-                    : {}),
-                  unread: true,
-                })
-                .then((meta) => {
-                  setTaskUnreadIndicator(
-                    contextMenuItem.workspacePath,
-                    contextMenuItem.taskId,
-                    true,
-                    contextMenuItem.workspaceIdentity,
-                  );
-                  upsertOptimisticTaskListItem(
-                    contextMenuItem.workspacePath,
-                    meta,
-                    contextMenuItem.workspaceIdentity,
-                  );
-                  if (contextMenuItem.workspaceIdentity) {
-                    useRemotePinnedTaskStore.getState().upsertTask(meta);
-                  }
-                  applyTaskQueryCacheMutation({
-                    previousTask: contextMenuItem,
-                    nextTask: meta,
-                    previousState: { pinned: true, archived: false },
-                    nextState: { pinned: true, archived: false },
-                  });
-                });
-            }}
+            onTogglePinTask={getPinnedTaskItemHandlers(contextMenuItemKey).onTogglePinTask}
+            onStartRenameTask={getPinnedTaskItemHandlers(contextMenuItemKey).onStartRenameTask}
+            onArchiveTask={getPinnedTaskItemHandlers(contextMenuItemKey).onArchiveTask}
+            onMarkTaskAsUnread={getPinnedTaskItemHandlers(contextMenuItemKey).onMarkTaskAsUnread}
           />
         ) : null}
       </ContextMenu>
