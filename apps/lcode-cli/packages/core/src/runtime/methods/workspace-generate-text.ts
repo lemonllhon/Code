@@ -96,6 +96,8 @@ export async function testModelConnectivity(
     ],
   };
   let finished = false;
+  let receivedText = false;
+  let finishReason: string | undefined;
   await runWithModelInvocationContext(
     {
       metadata: traceContextToLogContext(traceContext),
@@ -112,11 +114,20 @@ export async function testModelConnectivity(
     async () => {
       for await (const event of model.streamText(request)) {
         if (event.type === "error") throw normalizeStreamError(event.error);
-        if (event.type === "finish") finished = true;
+        if (event.type === "text_delta" && event.text.trim()) receivedText = true;
+        if (event.type === "finish") {
+          finished = true;
+          finishReason = event.finishReason;
+        }
       }
     },
   );
+  abortSignal.throwIfAborted();
   if (!finished) throw new Error("模型连通性测试流在 finish 事件前结束");
+  // Bug 原因：SDK 可在未解析出正文时仍发 finish，过去将这种空结果误报为检测成功。
+  // 最小文字探测必须实际收到正文并正常完成，usage 和推理不能证明用户可获得回复。
+  if (!receivedText) throw new Error("模型连通性测试未返回有效文本，请导出日志检查响应解析");
+  if (finishReason !== "stop") throw new Error("模型连通性测试未正常完成");
 }
 
 export async function generateWorkspaceText(

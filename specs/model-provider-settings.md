@@ -80,7 +80,7 @@
 - Provider 配置 Repository 是模型成员、`excludedModelIds`、模型启用状态和 Key 列表的唯一持久化所有者。沿用 Provider Settings Facade 的每供应商 mutation 队列与 revision 校验；UI 不保存第二份权威成员名单。
 - Provider Settings Service 拥有远端目录读取和 Key 检测；UI 通过 `useModelProviders` 调用服务，不直接发送供应商网络请求。
 - `testModelConnectivity` 和 `provider/testModelConnectivity` 增加可选 `mode: "temporary"`。缺省仍只接受已发布的正式模型；临时模式由目标 Environment 根据权威 Provider 配置及同一套模型推荐/个人规则解析一次性 Model，允许未加入列表和已禁用的模型，不写配置、不修改全局 Registry、会话选中项或模板源。供应商禁用、配置不完整、鉴权不可用仍失败，不能绕过资格校验。协议继续使用严格 schema。
-- 临时 Model 复用正式 Adapter、API Key 轮询、自定义 headers、最低 reasoning/speed 档位与固定最小探测请求；不新增简化 HTTP 成功判定。连通性成功只证明最小生成请求完成，不宣称工具调用等所有能力均已验证。
+- 临时 Model 复用正式 Adapter、API Key 轮询、自定义 headers、最低 reasoning/speed 档位与固定最小探测请求；不新增简化 HTTP 成功判定。连通性成功要求收到非空白文本和成功 stop，并正常结束；只有 usage、reasoning 或 finish 不算成功，不宣称工具调用等所有能力均已验证。Codex 最终正文兼容和诊断边界见 [Codex OAuth 正文完成与连通性校验](./codex-oauth-stream-completion.md)。
 - 临时 Model 与正式 Registry 使用同一个 `resolveProviderNetworkConfig`，从本次权威快照的 `proxyProfiles` 将 profileId 派生为实际代理地址、绕过规则及证书；只冻结到本次 Model，不改写持久配置或发布 Registry。代理编辑只影响后续解析，既有绑定保留原网络策略；丢失引用拒绝检测，不回退直连。default/direct/custom 和缺省直连规则与正式模型一致。
 - 单项检测、同步模型及失效模型清理共用的连通性入口，按正式执行链使用目标模型 `optionSpecs.maxOutputTokens.max` 作为请求输出预算，不强加固定的 1 Token 或其他探测专用 Token 数。保留最低 reasoning/speed 档位、最小探测提示、60 秒 deadline 和调用方取消；预算是上限，不要求模型输出到该长度。供应商的参数校验失败不能据此判定 API Key 错误或模型不存在。
 - `gpt-6.1-sol` 的智能配置声明 `low / medium / high / xhigh / max`，不继承通用的 `disabled`、`none` 或缺失的 `max`。兼容带命名空间和既有分隔符后缀的模型 ID，不将规则扩散到其他未确认的型号；仅修正已知 reasoning 能力，不推断上下文、工具或输出容量。检测仍按声明顺序选择最低项 `low`，正式执行、单项检测和批量检测读取同一个权威规则；保留个人手动配置优先级，不静默改写用户配置。

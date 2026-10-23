@@ -40,6 +40,7 @@ import { createOfficialCodingPlanGatewayFetch } from "./official-coding-plan-gat
 import { normalizeModelTlsFailure } from "./failure-tls.js";
 import { mergeModelRequestHeaders } from "./model-request-headers.js";
 import { observeModelSpeed, type ModelSpeedObservation } from "./model-speed-observation.js";
+import { withCodexStreamCompletion } from "./codex-stream-completion.js";
 import { FileSharedQuotaCoordinator } from "./api-key-shared-quota.js";
 import { ApiKeyPoolRegistry, type ApiKeyPool } from "./api-key-pool.js";
 import { routingUsage } from "./routing-usage.js";
@@ -382,7 +383,13 @@ export class AiSdkModelExecution {
       snapshot.supportsJsonSchemaOutput,
       snapshot.apiKeyPool,
     );
-    const model = factory(snapshot.modelId.toString());
+    const baseModel = factory(snapshot.modelId.toString());
+    const model =
+      providerConfig.kind === "openai" &&
+      providerConfig.access.type === "oauth-account" &&
+      providerConfig.access.channelId === "codex"
+        ? withCodexStreamCompletion(baseModel, this.logger)
+        : baseModel;
     const speedObservation = optionValues?.speed ? { requested: optionValues.speed } : undefined;
     return {
       ...(snapshot.apiKeyPool && providerConfig.apiKeys?.length
@@ -914,12 +921,13 @@ export function readProviderBusinessFailureFromBody(body: unknown):
   }
 
   const refusal = readContentRefusalCode(record);
-  if (refusal) return {
-    providerCode: refusal,
-    providerMessage: readProviderMessage(asRecord(record.response) ?? record),
-    responseBodySummary: { error: { code: refusal } },
-    statusCode: 400,
-  };
+  if (refusal)
+    return {
+      providerCode: refusal,
+      providerMessage: readProviderMessage(asRecord(record.response) ?? record),
+      responseBodySummary: { error: { code: refusal } },
+      statusCode: 400,
+    };
   const errorRecord = asRecord(record.error);
   const providerCode =
     toProviderCode(record.providerCode) ??

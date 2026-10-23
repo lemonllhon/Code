@@ -13,7 +13,9 @@ import {
 import type { AgentRuntimeInternal } from "../internal.js";
 import { testModelConnectivity } from "./workspace-generate-text.js";
 
-function harness(outcome: "finish" | "error" | "unfinished" | "abort" = "finish") {
+function harness(
+  outcome: "finish" | "error" | "unfinished" | "abort" | ModelStreamEvent[] = "finish",
+) {
   const bindings: ModelOptions[] = [];
   const requests: ModelRequest[] = [];
   let invocation: ModelInvocationContext | undefined;
@@ -37,7 +39,10 @@ function harness(outcome: "finish" | "error" | "unfinished" | "abort" = "finish"
       return (async function* (): AsyncIterable<ModelStreamEvent> {
         if (outcome === "abort") request.abortSignal?.throwIfAborted();
         if (outcome === "error") throw new Error("model stream failed");
-        if (outcome === "finish") {
+        if (Array.isArray(outcome)) {
+          yield* outcome;
+        } else if (outcome === "finish") {
+          yield { type: "text_delta", text: "hello" };
           yield {
             type: "finish",
             finishReason: "stop",
@@ -157,4 +162,64 @@ test("failed, unfinished and cancelled probes do not replace the shared factory"
     assert.equal(h.runtime.modelFactory, h.modelFactory);
     assert.equal(h.ordinaryCalls(), 0);
   }
+});
+
+test("connectivity rejects empty completions, usage-only and reasoning-only responses", async () => {
+  const finish: ModelStreamEvent = {
+    type: "finish",
+    finishReason: "stop",
+    usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+  };
+  for (const events of [
+    [finish],
+    [{ ...finish, finishReason: "unknown" }],
+    [{ type: "text_delta", text: " \n\t" }, finish],
+    [{ type: "reasoning_delta", text: "internal reasoning" }, finish],
+  ] satisfies ModelStreamEvent[][]) {
+    const h = harness(events);
+    await assert.rejects(
+      testModelConnectivity.call(
+        h.runtime,
+        {
+          selection: { providerId: "custom", modelId: "unregistered" },
+        },
+        { rawModelFactory: () => h.model },
+      ),
+      /未返回有效文本/,
+    );
+    assert.equal(h.runtime.modelFactory, h.modelFactory);
+  }
+});
+
+test("connectivity requires successful completion even after receiving text", async () => {
+  for (const finishReason of ["error", "length", "unknown", "tool-calls"]) {
+    const h = harness([
+      { type: "text_delta", text: "partial" },
+      { type: "finish", finishReason, usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } },
+    ]);
+    await assert.rejects(
+      testModelConnectivity.call(
+        h.runtime,
+        {
+          selection: { providerId: "custom", modelId: "unregistered" },
+        },
+        { rawModelFactory: () => h.model },
+      ),
+      /未正常完成/,
+    );
+  }
+  const h = harness([
+    { type: "text_delta", text: "hello" },
+    { type: "error", error: new Error("original upstream failure") },
+  ]);
+  await assert.rejects(
+    testModelConnectivity.call(
+      h.runtime,
+      {
+        selection: { providerId: "custom", modelId: "unregistered" },
+      },
+      { rawModelFactory: () => h.model },
+    ),
+    /original upstream failure/,
+  );
 });
