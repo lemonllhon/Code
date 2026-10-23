@@ -13,7 +13,7 @@ import {
   computeAutomationNextRunAt,
   isOneShotAutomation,
   OffPeakTaskRepo,
-} from "@lcode/services/node";
+} from "@lcode/services/scheduler";
 import {
   resolveWorkspaceKey,
   type LCodeAutomation,
