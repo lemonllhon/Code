@@ -1489,7 +1489,7 @@
     "packages/provider-node/src/provider-auth/plugins/vendor-qoder-session-patch.mjs": "2dcabd2257631fac9a70ccc2fa861297600056a5964463fc70b548d8bb94d650",
     "packages/provider-node/src/provider-auth/plugins/vendor-stream-followup.test.mjs": "50b901d64cfd53a4d149c875b65235b5ba86de8dbf1a119b2d747363a78cf3c3",
     "packages/provider-node/src/provider-auth/plugins/vendor-zed-organization-patch.mjs": "4d1a276d9b59fe872a20cc1fe9cd9446f842819252b5063df0d3b9a28b755af4",
-    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "954d582889dedb18afa84651baedd5aeebe0fe5e23369506c95d7c4df09462a1",
+    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "bd3a7fd0e3b677f585287d488d90efd22521ff6cbc0b1eac9924ceceae490038",
     "packages/provider-node/src/provider-auth/plugins/zcode-local.mjs": "c8b91d4414eed9c9edd0e227a06141d0c75bb1601abc5cef177be01ca21952e4",
     "packages/provider-node/src/provider-auth/vendor/cline/index.mjs.source": "17d11f1c35c4201152478a183961d03431ac795c7bc4be44189825f2d3e84272",
     "packages/provider-node/src/provider-auth/vendor/commandcode/index.mjs.source": "54b6112ce2a93d645fa9f87327109bdffd42c8088b010b9194fa5fefb56fb549",
@@ -31232,7 +31232,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "954d582889dedb18afa84651baedd5aeebe0fe5e23369506c95d7c4df09462a1"
+          "sha256": "bd3a7fd0e3b677f585287d488d90efd22521ff6cbc0b1eac9924ceceae490038"
         }
       ]
     },
@@ -31362,7 +31362,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "954d582889dedb18afa84651baedd5aeebe0fe5e23369506c95d7c4df09462a1"
+          "sha256": "bd3a7fd0e3b677f585287d488d90efd22521ff6cbc0b1eac9924ceceae490038"
         }
       ]
     },
@@ -31397,7 +31397,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "954d582889dedb18afa84651baedd5aeebe0fe5e23369506c95d7c4df09462a1"
+          "sha256": "bd3a7fd0e3b677f585287d488d90efd22521ff6cbc0b1eac9924ceceae490038"
         }
       ]
     },
@@ -31437,7 +31437,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "954d582889dedb18afa84651baedd5aeebe0fe5e23369506c95d7c4df09462a1"
+          "sha256": "bd3a7fd0e3b677f585287d488d90efd22521ff6cbc0b1eac9924ceceae490038"
         }
       ]
     },
@@ -31726,7 +31726,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "954d582889dedb18afa84651baedd5aeebe0fe5e23369506c95d7c4df09462a1"
+          "sha256": "bd3a7fd0e3b677f585287d488d90efd22521ff6cbc0b1eac9924ceceae490038"
         }
       ]
     }

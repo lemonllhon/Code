@@ -6250,7 +6250,7 @@ const enUS: Record<string, string> = {
   "chat.goalVerification.cancelled": "Goal verification interrupted",
   "chat.goalVerification.openSummary": "Expand summary",
   "chat.goalBanner.label": "Goal",
-  "chat.apiRetryStatus": "Reconnecting... {attempt}/{maxRetries}",
+  "chat.apiRetryStatus": "Retrying model request... {attempt}/{maxRetries}",
   "chat.target.title": "Goal",
   "chat.target.status.active": "Active",
   "chat.target.status.paused": "Paused",
@@ -7337,6 +7337,20 @@ const enUS: Record<string, string> = {
   "chat.error.copyFull.copied": "Full error details copied",
   "chat.error.copyFailed": "Failed to copy error details: {error}",
   "chat.error.expandDetails": "Show details",
+  "chat.error.routing.unavailable":
+    "The connection route is temporarily unavailable. Retry in this conversation later.",
+  "chat.error.routing.cooling": "The connection is cooling down. Retry in this conversation later.",
+  "chat.error.routing.coolingUntil": "The connection is cooling down. Retry after {time}.",
+  "chat.error.routing.probing":
+    "The connection is being tested for recovery. Retry after the current request ends.",
+  "chat.error.routing.uncertain":
+    "The previous request has not been confirmed as ended. Retry after confirmation.",
+  "chat.error.routing.retriesEnded": "Automatic retries have ended. You can retry manually later.",
+  "chat.error.routing.busy": "The connection is handling another request. Retry after it ends.",
+  "chat.error.routing.quota":
+    "The connection has no available quota. Retry after its quota updates.",
+  "chat.error.routing.dispatchUncertain":
+    "Request dispatch has not been confirmed. Wait for confirmation before continuing.",
   "chat.error.collapseDetails": "Hide details",
   "chat.error.feedback": "Report issue",
   "chat.error.feedbackOpened": "Feedback opened with the error context attached",

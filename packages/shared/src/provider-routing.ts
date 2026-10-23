@@ -146,6 +146,7 @@ export const routingFailureInfoSchema = z.strictObject({
   phase: z.enum(["admission", "dispatch", "feedback", "storage"]).optional(),
   retryAt: z.number().finite().nonnegative().optional(),
   dispatch: z.enum(["unsent", "sent", "uncertain"]).optional(),
+  recoveryState: z.enum(["cooling", "probing", "uncertain"]).optional(),
 });
 export type RoutingFailureInfo = z.infer<typeof routingFailureInfoSchema>;
 export type ProviderRoutingPolicy = z.infer<typeof providerRoutingPolicySchema>;

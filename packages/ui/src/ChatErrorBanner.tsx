@@ -33,6 +33,7 @@ import {
   resolveOffPeakTicketExpiredBusinessCode,
 } from "@/lib/providerBusinessError.js";
 import type { LCodeUiError } from "@/lib/lcodeUiError.js";
+import { formatRoutingErrorMessage, routingErrorDetail } from "@/lib/chatRoutingError.js";
 
 const HISTORICAL_MODEL_UNAVAILABLE_MESSAGES = [
   "历史任务使用的模型已不可用",
@@ -74,6 +75,8 @@ export function resolveChatErrorBannerDisplayMessage(
   if (isModelConfigMissingError(error)) {
     return intl.formatMessage({ id: "chat.error.noAvailableModel" });
   }
+  const routingMessage = formatRoutingErrorMessage(error, intl);
+  if (routingMessage) return routingMessage;
 
   const providerBusinessCode =
     resolveOffPeakTicketExpiredBusinessCode(error.code, error.message) ?? error.code;
@@ -122,8 +125,11 @@ export function ChatErrorBanner({
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const actionButtonClassName = "shrink-0";
   const iconButtonClassName = "shrink-0";
-  const localizedErrorMessage = resolveChatErrorBannerDisplayMessage(error, intl);
   const modelConfigMissing = isModelConfigMissingError(error);
+  // 路由归因只是补充事实；不能覆盖明确的配置缺失错误，须与显示消息解析入口保持同一优先级。
+  const routingMessage = modelConfigMissing ? undefined : formatRoutingErrorMessage(error, intl);
+  const localizedErrorMessage = routingMessage ?? resolveChatErrorBannerDisplayMessage(error, intl);
+  const errorDetail = routingErrorDetail(error);
   const hookBlocked = error.code === "fault.runtime.hookBlocked";
   if (shouldSuppressChatErrorBanner(error)) {
     return null;
@@ -138,7 +144,7 @@ export function ChatErrorBanner({
       includeLogs: false,
       description: buildErrorFeedbackDescription({
         message: localizedErrorMessage,
-        detail: error.detail,
+        detail: errorDetail,
         traceId: error.traceId,
         formatMessage: (id: string, values?: Record<string, string>) =>
           intl.formatMessage({ id }, values),
@@ -162,7 +168,7 @@ export function ChatErrorBanner({
       await navigator.clipboard.writeText(
         buildErrorCopyText({
           message: localizedErrorMessage,
-          detail: error.detail,
+          detail: errorDetail,
           traceId: error.traceId,
           formatMessage: (id: string, values?: Record<string, string>) =>
             intl.formatMessage({ id }, values),
@@ -190,7 +196,12 @@ export function ChatErrorBanner({
           "w-full flex flex-wrap items-center gap-2 rounded-xl bg-surface backdrop-blur-md border border-border px-3 py-2",
         )}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-2 text-ui-base text-foreground">
+        <div
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-2 text-ui-base text-foreground",
+            routingMessage && "basis-full",
+          )}
+        >
           {hookBlocked ? (
             <AnchorIcon
               aria-hidden="true"
@@ -200,7 +211,15 @@ export function ChatErrorBanner({
           ) : (
             <InfoIcon aria-hidden="true" className="size-4 shrink-0" />
           )}
-          <div className="min-w-0 truncate font-medium">{localizedErrorMessage}</div>
+          <div
+            className={cn(
+              "min-w-0 font-medium",
+              routingMessage ? "whitespace-normal break-words" : "truncate",
+            )}
+            title={localizedErrorMessage}
+          >
+            {localizedErrorMessage}
+          </div>
         </div>
 
         {modelConfigMissing ? (
@@ -219,7 +238,7 @@ export function ChatErrorBanner({
           </Button>
         ) : null}
 
-        {!modelConfigMissing && error.detail ? (
+        {!modelConfigMissing && errorDetail ? (
           <>
             <Button
               type="button"
@@ -244,7 +263,7 @@ export function ChatErrorBanner({
                   </DialogDescription>
                 </DialogHeader>
                 <pre className="max-h-[60vh] overflow-auto rounded-xl border border-border bg-surface px-3 py-2 text-ui-base whitespace-pre-wrap text-foreground-subtle">
-                  {error.detail}
+                  {errorDetail}
                 </pre>
               </DialogContent>
             </Dialog>

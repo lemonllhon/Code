@@ -1,4 +1,5 @@
 import type { ExecutionOutputPreview } from "../interfaces/execution.port.js";
+import type { RoutingFailureInfo } from "@lcode/shared/provider-routing";
 import type { RuntimeInputPresentation } from "../interfaces/runtime-input-presentation.js";
 /* eslint-disable max-lines -- session event 契约集中在单文件导出，避免 app/agent 协议类型分散后漂移。 */
 // ============================================================
@@ -1145,6 +1146,9 @@ export interface ErrorPayload {
 
 /** 只承载可聚合的失败事实，不包含请求正文、凭据、URL 或监控策略。 */
 export interface ErrorAttribution {
+  routing?: RoutingFailureInfo;
+  retryDisposition?: "retryable" | "exhausted" | "terminal";
+  retryBudgetExhausted?: boolean;
   source?: "provider" | "runtime" | "tool" | "network";
   reason?: string;
   errorPhase?: ModelApiErrorPhase;

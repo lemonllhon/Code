@@ -90,6 +90,131 @@ test("RCD-11 legacy v1 shared records migrate without erasing in-flight debits",
   assert.equal((await reopened.inspect("fixture", "team")).resources[0]!.available, 90);
 });
 
+test("SR-04 shared cancelled probe releases health protection, retains unknown consumption and isolates models", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "routing-cancelled-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  let now = 0;
+  const a = new FileSharedQuotaCoordinator(directory, { now: () => now });
+  const b = new FileSharedQuotaCoordinator(directory, { now: () => now });
+  const request = (id: string) => ({ ...input(id, now), keyId: "same-key" });
+  const first = await a.reserve(request("first"));
+  await a.dispatch(first);
+  await a.usage(first, {}, undefined, { outcome: "failed", statusCode: 503, retryAfterMs: 100 });
+  await a.finish(first);
+  now = 100;
+  const probe = await a.reserve(request("probe"));
+  await a.dispatch(probe);
+  const unrelated = await b.reserve({
+    ...request("other"),
+    request: {
+      ...input("other", now).request,
+      modelKey: "other-model",
+    },
+  });
+  await b.cancel(unrelated);
+  await a.usage(probe, {}, undefined, { outcome: "cancelled" });
+  await assert.rejects(b.reserve(request("before-end")), /route-cooling/);
+  await a.finish(probe, "cancelled");
+  const before = await a.inspect("fixture", "team");
+  assert.equal(before.resources[0]!.endedEstimated, 20);
+  assert.equal(before.resources[0]!.available, 80, "cancellation must not refund unknown usage");
+  now = 1100;
+  const next = await b.reserve(request("next"));
+  await assert.rejects(a.reserve(request("competitor")), /route-cooling/);
+  await b.dispatch(next);
+  await b.usage(next, {}, { total: 4 }, { outcome: "success" });
+  await b.finish(next);
+  const recovered = await a.reserve(request("old-session-again"));
+  await a.cancel(recovered);
+});
+
+for (const scope of ["provider", "model"] as const)
+  test(`SR-03 persisted legacy cancelled ${scope} probe recovers without changing its ledger`, async (t) => {
+    const directory = await mkdtemp(join(tmpdir(), "routing-legacy-cancel-"));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    let now = 0;
+    const a = new FileSharedQuotaCoordinator(directory, { now: () => now });
+    const request = (id: string) => ({ ...input(id, now), keyId: "same-key" });
+    const first = await a.reserve(request("first"));
+    await a.dispatch(first);
+    await a.usage(first, {}, undefined, {
+      outcome: "failed",
+      statusCode: scope === "provider" ? 429 : 503,
+      rateLimitScope: scope,
+      retryAfterMs: 100,
+    });
+    await a.finish(first);
+    now = 100;
+    const probe = await a.reserve(request("probe"));
+    await a.dispatch(probe);
+    await a.usage(probe, {}, undefined, { outcome: "cancelled" });
+    await a.finish(probe, "cancelled");
+    const paths = (await readdir(directory)).filter((file) => file.endsWith(".json"));
+    let restored = false;
+    for (const file of paths) {
+      const path = join(directory, file);
+      const saved = JSON.parse(await readFile(path, "utf8")) as {
+        recovery: Record<
+          string,
+          {
+            phase: string;
+            revision: number;
+            retryAt: number;
+            probe?: string;
+            dispatched?: boolean;
+            physicalEnded?: boolean;
+            outcome?: string;
+          }
+        >;
+        leases: Record<
+          string,
+          {
+            recoveryPermit?: {
+              token: string;
+              versions: Record<string, number>;
+              outcome?: string;
+              physicalEnded?: boolean;
+              closed?: boolean;
+            };
+          }
+        >;
+      };
+      for (const [resource, entry] of Object.entries(saved.recovery)) {
+        const permit = Object.values(saved.leases)
+          .map((lease) => lease.recoveryPermit)
+          .find(
+            (permit) => permit?.outcome === "cancelled" && permit.versions[resource] !== undefined,
+          );
+        if (!permit) continue;
+        // 精确还原旧版本保存的已结束取消，额度、窗口和租约借记保持原样。
+        Object.assign(entry, {
+          phase: "uncertain",
+          physicalEnded: true,
+          outcome: "cancelled",
+          dispatched: true,
+          probe: permit.token,
+          revision: permit.versions[resource],
+          retryAt: 100,
+        });
+        permit.closed = false;
+        restored = true;
+      }
+      await writeFile(path, JSON.stringify(saved));
+    }
+    assert.ok(restored);
+    const before = await Promise.all(paths.map((file) => readFile(join(directory, file), "utf8")));
+    const b = new FileSharedQuotaCoordinator(directory, { now: () => now });
+    assert.equal((await b.inspect("fixture", "team")).resources[0]!.available, 80);
+    assert.deepEqual(
+      await Promise.all(paths.map((file) => readFile(join(directory, file), "utf8"))),
+      before,
+    );
+    const next = await b.reserve(request("old-session-again"));
+    await assert.rejects(a.reserve(request("competing")), /route-cooling/);
+    await b.cancel(next);
+    assert.equal((await b.inspect("fixture", "team")).resources[0]!.available, 80);
+  });
+
 test("RCD-07 a lost dispatch acknowledgement is not retried or reported as TLS and never sends HTTP", async (t) => {
   const directory = await mkdtemp(join(tmpdir(), "routing-lost-ack-"));
   t.after(() => rm(directory, { recursive: true, force: true }));

@@ -1,11 +1,12 @@
 import { applySharedRecoveryFeedback } from "./api-key-shared-quota-feedback.js";
+import { waitForSharedQuotaCapacity } from "./api-key-shared-capacity.js";
 import {
   claimSharedProbe,
   cancelSharedProbes,
   sharedNeedsProbe,
 } from "./api-key-shared-quota-probes.js";
 import { ApiKeyProviderGate } from "./api-key-provider-gate.js";
-import { sharedQuotaView } from "./api-key-shared-diagnostics.js";
+import { sharedQuotaView, withProviderRecovery } from "./api-key-shared-diagnostics.js";
 import { assertSharedWindow } from "./api-key-shared-quota-admission.js";
 import { compactSharedQuota } from "./api-key-shared-quota-compaction.js";
 import { createHash, randomUUID } from "node:crypto";
@@ -109,6 +110,16 @@ export class FileSharedQuotaCoordinator implements SharedQuotaCoordinator {
       throw new RoutingError("quota-owner-unavailable", { cause: error });
     }
   }
+  waitForCapacity(
+    input: Pick<SharedQuotaInput, "providerId" | "poolId" | "keyId" | "maxInFlight">,
+    signal: AbortSignal,
+  ): Promise<void> {
+    return waitForSharedQuotaCapacity(input, signal, {
+      directory: this.root,
+      now: this.now,
+      read: (key, project) => this.transaction(key, project, false),
+    });
+  }
   reserve(input: SharedQuotaInput): Promise<SharedQuotaHandle> {
     const parsed = sharedInputSchema.parse(input);
     if (parsed.request.createdAt + RESERVATION_TTL_MS <= this.now())
@@ -152,7 +163,6 @@ export class FileSharedQuotaCoordinator implements SharedQuotaCoordinator {
           const active = Object.values(state.leases).filter(
             (l) => l.keyId === keyIdentity && (l.state === "reserved" || l.state === "dispatched"),
           );
-          if (active.length >= parsed.maxInFlight) throw new RoutingError("concurrency-full");
           const demands: Record<string, number> = {};
           // 完整约束由文件 owner 提供；新进程的空快照不能漏掉已确认长窗。
           for (const window of Object.values(state.current).map(
@@ -199,6 +209,8 @@ export class FileSharedQuotaCoordinator implements SharedQuotaCoordinator {
             )
           )
             throw new RoutingError("reserve-unverifiable");
+          // 与本地规划一致：容量等待不能吞掉硬额度不足或不可验证的拒绝。
+          if (active.length >= parsed.maxInFlight) throw new RoutingError("concurrency-full");
           const recoveryPermit = sharedRecovery(state).reserve(
             ["pool", `key:${keyIdentity}`, `model:${hash([keyIdentity, parsed.request.modelKey])}`],
             leaseId,
@@ -295,15 +307,21 @@ export class FileSharedQuotaCoordinator implements SharedQuotaCoordinator {
       }),
     );
   }
-  finish(handle: SharedQuotaHandle): Promise<void> {
-    return this.providerGate.changePool(handle, "finish", () =>
-      this.mutate(handle, (lease, state) => {
-        if (lease.state === "dispatched") {
-          lease.state = "ended";
-          if (lease.recoveryPermit)
-            sharedRecovery(state).finish(lease.recoveryPermit, "unknown", this.now());
-        }
-      }),
+  finish(handle: SharedQuotaHandle, outcome: "unknown" | "cancelled" = "unknown"): Promise<void> {
+    if (!["unknown", "cancelled"].includes(outcome))
+      return Promise.reject(new RoutingError("invalid-usage"));
+    return this.providerGate.changePool(
+      handle,
+      "finish",
+      () =>
+        this.mutate(handle, (lease, state) => {
+          if (lease.state === "dispatched") {
+            lease.state = "ended";
+            if (lease.recoveryPermit)
+              sharedRecovery(state).finish(lease.recoveryPermit, outcome, this.now());
+          }
+        }),
+      { outcome },
     );
   }
   rollbackDispatch(handle: SharedQuotaHandle): Promise<void> {
@@ -382,13 +400,6 @@ export class FileSharedQuotaCoordinator implements SharedQuotaCoordinator {
       (state) => sharedQuotaView(state, this.capacity, this.now()),
       false,
     );
-    const count = provider.recoveryCount + (view.recoveryCount ?? view.recovery.length);
-    return {
-      ...view,
-      provider,
-      recoveryCount: count,
-      recoveryTruncated: count > 100,
-      recovery: [...provider.recovery, ...view.recovery].slice(0, 100),
-    };
+    return withProviderRecovery(view, provider);
   }
 }

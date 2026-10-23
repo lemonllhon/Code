@@ -19,7 +19,8 @@ export function observeApiKeyResponse(
   };
   // cancel 会先关闭 pending read，之后才等待底层取消；两者不是同一个完成信号。
   const cancelPhysical = (reason?: unknown) =>
-    (cancellation ??= reader.cancel(reason).finally(() => finish(false)));
+    // cancel 拒绝时并未证明底层请求结束，不能释放共享恢复许可。
+    (cancellation ??= reader.cancel(reason).then(() => finish(false)));
   const abort = () => {
     void cancelPhysical(signal.reason).catch(() => {});
   };
@@ -28,16 +29,20 @@ export function observeApiKeyResponse(
   return new Response(
     new ReadableStream<Uint8Array>({
       async pull(controller) {
+        let next: ReadableStreamReadResult<Uint8Array>;
         try {
-          const next = await reader.read();
-          if (next.done) {
-            if (!cancellation) finish(response.ok && !signal.aborted);
-            controller.close();
-          } else controller.enqueue(next.value);
+          next = await reader.read();
         } catch (error) {
-          if (!cancellation) finish(false);
+          // fetch 的 abort 可能先令底层流 errored，随后 cancel 拒绝；read 的真实终态
+          // 仍须收尾，否则已断开的请求永久占住槽位。wrapper 写入异常不能当作该证明。
+          finish(false);
           controller.error(error);
+          return;
         }
+        if (next.done) {
+          if (!cancellation) finish(response.ok && !signal.aborted);
+          controller.close();
+        } else controller.enqueue(next.value);
       },
       async cancel(reason) {
         await cancelPhysical(reason);

@@ -3,6 +3,7 @@ import type {
   ModelApiErrorPhase,
   ModelFailureExceptionKind,
 } from "@lcode/contracts";
+import { projectRoutingAttribution } from "./error-routing-attribution.js";
 
 interface ExecutionErrorPayloadProjection {
   attribution?: ErrorAttribution;
@@ -94,6 +95,7 @@ function projectErrorAttribution(
   const source = selectSource(contexts);
 
   const attribution: ErrorAttribution = {
+    ...projectRoutingAttribution(contexts),
     ...(source ? { source } : {}),
     ...(reason ? { reason } : {}),
     ...(errorPhase ? { errorPhase } : {}),

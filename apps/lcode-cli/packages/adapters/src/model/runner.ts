@@ -57,6 +57,7 @@ export type {
 export { normalizeUsage, toModelStreamEvent } from "./runner-normalization.js";
 
 export interface AiSdkModelAdapterOptions {
+  routingQuotaDirectory?: AiSdkModelExecutionConfig["routingQuotaDirectory"];
   defaultHeaders?: AiSdkModelExecutionConfig["defaultHeaders"];
   network?: AiSdkNetworkConfig;
   runtime?: AiSdkModelRuntime;
@@ -97,6 +98,8 @@ export class AiSdkModelAdapter {
     this.execution = new AiSdkModelExecution(
       {
         defaultHeaders: options.defaultHeaders,
+        // bootstrap 的共享目录必须贯穿 adapter，否则各会话会持有互不一致的冷却事实。
+        routingQuotaDirectory: options.routingQuotaDirectory,
         ...(options.network ? { network: options.network } : {}),
         ...(options.env ? { env: options.env } : {}),
       },

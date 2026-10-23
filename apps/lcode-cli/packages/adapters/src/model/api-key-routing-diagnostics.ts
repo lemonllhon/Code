@@ -1,5 +1,22 @@
 import { RoutingError, type SharedQuotaCoordinator } from "@lcode/provider";
 
+export function apiKeyLocalDiagnostics<T extends { items: { keyId: string }[] }>(
+  result: T,
+  coordinated: boolean,
+  failures: ReadonlySet<string>,
+  unavailable: (id: string) => boolean,
+) {
+  return {
+    ...result,
+    coordination: coordinated ? ("filesystem" as const) : ("local-only" as const),
+    items: result.items.map((item) => ({
+      ...item,
+      authenticationFailed: failures.has(item.keyId),
+      cooling: unavailable(item.keyId) && !failures.has(item.keyId),
+    })),
+  };
+}
+
 /** 每页最多 100 个池；失败保留未知，不把本地预览包装成共享额度事实。 */
 export async function readApiKeySharedDiagnostics(
   providerId: string,

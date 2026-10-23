@@ -65,10 +65,16 @@ export interface SharedQuotaFeedback {
   rateLimitScope?: "key" | "model" | "pool" | "provider" | "shared";
 }
 export interface SharedQuotaCoordinator {
+  /** 仅等待容量提示；不预留，返回后仍须原子 reserve。取消不影响其它租约。 */
+  waitForCapacity?(
+    input: Pick<SharedQuotaInput, "providerId" | "poolId" | "keyId" | "maxInFlight">,
+    signal: AbortSignal,
+  ): Promise<void>;
   reserve(input: SharedQuotaInput): Promise<SharedQuotaHandle>;
   dispatch(handle: SharedQuotaHandle): Promise<boolean>;
   cancel(handle: SharedQuotaHandle): Promise<void>;
-  finish(handle: SharedQuotaHandle): Promise<void>;
+  /** transport 确认物理结束；unknown 成功仍需归一反馈，取消不退款。 */
+  finish(handle: SharedQuotaHandle, outcome?: "unknown" | "cancelled"): Promise<void>;
   rollbackDispatch(handle: SharedQuotaHandle): Promise<void>;
   usage(
     handle: SharedQuotaHandle,

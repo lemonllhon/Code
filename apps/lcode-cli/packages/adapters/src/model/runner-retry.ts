@@ -188,6 +188,7 @@ function modelFailureSource(
   failure: ClassifiedModelFailure,
   additionalContext?: Record<string, unknown>,
 ): ModelErrorSourceType {
+  if (failure.routing && failure.statusCode !== 429) return ModelErrorSource.Runtime;
   const reason = failure.reason;
   if (reason === ModelFailureReason.Cancelled) return ModelErrorSource.Runtime;
   if (

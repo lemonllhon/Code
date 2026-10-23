@@ -73,7 +73,6 @@ export function planRouting(
   for (const candidate of listed) {
     let why = candidate.unavailable ?? (candidate.health === "open" ? "route-cooling" : undefined);
     const maxInFlight = routingConcurrency(policy, candidate);
-    if ((state.inFlight.get(candidate.id) ?? 0) >= maxInFlight) why ??= "concurrency-full";
     if (
       hardBound &&
       (binding.routeId !== candidate.id || binding.generation !== candidate.generation)
@@ -124,6 +123,8 @@ export function planRouting(
         !candidate.windows.some((window) => window.resourceId === rule.resourceId)
       )
         why ??= "reserve-unverifiable";
+    // 纯容量占用才可等待；否则槽位状态会掩盖硬额度拒绝，等待无法修复真实不足。
+    if ((state.inFlight.get(candidate.id) ?? 0) >= maxInFlight) why ??= "concurrency-full";
     const quota = routingQuotaScore(candidate, request, state.now, state.ledger);
     quotaScores[candidate.id] = quota;
     pressures[candidate.id] = quota.pressure;

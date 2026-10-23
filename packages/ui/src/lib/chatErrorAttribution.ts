@@ -94,6 +94,8 @@ const NETWORK_FAILURE_REASONS = new Set([
 ]);
 
 const RUNTIME_FAILURE_REASONS = new Set([
+  "route_cooling",
+  "routing_unavailable",
   "compact_rapid_refill_breaker",
   "storage_error",
   "model_config_missing",

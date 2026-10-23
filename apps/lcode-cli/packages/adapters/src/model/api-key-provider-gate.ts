@@ -217,7 +217,7 @@ export class ApiKeyProviderGate {
       }
       if (kind === "finish" && lease.state === "dispatched") {
         lease.state = "ended";
-        recovery.finish(permit, "unknown", this.now());
+        recovery.finish(permit, feedback?.outcome ?? "unknown", this.now());
       }
       if (kind === "usage" && feedback) {
         const scope = feedback.rateLimitScope;

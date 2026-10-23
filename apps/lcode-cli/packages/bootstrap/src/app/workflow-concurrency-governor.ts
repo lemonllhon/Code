@@ -77,6 +77,9 @@ const THROTTLE_REASONS: ReadonlySet<string> = new Set<ConcurrencyThrottleReason>
 ]);
 /** 不是 provider 失败的 retry 原因：既不减 cap 也不清 streak——只当尝试终结。 */
 const NON_FAILURE_RETRY_REASONS: ReadonlySet<string> = new Set([
+  // 本地恢复拒绝没有新的上游调用，不能拖低其它会话的并发额度或污染成功样本。
+  "route_cooling",
+  "routing_unavailable",
   "reasoning_signature_repair",
   "auth_refresh",
 ]);

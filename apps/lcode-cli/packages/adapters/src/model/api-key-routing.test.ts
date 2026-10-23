@@ -138,6 +138,51 @@ test(
     registry.dispose();
   },
 );
+
+test("SR-08 abort at response headers still closes an already errored source through the body owner", async () => {
+  const registry = new ApiKeyPoolRegistry();
+  const pool = registry.get("fixture", "generation", keys.slice(0, 1), {
+    version: 1,
+    strategy: "primary-backup",
+  });
+  const abort = new AbortController();
+  const lease = pool.reserve({
+    attemptId: "headers-error",
+    scopeKey: "scope",
+    signal: abort.signal,
+  });
+  const ended = Promise.withResolvers<void>();
+  const originalEnd = lease.end!;
+  lease.end = (success) => {
+    originalEnd(success);
+    ended.resolve();
+  };
+  try {
+    await assert.rejects(
+      withApiKeyLease(
+        async () => {
+          const body = new ReadableStream({
+            start(source) {
+              source.error(new TypeError("fixture response already ended"));
+            },
+          });
+          abort.abort();
+          return new Response(body);
+        },
+        lease,
+        "openai",
+      )("https://fixture.invalid", { signal: abort.signal }),
+    );
+    lease.release();
+    await Promise.resolve();
+    assert.equal(pool.readRoutingDiagnostics()!.items[0]!.inFlight, 0);
+    await ended.promise;
+    const next = pool.reserve();
+    next.release();
+  } finally {
+    registry.dispose();
+  }
+});
 test("explicit primary routing and legacy rotation are different, routing changes retain authentication failures", () => {
   const registry = new ApiKeyPoolRegistry();
   const legacy = registry.get("fixture", "generation", keys);

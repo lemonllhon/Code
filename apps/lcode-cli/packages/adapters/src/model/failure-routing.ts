@@ -1,4 +1,4 @@
-import { ModelErrorCode, ModelFailureReason, ModelRetryReason } from "@lcode/contracts";
+import { ModelErrorCode, ModelRetryReason } from "@lcode/contracts";
 import {
   routingFailureCodeSchema,
   routingFailureInfoSchema,
@@ -49,13 +49,18 @@ export function classifyRoutingFailure(
     code: reason,
     ...(reason === "dispatch-uncertain" ? { dispatch: "uncertain" as const } : {}),
   };
+  const retryReason =
+    statusCode === 429
+      ? ModelRetryReason.RateLimited
+      : reason === "route-cooling"
+        ? ModelRetryReason.RouteCooling
+        : ModelRetryReason.RoutingUnavailable;
   return {
     code: ModelErrorCode.ModelRequestFailed,
     message: `Connection routing: ${reason}`,
-    reason: ["route-cooling", "quota-exhausted", "concurrency-full"].includes(reason)
-      ? ModelFailureReason.RateLimited
-      : ModelFailureReason.Unknown,
-    retryReason: ModelRetryReason.RateLimited,
+    // 本地健康恢复拒绝没有上游 429；保留独立原因，避免错误提示及遥测冒充供应商限流。
+    reason: retryReason,
+    retryReason,
     retryable: ["route-cooling", "concurrency-full", "policy-conflict"].includes(reason),
     retryAfterMs:
       parseRetryAfterMs(headers) ??

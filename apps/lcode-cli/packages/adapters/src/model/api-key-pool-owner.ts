@@ -9,14 +9,18 @@ import {
   type RoutingRequest,
   type RoutingFinish,
 } from "@lcode/provider";
-import { readApiKeyRuntimeDiagnostics } from "./api-key-routing-diagnostics.js";
+import {
+  readApiKeyRuntimeDiagnostics,
+  apiKeyLocalDiagnostics,
+} from "./api-key-routing-diagnostics.js";
 import { ApiKeyCooldownQueue } from "./api-key-cooldown-queue.js";
 import { ApiKeyRouting } from "./api-key-routing.js";
-import { acquireApiKeyLease } from "./api-key-acquisition.js";
+import { acquireApiKeyLease, apiKeyAdmissionRequest } from "./api-key-acquisition.js";
+import { ApiKeyCapacity } from "./api-key-capacity.js";
+import { apiKeyRecoveryError } from "./api-key-recovery-error.js";
 import type { ApiKeyQuotaSnapshot } from "@lcode/shared";
 import type { ApiKeySharedQuotaClient } from "./api-key-shared-client.js";
 import type { ApiKeyLease } from "./api-key-lease.js";
-
 export interface ApiKeyFailoverState {
   readonly failedKeyIds: Set<string>;
   nextIndex: number;
@@ -36,11 +40,11 @@ export class ApiKeyPool {
   private leases = 0;
   private disposed = false;
   private readonly closing = new AbortController();
+  private readonly capacity = new ApiKeyCapacity();
   private readonly cooling = new ApiKeyCooldownQueue();
   private readonly routing: ApiKeyRouting;
   private readonly recovery = new RoutingRecovery();
   private readonly ids: readonly string[];
-
   constructor(
     readonly sourceKeys: readonly ProviderApiKey[],
     private readonly state?: ApiKeyFailoverState,
@@ -115,11 +119,14 @@ export class ApiKeyPool {
             (id, model) => this.recovery.retryAt(this.routing.recoveryResources(id, model).all),
             bounded,
           ),
-        reserve: () => this.reserve(context),
+        capacitySignal: () => this.capacity.signal,
+        reserve: (round) => this.reserve(apiKeyAdmissionRequest(context, round)),
         ...(this.quota
           ? {
               prepareShared: (lease: ApiKeyLease, bounded: AbortSignal) =>
                 this.quota!.client.prepare(this.quota!.providerId, lease, bounded),
+              waitSharedCapacity: (lease: ApiKeyLease, bounded: AbortSignal) =>
+                this.quota!.client.waitForCapacity(this.quota!.providerId, lease, bounded),
             }
           : {}),
       },
@@ -142,7 +149,7 @@ export class ApiKeyPool {
     coversThroughSeq?: number,
   ): Promise<void> {
     if (!this.quota || !snapshot.poolId) throw new RoutingError("routing-capability-required");
-    this.routing.observeQuota(snapshot);
+    this.observeRoutingQuota(snapshot);
     await this.quota.client.coordinator.observe(
       this.quota.providerId,
       snapshot.poolId,
@@ -152,18 +159,15 @@ export class ApiKeyPool {
   }
   observeRoutingQuota(snapshot: ApiKeyQuotaSnapshot): void {
     this.routing.observeQuota(snapshot);
+    this.capacity.notify();
   }
   readRoutingDiagnostics(input?: { offset?: number; limit?: number; revision?: number }) {
-    const result = this.routing.readDiagnostics(input);
-    return {
-      ...result,
-      coordination: this.quota ? ("filesystem" as const) : ("local-only" as const),
-      items: result.items.map((item) => ({
-        ...item,
-        authenticationFailed: this.failures.has(item.keyId),
-        cooling: !this.available[this.positions.get(item.keyId)!] && !this.failures.has(item.keyId),
-      })),
-    };
+    return apiKeyLocalDiagnostics(
+      this.routing.readDiagnostics(input),
+      Boolean(this.quota),
+      this.failures,
+      (id) => !this.available[this.positions.get(id)!],
+    );
   }
 
   async readRuntimeDiagnostics(input?: { offset?: number; limit?: number; revision?: number }) {
@@ -193,18 +197,13 @@ export class ApiKeyPool {
         (id, modelKey) => this.recovery.retryAt(this.routing.recoveryResources(id, modelKey).all),
       );
     } catch (error) {
-      if (
-        error instanceof RoutingError &&
-        error.code === "route-cooling" &&
-        !this.recovery.available(["provider"], this.recoveryNow())
-      )
-        throw new RoutingError("route-cooling", {
-          phase: "admission",
-          scope: "provider",
-          retryAt: this.recovery.retryAt(["provider"]),
-          dispatch: "unsent",
-        });
-      throw error;
+      throw apiKeyRecoveryError(
+        error,
+        this.recovery,
+        this.ids,
+        (id) => this.routing.recoveryResources(id, context?.modelKey).all,
+        this.recoveryNow(),
+      );
     }
     const index = reservation
       ? this.positions.get(reservation.routeId)!
@@ -289,6 +288,7 @@ export class ApiKeyPool {
                       ? "unknown"
                       : "failed",
               });
+              this.capacity.notify();
             },
           }
         : {}),
@@ -300,6 +300,7 @@ export class ApiKeyPool {
         statusCode = status;
         if (reservation) reservation.observeHeaders(headers);
         else this.routing.observe(key.id, headers);
+        this.capacity.notify();
         if (permit && (status === 429 || (status >= 500 && status <= 599))) {
           if (rateObserved) return;
           rateObserved = true;
@@ -346,6 +347,7 @@ export class ApiKeyPool {
           if (permit?.probes.length) this.routing.touch(key.id);
         }
         this.leases--;
+        if (!started) this.capacity.notify();
       },
     };
   }

@@ -1,6 +1,19 @@
 import { RoutingRecovery, type SharedQuotaView } from "@lcode/provider";
 import type { SharedQuotaState } from "./api-key-shared-quota-state.js";
 
+export function withProviderRecovery<
+  T extends { recoveryCount: number; recovery: SharedQuotaView["recovery"] },
+>(view: SharedQuotaView, provider: T) {
+  const count = provider.recoveryCount + (view.recoveryCount ?? view.recovery.length);
+  return {
+    ...view,
+    provider,
+    recoveryCount: count,
+    recoveryTruncated: count > 100,
+    recovery: [...provider.recovery, ...view.recovery].slice(0, 100),
+  };
+}
+
 /** 在同一文件锁快照内分解借记；诊断不推进水位或更改恢复许可。 */
 export function sharedQuotaView(
   state: SharedQuotaState,

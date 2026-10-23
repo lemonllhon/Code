@@ -38,6 +38,7 @@ import { installRemoteDirectoryAttachmentBridge } from "./remote-directory-attac
 import "@lcode/ui/styles.css";
 import { PipelineRowsFixture } from "./pipeline-rows.js";
 import { PermissionModeFixture } from "./permission-mode-switch.js";
+import { RoutingRetrySessionsFixture } from "./routing-retry-sessions.js";
 import { applyTheme, isThemeValue } from "@/useTheme.js";
 
 const query = new URLSearchParams(location.search);
@@ -592,7 +593,9 @@ createRoot(document.getElementById("root")!).render(
         <LCodeIntlProvider initialLocale={query.has("english") ? "en-US" : "zh-CN"}>
           <TooltipProvider>
             <V4ConversationContext value={context}>
-              {query.has("pipelineRows") ? (
+              {query.has("retrySessions") ? (
+                <RoutingRetrySessionsFixture />
+              ) : query.has("pipelineRows") ? (
                 <PipelineRowsFixture />
               ) : query.has("timelineDepth") ? (
                 <TimelineDepthFixture />

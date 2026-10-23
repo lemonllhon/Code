@@ -88,6 +88,7 @@ export {
   type WorkflowNodeWait,
   type WorkflowNodeQueue,
 } from "../lcode-protocol-v4/workflow-activity.js";
+// continuous 与 replayable 共用归因 schema，包含安全路由状态及重试预算事实。
 import { errorAttributionSchema } from "../lcode-protocol-v4/snapshot.js";
 import { modelSelectionSchema } from "../model-selection.js";
 import { MODEL_CONNECTIVITY_ERROR_CODES } from "../model-provider-types.js";

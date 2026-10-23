@@ -20,6 +20,7 @@ export class RoutingError extends Error {
       ...(options?.phase ? { phase: options.phase } : {}),
       ...(options?.retryAt !== undefined ? { retryAt: options.retryAt } : {}),
       ...(options?.dispatch ? { dispatch: options.dispatch } : {}),
+      ...(options?.recoveryState ? { recoveryState: options.recoveryState } : {}),
     };
     this.retryable = ["route-cooling", "concurrency-full", "policy-conflict"].includes(code);
   }

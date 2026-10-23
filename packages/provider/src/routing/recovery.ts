@@ -1,4 +1,5 @@
 import { RoutingError } from "./error.js";
+import type { RoutingFailureInfo } from "@lcode/shared/provider-routing";
 
 export interface RoutingRecoveryEntry {
   revision: number;
@@ -34,8 +35,7 @@ export class RoutingRecovery {
       if (entry.phase === "healthy" && !referenced.has(key)) delete this.state[key];
   }
   private close(permit: RoutingRecoveryPermit): void {
-    if (!permit.physicalEnded || (permit.outcome !== "success" && permit.outcome !== "failed"))
-      return;
+    if (!permit.physicalEnded || !permit.outcome) return;
     if (permit.probes.some((key) => this.matches(permit, key))) return;
     permit.closed = true;
     this.permits.delete(permit.token);
@@ -50,19 +50,54 @@ export class RoutingRecovery {
   private get(key: string) {
     return Object.hasOwn(this.state, key) ? this.state[key] : undefined;
   }
+  private endedCancellation(entry: RoutingRecoveryEntry): boolean {
+    // 旧版本把已结束取消永久写成 uncertain；仅此可验证终态允许新 probe，不清除未知借记。
+    return (
+      entry.phase === "uncertain" && entry.physicalEnded === true && entry.outcome === "cancelled"
+    );
+  }
+  private probeEligible(entry: RoutingRecoveryEntry, now: number): boolean {
+    return (entry.phase === "cooling" && entry.retryAt <= now) || this.endedCancellation(entry);
+  }
+  blockingInfo(
+    keys: readonly string[],
+    now: number,
+    ownToken?: string,
+  ): Pick<RoutingFailureInfo, "recoveryState" | "retryAt"> | undefined {
+    let blocked: RoutingRecoveryEntry | undefined;
+    for (const key of keys) {
+      const entry = this.get(key);
+      if (
+        !entry ||
+        entry.phase === "healthy" ||
+        this.probeEligible(entry, now) ||
+        (ownToken !== undefined && entry.probe === ownToken)
+      )
+        continue;
+      if (
+        !blocked ||
+        (blocked.phase === "cooling" && entry.phase !== "cooling") ||
+        entry.phase === "uncertain"
+      )
+        blocked = entry;
+    }
+    if (!blocked) return undefined;
+    return {
+      recoveryState: blocked.phase as "cooling" | "probing" | "uncertain",
+      ...(blocked.phase === "cooling" ? { retryAt: this.retryAt(keys) } : {}),
+    };
+  }
   available(keys: readonly string[], now: number): boolean {
     return keys.every((key) => {
       const entry = this.get(key);
-      return (
-        !entry || entry.phase === "healthy" || (entry.phase === "cooling" && entry.retryAt <= now)
-      );
+      return !entry || entry.phase === "healthy" || this.probeEligible(entry, now);
     });
   }
   retryAt(keys: readonly string[]): number | undefined {
     const entries = keys
       .map((key) => this.get(key))
       .filter((entry): entry is RoutingRecoveryEntry =>
-        Boolean(entry && entry.phase !== "healthy"),
+        Boolean(entry && entry.phase !== "healthy" && !this.endedCancellation(entry)),
       );
     if (!entries.length || entries.some((entry) => entry.phase !== "cooling")) return undefined;
     return Math.max(...entries.map((entry) => entry.retryAt));
@@ -71,23 +106,24 @@ export class RoutingRecovery {
   reserve(keys: readonly string[], token: string, now: number): RoutingRecoveryPermit {
     const versions: Record<string, number> = {},
       probes: string[] = [];
-    for (const key of new Set(keys)) {
-      const entry = this.get(key);
-      if (
-        entry &&
-        entry.phase !== "healthy" &&
-        entry.probe !== token &&
-        (entry.phase !== "cooling" || entry.retryAt > now)
-      )
-        throw new RoutingError("route-cooling", {
-          retryAt: entry.phase === "cooling" ? entry.retryAt : undefined,
-          phase: "admission",
-        });
-    }
+    const blocked = this.blockingInfo(keys, now, token);
+    if (blocked)
+      throw new RoutingError("route-cooling", {
+        ...blocked,
+        phase: "admission",
+        dispatch: "unsent",
+      });
     for (const key of new Set(keys)) {
       const entry = this.get(key);
       if (entry && entry.phase !== "healthy") {
         if (entry.probe !== token) {
+          if (this.endedCancellation(entry) && entry.probe) {
+            const previous = this.permits.get(entry.probe);
+            if (previous) {
+              previous.closed = true;
+              this.permits.delete(previous.token);
+            }
+          }
           entry.revision++;
           entry.phase = "probing";
           entry.probe = token;
@@ -120,8 +156,9 @@ export class RoutingRecovery {
         (entry && entry.phase !== "healthy" && entry.probe !== permit.token)
       )
         throw new RoutingError("route-cooling", {
+          ...this.blockingInfo([key], now),
           phase: "dispatch",
-          retryAt: entry?.phase === "cooling" && entry.retryAt > now ? entry.retryAt : undefined,
+          dispatch: "unsent",
         });
     }
     permit.dispatched = true;
@@ -181,7 +218,8 @@ export class RoutingRecovery {
       entry.retryAt = 0;
       entry.revision++;
       delete entry.probe;
-    } else if (entry.outcome === "failed") {
+    } else if (entry.outcome === "failed" || entry.outcome === "cancelled") {
+      // 取消已由物理终态确认时只退回冷却，不宣布健康，也不把未知用量当作零。
       entry.phase = "cooling";
       entry.retryAt = now + FAILURE_BACKOFF_MS;
       entry.revision++;
@@ -226,7 +264,7 @@ export class RoutingRecovery {
       .map(([resource, entry]) => ({
         resource,
         revision: entry.revision,
-        phase: entry.phase === "cooling" && entry.retryAt <= now ? "probe-eligible" : entry.phase,
+        phase: this.probeEligible(entry, now) ? "probe-eligible" : entry.phase,
         retryAt: entry.phase === "cooling" ? entry.retryAt : undefined,
       }));
   }

@@ -114,6 +114,31 @@ test("concurrent resume has one candidate and does not publish before initializa
   }
 });
 
+for (const deliveryKind of ["desktop-continuous", "web-remote-replayable"] as const)
+  test(`MC-03 ${deliveryKind}: resume with changed MCP preserves the active record and cancellation owner`, async () => {
+    const f = fixture();
+    f.succeed();
+    const oldServers = [{ name: "fixture", command: "node", args: ["old.mjs"], env: [] }];
+    const { record } = await activateSessionForResume(f.context, {
+      sessionId: "recover",
+      mcpServers: oldServers,
+    });
+    const active = new AbortController();
+    record.activeAbortController = active;
+    record.deliveryKind = deliveryKind;
+    // 配置页保存的新 MCP 只能影响后续物化；重复打开/恢复活动会话不能替换其运行实例。
+    const resumed = await activateSessionForResume(f.context, {
+      sessionId: "recover",
+      mcpServers: [{ name: "fixture", command: "node", args: ["new.mjs"], env: [] }],
+    });
+    assert.equal(resumed.record, record);
+    assert.equal(record.activeAbortController, active);
+    assert.equal(active.signal.aborted, false);
+    assert.equal(record.deliveryKind, deliveryKind);
+    assert.deepEqual(record.executionMcpServers, oldServers);
+    assert.deepEqual(f.counts(), { created: 1, resumed: 1, closed: 0, unsubscribed: 0 });
+  });
+
 test("failed app close remains owned and is retried before a new same-ID app allocation", async () => {
   let attempts = 0,
     created = 0;

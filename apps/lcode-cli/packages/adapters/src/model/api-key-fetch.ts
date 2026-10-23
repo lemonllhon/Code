@@ -34,15 +34,15 @@ export function withApiKeyLease(
       lease.end?.(false);
       throw error;
     }
-    if (request.signal.aborted) {
-      // 响应头和取消同拍时尚未安装 body observer；必须让取消完成句柄负责物理收尾。
-      void (response.body?.cancel(request.signal.reason) ?? Promise.resolve())
-        .finally(() => lease.end?.(false))
-        .catch(() => {});
-    }
+    if (!request.signal.aborted) lease.observe(response.status, response.headers);
+    // 响应头与 abort 同拍时 cancel 可能因 source 已 errored 而拒绝。必须先交给同一
+    // body owner 观察真实 read 终态，再抛取消；独立 cancel-only 分支会漏掉槽位收尾。
+    const observed =
+      lease.end || request.signal.aborted
+        ? observeApiKeyResponse(response, request.signal, lease.end ?? (() => {}))
+        : response;
     request.signal.throwIfAborted();
-    lease.observe(response.status, response.headers);
-    return lease.end ? observeApiKeyResponse(response, request.signal, lease.end) : response;
+    return observed;
   };
 }
 

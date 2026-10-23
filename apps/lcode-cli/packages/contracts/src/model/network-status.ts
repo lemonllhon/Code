@@ -13,6 +13,8 @@ export type ModelTransportKind = (typeof ModelTransportKind)[keyof typeof ModelT
 
 export const ModelRetryReason = {
   RateLimited: "rate_limited",
+  RouteCooling: "route_cooling",
+  RoutingUnavailable: "routing_unavailable",
   ProviderOverloaded: "provider_overloaded",
   ServerError: "server_error",
   NetworkError: "network_error",

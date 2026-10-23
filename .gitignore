@@ -486,3 +486,11 @@ nul
 !/packages/web/test/remote-connection-switches.test.mjs
 !/packages/web/test/project-source-interaction.test.mjs
 !/packages/services/src/setting/remoteDeviceMutations.test.ts
+
+# 会话路由恢复提示与永久浏览器回归。
+!/packages/ui/src/lib/chatRoutingError.ts
+!/packages/web/test/routing-recovery-error.test.mjs
+!/packages/web/test/fixtures/routing-recovery-error.html
+!/packages/web/test/fixtures/routing-recovery-error.tsx
+!/packages/web/test/routing-retry-sessions.test.mjs
+!/packages/web/test/fixtures/routing-retry-sessions.tsx

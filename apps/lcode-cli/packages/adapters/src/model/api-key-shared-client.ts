@@ -25,6 +25,16 @@ export class ApiKeySharedQuotaClient {
   >();
   private overflow?: RoutingError;
   constructor(readonly coordinator: SharedQuotaCoordinator) {}
+  async waitForCapacity(
+    providerId: string,
+    lease: ApiKeyLease,
+    signal: AbortSignal,
+  ): Promise<boolean> {
+    if (!this.coordinator.waitForCapacity || !lease.sharedQuotaInput) return false;
+    const { poolId, keyId, maxInFlight } = lease.sharedQuotaInput;
+    await this.coordinator.waitForCapacity({ providerId, poolId, keyId, maxInFlight }, signal);
+    return true;
+  }
   async prepare(
     providerId: string,
     lease: ApiKeyLease,
@@ -40,6 +50,7 @@ export class ApiKeySharedQuotaClient {
     const identity = JSON.stringify([handle.poolKey, handle.leaseId]);
     let requested = false,
       dispatched = false,
+      outcomeReported = false,
       failure: unknown;
     const operations: Array<() => Promise<void>> = [];
     let tail = Promise.resolve();
@@ -138,9 +149,13 @@ export class ApiKeySharedQuotaClient {
       },
       end: (success) => {
         lease.end?.(success);
-        if (dispatched) enqueue(() => this.coordinator.finish(handle));
+        // 原实现只发送 unknown，取消后即使 body 已关闭也永久占住共享 probe。
+        // 非取消的物理失败仍等待 Runner 归一，保留随后到达的 status/scope/retry-after 写入权限。
+        const outcome = signal?.aborted ? "cancelled" : "unknown";
+        if (dispatched) enqueue(() => this.coordinator.finish(handle, outcome));
       },
       observeUsage: (usage: RoutingFinish) => {
+        if (usage.outcome && usage.outcome !== "unknown") outcomeReported = true;
         lease.observeUsage?.(usage);
         const actual = { ...usage.actualDemands },
           tokens = usage.tokens ? { ...usage.tokens } : undefined;
@@ -154,6 +169,11 @@ export class ApiKeySharedQuotaClient {
       },
       release: () => {
         lease.release();
+        // consumer 提前结束可能不经过 Runner 的 catch；补取消结果，但物理结束仍由 transport 证明。
+        if (dispatched && !outcomeReported) {
+          outcomeReported = true;
+          enqueue(() => this.coordinator.usage(handle, {}, undefined, { outcome: "cancelled" }));
+        }
         if (!dispatched) enqueue(() => this.coordinator.cancel(handle));
       },
       flushRouting: flush,

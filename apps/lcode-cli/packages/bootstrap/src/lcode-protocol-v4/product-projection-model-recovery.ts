@@ -42,6 +42,8 @@ export function onModelNetworkStatus(
 ): ConversationDelta[] {
   if (!acceptsActiveModelEvent(host, event)) return [];
   const payload = event.payload as ModelNetworkStatusPayload;
+  // 辅助标题/记忆请求可与前台并发，不能把它们的重试或完成投影成会话重连。
+  if (!isSessionModelQuerySource(payload.querySource)) return [];
   switch (payload.type) {
     case "model_retry_scheduled": {
       const attempt = positiveInteger(payload.attempt, 1);
@@ -213,6 +215,8 @@ export function acceptsActiveModelEvent(
   event: SessionEvent,
 ): boolean {
   if (!isRunning(host)) return false;
+  // 子智能体和独立会话都有自己的投影；缺少 turnId 的事件也不能跨 session 串状态。
+  if (String(event.sessionId) !== host.snapshot.sessionId) return false;
   // stop/新一轮后旧请求可能迟到；仅凭 session 级状态会让旧 turn 的
   // retry/progress 覆盖当前输入栏。当前 runtime turn 已知时必须按 turnId 隔离。
   return (
@@ -226,6 +230,10 @@ function modelRetryReasonCode(
   reason: Extract<ModelNetworkStatusPayload, { type: "model_retry_scheduled" }>["reason"],
 ): string {
   switch (reason) {
+    case "route_cooling":
+      return "fault.runtime.routeCooling";
+    case "routing_unavailable":
+      return "fault.runtime.routingUnavailable";
     case "rate_limited":
       return "fault.provider.rateLimited";
     // off-peak 排队（429/3105）语义上就是"上游让我们等"，UI 归入限流可恢复形态。

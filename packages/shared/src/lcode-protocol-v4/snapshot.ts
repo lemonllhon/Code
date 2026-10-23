@@ -2,6 +2,7 @@
 // ConversationSnapshot A 区。
 // A 区更新语义 = 字段级整体替换（state.updated），绝不深合并——深合并是错乱之母。
 import { z } from "zod";
+import { routingFailureInfoSchema } from "../provider-routing.js";
 import { contextTrendSchema } from "./context-trend.js";
 import { goalEvidenceSummarySchema } from "../goal-evidence.js";
 import { sharedContextImportStateSchema } from "./shared-context-import.js";
@@ -106,6 +107,9 @@ export const errorAttributionSchema = z
     statusCode: z.number().int().min(100).max(599).optional(),
     providerErrorCode: z.string().min(1).max(160).optional(),
     retryable: z.boolean().optional(),
+    routing: routingFailureInfoSchema.optional(),
+    retryDisposition: z.enum(["retryable", "exhausted", "terminal"]).optional(),
+    retryBudgetExhausted: z.boolean().optional(),
   })
   .strict();
 export type ErrorAttribution = z.infer<typeof errorAttributionSchema>;

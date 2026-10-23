@@ -19,7 +19,12 @@ const groups = [
     "packages/provider-node/src/provider-auth/native",
     /^(?:routing-single-attempt|copilot-auto.*|copilot-manual|google-refresh)\.test\.ts$/u,
   ],
-  ["packages/services/src/lcode-agent", /^providerConnectivityStartup\.test\.ts$/u],
+  [
+    "packages/services/src/lcode-agent",
+    /^(?:providerConnectivityStartup|mcpStatusIsolation)\.test\.ts$/u,
+  ],
+  ["apps/lcode-cli/packages/adapters/src/mcp", /^settings-session-isolation\.test\.ts$/u],
+  ["packages/services/src/plugins", /^pluginManagementService\.test\.ts$/u],
   [
     "packages/provider-node/src/provider-auth/plugins",
     /^(?:authorization-progress|single-attempt.*|backport-(?:.*-)?fixtures|transport-(?:children|close))\.test\.ts$/u,
@@ -31,13 +36,15 @@ const groups = [
   ],
   [
     "apps/lcode-cli/packages/bootstrap/src/lcode-protocol",
-    /^(?:provider-runtime-headers|connectivity-network)\.test\.ts$/u,
+    /^(?:provider-runtime-headers|connectivity-network|session-resume-transaction)\.test\.ts$/u,
   ],
 ];
 const files = process.argv.includes("--ui")
   ? [
       "packages/web/test/provider-routing.test.mjs",
       "packages/web/test/provider-authorization-diagnostics.test.mjs",
+      "packages/web/test/routing-recovery-error.test.mjs",
+      "packages/web/test/routing-retry-sessions.test.mjs",
     ]
   : (
       await Promise.all(
@@ -55,6 +62,15 @@ const files = process.argv.includes("--ui")
         "packages/provider-node/src/provider-auth/plugins/vendor-followup.test.mjs",
         "packages/provider-node/src/provider-auth/plugins/vendor-stream-followup.test.mjs",
         "apps/lcode-cli/packages/adapters/src/model/content-refusal.test.ts",
+        "apps/lcode-cli/packages/core/src/errors/error-routing-attribution.test.ts",
+        "apps/lcode-cli/packages/bootstrap/src/app/routing-session-retry.test.ts",
+        "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/product-projection-retry-isolation.test.ts",
+        "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/product-projection-stop-feedback.test.ts",
+        "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/model-output-statistics.test.ts",
+        "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/v4-gateway-contract.test.ts",
+        "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/commands/handlers/queue-handoff.test.ts",
+        "apps/lcode-cli/packages/core/src/runtime/methods/streaming-tool-coordinator.test.ts",
+        "packages/shared/src/lcode-protocol-v4/routing-recovery-error.test.ts",
       )
       .sort();
 const child = spawn(
