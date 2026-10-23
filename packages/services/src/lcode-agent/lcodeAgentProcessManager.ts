@@ -1122,6 +1122,9 @@ export class LCodeAgentProcessManager {
           ...buildE2EAgentCoverageEnv(),
         },
         stdio: ["pipe", "pipe", "pipe"],
+        // stdio Agent 是后台进程；仅重定向 pipe 不会隐藏 Windows 控制台，可能累积外部终端标签。
+        // 与命令执行器/MCP 的隐藏启动保持一致，保留原进程复用和按 owner 回收边界。
+        windowsHide: true,
       });
     } catch (error) {
       memoryLease.release();

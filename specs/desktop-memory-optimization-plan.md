@@ -425,6 +425,8 @@ pluginProcessManager 与 mcpStatusProcessManager 的存在有实际串行 stdio 
 
 区分 PTY 的真实进程 / 后台任务与 xterm 的显示缓存；关闭面板不等于终止 PTY。检查 scrollback、隐藏面板订阅、Blob / 解码资源和大文件解析结果，保留用户未保存编辑。只在确认当前实现与恢复来源后设置预算。
 
+2026-10-23 补充：用户确认多个 `lcode` 标签为 AI 自动弹出的独立 Windows 终端。按[后台控制台、复用与回收专项](agent-background-console-lifecycle.md)先补齐 Host 启动 Agent 时遗漏的隐藏控制台设置，并验证已有同 identity 启动去重、连续复用及精确关闭回收。CLI 命令保持每次执行隔离与既有进程树清理，不跨会话建立持久 shell 池；应用内 xterm 缓存预算后续单独测量。
+
 ## 11. 首轮建议参数与降级原则
 
 所有参数在各自现有 owner 内集中声明；不同资源不共用一个含业务状态的全局“内存调度器”。测试允许注入更小预算与时钟，避免依靠固定 sleep 验证生命周期。
