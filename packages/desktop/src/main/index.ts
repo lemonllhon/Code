@@ -62,7 +62,7 @@ import {
   getLCodeDataRootDir,
   normalizeRuntimeProcessEnv,
   setDataBaseDir,
-} from "@lcode/services/node";
+} from "@lcode/services/desktop-main";
 import {
   desktopMenuMessageIds,
   type Locale,

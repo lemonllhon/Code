@@ -14,7 +14,7 @@ import {
   createStorageService,
   createRuntimePackageCacheCleaner,
   getDataBaseDir,
-} from "@lcode/services/node";
+} from "@lcode/services/desktop-main";
 // 存储接口来自公开契约入口，node 入口只承载适配器工厂。
 import type { IStorageService } from "@lcode/services";
 import { logger } from "./logger.js";

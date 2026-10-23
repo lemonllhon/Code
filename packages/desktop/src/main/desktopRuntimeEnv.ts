@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, win32 } from "node:path";
 import type { ConnectOptions } from "@lcode/server/remote";
-import { listSSHConfigAliasesFromLocalConfig } from "@lcode/services/node";
+import { listSSHConfigAliasesFromLocalConfig } from "@lcode/services/desktop-main";
 import { DEV_HELPER_APP_NAME, HELPER_APP_NAME } from "@lcode/lcode-cua/broker/helperConstants";
 import {
   LCODE_APP_VERSION_ENV,
@@ -31,7 +31,7 @@ import {
   getDataBaseDir,
   LCODE_CUA_BUNDLED_HELPER_APP_PATH_ENV,
   LCODE_WINDOWS_APP_INSTALL_DIR_ENV,
-} from "@lcode/services/node";
+} from "@lcode/services/desktop-main";
 import {
   resolveRemoteCdnBaseUrls as resolveOrderedRemoteCdnBaseUrls,
   type ResolveRemoteCdnOptions,

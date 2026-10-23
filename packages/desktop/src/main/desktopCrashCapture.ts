@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { basename, join } from "node:path";
 import { app, crashReporter, type BrowserWindow, type WebContents } from "electron";
-import { getAppConfigDir } from "@lcode/services/node";
+import { getAppConfigDir } from "@lcode/services/desktop-main";
 import {
   type CrashDumpV8OomSummary,
   readCrashDumpAnnotationsFromFile,

@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- 桌面平台 IPC 集中装配，拆散会让权限边界更难审计；行数随平台能力增长。 */
 import { BrowserWindow, dialog, ipcMain, nativeTheme } from "electron";
 import { userInfo } from "node:os";
-import { readLCodeStdioTapDevState } from "@lcode/services/node";
+import { readLCodeStdioTapDevState } from "@lcode/services/desktop-main";
 import {
   DesktopCommandIds,
   appSettingsPatchSchema,

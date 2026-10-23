@@ -1,5 +1,5 @@
 import type { StorageRootSpec } from "@lcode/shared";
-import type { StorageScanProgress } from "@lcode/services/node";
+import type { StorageScanProgress } from "@lcode/services/desktop-main";
 
 export interface StorageScanWorkerData {
   roots: StorageRootSpec[];

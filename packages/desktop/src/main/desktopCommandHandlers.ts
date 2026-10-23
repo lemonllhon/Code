@@ -20,7 +20,10 @@ import {
   normalizeLCodeEndpointOrigin,
   resolveLCodeEndpointOrigin,
 } from "@lcode/shared";
-import { readLCodeStdioTapDevState, setLCodeStdioTapDevEnabled } from "@lcode/services/node";
+import {
+  readLCodeStdioTapDevState,
+  setLCodeStdioTapDevEnabled,
+} from "@lcode/services/desktop-main";
 import { showAboutDialog } from "./about.js";
 import { checkForUpdateMenuClick } from "./autoUpdater.js";
 import { exportLogs } from "./exportLogs.js";

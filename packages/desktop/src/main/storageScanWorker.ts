@@ -5,7 +5,7 @@
  */
 import { isMainThread, parentPort, workerData } from "node:worker_threads";
 import type { StorageRootSpec } from "@lcode/shared";
-import { runStorageScan } from "@lcode/services/node";
+import { runStorageScan } from "@lcode/services/desktop-main";
 import {
   isStorageScanWorkerCommand,
   type StorageScanWorkerData,

@@ -11,7 +11,7 @@ import { promisify } from "node:util";
 import { join, win32 as pathWin32 } from "node:path";
 import { app, nativeImage } from "electron";
 import type { EditorInfo } from "@lcode/shared";
-import { getLCodeDataRootDir } from "@lcode/services/node";
+import { getLCodeDataRootDir } from "@lcode/services/desktop-main";
 import { logger } from "./logger.js";
 
 const execFileAsync = promisify(execFile);

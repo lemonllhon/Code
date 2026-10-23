@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { getLCodeDataRootDir } from "@lcode/services/node";
+import { getLCodeDataRootDir } from "@lcode/services/desktop-main";
 import type {
   CreateTempTextAttachmentRequest,
   CreateTempTextAttachmentResult,

@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { createUuid } from "@lcode/shared";
-import { getAppConfigDir } from "@lcode/services/node";
+import { getAppConfigDir } from "@lcode/services/desktop-main";
 
 interface EnsureDesktopDeviceMidSyncOptions {
   /** state 文件所在目录，默认 getAppConfigDir()（即 ~/.lcode/v2）。仅测试注入 */

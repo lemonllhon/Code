@@ -9,7 +9,7 @@ import { randomUUID } from "node:crypto";
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { shell } from "electron";
-import type { CuaHelperInstallerOptions } from "@lcode/services/node";
+import type { CuaHelperInstallerOptions } from "@lcode/services/desktop-main";
 import {
   resolveHelperPermissionSubjectIdentity,
   type HelperPermissionSubjectIdentity,

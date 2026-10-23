@@ -87,7 +87,7 @@ test("packaged Main registers bundled resources only for the matching compile mo
       "src/main/desktopRuntimeEnv.ts",
       {
         "./desktopElectronApp.js": `export const isElectronAppPackaged=()=>true;export const getElectronAppPath=()=>${JSON.stringify(resources)};`,
-        "@lcode/services/node":
+        "@lcode/services/desktop-main":
           "export const listSSHConfigAliasesFromLocalConfig=async()=>[];export const getAppConfigDir=()=>'';export const getDataBaseDir=()=>'';export const LCODE_CUA_BUNDLED_HELPER_APP_PATH_ENV='helper';export const LCODE_WINDOWS_APP_INSTALL_DIR_ENV='install';",
       },
       {
@@ -153,7 +153,7 @@ test("isolated default-userData startup never copies identity data", async (t) =
     {
       "./desktopRuntimeEnv.js":
         "export const runtimeApplicationName='LCode Dev', runtimeUserDataPath=undefined;",
-      "@lcode/services/node": "export const setDataBaseDir=()=>{};",
+      "@lcode/services/desktop-main": "export const setDataBaseDir=()=>{};",
       "@lcode/shared/node":
         "export const migrateDirCopyStyleSync=()=>{throw Error('unexpected data migration')};",
     },

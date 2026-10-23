@@ -6,11 +6,11 @@ import {
   createCuaHelperInstaller,
   type CuaHelperInstaller,
   type CuaHelperInstallerOptions,
-} from "@lcode/services/node";
+} from "@lcode/services/desktop-main";
 
 type InstallerFactory = (options: CuaHelperInstallerOptions) => CuaHelperInstaller;
 
-export { normalizeCuaHelperArch, normalizeCuaHelperArchs } from "@lcode/services/node";
+export { normalizeCuaHelperArch, normalizeCuaHelperArchs } from "@lcode/services/desktop-main";
 
 interface DesktopCuaHelperInstallerOptions extends Pick<
   CuaHelperInstallerOptions,

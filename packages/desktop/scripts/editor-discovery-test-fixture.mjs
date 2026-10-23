@@ -81,7 +81,7 @@ export function editorDiscoveryStubs() {
     "node:fs/promises": asyncFs,
     "node:child_process": processes,
     electron,
-    "@lcode/services/node": "export const getLCodeDataRootDir=()=>'/fixture/data';",
+    "@lcode/services/desktop-main": "export const getLCodeDataRootDir=()=>'/fixture/data';",
     "./logger.js": `import {state} from 'editor-audit-state'; export const logger={info:(...args)=>state.logs.push(args),warn(){},error(){}};`,
     "@fiahfy/icns": `import {state} from 'editor-audit-state'; export const Icns={supportedIconTypes:[{osType:'png',format:'PNG',size:32}],from(){if(state.invalidIcns)throw Error('fixture invalid icns');return {images:[{osType:'png',image:Buffer.from('png')}]};}};`,
     "@lcode/server/remote/wsl-detect.js":

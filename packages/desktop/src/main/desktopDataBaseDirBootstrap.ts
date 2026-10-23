@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { app } from "electron";
 import { migrateDirCopyStyleSync } from "@lcode/shared/node";
-import { setDataBaseDir } from "@lcode/services/node";
+import { setDataBaseDir } from "@lcode/services/desktop-main";
 import { runtimeApplicationName, runtimeUserDataPath } from "./desktopRuntimeEnv.js";
 
 function resolveBootstrapSettingsFile(homePath: string = homedir()): string {

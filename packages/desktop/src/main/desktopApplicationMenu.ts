@@ -9,7 +9,7 @@ import {
   type DesktopCommandId,
   type Locale,
 } from "@lcode/shared";
-import { readLCodeStdioTapDevState } from "@lcode/services/node";
+import { readLCodeStdioTapDevState } from "@lcode/services/desktop-main";
 import { CHECK_FOR_UPDATE_MENU_ID, setAutoUpdaterMenuLocale } from "./autoUpdater.js";
 import {
   DESKTOP_ZOOM_MAX_LEVEL,

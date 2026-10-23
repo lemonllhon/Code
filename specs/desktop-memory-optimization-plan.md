@@ -670,6 +670,8 @@ feature-boundary-planner 的已有种子覆盖 `state.runtime-memory-admission`�
 
 ## 20. 分阶段实施记录（2026-10-23）
 
+后续代码与验收合同见 [剩余优化实施](desktop-resource-optimization-follow-through.md)。该文记录本轮 Main 加载、设置按需加载、投影/请求缓存、PDF/媒体和终端输出压力；验收结果单独追加，不将代码完成写成性能验收通过。
+
 本节为用户授权全面实施后的记录。前文第 18 节是方案编写时的历史检查，不能替代本节实际结果。实施基线 `4c18fd485c0aa24b9572a0e9653fa7fb0672944b`，版本 3.20.8。没有安装或重启用户正在运行的应用。
 
 ### 已落地规则

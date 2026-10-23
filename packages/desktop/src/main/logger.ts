@@ -2,7 +2,7 @@ import { mkdirSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { formatTimestamp } from "@lcode/shared";
 import { cleanupExpiredLogFiles, LOG_RETENTION_DAYS } from "./logRetention.js";
-import { getAppConfigDir, maybeThrowInjectedFsFault } from "@lcode/services/node";
+import { getAppConfigDir, maybeThrowInjectedFsFault } from "@lcode/services/desktop-main";
 
 function getLogDir() {
   const e2eLogDir =

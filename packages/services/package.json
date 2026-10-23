@@ -6,6 +6,8 @@
     "#src/*": "./src/*"
   },
   "exports": {
+    "./resource-profiling": "./src/resource-profiling.ts",
+    "./desktop-main": "./src/desktop-main.ts",
     "./scheduler": "./src/scheduler.ts",
     "./storage-startup": "./src/storage-startup.ts",
     ".": "./src/index.ts",
