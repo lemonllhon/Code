@@ -2,12 +2,12 @@
 
 日期：2026-10-23（Asia/Shanghai）。
 
-状态：方案评审稿；本轮不修改实现、不调整正在运行的应用。
+状态：分阶段实施中（2026-10-23，当前实施基线 3.20.8）；不调整用户正在运行的安装版。各阶段完成情况和验证证据见本文末尾实施记录。
 
 源码基线：`4406c614`，根包版本 `3.20.6`；Node `24.21.0`，pnpm `10.34.6`。
 范围：保留 Electron、React、TypeScript 和当前 Host / Agent / 远控架构。
 
-> 本文中的新默认值、预算和性能目标均为建议，尚未成为现行产品规则。实现前先完成对应 spec、接口与测试变更。内存收益须由同版本、同场景的生产构建验证，不能用本次安装版现场数字直接推算。
+> 用户已授权按此方案全面实施。下文性能目标仍为待测护栏；具体已落地规则以实施记录及对应 spec 为准。内存收益须由同版本、同场景的生产构建验证，不能用旧安装版现场数字直接推算。
 
 ## 1. 方案结论与实施顺序
 
@@ -667,3 +667,55 @@ feature-boundary-planner 的已有种子覆盖 `state.runtime-memory-admission`�
 - [现有进程采样来源](../packages/desktop/src/main/processResourceSampleSourceRegistry.ts)
 - [共享诊断格式](../packages/shared/src/memoryDiagnostics.ts)
 - [Electron 官方性能建议](https://www.electronjs.org/docs/latest/tutorial/performance)：先剖析实际成本，再减少不必要模块和过早初始化；本文具体产品决策以当前源码和上述验收为准。
+
+## 20. 分阶段实施记录（2026-10-23）
+
+本节为用户授权全面实施后的记录。前文第 18 节是方案编写时的历史检查，不能替代本节实际结果。实施基线 `4c18fd485c0aa24b9572a0e9653fa7fb0672944b`，版本 3.20.8。没有安装或重启用户正在运行的应用。
+
+### 已落地规则
+
+| 阶段         | 已实现与唯一 owner                                                                                                                                              | 保护与恢复                                                                                                                 |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| P0           | 原 registry 增加 Diff、Shiki、query、workspace、xterm 及按 lane 的 Agent 数字计数；新增隔离 Electron 测量入口                                                   | 不新增采样服务、鉴权接口或生产采样进程                                                                                     |
+| P1           | Main 只选可见有效本地目录一个目标；窗口 spawn/Host 恢复原样传递空名单，Host 只对缺失字段兼容 fallback；schema 上限 1                                            | 远程 active 不预热隐藏本地标签；默认 cwd 仍准备，失效项目不重建；非 Git 本地目录保持有效                                   |
+| P2 显示      | 稳定 Diff owner 按消费者 lease 创建单 Worker，最后释放 terminate，AST 各 20；Shiki 结果 128 条/估算 8 MiB，空闲 engine 4 个；同键单飞、卸载取消订阅、失败可重试 | Root/输入框不重挂；原文先可读；初始化取消和旧代回包不污染新代；Diff 和高亮 key 覆盖中段内容变化                            |
+| P2 查询      | Query store 保留全部活跃查询，另保留 40 个非活跃结果、500 个无引用历史 meta；query lease generation 纳入 hook 原有 rerun 流程                                   | 引用、运行/后台工作、权限问答、未读 overlay 保护；硬失效、释放、重开和 clearAll 拒绝旧回包；按精确 workspace identity 隔离 |
+| P2 workspace | 明确关闭的标签释放可重建配置、命令、任务列表缓存；轻量桶和用户状态保留                                                                                          | 草稿、附件、模型切换、在途配置、运行/后台任务、权限问答和乐观提交不丢；重新打开沿原配置入口恢复                            |
+| P3           | plugin 专用 manager 默认 5 分钟空闲回收；ProtocolClient 在反向响应真实写入后解除保护；Scheduler 使用窄公共入口                                                  | chat/plugin/mcp-status 队列不合并；真实退出后归还预算；正常需求重建原代鉴权/初始化；不调整 Main/Host 的业务装配            |
+| P4 终端      | 相同 persistent entry 幂等复用；替换 entry 先 dispose 旧 PTY/xterm/订阅；最后释放移除空 stash                                                                   | 切换/隐藏继续复用；关闭/替换才回收；不同 workspace 不串台；不自动杀后台命令                                                |
+
+详细状态图和接口见 [Renderer 资源生命周期](renderer-resource-lifecycle.md)、[辅助 Agent 生命周期](auxiliary-agent-idle-lifecycle.md)、[Scheduler 加载边界](scheduler-loading-boundary.md)。浏览器自动休眠依然遵循第 10 节，未凭不可见状态销毁用户网页。
+
+### 当前验证
+
+- `pnpm test:desktop-memory`：48 个 owner/协议/缓存回归，加 4 个 UI/构建回归，全部通过。包含真实 stdio 子进程、真实 Electron Worker/Shadow DOM、实际 Shiki、多预览共享、草稿保留，以及本地/远程 query 硬失效后恢复且不重复初次请求。
+- `pnpm test:provider-routing`：744 项通过；`pnpm test:remote-control`：181 项通过；`pnpm test:startup-animation`：78 项通过；`pnpm test:renderer:ui`：6 项通过。
+- `pnpm typecheck`、`pnpm lint` 通过；架构 violations/baseline/new 均为 0。变更继续属于既有 desktop/ui/services/shared 模块；跨包新增依赖走 `@lcode/services/scheduler` 公共入口。
+- 实际生产配置的 Main/Host/Preload/Scheduler tsup 和 Renderer Vite 构建通过，产物位于隔离 `.artifacts/desktop-memory/`。Vite 仍报告原有大 chunk/包装组件重复动静态导入告警；核对 PDF/PPTX/Office 内部真实查看器仍是 lazy，没有为消除告警重复包装加载边界。
+- 测试并发构建期间出现过一次 Windows 进程表采样超时警告；现有身份校验/清理保护未删除，物理退出和预算结算断言通过。未通过增加超时掩盖它。
+
+### 已测收益与口径
+
+1. 隔离显示层同工具链/依赖、相同 GPU 关闭配置，仅替换旧/新 Diff Provider，交错运行各 5 次：旧策略每次空闲都创建 4 个 Worker，新策略均为 0；Renderer `getAppMetrics().memory.privateBytes` 中位数约 **275 MiB → 107 MiB**。这是显示层夹具的增量收益，不能推导完整桌面包内存降低 61% 或已经达到整包 20% 目标。原始报告：`.artifacts/desktop-memory/diff-idle-comparison.json`，含平台、CPU/RAM、Provider 哈希和逐次样本。
+2. Scheduler services 加载对照（两个入口使用相同 external 规则）：贡献模块 347 → 12，输出 247843 → 59371 字节。报告：`.artifacts/desktop-memory/scheduler-loading.json`。这证明依赖图收缩，不是 Scheduler RSS 降幅。
+3. 默认真实 Electron 测试等待查看器出现后再关闭，6 轮结束 owned Worker、队列、AST 均归零；另运行 30.06 分钟初始化取消压力，359 次创建/终止全部配对，结束时 owned Worker/队列/AST 为 0；未强制 GC，Renderer heap 首尾约 24.3/25.1 MiB，期间 23.3–26.1 MiB。结果单独记录在 `.artifacts/desktop-memory/renderer-soak.json`，不将它称为完整应用长稳。
+
+发行输入检查曾发现共享协议改动导致内嵌 OAuth Worker 过期（首次全量 release 为 168 通过、1 失败、1 跳过）。已按既有生成链重新构建 Worker 并重算 notices，生成一致性专项 7 项通过；不把首次失败写成通过。最终全量 `pnpm test:release` 为 **169 通过、0 失败、1 平台跳过**；`pnpm verify:pre-push` 通过，HEAD 的 3021 个发行输入验证通过（既有 20 个材料缺口记录保留）。OAuth native owner/refresh/transport 专项 16 项通过。生成物同步后重新执行类型检查、Lint 及 Main/Host/Preload/Scheduler 生产构建，均通过。
+
+### 发布验收仍需补齐
+
+- 完整安装包在固定基准机上的 5 次冷/热启动和真实任务/Diff P95，尚未冻结整包性能收益；不能将旧 3.20.4 现场数字当作本次基线。
+- macOS/Linux 实机、8 小时真实使用与完整安装包长稳尚未执行。当前完成的是 Windows 生产构建与隔离生命周期回归；这些发布验收不能写成已通过。
+- Main/Host 保留现有业务初始化 owner；本轮没有在缺少归因测量时合并控制面、停止执行 Agent、删除用户状态或自动休眠浏览器。
+
+### 提交
+
+- `baee21f1`：启动预热和 InitLocal 空名单链路。
+- `f31b1806`：Renderer/查询有界缓存、资源 lease 和隔离 A/B/UI 回归。
+- `c580785c`：终端 registry 替换回收。
+- `d14382ea`：辅助 Agent 保护条件与闲时退出。
+- `abee40be`：Scheduler 窄公共入口。
+- `7cd31c7a`：统一内存回归入口、功能边界索引和发行库存指纹。
+- `ad94b90d`：按共享协议重新生成内嵌 OAuth Worker 和发行指纹；未修改鉴权策略。
+
+截至上述实现提交，改动 55 个文件，新增 2281 行、删除 337 行，净增 1944 行（不含本记录文档）。业务状态仍由原 Main/Host/CLI owner 持有；新增对象均是对应原缓存或进程 owner 的使用资格/只读计数，不构成新的已接受命令队列。`provider-node` 仅同步生成物，其它实现属于原 desktop/ui/services/shared 模块，没有新增架构基线例外。
