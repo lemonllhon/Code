@@ -6,7 +6,7 @@ import type {
   LCodeProtocolRequestId,
   LCodeProtocolResponse,
 } from "@lcode/shared";
-import { lcodeProtocolMessageSchema, lcodeProtocolMethods } from "@lcode/shared";
+import { PROJECT_NATIVE_METHOD, lcodeProtocolMessageSchema, lcodeProtocolMethods } from "@lcode/shared";
 import type { Logger } from "@lcode/contracts";
 
 type LCodeProtocolOutgoingMessage =
@@ -108,7 +108,7 @@ export class LCodeProtocolNdjsonConnection {
     this.notifyTransportClosed(new Error("LCode Protocol client connection closed"));
     // EOF 保留短请求半关闭响应，但挂起 handler 不能让进程永久保活。
     this.drainTimer = setTimeout(() => this.finish(), PROTOCOL_EOF_DRAIN_MS);
-    // 探测不占普通队列，但半关闭仍需等其短响应；同一个 drain deadline 约束所有在途任务。
+    // 探测和原生资源请求不占普通队列；同一个 drain deadline 约束所有在途任务。
     void Promise.all([this.processing, ...this.independentRequests]).then(
       () => this.finish(),
       (error: Error) => this.fail(error),
@@ -196,11 +196,13 @@ export class LCodeProtocolNdjsonConnection {
     if (
       "id" in message &&
       "method" in message &&
-      message.method === lcodeProtocolMethods.providerTestModelConnectivity
+      (message.method === PROJECT_NATIVE_METHOD ||
+        message.method === lcodeProtocolMethods.providerTestModelConnectivity)
     ) {
-      // 只等到达时已有的配置屏障，不把网络探测结束串回 processing。
-      // 否则 UI 四路调度会被 stdio 再次串行化，后续配置保存也会被慢探测阻塞。
-      const barrier = this.processing;
+      // 中文依据：项目 admission 等待 Host，Host 又会向同一个 Agent 发 stat/close；
+      // 原生资源请求若等普通队列或后来请求的 started 屏障，就会与当前输入循环等待。
+      // 资源仍归原 owner/callId，独立在途集合负责 EOF 排水；模型探测保留配置屏障。
+      const barrier = message.method === PROJECT_NATIVE_METHOD ? Promise.resolve() : this.processing;
       const handling = barrier
         .then(() => this.handleMessage(message))
         .catch((error: unknown) => {

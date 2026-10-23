@@ -15,6 +15,49 @@
 - 新入口完成后移除项目选择菜单的“远程连接”。已有远程项目仍可打开与重连；不删除 SSH/WSL/Docker 能力或用户的代理、资源下载选项。
 - 移除设备配置不得删除项目目录、远端文件、任务和历史会话；仍被项目引用的设备保留明确的失联/缺配置状态，不将其成员重新解释成本地路径。
 
+## 同一会话跨设备原生请求调度（2026-10-23）
+
+同一会话必须能在本地及远程成员目录执行文件与命令操作，主要目录位于任一端均成立。不能通过拆分会话、关闭另一端默认参与或延长运行偏好请求超时来实现。
+
+问题依据：`v4/command` 在 `project-admission` 等待窗口 Host 准备跨设备范围，Host 会向各成员所在的既有 Agent 发送 `project/native` 的 `stat` 和 `close`。若目标就是正在等待的源 Agent，普通 NDJSON 串行队列会将这些请求排在当前命令之后，形成等待环；超时后目录检查才开始，返回已无法结算原请求。
+
+调度规则与所有者：
+
+- `LCodeProtocolNdjsonConnection` 只拥有传输请求的调度与在途 Promise 集合。`project/native` 是既有资源端口请求，应独立执行，不等待普通命令完成，也不等待后来排入的普通命令开始；原生请求本身也不阻塞普通队列或其它原生请求的取消/关闭。
+- 普通会话命令继续由原串行队列进入 CLI `CommandInbox` admission；不新增输入队列。模型连通性探测仍等待请求到达时的配置屏障，停止/取消仍遵守既有开始屏障。
+- 资源归 `ProjectNativeServer` 的原 `ownerId/callId` 持有，窗口 Host 仍校验 origin、成员 identity、attachment/generation 和路由 capability。请求旁路只改变调度，不扩大访问权限、不替换目标、不创建第二个会话 Runtime。
+- 独立原生请求纳入既有在途集合，EOF 在原 drain deadline 内等待；abort、IO 失败或 deadline 后禁止迟到响应。原请求错误沿既有协议错误返回，不破坏后续普通命令处理。`close/cancelCall` 保持原 owner 和幂等语义。
+- 沿用 `project/native`、`session/requestRuntimePreferences` 的既有 schema 与 15 秒 deadline，不新增 wire 字段、持久化或环境变量。修复需进入成员目标 Agent 的构建，旧 Agent 的队列行为不会由仅更新 UI 改变。
+
+```mermaid
+sequenceDiagram
+  participant C as 源Agent命令队列/CommandInbox
+  participant H as 窗口Host路由owner
+  participant T as 目标Agent的NDJSON连接
+  participant N as ProjectNativeServer资源owner
+  C->>H: project-admission（冻结成员范围）
+  H->>T: project/native stat（每个成员）
+  Note over C,T: 目标可为源Agent；资源请求不等待普通命令队列
+  T->>N: 原请求ownerId/callId
+  N-->>H: 目标设备目录结果
+  H->>T: project/native close（预检资源）
+  T->>N: 释放原owner
+  H-->>C: 冻结路由和项目范围
+  C->>C: 原CommandInbox提交输入并执行
+```
+
+Desktop `desktop-continuous` 与手机 `web-remote-replayable` 都经过相同资源调度和业务 owner；后者继续依赖原 snapshot/cursor/gap 修复与 admission 幂等，资源 RPC 不生成第二份队列或可重放执行。
+
+验收场景：
+
+1. 本地与远程目录同时参与，源/主要目录分别位于本地或远程时，预检通过并固定全部成员；原生检查先于发送命令完成，随后普通命令仍保持原顺序。
+2. 源 Agent 等待 Host 期间，先有其它普通命令排队，再收到原生请求，也不会借由“最后一个排队请求开始”形成等待环。
+3. 一个会话按成员选择在两端实际读写文件、运行命令，cwd/文件结果和资源 owner 正确；Desktop continuous 与手机 replayable 使用同一个冻结范围。
+4. 长原生执行期间仍可取消或关闭该 owner；原生错误不会阻塞后续普通请求，重复关闭不产生新资源。
+5. 原生请求半关闭、abort、IO 失败及迟到响应遵守原 drain 语义；跨 origin/过期 generation 继续拒绝，不回退到另一设备。
+
+验证先通过真实 NDJSON 连接的回归用例复现等待环，再验证修复；临时本地目录模拟两台设备的协议测试不等同于真实 SSH 或已安装包验收。
+
 ## 修改前确认的问题
 
 1. `Root` 仅给无 workspace 的 `SettingsPage` 传递 remoteDevices；有 workspace 时经过 `RootWorkspaceContent → WorkspaceSettingsLayer` 的两处分支均缺失管理模型，导致新建按钮 disabled。修复必须贯穿两种设置入口，不能只验证独立 section。

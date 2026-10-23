@@ -3,6 +3,8 @@ import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 const root = resolve(import.meta.dirname, "..");
 const files = [
+  "scripts/project-native-admission.test.ts",
+  "apps/lcode-cli/packages/bootstrap/src/lcode-protocol/transport-project-native.test.ts",
   "scripts/remote-control-persistence.test.mjs",
   "packages/rpc/test/channelServer.test.ts",
   "packages/rpc/test/proxyCancellation.test.ts",
