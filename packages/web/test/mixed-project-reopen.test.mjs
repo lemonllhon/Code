@@ -4,11 +4,15 @@ import { buildRemoteWorkspaceIdentity } from "../../shared/src/remote-workspace-
 import { startWorkflowProgressBrowser } from "./workflow-execution-progress-browser.mjs";
 
 test(
-  "a mixed project's explicit double-click restores its saved device after reload, waits for ready and retries failures",
+  "remote and mixed projects restore their saved device on double-click, wait for ready and retry failures",
   { timeout: 120000 },
   async (t) => {
     const { browser, port } = await startWorkflowProgressBrowser(t);
-    for (const remoteOrigin of [false, true]) {
+    for (const [remoteOrigin, remoteOnly] of [
+      [false, false],
+      [true, false],
+      [true, true],
+    ]) {
       const page = await browser.newPage({
         viewport: { width: remoteOrigin ? 390 : 1280, height: 850 },
       });
@@ -19,7 +23,7 @@ test(
       const target = { kind: "ssh", host: "example.invalid", username: "fixture", port: 22 };
       const identity = buildRemoteWorkspaceIdentity(path, target);
       await page.addInitScript(
-        ({ path, target, identity, remoteOrigin }) => {
+        ({ path, target, identity, remoteOrigin, remoteOnly }) => {
           const project = {
             id: remoteOrigin ? "remote-project" : "project",
             name: "Mixed reopen",
@@ -47,7 +51,7 @@ test(
                 enabled: true,
                 source: { kind: "remote", deviceId: "device", workspaceIdentity: identity },
               },
-            ],
+            ].filter((member) => !remoteOnly || member.id === "remote"),
           };
           localStorage.setItem(
             "sidebar-fixture-projects",
@@ -63,14 +67,15 @@ test(
             }),
           );
         },
-        { path, target, identity, remoteOrigin },
+        { path, target, identity, remoteOrigin, remoteOnly },
       );
       await page.goto(
         `http://127.0.0.1:${port}/test/fixtures/sidebar-organization.html?prepare-project&project-lifecycle&desktop`,
       );
-      const row = page
-        .locator('[data-testid^="workspace-item-"]')
-        .filter({ hasText: "Mixed reopen", has: page.locator('[data-project-source="mixed"]') });
+      const row = page.locator('[data-testid^="workspace-item-"]').filter({
+        hasText: "Mixed reopen",
+        has: page.locator(`[data-project-source="${remoteOnly ? "remote" : "mixed"}"]`),
+      });
       await row.waitFor();
       assert.equal(
         await page.evaluate(() => globalThis.__sidebarOrganization.facts.connects),

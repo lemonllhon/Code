@@ -6,7 +6,12 @@ import type {
   LCodeProtocolRequestId,
   LCodeProtocolResponse,
 } from "@lcode/shared";
-import { PROJECT_NATIVE_METHOD, lcodeProtocolMessageSchema, lcodeProtocolMethods } from "@lcode/shared";
+import {
+  PROJECT_NATIVE_INDEPENDENT_SCHEDULING_MARKER,
+  PROJECT_NATIVE_METHOD,
+  lcodeProtocolMessageSchema,
+  lcodeProtocolMethods,
+} from "@lcode/shared";
 import type { Logger } from "@lcode/contracts";
 
 type LCodeProtocolOutgoingMessage =
@@ -67,6 +72,11 @@ export class LCodeProtocolNdjsonConnection {
     this.options.input.on("error", this.onError);
     this.options.output.on("error", this.onError);
     this.options.signal?.addEventListener("abort", this.onAbort, { once: true });
+    // 中文依据：旧 Agent 有原生方法却仍串行排队；部署校验与运行诊断共用这项调度能力标识。
+    this.options.logger?.info("LCode Protocol native requests use independent scheduling", {
+      event: PROJECT_NATIVE_INDEPENDENT_SCHEDULING_MARKER,
+      module: "bootstrap.lcode_protocol",
+    });
     if (this.options.signal?.aborted) this.onAbort();
   }
 

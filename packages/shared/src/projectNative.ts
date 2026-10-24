@@ -2,6 +2,9 @@ import { z } from "zod";
 
 export const PROJECT_NATIVE_METHOD = "project/native";
 export const PROJECT_NATIVE_ROUTE_METHOD = "project/routeNative";
+// 部署能力契约：方法存在不代表请求能越过等待 admission 的会话命令。
+export const PROJECT_NATIVE_INDEPENDENT_SCHEDULING_MARKER =
+  "lcode_protocol.project_native.independent";
 export const projectNativeOperationSchema = z.strictObject({
   port: z.enum(["filesystem", "execution", "gitAccount", "gitContext"]),
   method: z.enum([

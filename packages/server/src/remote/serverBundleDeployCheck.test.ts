@@ -22,6 +22,45 @@ const legacy = [
 ];
 const native = ["executeProjectNative", "onDynamicProjectNativeRequest", "respondProjectNative"];
 
+test("an Agent with native methods but serialized scheduling is incompatible", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "lcode-agent-scheduling-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const backend = new LocalFixtureRemoteBackend(join(root, "home"), {
+    platform: "linux",
+    arch: "x64",
+  });
+  const nodePath = join(root, "node").replaceAll("\\", "/");
+  const bundlePath = join(root, "agent.cjs").replaceAll("\\", "/");
+  await writeFile(
+    nodePath,
+    `#!/bin/sh\nexec ${quotePosixShellArg(process.execPath.replaceAll("\\", "/"))} "$@"\n`,
+  );
+  await chmod(nodePath, 0o755);
+  // 中文依据：修复前远端制品已含两个方法名，但请求仍排在等待 admission 的输入后面。
+  await writeFile(bundlePath, "project/native\nproject/routeNative\n");
+  const decision = await checkRemoteBundleCapabilities(
+    backend,
+    nodePath,
+    bundlePath,
+    PROJECT_NATIVE_AGENT_MARKERS,
+  );
+  assert.equal(decision.shouldDeploy, true, "method presence cannot prove concurrent scheduling");
+  await assert.rejects(
+    assertRemoteBundleCapabilities(backend, nodePath, bundlePath, PROJECT_NATIVE_AGENT_MARKERS),
+    /incompatible.*project_native.independent/,
+  );
+  await writeFile(bundlePath, PROJECT_NATIVE_AGENT_MARKERS.join("\n"));
+  assert.deepEqual(
+    await checkRemoteBundleCapabilities(
+      backend,
+      nodePath,
+      bundlePath,
+      PROJECT_NATIVE_AGENT_MARKERS,
+    ),
+    { shouldDeploy: false },
+  );
+});
+
 test(
   "same-version remote servers missing any native routing interface require an update",
   { timeout: 20_000 },

@@ -1,5 +1,9 @@
 import type { ILCodeAgentService } from "@lcode/services";
-import { PROJECT_NATIVE_METHOD, PROJECT_NATIVE_ROUTE_METHOD } from "@lcode/shared";
+import {
+  PROJECT_NATIVE_INDEPENDENT_SCHEDULING_MARKER,
+  PROJECT_NATIVE_METHOD,
+  PROJECT_NATIVE_ROUTE_METHOD,
+} from "@lcode/shared";
 import type { IRemoteBackend } from "./backend.js";
 import { waitForClose } from "./deployShared.js";
 import { quotePosixPathArg, quotePosixShellArg } from "./posixShell.js";
@@ -9,7 +13,12 @@ export const PROJECT_NATIVE_SERVER_MARKERS = [
   "onDynamicProjectNativeRequest",
   "respondProjectNative",
 ] as const satisfies readonly (keyof ILCodeAgentService)[];
-export const PROJECT_NATIVE_AGENT_MARKERS = [PROJECT_NATIVE_METHOD, PROJECT_NATIVE_ROUTE_METHOD];
+// 中文依据：旧制品包含方法名但原生请求仍被 admission 挡住，同 SHA 也必须校验调度能力。
+export const PROJECT_NATIVE_AGENT_MARKERS = [
+  PROJECT_NATIVE_METHOD,
+  PROJECT_NATIVE_ROUTE_METHOD,
+  PROJECT_NATIVE_INDEPENDENT_SCHEDULING_MARKER,
+];
 
 export async function checkRemoteBundleCapabilities(
   backend: IRemoteBackend,
