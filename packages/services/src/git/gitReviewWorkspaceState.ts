@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, watch } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Emitter, type Event } from "@lcode/rpc";
 import {
@@ -14,7 +14,11 @@ import {
   type GitReviewWorkspaceUpdate,
   type GitReviewWorkspaceUpdateResult,
 } from "@lcode/shared";
-import { atomicWritePrivateTextFile, withFileLock } from "@lcode/shared/node";
+import {
+  atomicWritePrivateTextFile,
+  watchFileInvalidation,
+  withFileLock,
+} from "@lcode/shared/node";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 
 const documentSchema = z
@@ -149,27 +153,26 @@ export class GitReviewWorkspaceState {
         abort.abort();
         live.dispose();
       };
-      if (this.dataDir) {
-        const directory = this.dataDir;
-        const path = this.location(scope)!;
-        void (async () => {
-          await mkdir(directory, { recursive: true });
-          if (abort.signal.aborted) return;
-          const events = watch(directory, { signal: abort.signal, persistent: false });
-          const observe = (async () => {
-            for await (const event of events) {
-              if (!event.filename || join(directory, event.filename) === path)
-                emit(await this.read(scope));
-            }
-          })();
-          // 初读可能慢于取消/监听失败，必须立即共同观察，避免 AbortError 先成为未处理拒绝。
-          // 任一任务失败后由同一取消 owner 关闭 watcher，不能留下无人消费的文件监听。
-          await Promise.all([observe, this.read(scope).then(emit)]);
-        })().catch(failed);
-      } else void this.read(scope).then(emit).catch(failed);
+      const watcher = this.dataDir
+        ? watchFileInvalidation({
+            filePath: this.location(scope)!,
+            initialRead: true,
+            onInvalidate: async (signal) => {
+              const snapshot = await this.read(scope);
+              if (!signal.aborted) emit(snapshot);
+            },
+            onError: (_error, phase) => {
+              if (phase === "watch") failed();
+              else if (!abort.signal.aborted)
+                logger.warn(undefined, "审核编辑快照读取失败，监听保留以接收后续变更");
+            },
+          })
+        : undefined;
+      if (!watcher) void this.read(scope).then(emit).catch(failed);
       return {
         dispose: () => {
           abort.abort();
+          watcher?.dispose();
           live.dispose();
         },
       };

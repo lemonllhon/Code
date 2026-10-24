@@ -4,6 +4,10 @@ import { resolve } from "node:path";
 const root = resolve(import.meta.dirname, "..");
 // 与产品相同的 owner / 协议入口；只用合成夹具，不读取用户项目或调用模型。
 const units = [
+  "packages/shared/src/node/fileInvalidationWatcher.test.ts",
+  "packages/services/src/model-provider/providerAccountStorage.watch.test.ts",
+  "packages/services/src/git/gitReviewWorkspaceState.test.ts",
+  "packages/services/src/git/gitReviewWorkspaceState.pressure.test.ts",
   "packages/desktop/scripts/window-host-recovery.test.mjs",
   "packages/desktop/src/main/startupWorkspace.test.ts",
   "packages/desktop/src/host/startupWarmup.test.ts",

@@ -125,10 +125,10 @@ export class ProviderAccounts implements IProviderAccountService {
       },
     });
     this.#checkins.start();
-    this.#watcher = watchProviderAccountStorage(options.watchFile, async () => {
+    this.#watcher = watchProviderAccountStorage(options.watchFile, async (signal) => {
       const accounts = await this.#storage.readPublic();
       const signature = JSON.stringify(accounts);
-      if (!this.#disposed && signature !== this.#publishedSignature) {
+      if (!this.#disposed && !signal.aborted && signature !== this.#publishedSignature) {
         this.#publishedSignature = signature;
         this.#revision++;
         await this.#publish();

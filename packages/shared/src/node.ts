@@ -5,6 +5,10 @@
  */
 export { acquireFileLock } from "./node/atomicFileLock.js";
 export {
+  watchFileInvalidation,
+  type FileInvalidationWatch,
+} from "./node/fileInvalidationWatcher.js";
+export {
   prepareLCodeCredentialStore,
   type LCodeCredentialCipher,
   type LCodeCredentialStoreOptions,

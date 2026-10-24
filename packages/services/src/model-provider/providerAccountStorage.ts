@@ -1,7 +1,9 @@
-import { mkdir, watch } from "node:fs/promises";
-import { basename, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
-import { withFileLock, withProviderMutationBarrier } from "@lcode/shared/node";
+import {
+  watchFileInvalidation,
+  withFileLock,
+  withProviderMutationBarrier,
+} from "@lcode/shared/node";
 import type { ICredentialService } from "../credential/credential.js";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import { storeSchema, type StoredAccount } from "./providerAccountStoreSchema.js";
@@ -50,37 +52,20 @@ export class ProviderAccountStorage {
 /** 原子凭据文件替换发生在其他window-scoped Host时，也要通知当前Registry重读。 */
 export function watchProviderAccountStorage(
   file: string | undefined,
-  onChange: () => Promise<void>,
+  onChange: (signal: AbortSignal) => Promise<void>,
 ): { ready: Promise<void>; dispose: () => void } {
   if (!file) return { ready: Promise.resolve(), dispose: () => {} };
-  const controller = new AbortController();
-  let started!: () => void;
-  const ready = new Promise<void>((resolve) => {
-    started = resolve;
+  return watchFileInvalidation({
+    filePath: file,
+    onInvalidate: onChange,
+    onError: (_error, phase) =>
+      createServiceLogger("provider-accounts").warn(
+        undefined,
+        phase === "watch"
+          ? "Account change observation failed; reload settings to refresh"
+          : "Account change refresh failed; observation remains active",
+      ),
   });
-  void (async () => {
-    try {
-      await mkdir(dirname(file), { recursive: true });
-      controller.signal.throwIfAborted();
-      started();
-      for await (const event of watch(dirname(file), {
-        signal: controller.signal,
-        persistent: false,
-      })) {
-        if (event.filename === basename(file)) await onChange();
-      }
-    } catch {
-      if (!controller.signal.aborted)
-        createServiceLogger("provider-accounts").warn(
-          undefined,
-          "Account change observation failed; reload settings to refresh",
-        );
-    } finally {
-      started();
-      controller.abort();
-    }
-  })();
-  return { ready, dispose: () => controller.abort() };
 }
 
 export function authorizationFailureMessage(error: unknown): string {
