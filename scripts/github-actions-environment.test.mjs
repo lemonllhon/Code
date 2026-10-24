@@ -212,6 +212,23 @@ test("CLI trajectory tool checks its source despite the root CLI exclusion", asy
   );
 });
 
+function assertCliIntegrationPreparation(commands, turbo) {
+  const prepare = "pnpm --dir apps/lcode-cli typecheck";
+  const index = commands.indexOf(prepare);
+  assert.equal(commands.filter((command) => command === prepare).length, 1);
+  for (const integration of ["pnpm test:remote-control", "pnpm test:remote-providers"]) {
+    const integrationIndex = commands.indexOf(integration);
+    assert.ok(
+      index >= 0 && integrationIndex > index,
+      `${integration} requires prepared CLI dependencies`,
+    );
+  }
+  // 真实 Server 读取 CLI 公开包的 dist；只有检查顺序和依赖产物契约同时成立，干净 CI 才能运行。
+  assert.ok(turbo.tasks.typecheck.dependsOn.includes("^build"));
+  assert.ok(turbo.tasks.build.dependsOn.includes("^build"));
+  assert.ok(turbo.tasks.build.outputs.includes("dist/**"));
+}
+
 test("tag build checks dependency patches and both source workspaces before packaging", async () => {
   const workflow = YAML.parse(
     await readFile(joinRoot(".github/workflows/desktop-release.yml"), "utf8"),
@@ -237,5 +254,37 @@ test("tag build checks dependency patches and both source workspaces before pack
     "pnpm architecture:check",
   ]) {
     assert.ok(commands.includes(command), `Missing release check: ${command}`);
+  }
+  const turbo = JSON.parse(await readFile(joinRoot("apps/lcode-cli/turbo.json"), "utf8"));
+  assertCliIntegrationPreparation(commands, turbo);
+});
+
+test("CLI integration prerequisites reject late checks, absent builds and missing cached outputs", async () => {
+  const workflow = YAML.parse(
+    await readFile(joinRoot(".github/workflows/desktop-release.yml"), "utf8"),
+  );
+  const checks = workflow.jobs.build.steps.find(
+    (step) => step.name === "Verify dependency security and source checks",
+  );
+  const commands = checks.run.trim().split(/\r?\n/u);
+  const turbo = JSON.parse(await readFile(joinRoot("apps/lcode-cli/turbo.json"), "utf8"));
+  const prepare = "pnpm --dir apps/lcode-cli typecheck";
+  const without = commands.filter((command) => command !== prepare);
+  assert.throws(() => assertCliIntegrationPreparation(without, turbo));
+  assert.throws(() => assertCliIntegrationPreparation([...without, prepare], turbo));
+  for (const mutate of [
+    (tasks) => {
+      tasks.typecheck.dependsOn = [];
+    },
+    (tasks) => {
+      tasks.build.dependsOn = [];
+    },
+    (tasks) => {
+      tasks.build.outputs = [];
+    },
+  ]) {
+    const invalid = structuredClone(turbo);
+    mutate(invalid.tasks);
+    assert.throws(() => assertCliIntegrationPreparation(commands, invalid));
   }
 });

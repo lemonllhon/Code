@@ -175,11 +175,12 @@ jobs:
         if: matrix.os == 'linux' && matrix.arch == 'x64'
         run: |
           pnpm test:dependency-security
+          # 远控集成测试会读取 CLI 的公开 dist 入口；typecheck 的 ^build 先准备依赖。
+          pnpm --dir apps/lcode-cli typecheck
           pnpm test:remote-control
           pnpm test:remote-providers
           pnpm typecheck
           pnpm lint
-          pnpm --dir apps/lcode-cli typecheck
           pnpm --dir apps/lcode-cli lint
           pnpm architecture:check
       - name: Download Linux Computer Use xa11y addon

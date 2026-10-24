@@ -2,6 +2,18 @@
 
 ## 产品规则
 
+### 远控集成检查先准备 CLI 公开包（2026-10-24）
+
+- 已确认 `v3.20.9` 的 Actions `40058361348` 在 Linux x64 的 `pnpm test:remote-control` 失败：`project-native-admission.test.ts` 经真实 Agent server 导入 `@lcode/adapters/exec`，包的生产 exports 指向尚未构建的 `dist/exec/index.js`。该步骤位于 CLI typecheck/build 之前，本地遗留 dist 不能作为验收依据。
+- 远控回归包含真实 Agent server 的集成检查，其 CLI 依赖应使用生产公开包入口及 TypeScript 编译产物。保留 `scripts/test-remote-control.mjs`、UI tsconfig、CLI package exports 和原编译语义。
+- `.github/workflows/desktop-release.yml` 的 Linux x64 检查步骤先执行既有 `pnpm --dir apps/lcode-cli typecheck`，再执行远控与远程供应商测试。CLI 的 Turbo `typecheck.dependsOn: ["^build"]` 和 `build.dependsOn: ["^build"]` 必须保证公开依赖先构建；`build.outputs` 必须声明 `dist/**`，使冷缓存构建和命中缓存时都提供实际产物。
+- 同一检查步骤只执行一次 CLI typecheck；构建/检查失败按原工作流直接失败。该步骤与测试保持相同的 Linux x64 matrix 条件、工作目录和依赖安装结果，不借用其他 job 的文件，不增加独立构建命令、缓存、环境变量或放行分支。
+- `scripts/github-actions-environment.test.mjs` 在既有 `pnpm test:release` 内检查该顺序和 Turbo 产物契约，并以倒置顺序、删除前置检查、移除依赖构建或缓存产物的反例证明回归会失败。
+- 事件顺序：安装依赖 → 公共发行契约检查 → CLI 依赖构建并类型检查 → 远控/远程供应商测试 → 根类型与 Lint、CLI Lint、架构检查 → 原打包/发布链。这里不修改原桌面持续链路/手机恢复链路、owner/lease、身份键、业务协议或资源所有者。
+- 验收按 CI 顺序执行 CLI typecheck、`pnpm test:remote-control`、`pnpm test:remote-providers`、根 `pnpm typecheck` / `pnpm lint` 与架构检查。保留并行本地改动；不移动既有 tag，不把本地验证写成远端六平台已成功。
+- 本轮验证：CLI `typecheck --force` 的 27 个任务全部成功、0 缓存；Turbo dry run 确认 Core/Adapters 的 build 依赖包含 Contracts 与 dynamic-workflow；远控 200/200、远程供应商 16/16、依赖安全 11/11；发行回归 175 通过、1 项按平台跳过。根与 CLI lint 成功（CLI 保留既有 warning），完整架构检查 baseline 0、新增 0。
+- 本机根 `pnpm typecheck` 当前未通过：并行未提交的 `AnimatedSidePanePanel.tsx` 在三处传递可选 scoped side-tab 回调时出现 TS2322；本次仅修改工作流、发行回归与此规格（+63/-1，净增 62 行），未覆盖或提交该侧栏工作。修复需由包含新提交的后续发行 tag 使用；旧 `v3.20.9` 运行仍绑定旧提交。
+
 ### v3.20.9 桌面优化收尾与依赖清理发行（2026-10-23）
 
 - 根 `package.json` 的桌面版本由 `3.20.8` 更新为 `3.20.9`。
