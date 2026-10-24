@@ -105,6 +105,7 @@ export type AppUsageFavoriteModel = z.infer<typeof appUsageFavoriteModelSchema>;
 export type AppUsageSnapshot = z.infer<typeof appUsageSnapshotSchema>;
 
 export interface AppUsageRequest {
+  modelAliases?: import("./usage-model-aliases.js").UsageModelAliases;
   connectionType?: "api-key";
   range: AppUsageRange;
   timeZone?: string;

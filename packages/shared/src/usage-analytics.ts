@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { usageModelAliasesSchema } from "./usage-model-aliases.js";
 
 const count = z.number().int().nonnegative();
 const duration = z.number().finite().nonnegative().nullable();
@@ -7,6 +8,7 @@ export const providerUsageRequestSchema = z
   .object({
     range: z.enum(PROVIDER_USAGE_RANGES),
     timeZone: z.string().max(100).optional(),
+    modelAliases: usageModelAliasesSchema.optional(),
     providerId: z.string().min(1).max(200).optional(),
     connectionId: z.string().uuid().nullable().optional(),
     modelId: z.string().min(1).max(300).optional(),

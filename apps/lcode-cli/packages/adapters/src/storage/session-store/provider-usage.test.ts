@@ -90,6 +90,49 @@ async function fixture() {
   return { store, base, query };
 }
 
+test("OAuth aliases aggregate before filtering/pagination, remain provider/account scoped, and never change stored IDs", async () => {
+  const { store, base, query } = await fixture();
+  const account = randomUUID();
+  try {
+    for (const [id, modelId, providerId, accountConnectionId] of [
+      ["a", "raw-a", "oauth:bigmodel", account],
+      ["b", "raw-b", "oauth:bigmodel", account],
+      ["c", "raw-a", "oauth:codex", randomUUID()],
+    ] as const)
+      await store.recordModelUsage({
+        ...base,
+        id,
+        logicalRequestId: id,
+        modelId,
+        providerId,
+        accountConnectionId,
+      });
+    const modelAliases = { "raw-a": "raw-b", "raw-b": "display" };
+    const all = await store.queryProviderUsage({ ...query, modelAliases });
+    assert.equal(all.models.length, 2);
+    assert.ok(all.models.every((row) => row.modelId === "display"));
+    assert.equal(all.summary.totalTokens, 360);
+    assert.equal(all.dailyModels?.length, 2);
+    const scoped = await store.queryProviderUsage({
+      ...query,
+      modelAliases,
+      modelId: "display",
+      connectionId: account,
+      limit: 1,
+      offset: 1,
+    });
+    assert.equal(scoped.summary.requestCount, 2);
+    assert.equal(scoped.requests.length, 1);
+    assert.equal(scoped.models.length, 1);
+    assert.ok(["raw-a", "raw-b"].includes(scoped.requests[0]!.modelId));
+    const raw = await store.queryProviderUsage(query);
+    assert.deepEqual(new Set(raw.models.map((row) => row.modelId)), new Set(["raw-a", "raw-b"]));
+    assert.equal(raw.summary.totalTokens, all.summary.totalTokens);
+  } finally {
+    store.close();
+  }
+});
+
 test("OAuth accounting preserves final account, normalized tokens, unknown usage and API isolation", async () => {
   const { store, base, query } = await fixture();
   const connectionId = randomUUID();

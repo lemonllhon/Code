@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import type { IServiceAccessor } from "@lcode/services";
 import type {
   AppUsageRequest,
+  AppSettings,
   IPlatformService,
   LCodeProvider,
   ProviderAccountQuota,
@@ -49,6 +50,11 @@ const fixture = {
   releaseQuota: () => {},
   touchAccounts: () => {},
   removeProvider: (_channel: string) => {},
+  switchHost: () => {},
+  holdAliasSave: false,
+  aliasSavePending: false,
+  releaseAliasSave: () => {},
+  aliasWrites: [] as { host: string; patch: Partial<AppSettings> }[],
 };
 const accountListeners = new Set<(view: ProviderAccountView) => void>();
 fixture.touchAccounts = () => {
@@ -60,7 +66,33 @@ fixture.removeProvider = (channel) => {
   fixture.touchAccounts();
 };
 Object.assign(window, { __analytics: fixture });
+function settingsFor(host: string) {
+  const key = `fixture-usage-alias-${host}`;
+  return {
+    get: async () => JSON.parse(localStorage.getItem(key) ?? "{}"),
+    update: async (patch: Partial<AppSettings>) => {
+      if (fixture.holdAliasSave) {
+        fixture.holdAliasSave = false;
+        fixture.aliasSavePending = true;
+        await new Promise<void>((resolve) => {
+          fixture.releaseAliasSave = () => {
+            fixture.aliasSavePending = false;
+            resolve();
+          };
+        });
+      }
+      fixture.aliasWrites.push({ host, patch });
+      localStorage.setItem(
+        key,
+        JSON.stringify({ ...JSON.parse(localStorage.getItem(key) ?? "{}"), ...patch }),
+      );
+    },
+  };
+}
+const firstSettings = settingsFor("first");
+const secondSettings = settingsFor("second");
 const services = {
+  settingService: firstSettings,
   lcodeAgentService: {
     readSessionDebug: async (): Promise<SessionDebugSnapshot> => ({
       sessionId: "fixture-debug",
@@ -293,6 +325,9 @@ function App() {
     return consumePendingSettingsUsageTab() ?? "oauth";
   });
   const [currentTrend, setTrend] = useState(trend);
+  const [activeServices, setServices] = useState(services);
+  fixture.switchHost = () =>
+    setServices({ ...services, settingService: secondSettings } as unknown as IServiceAccessor);
   fixture.switchSession = () =>
     setTrend({
       truncated: false,
@@ -308,23 +343,25 @@ function App() {
       ],
     });
   return (
-    <main className="h-full min-w-0 space-y-4 overflow-y-auto bg-background p-4 text-foreground">
-      <div data-testid="main-context">
-        <ChatContextUsage
-          taskUsage={{ used: 3000, size: 32000 }}
-          contextTrend={currentTrend}
-          selectedProvider={{} as LCodeProvider}
-          intl={intl}
-          locale={locale}
-        />
-      </div>
-      <ReadOnlySessionTokenStats snapshot={child} />
-      <UsageStatsTabs activeTab={activeTab} onTabChange={setTab} />
-      <UsageStatsSection activeTab={activeTab} />
-      {query.has("token-debug") && (
-        <DeveloperToolsPane workspacePath="/fixture" taskId="fixture-debug" />
-      )}
-    </main>
+    <ServiceProvider services={activeServices}>
+      <main className="h-full min-w-0 space-y-4 overflow-y-auto bg-background p-4 text-foreground">
+        <div data-testid="main-context">
+          <ChatContextUsage
+            taskUsage={{ used: 3000, size: 32000 }}
+            contextTrend={currentTrend}
+            selectedProvider={{} as LCodeProvider}
+            intl={intl}
+            locale={locale}
+          />
+        </div>
+        <ReadOnlySessionTokenStats snapshot={child} />
+        <UsageStatsTabs activeTab={activeTab} onTabChange={setTab} />
+        <UsageStatsSection activeTab={activeTab} />
+        {query.has("token-debug") && (
+          <DeveloperToolsPane workspacePath="/fixture" taskId="fixture-debug" />
+        )}
+      </main>
+    </ServiceProvider>
   );
 }
 createRoot(document.getElementById("root")!).render(

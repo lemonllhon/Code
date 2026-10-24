@@ -3,6 +3,7 @@ import type { ProviderUsageQueryInput } from "@lcode/contracts";
 import {
   providerUsageRequestSchema,
   providerUsageSnapshotSchema,
+  usageModelName,
   type ProviderUsageMetrics,
   type ProviderUsageSnapshot,
 } from "@lcode/shared";
@@ -105,6 +106,11 @@ export async function queryProviderUsage(
   };
   // 直接用 IANA 时区计算每条记录日期，跨 DST 不沿用查询时刻的固定偏移。
   db.function("lcode_oauth_usage_day", { deterministic: true }, (value) => date(Number(value)));
+  // 别名在只读 SQL 投影中聚合；原请求表的 model_id 不更新。
+  db.function("lcode_oauth_model_alias", { deterministic: true }, (value) =>
+    usageModelName(String(value ?? ""), request.modelAliases),
+  );
+  const modelExpression = "lcode_oauth_model_alias(model_id)";
   const clauses = [
     "provider_id like 'oauth:%'",
     "status != 'running'",
@@ -114,7 +120,7 @@ export async function queryProviderUsage(
   const values: SQLInputValue[] = [since, until];
   for (const [column, value] of [
     ["provider_id", request.providerId],
-    ["model_id", request.modelId],
+    [modelExpression, request.modelId],
   ] as const)
     if (value !== undefined) {
       clauses.push(`${column} = ?`);
@@ -133,11 +139,11 @@ export async function queryProviderUsage(
     columns: "provider_id" | "provider_id, account_connection_id" | "provider_id, model_id",
   ) {
     const account = columns.includes("account_connection_id") ? "account_connection_id" : "null";
-    const model = columns.includes("model_id") ? "model_id" : "null";
+    const model = columns.includes("model_id") ? modelExpression : "null";
     return db
       .prepare(`select provider_id as providerId, max(auth_channel_id) as authChannelId,
       ${account} as accountConnectionId, ${model} as modelId, ${aggregate}
-      from model_usage where ${where} group by ${columns} order by totalTokens desc, provider_id asc`)
+      from model_usage where ${where} group by ${columns.replace("model_id", modelExpression)} order by totalTokens desc, provider_id asc`)
       .all(...values)
       .map((row) => ({
         ...metrics(row),
@@ -172,9 +178,9 @@ export async function queryProviderUsage(
   const dailyModels = db
     .prepare(`select lcode_oauth_usage_day(started_at) as date,
     provider_id as providerId, max(auth_channel_id) as authChannelId,
-    null as accountConnectionId, model_id as modelId, ${aggregate}
+    null as accountConnectionId, ${modelExpression} as modelId, ${aggregate}
     from model_usage where ${where}
-    group by date, provider_id, model_id order by date, provider_id, model_id`)
+    group by date, provider_id, ${modelExpression} order by date, provider_id, modelId`)
     .all(...values)
     .map((row) => ({
       ...metrics(row),

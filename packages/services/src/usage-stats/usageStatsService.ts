@@ -1,5 +1,10 @@
 import type { AppUsageRequest, AppUsageSnapshot } from "@lcode/shared";
-import { providerUsageRequestSchema, providerUsageSnapshotSchema } from "@lcode/shared";
+import {
+  providerUsageRequestSchema,
+  providerUsageSnapshotSchema,
+  projectAppUsageAliases,
+  usageModelAliasesSchema,
+} from "@lcode/shared";
 import type { ILCodeAgentService } from "../lcode-agent/lcodeAgent.js";
 import type { IUsageStatsService } from "./usageStats.js";
 
@@ -24,11 +29,13 @@ export function createUsageStatsService(
     async getAppUsageSnapshot(request: AppUsageRequest): Promise<AppUsageSnapshot> {
       // App Usage 现读取 agent 数据库真实统计（model_usage/turn_usage/tool_usage），
       // 经 LCode Protocol usage/stats 取回。不再读本地 session JSON 估算。
-      return dependencies.lcodeAgentService.getAppUsageStats({
+      const aliases = usageModelAliasesSchema.parse(request.modelAliases ?? {});
+      const snapshot = await dependencies.lcodeAgentService.getAppUsageStats({
         range: request.range,
         timeZone: request.timeZone,
         connectionType: request.connectionType,
       });
+      return projectAppUsageAliases(snapshot, aliases);
     },
   };
 }

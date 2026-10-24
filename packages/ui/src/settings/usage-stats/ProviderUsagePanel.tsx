@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ProviderUsageRequest } from "@lcode/shared";
+import { usageModelName } from "@lcode/shared";
 import { RefreshCcw } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -11,10 +12,12 @@ import {
 } from "@/components/ui/select.js";
 import { useProviderUsageStats } from "@/hooks/useProviderUsageStats.js";
 import { useProviderAccounts } from "@/hooks/useProviderAccounts.js";
+import { useUsageModelAliases } from "@/hooks/useUsageModelAliases.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { ProviderUsageViews, type ProviderUsageView } from "./ProviderUsageViews.js";
 export function ProviderUsagePanel() {
   const { intl } = useLCodeIntl();
+  const aliases = useUsageModelAliases();
   const m = (key: string) => intl.formatMessage({ id: `settings.oauthUsage.${key}` });
   const [activeView, setActiveView] = useState<ProviderUsageView>("charts");
   const [quotaRefreshEpoch, setQuotaRefreshEpoch] = useState(0);
@@ -22,9 +25,9 @@ export function ProviderUsagePanel() {
     range: ProviderUsageRequest["range"];
     provider: string;
     account: string;
-    model: string;
+    model: string | null;
     offset: number;
-  }>({ range: "24h", provider: "all", account: "all", model: "all", offset: 0 });
+  }>({ range: "24h", provider: "all", account: "all", model: null, offset: 0 });
   const {
     view,
     loading: accountsLoading,
@@ -40,10 +43,10 @@ export function ProviderUsagePanel() {
     ...(filters.account === "all"
       ? {}
       : { connectionId: filters.account === "unknown" ? null : filters.account }),
-    ...(filters.model === "all" ? {} : { modelId: filters.model }),
+    ...(filters.model === null ? {} : { modelId: usageModelName(filters.model, aliases) }),
   };
   const hasFilter =
-    filters.provider !== "all" || filters.account !== "all" || filters.model !== "all";
+    filters.provider !== "all" || filters.account !== "all" || filters.model !== null;
   const filteredLifetime = useProviderUsageStats(
     { ...queryFilters, range: "all", limit: 1 },
     { enabled: hasFilter },
@@ -89,7 +92,9 @@ export function ProviderUsagePanel() {
       ...(catalog.snapshot?.models
         .filter((group) => filters.provider === "all" || group.providerId === filters.provider)
         .flatMap((group) => (group.modelId ? [group.modelId] : [])) ?? []),
-      ...visibleAccounts.flatMap((account) => account.models.map((model) => model.id)),
+      ...visibleAccounts.flatMap((account) =>
+        account.models.map((model) => usageModelName(model.id, aliases)),
+      ),
     ]),
   ];
   const quotaAccounts = visibleAccounts.filter(
@@ -151,7 +156,7 @@ export function ProviderUsagePanel() {
                 ...filters,
                 provider: value,
                 account: "all",
-                model: "all",
+                model: null,
                 offset: 0,
               })
             }
@@ -192,8 +197,12 @@ export function ProviderUsagePanel() {
         <label className="min-w-0 space-y-1 text-ui-sm">
           {m("model")}
           <Select
-            value={filters.model}
-            onValueChange={(value) => setFilters({ ...filters, model: value, offset: 0 })}
+            value={
+              filters.model === null ? "all" : `model:${usageModelName(filters.model, aliases)}`
+            }
+            onValueChange={(value) =>
+              setFilters({ ...filters, model: value === "all" ? null : value.slice(6), offset: 0 })
+            }
           >
             <SelectTrigger className="w-full" aria-label={m("model")}>
               <SelectValue />
@@ -201,7 +210,7 @@ export function ProviderUsagePanel() {
             <SelectContent>
               <SelectItem value="all">{m("allModels")}</SelectItem>
               {modelIds.map((id) => (
-                <SelectItem key={id} value={id}>
+                <SelectItem key={id} value={`model:${id}`}>
                   {id}
                 </SelectItem>
               ))}

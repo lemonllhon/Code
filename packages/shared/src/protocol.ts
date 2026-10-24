@@ -229,6 +229,8 @@ export interface ResourceUsageSnapshot {
 }
 
 export interface AppSettings {
+  /** 仅影响使用统计展示；原模型标识与计费保持。 */
+  usageModelAliases?: import("./usage-model-aliases.js").UsageModelAliases;
   /** 桌面冷启动展示偏好；Web/远控不播放，缺省简洁静音。 */
   desktopStartupAnimation?: import("./startupAnimation.js").StartupAnimationSettings;
   /** 会话下方的用量状态栏展示偏好；缺省兼容为全部开启。 */

@@ -5,6 +5,7 @@ import type {
   ProviderUsageSnapshot,
 } from "@lcode/shared";
 import { useServices } from "@/hooks/useServices.js";
+import { useUsageModelAliases } from "./useUsageModelAliases.js";
 
 /** 筛选和服务实例共同标识读取范围，晚到响应不能把上个账号的数据放回页面。 */
 export function useProviderUsageStats(
@@ -12,7 +13,8 @@ export function useProviderUsageStats(
   options: { enabled?: boolean } = {},
 ) {
   const { usageStatsService: service } = useServices();
-  const key = JSON.stringify(request);
+  const modelAliases = useUsageModelAliases();
+  const key = JSON.stringify({ ...request, modelAliases });
   const enabled = options.enabled ?? true;
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState<{

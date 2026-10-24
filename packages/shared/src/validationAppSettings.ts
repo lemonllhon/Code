@@ -1,5 +1,6 @@
 /* oxlint-disable max-lines -- AppSettings schema 聚合历史迁移、默认值和 patch 校验，拆分会削弱设置迁移的单一入口。 */
 import { z } from "zod";
+import { usageModelAliasesSchema } from "./usage-model-aliases.js";
 import {
   projectMetadataShape,
   projectRegistrySchema,
@@ -479,6 +480,7 @@ function migrateLegacyWorkspaceSession(value: unknown): unknown {
 }
 
 const appSettingsObjectSchema = z.object({
+  usageModelAliases: usageModelAliasesSchema.optional(),
   tokenUsageStatusBar: tokenUsageStatusBarSettingsSchema.default(DEFAULT_TOKEN_USAGE_STATUS_BAR),
   recentProjects: z.array(z.string()).default([]),
   localProjects: localProjectsSchema.default([]),
@@ -569,6 +571,7 @@ export const appSettingsSchema = z.preprocess(
 );
 
 export const appSettingsPatchSchema = z.object({
+  usageModelAliases: usageModelAliasesSchema.optional(),
   remoteDevices: remoteDeviceRegistrySchema.optional(),
   remoteDeviceMutationReceipts: remoteDeviceMutationReceiptsSchema.optional(),
   tokenUsageStatusBar: tokenUsageStatusBarSettingsSchema.optional(),

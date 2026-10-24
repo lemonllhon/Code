@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type {
-  AppUsageRange,
-  AppUsageSnapshot
-} from "@lcode/shared";
+import type { AppUsageRange, AppUsageSnapshot } from "@lcode/shared";
 import { logger } from "@/logger.js";
 import { useServices } from "@/hooks/useServices.js";
+import { useUsageModelAliases } from "./useUsageModelAliases.js";
 
 interface AppUsageStatsState {
   snapshot: AppUsageSnapshot | null;
@@ -26,8 +24,14 @@ function getErrorMessage(error: unknown): string {
 }
 
 export function useAppUsageStats(range: AppUsageRange) {
+  const modelAliases = useUsageModelAliases();
   const { usageStatsService } = useServices();
-  const [state, setState] = useState<AppUsageStatsState>({
+  const key = JSON.stringify({ range, modelAliases });
+  const [state, setState] = useState<
+    AppUsageStatsState & { service: typeof usageStatsService; key: string }
+  >({
+    service: usageStatsService,
+    key,
     snapshot: null,
     loading: false,
     error: null,
@@ -39,7 +43,10 @@ export function useAppUsageStats(range: AppUsageRange) {
     requestVersionRef.current = requestVersion;
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     setState((current) => ({
-      snapshot: current.snapshot,
+      service: usageStatsService,
+      key,
+      snapshot:
+        current.service === usageStatsService && current.key === key ? current.snapshot : null,
       loading: true,
       error: null,
     }));
@@ -48,11 +55,12 @@ export function useAppUsageStats(range: AppUsageRange) {
         range,
         timeZone,
         connectionType: "api-key",
+        modelAliases,
       });
       if (requestVersionRef.current !== requestVersion) {
         return;
       }
-      setState({ snapshot, loading: false, error: null });
+      setState({ service: usageStatsService, key, snapshot, loading: false, error: null });
     } catch (error) {
       if (requestVersionRef.current !== requestVersion) {
         return;
@@ -64,16 +72,28 @@ export function useAppUsageStats(range: AppUsageRange) {
         error: message,
       });
       setState((current) => ({
-        snapshot: current.snapshot,
+        service: usageStatsService,
+        key,
+        snapshot:
+          current.service === usageStatsService && current.key === key ? current.snapshot : null,
         loading: false,
         error: message,
       }));
     }
-  }, [range, usageStatsService]);
+  }, [range, usageStatsService, modelAliases, key]);
 
   useEffect(() => {
     void refresh();
+    return () => {
+      requestVersionRef.current++;
+    };
   }, [refresh]);
 
-  return { ...state, refresh };
+  // 别名或 Host 改变时首帧就隐藏旧投影，晚到请求由原版本栅栏拦截。
+  return {
+    ...(state.service === usageStatsService && state.key === key
+      ? state
+      : { snapshot: null, loading: true, error: null }),
+    refresh,
+  };
 }

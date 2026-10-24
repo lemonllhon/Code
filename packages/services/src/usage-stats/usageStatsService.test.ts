@@ -47,6 +47,41 @@ function emptySnapshot(range: AppUsageRange): AppUsageSnapshot {
   };
 }
 
+test("API aliases project after the real usage request and never alter its connection scope", async () => {
+  const raw = emptySnapshot("all");
+  raw.models = ["raw-a", "raw-b"].map((modelId) => ({
+    modelId,
+    totalTokens: 10,
+    inputTokens: 8,
+    outputTokens: 2,
+    requestCount: 1,
+    share: 0.5,
+  }));
+  raw.summary.totalTokens = 20;
+  const calls: unknown[] = [];
+  const usage = createUsageStatsService({
+    lcodeAgentService: {
+      getAppUsageStats: async (request) => {
+        calls.push(request);
+        return raw;
+      },
+    },
+  });
+  const snapshot = await usage.getAppUsageSnapshot({
+    range: "all",
+    timeZone: "UTC",
+    connectionType: "api-key",
+    modelAliases: { "raw-a": "display", "raw-b": "display" },
+  });
+  assert.deepEqual(calls, [{ range: "all", timeZone: "UTC", connectionType: "api-key" }]);
+  assert.equal(snapshot.models.length, 1);
+  assert.equal(snapshot.models[0]!.totalTokens, 20);
+  assert.deepEqual(
+    raw.models.map((row) => row.modelId),
+    ["raw-a", "raw-b"],
+  );
+});
+
 test("API-only scope survives UsageStatsService and the real Host V4 request boundary", async (t) => {
   const dir = await mkdtemp(join(tmpdir(), "lcode-api-usage-"));
   setDataBaseDir(dir);

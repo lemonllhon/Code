@@ -4217,6 +4217,15 @@ const enUS: Record<string, string> = {
     "Only identifiable API Key model requests are counted; historical records with unknown connection types are excluded. Sessions, turns and tools are counted through turns associated with API requests.",
   "settings.usage.tab.oauth": "OAuth usage",
   "settings.oauthUsage.title": "OAuth usage overview",
+  "settings.usage.alias.title": "Model usage aliases",
+  "settings.usage.alias.note":
+    "Combine model names in usage charts and totals. Billing and model routing keep their original IDs. Remove an alias to restore the original names.",
+  "settings.usage.alias.source": "Original model ID",
+  "settings.usage.alias.target": "Usage name",
+  "settings.usage.alias.save": "Save alias",
+  "settings.usage.alias.remove": "Remove",
+  "settings.usage.alias.error":
+    "Could not save. Use different model names without loops, and try again.",
   "settings.oauthUsage.views": "OAuth usage views",
   "settings.oauthUsage.view.charts": "Charts",
   "settings.oauthUsage.view.statistics": "Statistics",

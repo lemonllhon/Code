@@ -332,6 +332,7 @@ nul
 !/packages/web/test/fixtures/worktree-sidebar-menu-service.ts
 !/packages/web/test/worktree-sidebar-menus.test.mjs
 !/packages/web/test/usage-analytics.test.mjs
+!/packages/web/test/usage-model-aliases.test.mjs
 !/packages/web/test/cache-write-usage.test.mjs
 !/packages/web/test/provider-usage-tabs.test.mjs
 !/packages/web/test/fixtures/usage-analytics.html
