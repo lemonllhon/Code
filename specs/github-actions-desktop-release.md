@@ -2,6 +2,17 @@
 
 ## 产品规则
 
+### v3.21.0 工具窗口与用量别名发行（2026-10-24）
+
+- 根 `package.json` 的桌面版本由 `3.20.9` 更新为 `3.21.0`（次版本号提升）。
+- 发行包含 `v3.20.9` 之后的全部 8 个提交：`a7cf2729` 的会话级可分离工具窗口、`588662db` 的持久化模型别名进入用量投影、`d9b535dc` 的授权插件更新与月度配额恢复、`2977134c` 的远端原生请求独立调度、`ba39cfa9` 的混合项目双源合并为单图标、`7706675b` 的远控集成检查先准备 CLI 公开包、`16b0154e` 的重复工具警告基于已落定结果、`c82fa693` 的发行验证记录更新。v3.20.9 已发布，新版本必须包含其后的源码，不能复用同一提交或仅改版本号。
+- 本轮 `third-party/copied-components.json` 新增 commandcode 0.1.15、grok 0.2.1、qoder 0.2.31、trae 0.2.20 四个供应商插件包的独立归因条目（上游修订以各自 `referenceRevision` 为准），库存输入由 3020 增至 3025；必须重新生成 `THIRD-PARTY-NOTICES.md` 与库存，不能只改 manifest 摘要。
+- `worker-source.ts` 生成产物在提交内已与库存哈希一致（`2555f249`），发行提交不改动它。
+- 新建附注 tag `v3.21.0`，只推送该 tag 至 `code` remote 对应的 `lemonllhon/Code`（fetch/push 均使用 lemonllhon 账号），不推送 `L-GO` 分支；不移动或覆盖既有 tag。
+- 发行输入以提交对象为准：`node scripts/verify-release-inputs.mjs --source=HEAD` 必须覆盖全部库存输入，本地工作区哈希不作为依据（Windows `core.autocrlf` 会改变工作区字节）。
+- cfworker-remote 在桌面构建开始后，以 `LCODE_ENV=production pnpm build:mobile-web` 重新装配 `public`，提交信息记录源码提交 SHA；`public/site` 的发行目录由 Worker 实时代理 GitHub Release，不固化版本号。该仓库 fetch/push 均使用 lemon-casino 账号。
+- 验收远端 tag 解引用后的 SHA 等于该 tag 指向的提交、Actions 在 `lemon-casino/LemonCode` 完成六平台构建与公开 Release，cfworker-remote 的 `public` 与主仓库构建产物一致。
+
 ### 远控集成检查先准备 CLI 公开包（2026-10-24）
 
 - 已确认 `v3.20.9` 的 Actions `40058361348` 在 Linux x64 的 `pnpm test:remote-control` 失败：`project-native-admission.test.ts` 经真实 Agent server 导入 `@lcode/adapters/exec`，包的生产 exports 指向尚未构建的 `dist/exec/index.js`。该步骤位于 CLI typecheck/build 之前，本地遗留 dist 不能作为验收依据。
