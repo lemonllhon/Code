@@ -1,5 +1,5 @@
 import { SessionEventType } from "../deps.js";
-import type { ModelToolCall, TraceContext } from "../deps.js";
+import type { ModelToolCall, TraceContext, ToolExecutionResult } from "../deps.js";
 import {
   buildRepeatedToolCallReminderBody,
   buildToolCallBudgetReminderBody,
@@ -17,6 +17,7 @@ export async function handleToolCallAnomalyWarnings(
   options: {
     modelTraceContext: TraceContext;
     toolCalls: ModelToolCall[];
+    results?: readonly ToolExecutionResult[];
   },
 ): Promise<void> {
   const budgetWarning = detectToolCallBudgetWarning(
@@ -53,6 +54,7 @@ export async function handleToolCallAnomalyWarnings(
     options.toolCalls,
     state,
     runtime.config.modelAnomalyGuard,
+    options.results,
   );
   for (const warning of repeatedWarnings) {
     if (warning.warningInjected) {

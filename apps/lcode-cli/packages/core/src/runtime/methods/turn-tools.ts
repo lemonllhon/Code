@@ -310,6 +310,7 @@ export async function executeToolCallsForModelStep(
   await handleToolCallAnomalyWarnings(this, state, {
     modelTraceContext: options.modelTraceContext,
     toolCalls: options.toolCalls,
+    results,
   });
   await persistToolModelStepFinish(this, state, options);
   await drainInlineGuideForNextRequest(this, state);

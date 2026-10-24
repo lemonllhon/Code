@@ -1,4 +1,9 @@
-import type { ModelAnomalyGuardConfig, ModelToolCall, ToolCallId } from "../deps.js";
+import type {
+  ModelAnomalyGuardConfig,
+  ModelToolCall,
+  ToolCallId,
+  ToolExecutionResult,
+} from "../deps.js";
 
 interface RepeatedToolCallWarningState {
   anomalyWarningsInjected: number;
@@ -24,15 +29,26 @@ export function detectRepeatedToolCallWarnings(
   toolCalls: readonly ModelToolCall[],
   state: RepeatedToolCallWarningState,
   config: Partial<ModelAnomalyGuardConfig> | undefined,
+  results?: readonly ToolExecutionResult[],
 ): RepeatedToolCallWarningObservation[] {
   const threshold = config?.repeatedToolCallWarningThreshold ?? 3;
   const maxBudgetWarningsPerTurn = config?.maxBudgetWarningsPerTurn ?? 3;
   if (threshold <= 0) return [];
 
   const observations: RepeatedToolCallWarningObservation[] = [];
+  const completed = new Map(results?.map((result) => [String(result.toolCallId), result]));
 
   for (const toolCall of toolCalls) {
-    const signature = buildRepeatedToolCallSignature(toolCall.name, toolCall.input);
+    const result = completed.get(String(toolCall.id));
+    // 参数相同而结果变化属于进展；只有真正结算的结果才能参与重复判定。
+    if (results && !result) {
+      state.repeatedToolCallSignature = undefined;
+      state.repeatedToolCallStreakCount = 0;
+      continue;
+    }
+    const signature =
+      buildRepeatedToolCallSignature(toolCall.name, toolCall.input) +
+      (result ? ":" + resultFingerprint(toolCall.name, result) : "");
     if (state.repeatedToolCallSignature === signature) {
       state.repeatedToolCallStreakCount += 1;
     } else {
@@ -90,15 +106,28 @@ export function detectToolCallBudgetWarning(
   };
 }
 
-export function buildRepeatedToolCallReminderBody(
-  toolName: string,
-  observedCount: number,
-): string {
+export function buildRepeatedToolCallReminderBody(toolName: string, observedCount: number): string {
   return [
-    `You have called ${toolName} with the same input ${observedCount} times in a row.`,
+    `You have called ${toolName} with the same input and unchanged result ${observedCount} times in a row.`,
     "Do not repeat the exact same tool call again unless the user explicitly asked you to retry it unchanged.",
     "Use the existing result to take a different next step, explain the blocker, or ask the user for guidance.",
   ].join("\n");
+}
+
+function resultFingerprint(tool: string, result: ToolExecutionResult): string {
+  let output = result.output;
+  if (typeof output === "string" && /^(bash|exec_command|write_stdin)$/i.test(tool))
+    output = output.replace(/^(?:Wall time:|Chunk ID:|Time taken:).*\r?\n?/gm, "");
+  const value = stableJson({ success: result.success, output, error: result.error });
+  // 提醒状态只保留定长指纹，不把大段工具输出复制到运行时状态。
+  let first = 2166136261,
+    second = 5381;
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    first = Math.imul(first ^ code, 16777619);
+    second = Math.imul(second, 33) ^ code;
+  }
+  return `${value.length}:${first >>> 0}:${second >>> 0}`;
 }
 
 export function buildToolCallBudgetReminderBody(observedCount: number): string {
