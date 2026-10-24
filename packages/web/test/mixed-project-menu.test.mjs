@@ -170,7 +170,7 @@ test(
 );
 
 test(
-  "mixed project menu shows two source icons without visible source text and keeps its remote attachment",
+  "mixed project menu shows one combined source icon without visible source text and keeps its remote attachment",
   { timeout: 120000 },
   async (t) => {
     const { browser, port } = await startWorkflowProgressBrowser(t);
@@ -192,7 +192,8 @@ test(
       assert.equal((await trigger.innerText()).includes(badge), false);
       const sourceIcons = trigger.locator('[data-project-source="mixed"]');
       assert.equal(await sourceIcons.getAttribute("aria-label"), badge);
-      assert.equal(await sourceIcons.locator("svg").count(), 2);
+      assert.equal(await sourceIcons.locator("svg").count(), 1);
+      assert.equal(Math.round((await sourceIcons.boundingBox()).width), 16);
       await trigger.click();
       assert.equal(
         await page.getByRole("menuitemcheckbox", { name: new RegExp(`Unified project`) }).count(),
@@ -201,7 +202,7 @@ test(
       assert.equal(await page.getByRole("menuitemcheckbox", { name: /remote-folder/ }).count(), 0);
       const menuProject = page.getByRole("menuitemcheckbox", { name: /Unified project/ });
       assert.equal((await menuProject.innerText()).includes(badge), false);
-      assert.equal(await menuProject.locator('[data-project-source="mixed"] svg').count(), 2);
+      assert.equal(await menuProject.locator('[data-project-source="mixed"] svg').count(), 1);
       await page.getByRole("menuitemcheckbox", { name: /Unified project/ }).click();
       const selected = JSON.parse(await page.getByTestId("selected-project").innerText());
       assert.equal(selected.localProjectId, "mixed");
@@ -303,7 +304,8 @@ test(
         .filter({ hasText: "Mixed project", has: page.locator('[data-project-source="mixed"]') });
       await row.waitFor();
       const icons = row.locator('[data-project-source="mixed"]');
-      assert.equal(await icons.locator("svg").count(), 2);
+      assert.equal(await icons.locator("svg").count(), 1);
+      assert.equal(Math.round((await icons.boundingBox()).width), 16);
       assert.equal(
         await icons.getAttribute("aria-label"),
         remotePrimary ? "Local + remote" : "本地 + 远程",
@@ -313,9 +315,9 @@ test(
         false,
       );
       await row.click();
-      assert.equal(await icons.locator("svg").count(), 2);
+      assert.equal(await icons.locator("svg").count(), 1);
       await page.evaluate(() => globalThis.__sidebarOrganization.offline());
-      assert.equal(await icons.locator("svg").count(), 2);
+      assert.equal(await icons.locator("svg").count(), 1);
       await page.evaluate(() =>
         document.documentElement.style.setProperty("--ui-font-size", "20px"),
       );
@@ -331,7 +333,7 @@ test(
         await page.evaluate((theme) => {
           document.documentElement.className = `${["zai-dark", "inkpurple"].includes(theme) ? "dark " : ""}theme-${theme}`;
         }, theme);
-        assert.equal(await icons.locator("svg").count(), 2);
+        assert.equal(await icons.locator("svg").count(), 1);
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       }
       await mkdir(".artifacts/mixed-project", { recursive: true });

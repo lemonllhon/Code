@@ -91,7 +91,7 @@ test(
       await page.waitForFunction(() =>
         document.querySelector('[aria-label="Mixed reopen"][aria-busy="false"]'),
       );
-      assert.equal(await row.locator('[data-project-source="mixed"] svg').count(), 2);
+      assert.equal(await row.locator("[data-project-source] svg").count(), 1);
       await page.evaluate(() => {
         globalThis.__sidebarOrganization.projectPreparation.disconnect();
         globalThis.__sidebarOrganization.projectPreparation.fail(true);
