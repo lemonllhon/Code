@@ -50,6 +50,7 @@ import { runWorkspaceVisibleCommand } from "@/lib/workspaceVisibleCommand.js";
 import { LCODE_PRODUCT_DOCS_URL } from "@/lib/productDocs.js";
 import { resolveTheme } from "@/useTheme.js";
 import { WorkspaceShellLayout } from "@/app-shell/WorkspaceShellLayout.js";
+import { RetainedGitActionMenuProvider } from "@/git-action-menu/RetainedGitActionMenu.js";
 import { useAppChromeState } from "@/app-shell/useAppChromeState.js";
 import { useWorkspaceSessionReload } from "@/app-shell/useWorkspaceSessionReload.js";
 import { useWorkspaceShellLifecycle } from "@/app-shell/useWorkspaceShellLifecycle.js";
@@ -224,6 +225,8 @@ export function App({
     setIsTerminalOpen,
     sidePaneState,
     recentClosedSidePaneTabs,
+    getSidePaneTab,
+    handleSelectGitTabView,
     isSidePaneCollapsed,
     setIsSidePaneCollapsed,
     isSidebarVisible,
@@ -1172,7 +1175,7 @@ export function App({
   );
 
   return (
-    <>
+    <RetainedGitActionMenuProvider>
       <CommandCenterDialog
         open={isQuickPickOpen}
         commands={quickPickCommands}
@@ -1344,6 +1347,8 @@ export function App({
         handleActivateSidePaneTab={handleActivateSidePaneTab}
         handleReorderSidePaneTab={handleReorderSidePaneTab}
         handleCloseSidePaneTab={handleCloseSidePaneTab}
+        getSidePaneTab={getSidePaneTab}
+        handleSelectGitTabView={handleSelectGitTabView}
         handleCloseOtherSidePaneTabs={handleCloseOtherSidePaneTabs}
         handleCloseAllSidePaneTabs={handleCloseAllSidePaneTabs}
         handleReopenClosedSidePaneTab={handleReopenClosedSidePaneTab}
@@ -1353,6 +1358,6 @@ export function App({
         // taskFindDialogProps 是对象 prop，内联创建会让 shell 在流式刷新中每轮都看到新引用。
         taskFindDialogProps={taskFindDialogProps}
       />
-    </>
+    </RetainedGitActionMenuProvider>
   );
 }

@@ -30,12 +30,15 @@ interface PaneHost {
   token: string;
   element: HTMLElement;
   visible: boolean;
+  selectView?: (view: GitWorkbenchView) => void;
+  onRefresh?: () => void;
 }
 interface CommitReviewNavigationState {
   paneNavigation: Record<string, PaneNavigation>;
   registerPaneNavigation: (key: string, value: PaneNavigation) => void;
   removePaneNavigation: (key: string, token: string) => void;
   revealPane: (key: string) => boolean;
+  selectPaneView: (key: string, view: GitWorkbenchView) => void;
   paneHosts: Record<string, PaneHost>;
   registerPaneHost: (key: string, value: PaneHost) => void;
   setPaneHostVisible: (key: string, token: string, visible: boolean) => void;
@@ -75,9 +78,18 @@ export const useCommitReviewNavigationStore = create<CommitReviewNavigationState
   },
   revealPane: (key) => {
     const navigation = get().paneNavigation[key];
-    if (!navigation) return false;
-    navigation.open();
+    if (navigation) {
+      navigation.open();
+      return true;
+    }
+    const host = get().paneHosts[key];
+    if (!host?.selectView) return false;
+    host.selectView("review");
     return true;
+  },
+  selectPaneView: (key, view) => {
+    const select = get().paneHosts[key]?.selectView ?? get().paneNavigation[key]?.selectView;
+    select?.(view);
   },
   paneHosts: {},
   registerPaneHost: (key, value) =>

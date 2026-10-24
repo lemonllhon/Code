@@ -70,10 +70,11 @@ export function useTaskSidePaneMemoryBridge({
 
   const handleBrowserUrlChange = useCallback(
     (tabId: string, url: string) => {
-      setBrowserRestoreUrls((current) => ({
-        ...current,
-        [tabId]: url,
-      }));
+      if (activeGitSourceMemoryKeyRef.current === memoryKey)
+        setBrowserRestoreUrls((current) => ({
+          ...current,
+          [tabId]: url,
+        }));
       saveTaskSidePaneMemoryState(memoryKey, {
         browserUrls: {
           ...readTaskSidePaneMemoryState(memoryKey).browserUrls,

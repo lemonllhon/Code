@@ -1,3 +1,4 @@
+import { useOwnerDocument } from "./owner-document.js";
 import * as React from "react";
 import { HoverCard as HoverCardPrimitive } from "radix-ui";
 
@@ -18,7 +19,7 @@ function HoverCardContent({
   ...props
 }: React.ComponentProps<typeof HoverCardPrimitive.Content>) {
   return (
-    <HoverCardPrimitive.Portal data-slot="hover-card-portal">
+    <HoverCardPrimitive.Portal container={useOwnerDocument()?.body} data-slot="hover-card-portal">
       <HoverCardPrimitive.Content
         data-slot="hover-card-content"
         align={align}

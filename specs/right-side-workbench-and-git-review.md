@@ -2,6 +2,8 @@
 
 状态：2026-10-20 已按第 2 版实现右侧审核，并根据用户补充的 IDEA 提交截图改为紧凑目录树。审核主体采用上方文件树与 Diff 双列、下方共享提交信息和固定操作栏；窄面板在同一页切换文件与 Diff。手动与自动入口直接激活现有右侧，旧审核主 Dialog/Props 已移除。最终验收记录见详细实施计划末尾。
 
+2026-10-24 后续规则见 [工具独立窗口](side-pane-tool-windows.md)：仅显示有内容的工具分类，Git 标签按项目与会话隔离；独立窗口固定原会话并保留唯一审核控制器。
+
 系统调研见 [vs-idea-gittool 源码报告](vs-idea-gittool-system-research.md)；已选第 2 版、区域细则、接口、R0–R5 文件落点及整体 Git 路线见 [详细实施计划](right-side-git-review-implementation-plan.md)。本文第 11 节记录本轮实际验证范围。
 
 实现边界：useAppPanels 继续唯一持有侧栏展开、Git 子页与资源；commitReviewNavigationStore 仅登记按原项目 identity + 会话隔离的导航回调和 DOM 插槽，不保存审核事实。GitActionMenu 保留唯一控制器，通过 ReviewPanePortal 将 GitCommitReviewPane 放入 GitReviewSidePane 的匹配插槽，沿用执行工作树的服务上下文。切工具保留插槽与控制器；可见 ACK 以侧栏、Git 子页及实际 DOM 可见共同判定。原审核返回桥不再参与来源审核主流程，仍服务于合并候选等独立预览。

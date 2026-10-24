@@ -44,6 +44,7 @@ export interface BrowserViewResidencyIpcHandlers {
     key: string,
     webContentsId: number,
     windowId: number,
+    preservePageState?: boolean,
   ): Promise<boolean> | boolean;
   closeBrowserTab?(
     payload: BrowserViewCloseTabRequest & { windowId: number },
@@ -132,7 +133,10 @@ function registerBrowserViewIpcHandlers(
 
   ipcMain.handle(
     PlatformChannels.BrowserViewDetachGuest,
-    async (event, payload: { key: string; webContentsId: number }): Promise<boolean> => {
+    async (
+      event,
+      payload: { key: string; webContentsId: number; preservePageState?: boolean },
+    ): Promise<boolean> => {
       const win = BrowserWindow.fromWebContents(event.sender);
       if (!win || win.isDestroyed()) return false;
       const key = nonEmptyStringSchema.parse(payload.key);
@@ -140,7 +144,12 @@ function registerBrowserViewIpcHandlers(
         throw new TypeError("webContentsId must be a positive safe integer");
       }
       return (
-        (await residencyHandlers.detachBrowserGuest?.(key, payload.webContentsId, win.id)) ?? false
+        (await residencyHandlers.detachBrowserGuest?.(
+          key,
+          payload.webContentsId,
+          win.id,
+          payload.preservePageState,
+        )) ?? false
       );
     },
   );

@@ -539,6 +539,19 @@ export type CuaOsSupport =
  * 业务服务（文件、终端、凭据等）走 IServiceAccessor 的 RPC 通道。
  */
 export interface IPlatformService {
+  /** 原 Renderer 渲染的独立工具窗口；document 为 Desktop DOM handle，不能经 RPC 传输。 */
+  openToolWindow?(options: {
+    id: string;
+    width: number;
+    height: number;
+    left?: number;
+    top?: number;
+  }): {
+    document: object;
+    focus(): void;
+    close(): void;
+    onCloseRequested(handler: () => void): () => void;
+  } | null;
   /** 当前平台的文件选择框是否能返回 agent 可访问的本地绝对路径 */
   canSelectFilePath?: boolean;
 
@@ -925,7 +938,13 @@ export interface IPlatformService {
   }): Promise<BrowserGuestAttachResult>;
 
   /** 重建 `<webview>` 前让 main 精确断开旧 guest 的 CDP；false 时不得销毁旧节点。 */
-  browserViewDetachGuest?(payload: { key: string; webContentsId: number }): Promise<boolean>;
+  browserViewDetachGuest?(payload: {
+    key: string;
+    webContentsId: number;
+    preservePageState?: boolean;
+  }): Promise<boolean>;
+  /** Main 的真实 guest attachment；用于首次导航提交前完成受控 guest 握手。 */
+  onBrowserViewGuestAttached?(handler: (payload: { webContentsId: number }) => void): () => void;
 
   /** 用户显式关闭 Browser tab；与 budget suspend 使用不同 IPC authority。 */
   browserViewCloseTab?(payload: BrowserViewCloseTabRequest): Promise<void>;

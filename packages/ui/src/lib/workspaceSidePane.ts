@@ -26,7 +26,7 @@ export type BrowserSidePaneMetadata = Partial<Pick<BrowserSidePaneTab, "faviconU
 export const BROWSER_USE_OPERATION_INDICATOR_DURATION_MS = 5_000;
 
 export interface GitSidePaneTab {
-  id: "git";
+  id: string;
   type: "git";
   view?: "review" | "changes" | "graph" | "network" | "stash" | "conflicts" | "integration";
   ownerTaskId?: string | null;
@@ -650,8 +650,13 @@ function createBrowserSidePaneTab(options?: {
   };
 }
 
-function createGitSidePaneTab(): GitSidePaneTab {
-  return { id: "git", type: "git", openedAt: Date.now() };
+function createGitSidePaneTab(ownerTaskId?: string | null): GitSidePaneTab {
+  return {
+    id: ownerTaskId === undefined ? "git" : `git:${createUuid()}`,
+    type: "git",
+    ...(ownerTaskId !== undefined ? { ownerTaskId } : {}),
+    openedAt: Date.now(),
+  };
 }
 
 function createModelTrajectorySidePaneTab(options: {
@@ -1059,7 +1064,6 @@ export function sidePaneOwnerKey(taskId: string | null | undefined): string {
 }
 
 const WORKSPACE_GLOBAL_SIDE_PANE_TAB_TYPES = new Set<WorkspaceSidePaneTab["type"]>([
-  "git",
   "developer-tools",
   "treemapping",
 ]);
@@ -1172,6 +1176,23 @@ export function resolveSidePaneScopeState(
   sidePaneState: WorkspaceSidePaneState | null;
   isSidePaneCollapsed: boolean;
 } {
+  // 旧单例没有会话归属；首次恢复时认领，之后不能随主窗口切换而改写归属。
+  if (state?.tabs.some((tab) => tab.type === "git" && tab.ownerTaskId === undefined)) {
+    state = {
+      ...state,
+      tabs: state.tabs.map((tab) =>
+        tab.type === "git" &&
+        tab.ownerTaskId === undefined &&
+        sidePaneTabMatchesWorkspace(tab, scope.workspaceKey)
+          ? {
+              ...tab,
+              ownerTaskId: scope.ownerTaskId,
+              workspaceKey: tab.workspaceKey ?? scope.workspaceKey,
+            }
+          : tab,
+      ),
+    };
+  }
   const activeTabId = resolveActiveTabForOwner(state, scope, preferredTabId);
   return {
     sidePaneState:
@@ -1186,6 +1207,15 @@ export function restoreSidePaneTab(
   current: WorkspaceSidePaneState | null,
   tab: WorkspaceSidePaneTab,
 ): WorkspaceSidePaneState {
+  if (tab.type === "git") {
+    const existing = current?.tabs.find(
+      (candidate): candidate is GitSidePaneTab =>
+        candidate.type === "git" &&
+        sidePaneOwnerKey(candidate.ownerTaskId) === sidePaneOwnerKey(tab.ownerTaskId),
+    );
+    // 最近关闭的旧 Git 不能覆盖同会话新开的实例，避免重复审核插槽与旧窗口 id 接管。
+    if (existing) return activateSidePaneTab(current, { ...existing, view: tab.view });
+  }
   return activateSidePaneTab(current, {
     ...tab,
     openedAt: tab.openedAt ?? Date.now(),
@@ -1564,8 +1594,21 @@ export function openCodeViewerSidePanes(
 export function activateGitSidePane(
   current: WorkspaceSidePaneState | null,
   view: GitSidePaneTab["view"] = "changes",
+  ownerTaskId?: string | null,
 ): WorkspaceSidePaneState {
-  return activateSidePaneTab(current, { ...createGitSidePaneTab(), view });
+  // Git 的仓库可以相同，审核草稿和独立窗口却属于各自会话，不能再按固定 id 复用。
+  const existing = current?.tabs.find(
+    (tab): tab is GitSidePaneTab =>
+      tab.type === "git" &&
+      (ownerTaskId === undefined ||
+        tab.ownerTaskId === undefined ||
+        sidePaneOwnerKey(tab.ownerTaskId) === sidePaneOwnerKey(ownerTaskId)),
+  );
+  return activateSidePaneTab(current, {
+    ...(existing ?? createGitSidePaneTab(ownerTaskId)),
+    ...(ownerTaskId !== undefined ? { ownerTaskId } : {}),
+    view,
+  });
 }
 
 export function openWhiteboardSidePane(
@@ -1926,7 +1969,11 @@ export function isSidePaneTabVisibleForParent(
   ) {
     return tab.rootSessionId === parentSessionId;
   }
-  return true;
+  return (
+    isWorkspaceGlobalSidePaneTab(tab) ||
+    tab.ownerTaskId === undefined ||
+    sidePaneOwnerKey(tab.ownerTaskId) === sidePaneOwnerKey(parentSessionId)
+  );
 }
 
 export function getVisibleSidePaneTabs(
@@ -2181,13 +2228,18 @@ export function toggleBrowserSidePane(
 
 export function toggleGitSidePane(
   current: WorkspaceSidePaneState | null,
+  ownerTaskId?: string | null,
 ): WorkspaceSidePaneState | null {
   const activeTab = getActiveSidePaneTab(current);
-  if (activeTab?.type === "git") {
+  if (
+    activeTab?.type === "git" &&
+    (ownerTaskId === undefined ||
+      sidePaneOwnerKey(activeTab.ownerTaskId) === sidePaneOwnerKey(ownerTaskId))
+  ) {
     return closeSidePaneTab(current, activeTab.id);
   }
 
-  return activateGitSidePane(current);
+  return activateGitSidePane(current, "changes", ownerTaskId);
 }
 
 export function closeCodeViewerSidePane(
@@ -2200,7 +2252,8 @@ export function closeCodeViewerSidePane(
 export function closeGitSidePane(
   current: WorkspaceSidePaneState | null,
 ): WorkspaceSidePaneState | null {
-  return closeSidePaneTab(current, "git");
+  const active = getActiveSidePaneTab(current);
+  return active?.type === "git" ? closeSidePaneTab(current, active.id) : current;
 }
 
 export function openBackgroundBashSidePane(

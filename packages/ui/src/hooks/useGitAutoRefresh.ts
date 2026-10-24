@@ -55,7 +55,10 @@ export function useGitAutoRefresh({
   // WSL/SSH/Docker 的真实运行平台，而不是桌面应用本身的平台。service identity
   // 参与状态匹配，避免 Windows workspace 的旧 platform 泄漏到刚切换的 Linux workspace。
   const workspacePlatform =
-    workspacePlatformState?.service === systemService ? workspacePlatformState.platform : null;
+    // 未启用读取时 state 仍为 null，不能把两个缺省 service 的相等误当成已取得平台信息。
+    workspacePlatformState !== null && workspacePlatformState.service === systemService
+      ? workspacePlatformState.platform
+      : null;
   useEffect(() => {
     if (!canWatchCurrentWorkspace || !gitSummary.isGitAvailable || !gitSummary.isRepository) {
       return;

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useCommitReviewNavigationStore } from "@/store/commitReviewNavigationStore.js";
+import { OwnerDocumentProvider, useOwnerDocument } from "@/components/ui/owner-document.js";
 
 const PublicationScopeContext = createContext<{ scope: string; onInteraction: () => void } | null>(
   null,
@@ -11,7 +12,7 @@ export function useGitPublicationNavigation() {
   return scope
     ? (view: "review" | "network") => {
         const store = useCommitReviewNavigationStore.getState();
-        store.paneNavigation[scope]?.selectView(view);
+        store.selectPaneView(scope, view);
         if (view === "review") store.open(scope);
       }
     : null;
@@ -34,6 +35,7 @@ export function GitPublicationScope({
 
 export function GitPublicationHost({ scope, visible }: { scope: string; visible: boolean }) {
   const element = useRef<HTMLDivElement>(null);
+  const ownerDocument = useOwnerDocument();
   useEffect(() => {
     if (!element.current) return;
     const store = useCommitReviewNavigationStore.getState();
@@ -41,7 +43,7 @@ export function GitPublicationHost({ scope, visible }: { scope: string; visible:
     store.registerPublicationHost(scope, { token, element: element.current, visible });
     // 远端页重挂载时只替换 DOM host；旧 cleanup 不能移除新会话的发布插槽。
     return () => store.removePublicationHost(scope, token);
-  }, [scope, visible]);
+  }, [scope, visible, ownerDocument]);
   return <div ref={element} data-testid="git-network-publication-host" />;
 }
 
@@ -56,14 +58,16 @@ export function GitPublicationPortal({ children }: { children: ReactNode }) {
   return context
     ? host
       ? createPortal(
-          <div
-            className="min-w-0"
-            onPointerDownCapture={context.onInteraction}
-            onKeyDownCapture={context.onInteraction}
-            onChangeCapture={context.onInteraction}
-          >
-            {children}
-          </div>,
+          <OwnerDocumentProvider document={host.element.ownerDocument}>
+            <div
+              className="min-w-0"
+              onPointerDownCapture={context.onInteraction}
+              onKeyDownCapture={context.onInteraction}
+              onChangeCapture={context.onInteraction}
+            >
+              {children}
+            </div>
+          </OwnerDocumentProvider>,
           host.element,
         )
       : null

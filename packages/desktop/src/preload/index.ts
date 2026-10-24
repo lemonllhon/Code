@@ -555,6 +555,9 @@ contextBridge.exposeInMainWorld("lcode", {
     return () => ipcRenderer.removeListener(PlatformChannels.WindowFullscreenChanged, handler);
   },
   /** 读取窗口最大化状态与系统原生圆角能力 */
+  closeToolWindow: (id: string): void => {
+    ipcRenderer.send(PlatformChannels.CloseToolWindow, id);
+  },
   getDesktopWindowChromeState: (): Promise<DesktopWindowChromeState> =>
     ipcRenderer.invoke(PlatformChannels.GetDesktopWindowChromeState),
   /** 注册窗口最大化状态与系统原生圆角能力变化回调 */
@@ -723,8 +726,21 @@ contextBridge.exposeInMainWorld("lcode", {
   }): Promise<BrowserGuestAttachResult> =>
     ipcRenderer.invoke(PlatformChannels.BrowserViewAttachGuest, payload),
   /** React 卸载旧 `<webview>` 前同步等待 main 断开 native CDP session。 */
-  browserViewDetachGuest: (payload: { key: string; webContentsId: number }): Promise<boolean> =>
-    ipcRenderer.invoke(PlatformChannels.BrowserViewDetachGuest, payload),
+  browserViewDetachGuest: (payload: {
+    key: string;
+    webContentsId: number;
+    preservePageState?: boolean;
+  }): Promise<boolean> => ipcRenderer.invoke(PlatformChannels.BrowserViewDetachGuest, payload),
+  onBrowserViewGuestAttached: (
+    callback: (payload: { webContentsId: number }) => void,
+  ): (() => void) => {
+    const listener = (_event: unknown, payload: { webContentsId: number }) => {
+      if (payload && Number.isSafeInteger(payload.webContentsId) && payload.webContentsId > 0)
+        callback(payload);
+    };
+    ipcRenderer.on(PlatformChannels.BrowserViewGuestAttached, listener);
+    return () => ipcRenderer.removeListener(PlatformChannels.BrowserViewGuestAttached, listener);
+  },
   browserViewCloseTab: (payload: BrowserViewCloseTabRequest): Promise<void> =>
     ipcRenderer.invoke(PlatformChannels.BrowserViewCloseTabFromRenderer, payload),
   browserViewReportResidency: (payload: BrowserViewResidencyReportPayload): Promise<void> =>

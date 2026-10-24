@@ -402,7 +402,7 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
       }
     }
   });
-  await t.test("工作区共享 Git 标签不泄露上一会话审核；切回手动恢复 Host 草稿", async () => {
+  await t.test("同项目各会话的 Git 标签隔离；切回手动恢复 Host 草稿", async () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto(`${url}?shellPreview`);
     await fixture("executionMode", "worktree");

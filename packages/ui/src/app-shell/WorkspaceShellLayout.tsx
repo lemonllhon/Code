@@ -339,6 +339,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   handleActivateSidePaneTab,
   handleReorderSidePaneTab,
   handleCloseSidePaneTab,
+  getSidePaneTab,
+  handleSelectGitTabView,
   handleCloseOtherSidePaneTabs,
   handleCloseAllSidePaneTabs,
   handleReopenClosedSidePaneTab,
@@ -1585,6 +1587,18 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       isBrowserOpen={isBrowserOpen}
       supportsEmbeddedBrowser={supportsEmbeddedBrowser}
       ownerWorkspaceKey={workspaceKey}
+      ownerWorkspacePath={workspaceAbsPath}
+      ownerWorkspaceIdentity={workspaceIdentity}
+      projectName={projectName}
+      activeTaskTitle={activeTaskTitle}
+      getSidePaneTab={getSidePaneTab}
+      onSelectGitTabView={handleSelectGitTabView}
+      openWorkspaceKeys={openWorkspaceKeys}
+      onLocateToolWindowOwner={(owner) => {
+        if (owner.sessionId)
+          handleSelectTask(owner.workspacePath, owner.sessionId, owner.workspaceIdentity);
+        else handleStartDraftInWorkspace(owner.workspacePath, owner.workspaceIdentity);
+      }}
       workspaceAbsPath={executionPath}
       workspaceIdentity={executionIdentity}
       workspaceRemoteSessionId={workspaceRemoteSessionId}

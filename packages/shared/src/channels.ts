@@ -179,6 +179,8 @@ export type ServiceChannelName = (typeof ServiceChannels)[keyof typeof ServiceCh
 
 /** Electron IPC 频道名。仅在 preload ↔ main 之间使用。 */
 export const PlatformChannels = {
+  CloseToolWindow: "lcode:close-tool-window",
+  BrowserViewGuestAttached: "lcode:browser-view-guest-attached",
   /** 打开系统目录选择框 */
   SelectDirectory: "lcode:select-directory",
   SelectDirectories: "lcode:select-directories",
@@ -664,6 +666,11 @@ export const HostResponseTypes = {
 
 /** 平台频道的请求/响应类型映射 */
 export interface PlatformChannelMap {
+  [PlatformChannels.CloseToolWindow]: { request: string; response: void };
+  [PlatformChannels.BrowserViewGuestAttached]: {
+    request: { webContentsId: number };
+    response: void;
+  };
   [PlatformChannels.SelectDirectory]: {
     request: void;
     response: string | null;
@@ -1061,7 +1068,7 @@ export interface PlatformChannelMap {
     response: void;
   };
   [PlatformChannels.BrowserViewDetachGuest]: {
-    request: { key: string; webContentsId: number };
+    request: { key: string; webContentsId: number; preservePageState?: boolean };
     response: boolean;
   };
   [PlatformChannels.BrowserViewCloseTabFromRenderer]: {

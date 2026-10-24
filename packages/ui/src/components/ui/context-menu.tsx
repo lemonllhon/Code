@@ -1,3 +1,4 @@
+import { useOwnerDocument } from "./owner-document.js";
 import * as React from "react";
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui";
 import { ChevronRightIcon } from "lucide-react";
@@ -20,7 +21,7 @@ function ContextMenuContent({
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
   return (
-    <ContextMenuPrimitive.Portal>
+    <ContextMenuPrimitive.Portal container={useOwnerDocument()?.body}>
       <ContextMenuPrimitive.Content
         data-slot="context-menu-content"
         collisionPadding={8}

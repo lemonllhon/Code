@@ -5,6 +5,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
+    "test:side-pane-windows": "node scripts/test-side-pane-windows.mjs",
     "test:desktop-memory": "node scripts/test-desktop-memory.mjs",
     "benchmark:desktop-memory": "node packages/desktop/scripts/benchmark-desktop-runtime.mjs",
     "test:startup-animation": "node --import tsx --test packages/shared/src/startupAnimation.test.ts packages/shared/src/startupScene.test.ts packages/desktop/src/main/startupAnimationPolicy.test.ts packages/desktop/scripts/startup-animation-state.test.ts packages/desktop/scripts/startup-admission.test.ts packages/desktop/scripts/startup-media-packaging.test.mjs packages/desktop/scripts/startup-media-plugin.test.ts packages/desktop/src/renderer/src/startup/playbackPolicy.test.ts packages/desktop/src/renderer/src/startup/sceneArtwork.test.ts packages/ui/src/root/startupSurface.test.ts packages/ui/src/store/wallpaperStore.test.ts packages/ui/src/lib/rootStartupGate.test.ts packages/desktop/src/main/startupWorkspace.test.ts packages/web/test/rootRecovery.test.mjs packages/web/test/mirrorReconnect.test.mjs packages/desktop/scripts/startup-scene-media.test.ts",

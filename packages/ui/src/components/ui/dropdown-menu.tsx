@@ -1,3 +1,4 @@
+import { useOwnerDocument } from "./owner-document.js";
 import * as React from "react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
@@ -11,7 +12,13 @@ function DropdownMenu({ ...props }: React.ComponentProps<typeof DropdownMenuPrim
 function DropdownMenuPortal({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Portal>) {
-  return <DropdownMenuPrimitive.Portal data-slot="dropdown-menu-portal" {...props} />;
+  return (
+    <DropdownMenuPrimitive.Portal
+      container={useOwnerDocument()?.body}
+      data-slot="dropdown-menu-portal"
+      {...props}
+    />
+  );
 }
 
 function DropdownMenuTrigger({
@@ -28,7 +35,7 @@ function DropdownMenuContent({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
   return (
-    <DropdownMenuPrimitive.Portal>
+    <DropdownMenuPrimitive.Portal container={useOwnerDocument()?.body}>
       <DropdownMenuPrimitive.Content
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}

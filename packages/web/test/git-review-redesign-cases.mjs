@@ -151,7 +151,8 @@ export async function runGitReviewRedesignCases(t, { page, url }) {
           assert.equal(await merge.isEnabled(), true);
           await fixture("switchSession", "b");
           await dialog.waitFor({ state: "hidden" });
-          await page.getByTestId("git-review-empty").getByRole("button").click();
+          // Git 按会话隔离；B 通过自己的审核入口打开，不能依赖 A 的共享空插槽。
+          await page.getByTestId("git-action-trigger").click();
           await page.waitForFunction(
             () =>
               document

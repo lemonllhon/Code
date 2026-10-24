@@ -11,6 +11,7 @@ import { GitNetworkPane } from "@/git-network/GitNetworkPane.js";
 import { GitStashPane } from "@/git-workspace/GitStashPane.js";
 import { GitConflictsPane } from "@/git-conflicts/GitConflictsPane.js";
 import { GitIntegrationPane } from "@/git-workspace/GitIntegrationPane.js";
+import { useOwnerDocument } from "@/components/ui/owner-document.js";
 
 export function GitReviewSidePane({
   workspaceKey,
@@ -22,6 +23,7 @@ export function GitReviewSidePane({
   view,
   children,
   onRefresh,
+  onSelectView,
 }: {
   workspaceKey: string;
   sessionId: string | null;
@@ -32,24 +34,29 @@ export function GitReviewSidePane({
   view: GitWorkbenchView;
   children: ReactNode;
   onRefresh?: () => void;
+  onSelectView?: (view: GitWorkbenchView) => void;
 }) {
   const { intl } = useLCodeIntl();
   const host = useRef<HTMLDivElement>(null);
+  const ownerDocument = useOwnerDocument();
   const key = commitReviewNavigationKey(workspaceKey, undefined, sessionId ?? "");
   const token = useMemo(() => crypto.randomUUID(), [key]);
   useEffect(() => {
-    const element = host.current;
-    if (!element) return;
     const store = useCommitReviewNavigationStore.getState();
-    // Git tab 在工作区共享，审核正文却按会话隔离；旧 scope 的 cleanup 不能释放新插槽。
-    store.registerPaneHost(key, { token, element, visible: false });
     return () => store.removePaneHost(key, token);
   }, [key, token]);
   useEffect(() => {
-    useCommitReviewNavigationStore
-      .getState()
-      .setPaneHostVisible(key, token, visible && view === "review");
-  }, [key, token, visible, view]);
+    const element = host.current;
+    if (!element) return;
+    // 更新插槽不能先注销，否则切 document 时会误释放仍在使用的审核控制器。
+    useCommitReviewNavigationStore.getState().registerPaneHost(key, {
+      token,
+      element,
+      visible: visible && view === "review",
+      selectView: onSelectView,
+      onRefresh,
+    });
+  }, [key, token, visible, view, ownerDocument, onSelectView, onRefresh]);
   return (
     <section
       className="flex h-full min-h-0 min-w-0 flex-col bg-background"
@@ -76,7 +83,7 @@ export function GitReviewSidePane({
             data-testid={`git-view-${item}`}
             onClick={() => {
               const store = useCommitReviewNavigationStore.getState();
-              store.paneNavigation[key]?.selectView(item);
+              store.selectPaneView(key, item);
               if (item === "review") store.open(key);
             }}
           >
@@ -134,7 +141,7 @@ export function GitReviewSidePane({
             workspaceRemoteSessionId={workspaceRemoteSessionId}
             onRefresh={onRefresh}
             onResolveConflicts={() =>
-              useCommitReviewNavigationStore.getState().paneNavigation[key]?.selectView("conflicts")
+              useCommitReviewNavigationStore.getState().selectPaneView(key, "conflicts")
             }
           />
         </div>
@@ -161,9 +168,7 @@ export function GitReviewSidePane({
             workspaceRemoteSessionId={workspaceRemoteSessionId}
             onRefresh={onRefresh}
             onIntegrate={() =>
-              useCommitReviewNavigationStore
-                .getState()
-                .paneNavigation[key]?.selectView("integration")
+              useCommitReviewNavigationStore.getState().selectPaneView(key, "integration")
             }
           />
         </div>
@@ -177,7 +182,7 @@ export function GitReviewSidePane({
             workspaceRemoteSessionId={workspaceRemoteSessionId}
             onRefresh={onRefresh}
             onResolveConflicts={() =>
-              useCommitReviewNavigationStore.getState().paneNavigation[key]?.selectView("conflicts")
+              useCommitReviewNavigationStore.getState().selectPaneView(key, "conflicts")
             }
           />
         </div>
@@ -190,9 +195,7 @@ export function GitReviewSidePane({
             workspaceIdentity={workspaceIdentity}
             workspaceRemoteSessionId={workspaceRemoteSessionId}
             onIntegrate={() =>
-              useCommitReviewNavigationStore
-                .getState()
-                .paneNavigation[key]?.selectView("integration")
+              useCommitReviewNavigationStore.getState().selectPaneView(key, "integration")
             }
             onRefresh={onRefresh}
           />

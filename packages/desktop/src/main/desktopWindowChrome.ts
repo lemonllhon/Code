@@ -1,3 +1,4 @@
+import { configureDesktopToolWindows } from "./desktopToolWindows.js";
 /* eslint-disable max-lines -- 桌面窗口 chrome、webview 安全策略和 popup 路由共享同一 BrowserWindow 生命周期上下文。 */
 import type { DesktopTitleBarTheme, Locale } from "@lcode/shared";
 import {
@@ -462,48 +463,10 @@ export function createBrowserWindow(options: {
     },
   );
 
-  win.webContents.on("will-attach-webview", (event, webPreferences, params) => {
-    // CDP 在原生 Dialog 已创建后再替换 UI，macOS 仍可能显示已经排队的
-    // Chromium NSAlert。固定 preload 在每个 frame 调用原生 API 前拦截，且隔离世界只
-    // 暴露 alert/confirm 同步桥；网页主世界仍没有 Node 或任意 IPC 能力。
-    //
-    const targetUrl = params.src ?? "about:blank";
-    webPreferences.preload = embeddedBrowserJavaScriptDialogPreloadPath;
-    webPreferences.contextIsolation = true;
-    webPreferences.nodeIntegration = false;
-    webPreferences.nodeIntegrationInSubFrames = true;
-    webPreferences.sandbox = true;
-
-    delete params.preload;
-    delete params.nodeintegration;
-    // nodeIntegrationInSubFrames 是 guest 创建期偏好；派生 WebPreferences 与原始 attach
-    // 参数都固定为 true，确保发生真实导航的子 frame 在网页脚本前加载同一 preload。
-    // 无 src 的继承型空 frame 不触发 preload，由 preload 内的同源 frame 观察器接管。
-    params.nodeintegrationinsubframes = "true";
-    delete params.disablewebsecurity;
-    delete params.allowpopups;
-
-    // webview 内 target=_blank/window.open 如果完全禁用 popup 会表现为点击无响应；
-    // 如果放任 Electron 默认处理，又会创建脱离 LCode 的 BrowserWindow。这里由宿主重新打开
-    // allowpopups，并在 did-attach-webview 中用 setWindowOpenHandler 统一 deny 默认窗口创建，
-    // 再把合法 URL 路由到内部 Browser tab 或系统浏览器。
-    params.allowpopups = "true";
-
-    if (!isAllowedEmbeddedBrowserUrl(targetUrl)) {
-      options.logger.warn(`[browser-pane] blocked unsupported webview url: ${targetUrl}`);
-      event.preventDefault();
-      return;
-    }
-  });
-
-  win.webContents.on("did-attach-webview", (_event, guestWebContents) => {
-    attachEmbeddedBrowserWindowOpenHandler({
-      guestWebContents,
-      hostWebContents: win.webContents,
-      resolveBrowserViewOwner: options.resolveBrowserViewOwner,
-      logger: options.logger,
-    });
-  });
+  configureDesktopWebviewHost(win.webContents, win.webContents, options);
+  configureDesktopToolWindows(win, (child) =>
+    configureDesktopWebviewHost(child.webContents, win.webContents, options),
+  );
 
   win.webContents.on("context-menu", (_event, params) => {
     // 只设置 Electron role 时，菜单文案跟随系统/Electron 语言，可能与应用语言不一致。
@@ -540,4 +503,70 @@ export function createBrowserWindow(options: {
     options.logger.warn("[desktop-window] renderer navigation rejected", error);
   });
   return win;
+}
+
+function configureDesktopWebviewHost(
+  hostWebContents: WebContents,
+  ownerWebContents: WebContents,
+  options: {
+    logger: { warn: (...args: unknown[]) => void };
+    resolveBrowserViewOwner?: (webContentsId: number) =>
+      | {
+          workspaceKey: string;
+          remoteSessionId?: string;
+          sessionId: string;
+          browserId: string;
+          browserGeneration: number;
+          tabId: string;
+        }
+      | undefined;
+  },
+) {
+  hostWebContents.on("will-attach-webview", (event, webPreferences, params) => {
+    // CDP 在原生 Dialog 已创建后再替换 UI，macOS 仍可能显示已经排队的
+    // Chromium NSAlert。固定 preload 在每个 frame 调用原生 API 前拦截，且隔离世界只
+    // 暴露 alert/confirm 同步桥；网页主世界仍没有 Node 或任意 IPC 能力。
+    //
+    const targetUrl = params.src ?? "about:blank";
+    webPreferences.preload = embeddedBrowserJavaScriptDialogPreloadPath;
+    webPreferences.contextIsolation = true;
+    webPreferences.nodeIntegration = false;
+    webPreferences.nodeIntegrationInSubFrames = true;
+    webPreferences.sandbox = true;
+
+    delete params.preload;
+    delete params.nodeintegration;
+    // nodeIntegrationInSubFrames 是 guest 创建期偏好；派生 WebPreferences 与原始 attach
+    // 参数都固定为 true，确保发生真实导航的子 frame 在网页脚本前加载同一 preload。
+    // 无 src 的继承型空 frame 不触发 preload，由 preload 内的同源 frame 观察器接管。
+    params.nodeintegrationinsubframes = "true";
+    delete params.disablewebsecurity;
+    delete params.allowpopups;
+
+    // webview 内 target=_blank/window.open 如果完全禁用 popup 会表现为点击无响应；
+    // 如果放任 Electron 默认处理，又会创建脱离 LCode 的 BrowserWindow。这里由宿主重新打开
+    // allowpopups，并在 did-attach-webview 中用 setWindowOpenHandler 统一 deny 默认窗口创建，
+    // 再把合法 URL 路由到内部 Browser tab 或系统浏览器。
+    params.allowpopups = "true";
+
+    if (!isAllowedEmbeddedBrowserUrl(targetUrl)) {
+      options.logger.warn(`[browser-pane] blocked unsupported webview url: ${targetUrl}`);
+      event.preventDefault();
+      return;
+    }
+  });
+
+  hostWebContents.on("did-attach-webview", (_event, guestWebContents) => {
+    // webview DOM did-attach 在当前 Electron 未实际派发；用 native attachment 触发首次导航前握手。
+    if (!ownerWebContents.isDestroyed())
+      ownerWebContents.send(PlatformChannels.BrowserViewGuestAttached, {
+        webContentsId: guestWebContents.id,
+      });
+    attachEmbeddedBrowserWindowOpenHandler({
+      guestWebContents,
+      hostWebContents: ownerWebContents,
+      resolveBrowserViewOwner: options.resolveBrowserViewOwner,
+      logger: options.logger,
+    });
+  });
 }

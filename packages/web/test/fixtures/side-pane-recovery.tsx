@@ -188,6 +188,7 @@ function Fixture() {
           isBrowserOpen={false}
           supportsEmbeddedBrowser={false}
           ownerWorkspaceKey={origin}
+          ownerWorkspacePath={origin}
           workspaceAbsPath={execution.workspace?.workspacePath ?? origin}
           activeTaskId={task}
           sidePaneOwnerId={task}

@@ -144,6 +144,7 @@ export class DesktopBrowserScreenshotSurfaceCoordinator implements BrowserScreen
       group.windowId !== input.windowId ||
       expected.requestId !== input.payload.requestId ||
       expected.workspaceKey !== input.payload.workspaceKey ||
+      expected.remoteSessionId !== input.payload.remoteSessionId ||
       expected.sessionId !== input.payload.sessionId ||
       expected.browserId !== input.payload.browserId ||
       expected.browserGeneration !== input.payload.browserGeneration ||
@@ -220,6 +221,7 @@ export class DesktopBrowserScreenshotSurfaceCoordinator implements BrowserScreen
     return JSON.stringify([
       input.windowId,
       input.workspaceKey,
+      input.remoteSessionId,
       input.sessionId,
       input.browserId,
       input.browserGeneration,

@@ -114,6 +114,10 @@ export function FixtureReviewSidePane({
             isBrowserOpen={false}
             supportsEmbeddedBrowser={false}
             ownerWorkspaceKey={workspaceIdentity?.trim() || workspacePath}
+            ownerWorkspacePath={workspacePath}
+            ownerWorkspaceIdentity={workspaceIdentity}
+            getSidePaneTab={panels.getSidePaneTab}
+            onSelectGitTabView={panels.handleSelectGitTabView}
             workspaceAbsPath={executionPath}
             workspaceIdentity={executionIdentity}
             workspaceRemoteSessionId={remoteSessionId}

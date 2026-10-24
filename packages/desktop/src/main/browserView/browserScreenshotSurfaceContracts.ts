@@ -26,6 +26,7 @@ export interface BrowserScreenshotSurfaceCoordinator {
     requestId: string;
     windowId: number;
     workspaceKey: string;
+    remoteSessionId?: string;
     sessionId: string;
     browserId: string;
     browserGeneration: number;
@@ -99,6 +100,7 @@ export function toBrowserScreenshotSurfacePreparePayload(
   return {
     requestId: input.requestId,
     workspaceKey: input.workspaceKey,
+    ...(input.remoteSessionId ? { remoteSessionId: input.remoteSessionId } : {}),
     sessionId: input.sessionId,
     browserId: input.browserId,
     browserGeneration: input.browserGeneration,

@@ -4,8 +4,12 @@ import type {
   BrowserViewScreenshotSurfacePreparePayload,
   EmbeddedBrowserViewportPreference,
 } from "@lcode/shared";
+import { BROWSER_VIEW_RESTORE_BOOTSTRAP_URL } from "@lcode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
+import { useBeforeToolWindowMove } from "@/hooks/useToolWindowMove.js";
+import { useDetachedBrowserScreenshotRequest } from "@/hooks/useDetachedBrowserScreenshotRequest.js";
+import { useOwnerDocument } from "@/components/ui/owner-document.js";
 import { useWebElementPicker } from "@/hooks/useWebElementPicker.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
@@ -67,7 +71,7 @@ export function UnifiedBrowserView({
   residencyGeneration,
   browserUseOperationUntil,
   browserResizeBaselineVersion,
-  screenshotSurfaceRequest,
+  screenshotSurfaceRequest: screenshotSurfaceRequestProp,
   deferEmptyGuest = false,
   initialHumanViewportPreference,
   onHumanViewportPreferenceChange,
@@ -130,6 +134,19 @@ export function UnifiedBrowserView({
   const [webviewGeneration, setWebviewGeneration] = useState(0);
   const [webview, setWebview] = useState<ElectronWebviewTag | null>(null);
   const [guestAttachRetryNonce, setGuestAttachRetryNonce] = useState(0);
+  const toolWindowRestorePendingRef = useRef<number | null>(null);
+  const ownerDocument = useOwnerDocument();
+  const detachedScreenshotRequest = useDetachedBrowserScreenshotRequest({
+    enabled: Boolean(
+      ownerDocument && typeof document !== "undefined" && ownerDocument !== document,
+    ),
+    tabId: browserKey,
+    workspaceKey: workspaceKey ?? (workspaceIdentity?.trim() || workspacePath),
+    sessionId,
+    remoteSessionId,
+    webview,
+  });
+  const screenshotSurfaceRequest = detachedScreenshotRequest ?? screenshotSurfaceRequestProp;
   useBrowserScreenshotSurfaceReady({
     request: screenshotSurfaceRequest ?? null,
     webview,
@@ -392,6 +409,29 @@ export function UnifiedBrowserView({
     }
   }, [browserKey, platform]);
 
+  const prepareToolWindowMove = useCallback(async () => {
+    const guest = lastReportedGuestRef.current;
+    if (!guest) return true;
+    // Electron 跨 document 会销毁 guest；先保存历史并确认 CDP 断开，再允许移动 DOM。
+    const ready =
+      (await platform.browserViewDetachGuest?.({
+        key: browserKey,
+        webContentsId: guest.webContentsId,
+        preservePageState: true,
+      })) === true;
+    if (ready && webview) {
+      // about:blank 一旦提交就无法恢复 Chromium 历史；复用预算恢复的 bootstrap，先 attach 再恢复。
+      toolWindowRestorePendingRef.current = guest.webContentsId;
+    }
+    return ready;
+  }, [browserKey, platform, webview]);
+  const prepareToolWindowReconnect = useCallback(() => {
+    // 已脱离旧 document 后才改 src，避免向旧 guest 发起无意义的 bootstrap 导航。
+    if (webview && toolWindowRestorePendingRef.current !== null)
+      webview.setAttribute("src", BROWSER_VIEW_RESTORE_BOOTSTRAP_URL);
+  }, [webview]);
+  useBeforeToolWindowMove(prepareToolWindowMove, prepareToolWindowReconnect);
+
   const {
     cancelPicking: cancelWebElementPicking,
     isPicking: isWebElementPicking,
@@ -443,16 +483,26 @@ export function UnifiedBrowserView({
     if (!webview) return;
 
     const handleDidAttach = () => {
+      // 改 bootstrap src 时旧 guest 也会发 loading；只允许迁移后的新 guest 重新 attach。
+      if (
+        toolWindowRestorePendingRef.current !== null &&
+        safeWebviewCall(() => webview.getWebContentsId(), 0) === toolWindowRestorePendingRef.current
+      )
+        return;
       // navigationHistory.restore 只能用于从未加载过页面的新 guest。若等到
       // dom-ready 才上报，默认 about:blank 已提交，只能退化为 URL 重载；attach 后立即上报，
       // 让 main 有机会在首次导航提交前恢复完整 Chromium pageState。
-      if (isResidencyRestore) {
+      if (isResidencyRestore || toolWindowRestorePendingRef.current !== null) {
         // `<webview>` 必须先有 src 才会创建 guest，但保留属性会在 attach 后再次提交
         // about:blank 并中断 main 的 history restore。guest 已存在后立刻撤销 bootstrap src。
         webview.removeAttribute("src");
+        toolWindowRestorePendingRef.current = null;
       }
       reportBrowserGuest(isSelected);
     };
+    const unsubscribeGuestAttached = platform.onBrowserViewGuestAttached?.(({ webContentsId }) => {
+      if (safeWebviewCall(() => webview.getWebContentsId(), 0) === webContentsId) handleDidAttach();
+    });
 
     const handleDomReady = () => {
       // Electron/Chromium 会把主窗口页面 zoom 继续传播到 guest；仅补偿外层
@@ -493,6 +543,7 @@ export function UnifiedBrowserView({
     };
 
     const handleDidStartLoading = () => {
+      if (isResidencyRestore || toolWindowRestorePendingRef.current !== null) handleDidAttach();
       void cancelWebElementPicking();
       setBrowserState((prev) => ({
         ...prev,
@@ -630,6 +681,7 @@ export function UnifiedBrowserView({
     webview.addEventListener("render-process-gone", handleRenderProcessGone);
 
     return () => {
+      unsubscribeGuestAttached?.();
       webview.removeEventListener("did-attach", handleDidAttach);
       webview.removeEventListener("dom-ready", handleDomReady);
       webview.removeEventListener("did-start-loading", handleDidStartLoading);

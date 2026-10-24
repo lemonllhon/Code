@@ -1,4 +1,5 @@
-"use client";
+import { useOwnerDocument } from "./owner-document.js";
+("use client");
 
 import * as React from "react";
 import { Select as SelectPrimitive } from "radix-ui";
@@ -98,7 +99,7 @@ function SelectContent({
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
   return (
-    <SelectPrimitive.Portal>
+    <SelectPrimitive.Portal container={useOwnerDocument()?.body}>
       <SelectPrimitive.Content
         data-slot="select-content"
         data-align-trigger={position === "item-aligned"}

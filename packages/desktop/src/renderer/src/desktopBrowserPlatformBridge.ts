@@ -11,6 +11,7 @@ type DesktopBrowserPlatformBridge = Pick<
   | "onBrowserViewRestore"
   | "browserViewAttachGuest"
   | "browserViewDetachGuest"
+  | "onBrowserViewGuestAttached"
   | "browserViewCloseTab"
   | "browserViewReportResidency"
   | "browserViewSuspendReady"
@@ -46,6 +47,8 @@ export const desktopBrowserPlatformBridge = {
     Promise.resolve({ ok: false, reason: "not-found", recoveryRequested: false }),
   browserViewDetachGuest: (payload) =>
     window.lcode.browserViewDetachGuest?.(payload) ?? Promise.resolve(false),
+  onBrowserViewGuestAttached: (handler) =>
+    window.lcode.onBrowserViewGuestAttached?.(handler) ?? (() => {}),
   browserViewCloseTab: (payload) =>
     window.lcode.browserViewCloseTab?.(payload) ?? Promise.resolve(),
   browserViewReportResidency: (payload) =>

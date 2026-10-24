@@ -51,3 +51,23 @@ test("隐藏插槽不表示 shown，旧 token 不能释放新 scope 的插槽", 
   store.removePaneHost(key, "new");
   assert.equal(useCommitReviewNavigationStore.getState().paneHosts[key], undefined);
 });
+
+test("主窗口导航卸载后，独立审核仍通过原会话插槽切换子页", () => {
+  const store = useCommitReviewNavigationStore.getState();
+  const key = commitReviewNavigationKey("/repo", "remote-a", "a");
+  const other = commitReviewNavigationKey("/repo", "remote-b", "a");
+  const views: string[] = [];
+  store.registerPaneHost(key, {
+    token: "native",
+    element: {} as HTMLElement,
+    visible: true,
+    selectView: (view) => views.push(view),
+  });
+  assert.equal(store.revealPane(other), false);
+  assert.equal(store.revealPane(key), true);
+  store.selectPaneView(key, "changes");
+  store.selectPaneView(other, "network");
+  assert.deepEqual(views, ["review", "changes"]);
+  store.removePaneHost(key, "native");
+  assert.equal(store.revealPane(key), false);
+});

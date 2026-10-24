@@ -114,6 +114,8 @@ export function useBrowserScreenshotSurfaceReady({
     // （它们理论上可能在守卫前被调用），这里固定一份已收窄的引用给整个验证链使用。
     const activeRequest = request;
     const activeWebview = webview;
+    const ownerDocument = activeWebview.ownerDocument;
+    const ownerWindow = ownerDocument.defaultView ?? window;
 
     let disposed = false;
     let reported = false;
@@ -128,7 +130,7 @@ export function useBrowserScreenshotSurfaceReady({
     const cancelPendingVerification = () => {
       verificationVersion += 1;
       if (rafId !== null) {
-        window.cancelAnimationFrame(rafId);
+        ownerWindow.cancelAnimationFrame(rafId);
         rafId = null;
       }
       if (fallbackTimer !== null) {
@@ -146,7 +148,7 @@ export function useBrowserScreenshotSurfaceReady({
         cancelPendingVerification();
         runVerification();
       };
-      rafId = window.requestAnimationFrame(run);
+      rafId = ownerWindow.requestAnimationFrame(run);
       fallbackTimer = setTimeout(run, SURFACE_VERIFY_FALLBACK_MS);
     }
     function retry(): void {
@@ -225,18 +227,18 @@ export function useBrowserScreenshotSurfaceReady({
     // 窗口从后台回到前台时 Chromium 才恢复 rAF 与合成，此时 surface 可能刚重建，
     // 之前采到的稳定帧不能再信任；这里清空重来，让恢复可见的瞬间就能重新走完两帧验证。
     const handleVisibilityChange = () => {
-      if (document.visibilityState !== "visible") return;
+      if (ownerDocument.visibilityState !== "visible") return;
       restartVerification();
     };
     observer.observe(activeWebview);
     activeWebview.addEventListener("dom-ready", handleDomReady);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    ownerDocument.addEventListener("visibilitychange", handleVisibilityChange);
     verify();
     return () => {
       disposed = true;
       observer.disconnect();
       activeWebview.removeEventListener("dom-ready", handleDomReady);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      ownerDocument.removeEventListener("visibilitychange", handleVisibilityChange);
       cancelPendingVerification();
     };
   }, [platform, request, webview]);

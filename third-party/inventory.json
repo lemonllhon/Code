@@ -252,7 +252,7 @@
     "apps/lcode-cli/packages/tui/package.json": "9bccab985bfee3ee00f29398eacba80918cbd58dfded8aa7abb17cd008262279",
     "apps/lcode-cli/tools/prompt-trajectory/package.json": "adda451b1c3981fa364530ad0ce303f7f428c3180b8b20c3f4be47d35116a1e9",
     "apps/lcode-cli/tools/typescript/package.json": "2f33883fe33cc9d878a3d6d78a0d262eb0db134fc02042ed7563c3dc50d797f7",
-    "package.json": "e3d5c71a153589604f1015fdc14d3815bd635c1a93bdddbe89f14036b07f7ea7",
+    "package.json": "5753a3cbb5eafd18058d4074b6a587b0ed17bed9bc0dc45092b6b39803e00189",
     "packages/client/package.json": "6cfcb57428c4728a98b7cf4504d29304cf6e9e547e136f0ab1edcef8f821b452",
     "packages/desktop/package.json": "fc2d7016cce02e9e7e5aa0622520cbd7e580ea1af97410e3d1e99a0c241c1f89",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
@@ -1610,7 +1610,7 @@
     "packages/ui/src/components/ai-elements/toolbar.tsx": "aa52a585ca7fd4e26357a037f8109abc31b0579eae4c553bc05b5f6ed32731f2",
     "packages/ui/src/components/ui/accordion.tsx": "4a72f846da91bdeac1dbba849572132b98c8b96f0b03e611f46d0f3e41791947",
     "packages/ui/src/components/ui/alert-dialog-layering.test.ts": "142a27fa7e29fc221bcb293ee12a49481412a3d711ce2996744ca2a573f01c6d",
-    "packages/ui/src/components/ui/alert-dialog.tsx": "4b9f75787bd5480a66e71e43a9ad5227542f844072c5d69e48fcc5ca438702a2",
+    "packages/ui/src/components/ui/alert-dialog.tsx": "87788b002251a1d52325195079e139184f3908220e0071f69e2093efd1264f9c",
     "packages/ui/src/components/ui/alert.tsx": "5f29338fc9b767994b39849edeac71ee91dc1fd4a875252b40c5cf9001b1c0a7",
     "packages/ui/src/components/ui/avatar.tsx": "5d87a3860936de1795099bc995ca64b2d5a9179caa74385b4e5de5fd3ee59725",
     "packages/ui/src/components/ui/badge.tsx": "afb0012489e63fca096e064f0cb2fcab7f78e258359a82ce959c69acaa91aa13",
@@ -1623,9 +1623,9 @@
     "packages/ui/src/components/ui/collapsible.tsx": "e00f7ad26cc4c168f8c6b20e6078512807ddca05e375e47b6c9dbbd50fcbef52",
     "packages/ui/src/components/ui/command.tsx": "7c754bc80704163ce505d08d961a5a4b3e57107e7d53ea319483a896d448cbdb",
     "packages/ui/src/components/ui/context-menu.tsx": "823d2a220ae361d7c90464177f828d8b91c53fd6b110312542d005951ba535e0",
-    "packages/ui/src/components/ui/dialog.tsx": "5b624d5dcc8bc2c9b32a538a520d4d7acbc1de828bdd63958797bfbbe41e5493",
+    "packages/ui/src/components/ui/dialog.tsx": "3a0fafd44f6a3dd8daec8c64c247994955cb6abcb8eb04a79d87e34dc95d527c",
     "packages/ui/src/components/ui/diff-viewer.tsx": "dcfa8e3222c730bf6a0461d0dd42f2d8c41e3f2e2bfecf566fa1b40833a63561",
-    "packages/ui/src/components/ui/dropdown-menu.tsx": "46641020d4318f23883546cfdaa0645ec2ec79cf16d6693be7f7a7917ff5eb90",
+    "packages/ui/src/components/ui/dropdown-menu.tsx": "c0e6539feef9c4f0c9b3c0e29008d22e95e1ef1632cea298f18f001e6d22605c",
     "packages/ui/src/components/ui/flip-metric-value.tsx": "ce2d6cf063003e1023191b0fa4e3eb9b365e04a14eb0d498b897326600bf4071",
     "packages/ui/src/components/ui/GlmMonochromeIcon.tsx": "1a1db9e6b61e49c524cfffb1d5d323a23c5d7f62ffb1cbc7d480da41ed73061d",
     "packages/ui/src/components/ui/highlighted-lightweight-diff-preview.tsx": "9f15ead11e59986d8ef072074118e3192f5d7dc27968dbb76f88d5998d2103ba",
@@ -1636,9 +1636,9 @@
     "packages/ui/src/components/ui/label.tsx": "717bd1167a7c8c136abfe0b3e23e8cfcb38abbe51b04c74d6d01ba1ea0b53fa5",
     "packages/ui/src/components/ui/LCodeAboutLogo.tsx": "916563e770789e91a39f3010740f88c46bd3e09cbeb8a245553147b3ce97e46e",
     "packages/ui/src/components/ui/lightweight-diff-preview.tsx": "54aeef56cde6fe0683c9fb255f0391e9e4fe01952da0820297c36dc0a7525425",
-    "packages/ui/src/components/ui/owner-document.tsx": "09fac3af1895cb578ff2dab657c00eb169cf65785cb8c04572a6632491989800",
+    "packages/ui/src/components/ui/owner-document.tsx": "1bfb3aae1b95e381e6f63071118f7ebda8f0b28f44a80cf823da31fc4f19be8c",
     "packages/ui/src/components/ui/pdf-viewer.tsx": "73db21c33a697a0c896059b23c645c2699ad4cb2fd57912297b73025b6bd9561",
-    "packages/ui/src/components/ui/popover.tsx": "68ff547faf4c87e5d978471ded1bf33e9c2b78c08252561a8160e308779ba685",
+    "packages/ui/src/components/ui/popover.tsx": "a174607012e2bf564f38a5aef435610e982e3d170b2e51c3dc8b594b131d5ae1",
     "packages/ui/src/components/ui/pptx-preview-viewer.tsx": "a5e9e16e321af171a6fa59fd6d1b197efcdc3ecae520cf9c65be795f497ee471",
     "packages/ui/src/components/ui/pptx-selection-action-bar.tsx": "6e7187b7f527e4a97df117cc0df85d2dd8f4408d7415aec2e4907db39a331efd",
     "packages/ui/src/components/ui/progress.tsx": "ba88ffa75ad78eaa23519c7af84e11679ca2b8e4508c57759d769462811c0ec5",
@@ -1646,7 +1646,7 @@
     "packages/ui/src/components/ui/resizable.tsx": "83425c34fb76c35276e6dbf8d7ad0ee860b4536ba9d4cfd8e8a60aec3b7cabc4",
     "packages/ui/src/components/ui/scroll-area.tsx": "83999d597a4a417aea402e833884826539b9aa1bd1ec966aa2f6dab9a97afb3c",
     "packages/ui/src/components/ui/scroll-fade-viewport.tsx": "50e5984232b6a7d59e872aab4ebb36ae837e2865e3a770adbc234b61c2531da1",
-    "packages/ui/src/components/ui/select.tsx": "b43b96f148130af15f34a2b8077105a95035d2cdd470890150c2486b5002db8b",
+    "packages/ui/src/components/ui/select.tsx": "d8b8f9b44f4dde639e62e288d9dddf6dd911f4e094c6a59c11d2d9872711480e",
     "packages/ui/src/components/ui/separator.tsx": "31ade0b9a0eca6689226c94d479352416ef076859980a976422a8af17879dee2",
     "packages/ui/src/components/ui/spinner.tsx": "1b5bfd868b51bb40104ebc2fd4b6485d586a087a5dfee49655cc406d462d2b6a",
     "packages/ui/src/components/ui/switch.tsx": "35ea68670fbadd83f9a8fbf8dc8853abde0d7b4c911dabfd40ee00fdc0f80c13",
@@ -1654,7 +1654,7 @@
     "packages/ui/src/components/ui/textarea.tsx": "aa135667c2b7912da3f087930543d4142920eb53d8a4e304848c3dcca103d037",
     "packages/ui/src/components/ui/ThemeSwatch.tsx": "78903a21a1c14e53c52b0cd162bca77a839f90142a210c772c1bc5848bedc8fb",
     "packages/ui/src/components/ui/toast.tsx": "f943c4e20390137ea0cc02ab35a6694558695482886bb8d5bde507e40689ddb1",
-    "packages/ui/src/components/ui/tooltip.tsx": "f41b2ae7f78a1defc012a947cf02e8e0901708adcfe16b3689c5d6ef194fe6f7",
+    "packages/ui/src/components/ui/tooltip.tsx": "dc3f60154f39a35c8cc258314b8bbccb8b520b15cfb9cc46952938c82d8683e7",
     "packages/ui/src/components/ui/usePdfZoomOverlay.ts": "c8c91b003ce2fded32c7a2369dc6eac43aa4b9dc9c830a0f5ceccb21d366b610",
     "packages/ui/src/lib/builtinSkillI18n.ts": "0a177a74855a0b4fa344bc633bfbf4dcc4b14d577f3c73b931cf279f74df7485",
     "packages/ui/src/styles.css": "e10be3373da24b7850e632fb926c5373158eb47f3fde0f48ff35d70278789243",
@@ -19564,7 +19564,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/alert-dialog.tsx",
-          "sha256": "c01fb398843ed26b77c25447e19f72118716e4694f8b3d2f099a17b9c2d71905"
+          "sha256": "87788b002251a1d52325195079e139184f3908220e0071f69e2093efd1264f9c"
         },
         {
           "file": "packages/ui/src/components/ui/alert.tsx",
@@ -19612,11 +19612,11 @@
         },
         {
           "file": "packages/ui/src/components/ui/context-menu.tsx",
-          "sha256": "dc43e12117085c28f9251f736672f72510b7e28f2874af1f0549b49094de4a05"
+          "sha256": "823d2a220ae361d7c90464177f828d8b91c53fd6b110312542d005951ba535e0"
         },
         {
           "file": "packages/ui/src/components/ui/dialog.tsx",
-          "sha256": "5b624d5dcc8bc2c9b32a538a520d4d7acbc1de828bdd63958797bfbbe41e5493"
+          "sha256": "3a0fafd44f6a3dd8daec8c64c247994955cb6abcb8eb04a79d87e34dc95d527c"
         },
         {
           "file": "packages/ui/src/components/ui/diff-viewer.tsx",
@@ -19624,7 +19624,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/dropdown-menu.tsx",
-          "sha256": "c255a46f75aa617fb5eedd3eede1041e86c30768519fd139ae7243e566a10a6e"
+          "sha256": "c0e6539feef9c4f0c9b3c0e29008d22e95e1ef1632cea298f18f001e6d22605c"
         },
         {
           "file": "packages/ui/src/components/ui/flip-metric-value.tsx",
@@ -19636,7 +19636,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/hover-card.tsx",
-          "sha256": "7fb9a797bd08d889e25d14fde0987fef4c6290144094b3a8f49dda67b673ca28"
+          "sha256": "e0ad7c76efc923d0a9f59257054c5b40cf494ab9d8005e27ed84f0b5e168fba1"
         },
         {
           "file": "packages/ui/src/components/ui/input-group.tsx",
@@ -19660,7 +19660,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/owner-document.tsx",
-          "sha256": "09fac3af1895cb578ff2dab657c00eb169cf65785cb8c04572a6632491989800"
+          "sha256": "1bfb3aae1b95e381e6f63071118f7ebda8f0b28f44a80cf823da31fc4f19be8c"
         },
         {
           "file": "packages/ui/src/components/ui/pdf-viewer.tsx",
@@ -19668,7 +19668,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/popover.tsx",
-          "sha256": "32df46bd314ac93665880d1ef790c4f1f7397b0923af07a1d7b8ea9f6038f9a9"
+          "sha256": "a174607012e2bf564f38a5aef435610e982e3d170b2e51c3dc8b594b131d5ae1"
         },
         {
           "file": "packages/ui/src/components/ui/pptx-preview-viewer.tsx",
@@ -19696,7 +19696,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/select.tsx",
-          "sha256": "0a558c321b20cd5caffeba9e9c242b1841191558e371e09c18dac1fbde8cbeb3"
+          "sha256": "d8b8f9b44f4dde639e62e288d9dddf6dd911f4e094c6a59c11d2d9872711480e"
         },
         {
           "file": "packages/ui/src/components/ui/separator.tsx",
@@ -19724,7 +19724,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/tooltip.tsx",
-          "sha256": "1512ea87c80db57ebfaf79def97e5e534acf5aec36f9681f6ca3731994a15452"
+          "sha256": "dc3f60154f39a35c8cc258314b8bbccb8b520b15cfb9cc46952938c82d8683e7"
         },
         {
           "file": "packages/ui/src/components/ui/usePdfZoomOverlay.ts",

@@ -691,6 +691,7 @@ export class BrowserGuestManager {
       tab.cachedUrl.trim() !== "" &&
       tab.cachedUrl !== "about:blank";
 
+    if (shouldRestoreAfterRebind) guest.stop();
     let cdpAttached = false;
     try {
       if (!guest.debugger.isAttached()) guest.debugger.attach("1.3");
@@ -1691,6 +1692,7 @@ export class BrowserGuestManager {
           requestId: context.requestId,
           windowId: context.windowId,
           workspaceKey: context.workspaceKey,
+          remoteSessionId: context.remoteSessionId,
           sessionId: context.sessionId,
           browserId: context.browserId,
           browserGeneration: context.browserGeneration,
@@ -2059,6 +2061,7 @@ export class BrowserGuestManager {
         requestId: `recording:${entry.id}`,
         windowId: entry.context.windowId,
         workspaceKey: entry.context.workspaceKey,
+        remoteSessionId: entry.context.remoteSessionId,
         sessionId: entry.context.sessionId,
         browserId: entry.context.browserId,
         browserGeneration: entry.context.browserGeneration,
@@ -4096,6 +4099,7 @@ export class BrowserGuestManager {
     tabId: string,
     webContentsId: number,
     windowId: number,
+    preservePageState = false,
   ): Promise<boolean> {
     const tab = this.tabs.get(tabId);
     if (!tab) return true;
@@ -4130,17 +4134,29 @@ export class BrowserGuestManager {
       return true;
     }
 
-    return this.beginGuestTeardown(tab, guest, "renderer replacement");
+    // 移动工具窗口不是关闭浏览器，不能中止已经接受的操作、录制或下载。
+    if (
+      preservePageState &&
+      (this.hasRunningRequestForTab(tabId) ||
+        this.inFlightScreenshots.has(tabId) ||
+        [...this.recordings.values()].some(
+          (recording) => recording.tabId === tabId && recording.status === "running",
+        ) ||
+        this.hasPendingDownloadForTab(tabId))
+    )
+      return false;
+    return this.beginGuestTeardown(tab, guest, "renderer replacement", preservePageState);
   }
 
   private beginGuestTeardown(
     tab: ManagedTab,
     guest: GuestWebContents,
     reason: string,
+    preservePageState = false,
   ): Promise<boolean> {
     const existing = tab.guestTeardownFlight;
     if (existing) return existing;
-    const flight = this.runGuestTeardown(tab, guest, reason);
+    const flight = this.runGuestTeardown(tab, guest, reason, preservePageState);
     tab.guestTeardownFlight = flight;
     const clearFlight = () => {
       if (tab.guestTeardownFlight === flight) tab.guestTeardownFlight = undefined;
@@ -4153,6 +4169,7 @@ export class BrowserGuestManager {
     tab: ManagedTab,
     guest: GuestWebContents,
     reason: string,
+    preservePageState = false,
   ): Promise<boolean> {
     if (tab.guest !== guest) return !tab.cdpAttached;
     tab.guestLifecycle = "detaching";
@@ -4189,6 +4206,11 @@ export class BrowserGuestManager {
       return true;
     }
 
+    if (preservePageState) {
+      // 拖出/放回会重建 webview，安全断开之前保存现有历史，避免放回后只剩初始 URL。
+      await this.persistRecoverySnapshot(tab, guest);
+      if (tab.guest !== guest || tab.lifecycle === "closed") return false;
+    }
     try {
       if (guest.debugger.isAttached()) guest.debugger.detach();
       if (guest.debugger.isAttached()) {
@@ -4218,6 +4240,7 @@ export class BrowserGuestManager {
     tab.cdpAttached = false;
     tab.guestLifecycle = "detached";
     this.detachGuest(tab);
+    if (preservePageState) tab.attachFailure = "guest-destroyed";
     return true;
   }
 

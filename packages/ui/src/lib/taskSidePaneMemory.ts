@@ -29,6 +29,21 @@ const TASK_SIDE_PANE_MEMORY_MAX_ENTRIES = 50;
 const DRAFT_SIDE_PANE_OWNER_KEY = "__draft__";
 
 const taskSidePaneMemory = new Map<string, TaskSidePaneMemoryState>();
+const retainedTaskSidePaneMemory = new Map<string, number>();
+
+/** 独立窗口仍在使用原工作区，不能被后台 LRU 当作闲置条目淘汰。 */
+export function retainTaskSidePaneMemory(key: string): () => void {
+  retainedTaskSidePaneMemory.set(key, (retainedTaskSidePaneMemory.get(key) ?? 0) + 1);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const count = (retainedTaskSidePaneMemory.get(key) ?? 1) - 1;
+    if (count <= 0) retainedTaskSidePaneMemory.delete(key);
+    else retainedTaskSidePaneMemory.set(key, count);
+    pruneTaskSidePaneMemory();
+  };
+}
 
 function touchTaskSidePaneMemoryEntry(
   key: string,
@@ -41,7 +56,9 @@ function touchTaskSidePaneMemoryEntry(
 
 function pruneTaskSidePaneMemory(): void {
   while (taskSidePaneMemory.size > TASK_SIDE_PANE_MEMORY_MAX_ENTRIES) {
-    const oldestKey = taskSidePaneMemory.keys().next().value;
+    const oldestKey = [...taskSidePaneMemory.keys()].find(
+      (key) => !retainedTaskSidePaneMemory.has(key),
+    );
     if (!oldestKey) {
       return;
     }

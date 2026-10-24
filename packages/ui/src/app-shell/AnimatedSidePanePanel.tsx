@@ -1,4 +1,14 @@
+import { SidePaneGitState } from "@/app-shell/SidePaneGitState.js";
 /* eslint-disable max-lines -- Side pane 当前集中承载 tabs、browser/git/code-viewer 内容；完整拆分需按 pane 功能边界继续推进。 */
+import { useSidePaneToolWindows } from "@/hooks/useSidePaneToolWindows.js";
+import { SidePaneTabSurface } from "@/app-shell/SidePaneTabSurface.js";
+import {
+  sidePaneToolWindowKey,
+  toolWindowWorkspaceKey,
+  type SidePaneToolWindowOwner,
+} from "@/lib/sidePaneToolWindow.js";
+import { cloneElement, type ReactElement } from "react";
+import { ExternalLinkIcon } from "lucide-react";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { WorkspacePanelDrawer } from "@/app-shell/WorkspacePanelDrawer.js";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
@@ -29,10 +39,6 @@ import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
 import { GitPane } from "@/GitPane.js";
 import { GitReviewSidePane } from "@/app-shell/GitReviewSidePane.js";
 import { SidePaneToolNavigation } from "@/app-shell/SidePaneToolNavigation.js";
-import {
-  commitReviewNavigationKey,
-  useCommitReviewNavigationStore,
-} from "@/store/commitReviewNavigationStore.js";
 import { TreemappingPane } from "@/TreemappingPane.js";
 import { WhiteboardPane } from "@/WhiteboardPane.js";
 import { ModelTrajectoryPane } from "@/ModelTrajectoryPane.js";
@@ -93,6 +99,7 @@ import {
   type OpenScopedWorkflowRunSideTabRequest,
   type OpenBackgroundBashSideTabRequest,
   type WorkspaceSidePaneState,
+  type WorkspaceSidePaneTab,
 } from "@/lib/workspaceSidePane.js";
 import { inferMediaPreview, type CodeViewerSource } from "@/lib/codeViewer.js";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
@@ -296,6 +303,14 @@ export function AnimatedSidePanePanel({
   isBrowserOpen,
   supportsEmbeddedBrowser = true,
   ownerWorkspaceKey,
+  ownerWorkspacePath,
+  ownerWorkspaceIdentity,
+  projectName,
+  activeTaskTitle,
+  getSidePaneTab,
+  onSelectGitTabView,
+  openWorkspaceKeys,
+  onLocateToolWindowOwner,
   workspaceAbsPath,
   workspaceIdentity,
   workspaceRemoteSessionId,
@@ -376,6 +391,20 @@ export function AnimatedSidePanePanel({
   supportsEmbeddedBrowser?: boolean;
   /** 与 useAppPanels 相同的原项目身份；执行目录不能用来筛选标签页。 */
   ownerWorkspaceKey: string;
+  ownerWorkspacePath?: string;
+  ownerWorkspaceIdentity?: string;
+  projectName?: string;
+  activeTaskTitle?: string;
+  getSidePaneTab?: (
+    workspaceKey: string,
+    tabId: string,
+  ) => import("@/lib/workspaceSidePane.js").WorkspaceSidePaneTab | undefined;
+  openWorkspaceKeys?: readonly string[];
+  onSelectGitTabView?: (
+    tabId: string,
+    view: import("@/store/commitReviewNavigationStore.js").GitWorkbenchView,
+  ) => void;
+  onLocateToolWindowOwner?: (owner: SidePaneToolWindowOwner) => void;
   workspaceAbsPath: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
@@ -399,7 +428,7 @@ export function AnimatedSidePanePanel({
   onCloseGit: () => void;
   onActivateTab: (tabId: string) => void;
   onReorderTab: (activeTabId: string, overTabId: string) => void;
-  onCloseTab: (tabId: string) => void;
+  onCloseTab: (tabId: string) => void | boolean | Promise<void | boolean>;
   onCloseOtherTabs: (tabId: string) => void;
   onCloseAllTabs: () => void;
   onReopenClosedTab: (tabId: string) => void;
@@ -445,13 +474,42 @@ export function AnimatedSidePanePanel({
     : screenshotSurfaceRequest
       ? findScreenshotSurfaceTabForRender(tabs, screenshotSurfaceRequest)
       : undefined;
-  const visibleTabs = useMemo(
+  const toolWindows = useSidePaneToolWindows({
+    enabled: Boolean(isDesktop) && !isNarrowWebLayout,
+    onCloseTab,
+    onActivateTab,
+    onLocateOwner: onLocateToolWindowOwner,
+    isTabOpen: getSidePaneTab ? (key, id) => Boolean(getSidePaneTab(key, id)) : undefined,
+    openWorkspaceKeys,
+  });
+  const [dockSlot, setDockSlot] = useState<HTMLDivElement | null>(null);
+  const surfaceCache = useRef(
+    new Map<
+      string,
+      {
+        element: ReactElement<React.ComponentProps<typeof SidePaneTabSurface>>;
+        owner: SidePaneToolWindowOwner;
+        detached: boolean;
+        render: (
+          tab: WorkspaceSidePaneTab,
+          detached: boolean,
+        ) => ReactElement<React.ComponentProps<typeof SidePaneTabSurface>>;
+      }
+    >(),
+  );
+  const windowKey = (id: string) => sidePaneToolWindowKey(workspaceKey, id);
+  const currentScopeKey = JSON.stringify([workspaceKey, activeTaskId]);
+  const scopedTabs = useMemo(
     () =>
       getVisibleSidePaneTabs(tabs, {
         workspaceKey,
         ownerTaskId: sidePaneOwnerId,
       }),
     [sidePaneOwnerId, tabs, workspaceKey],
+  );
+  const visibleTabs = useMemo(
+    () => scopedTabs.filter((tab) => !toolWindows.isDetached(windowKey(tab.id))),
+    [scopedTabs, toolWindows.version],
   );
   const activeTabId = sidePaneState?.activeTabId ?? "";
   const visibleActiveTabId = visibleTabs.some((tab) => tab.id === activeTabId)
@@ -496,6 +554,24 @@ export function AnimatedSidePanePanel({
   const handleTabDragEnd = (event: DragEndEvent) => {
     setDraggingTabId(null);
     const { active, over } = event;
+    const rect = active.rect.current.translated;
+    const paneRect = panelElementRef.current?.getBoundingClientRect();
+    if (
+      toolWindows.available &&
+      rect &&
+      paneRect &&
+      (rect.left + rect.width / 2 < paneRect.left - 24 ||
+        rect.top > paneRect.bottom + 24 ||
+        rect.bottom < paneRect.top - 24 ||
+        rect.left > paneRect.right + 24)
+    ) {
+      const pointer = event.activatorEvent as PointerEvent;
+      void toolWindows.detach(windowKey(String(active.id)), {
+        left: pointer.screenX + event.delta.x - 100,
+        top: pointer.screenY + event.delta.y - 20,
+      });
+      return;
+    }
     if (!over || active.id === over.id) {
       return;
     }
@@ -945,8 +1021,428 @@ export function AnimatedSidePanePanel({
     ? (visibleTabs.find((tab) => tab.id === draggingTabId) ?? null)
     : null;
 
+  const nextSurfaces = new Map<
+    string,
+    {
+      element: ReactElement<React.ComponentProps<typeof SidePaneTabSurface>>;
+      owner: SidePaneToolWindowOwner;
+      detached: boolean;
+      render: (
+        tab: WorkspaceSidePaneTab,
+        detached: boolean,
+      ) => ReactElement<React.ComponentProps<typeof SidePaneTabSurface>>;
+    }
+  >();
+  (hasRenderedSidePane || shouldMountContent ? tabs : EMPTY_SIDE_PANE_TABS)
+    .filter((tab) => !tab.workspaceKey || tab.workspaceKey === workspaceKey)
+    .forEach((tab) => {
+      const resourceKey = windowKey(tab.id);
+      const detached = toolWindows.isDetached(resourceKey);
+      const cached = surfaceCache.current.get(resourceKey);
+      if (detached && cached?.detached) {
+        nextSurfaces.set(resourceKey, { ...cached, element: cached.render(tab, true) });
+        return;
+      }
+      const sessionId =
+        tab.type === "browser-use"
+          ? tab.sessionId
+          : tab.ownerTaskId !== undefined
+            ? tab.ownerTaskId
+            : activeTaskId;
+      const owner: SidePaneToolWindowOwner = {
+        workspacePath: ownerWorkspacePath ?? workspaceAbsPath,
+        workspaceIdentity: ownerWorkspaceIdentity,
+        remoteSessionId: workspaceRemoteSessionId,
+        sessionId,
+        projectName:
+          projectName ||
+          (ownerWorkspacePath ?? workspaceAbsPath).split(/[\\/]/).filter(Boolean).at(-1) ||
+          workspaceKey,
+        sessionTitle:
+          sessionId === activeTaskId && activeTaskTitle
+            ? activeTaskTitle
+            : intl.formatMessage({
+                id: sessionId ? "sidePane.untitledOwnerSession" : "sidePane.draftOwnerSession",
+              }),
+      };
+      const render = (tab: WorkspaceSidePaneTab, detached: boolean) => {
+        const inOwner = (command: () => void) => {
+          if (detached) void toolWindows.runInOwner(resourceKey, command);
+          else command();
+        };
+        const selected = detached || tab.id === visibleActiveTabId;
+        const tabVisible = detached || isVisible;
+        const content = () => {
+          if (
+            (tab.type === "browser" || tab.type === "browser-use") &&
+            !shouldMountBrowserTabGuest(tab)
+          ) {
+            return <SuspendedBrowserSidePaneContent key={tab.id} tab={tab} />;
+          }
+          if (tab.type === "browser-use") {
+            return (
+              <BrowserUseSidePaneContent
+                key={tab.id}
+                tab={tab}
+                isPanelVisible={tabVisible}
+                isSelected={selected}
+                isCurrentTask={tab.sessionId === sidePaneOwnerId}
+                screenshotSurfaceRequest={
+                  screenshotSurfaceTab?.id === tab.id ? screenshotSurfaceRequest : null
+                }
+                // restoring guest 的完整 history 由 main 在 did-attach 后写入；
+                // renderer 同时消费 initialUrl 会抢先提交导航，使 Chromium 拒绝 restore。
+                initialUrl={tab.residency === "restoring" ? undefined : browserRestoreUrls[tab.id]}
+                workspacePath={workspaceAbsPath}
+                workspaceIdentity={workspaceIdentity}
+                residencyGeneration={tab.residencyGeneration}
+                onUrlChange={(url) => onBrowserUrlChange(tab.id, url)}
+                onPageMetadataChange={(metadata) => onBrowserPageMetadataChange(tab.id, metadata)}
+              />
+            );
+          }
+          return (
+            <TabsContent
+              key={tab.id}
+              value={tab.id}
+              forceMount
+              className="relative z-10 h-full min-h-0 bg-background data-[state=inactive]:hidden"
+            >
+              {tab.type === "bash-output" ? (
+                <BackgroundBashOutputSidePane
+                  tab={tab}
+                  visible={tabVisible && selected}
+                  onOpenCodeViewer={(source) => inOwner(() => onOpenCodeViewer(source))}
+                />
+              ) : tab.type === "subagent-session" ? (
+                <SubagentSessionSidePane
+                  tab={tab}
+                  focused={tabVisible && selected}
+                  onOpenBrowserUrl={(url) => inOwner(() => onOpenBrowserUrl(url))}
+                  onOpenCodeViewer={(source) => inOwner(() => onOpenCodeViewer(source))}
+                  onOpenFileLink={
+                    onOpenFileLink ? (request) => inOwner(() => onOpenFileLink(request)) : undefined
+                  }
+                  onOpenSubagentSession={(request) => inOwner(() => onOpenSubagentSession(request))}
+                  onOpenBackgroundBash={
+                    onOpenBackgroundBash
+                      ? (request) => inOwner(() => onOpenBackgroundBash(request))
+                      : undefined
+                  }
+                />
+              ) : tab.type === "subagent-directory" ? (
+                <SubagentDirectorySidePane
+                  tab={tab}
+                  onOpenSubagentSession={(request) => inOwner(() => onOpenSubagentSession(request))}
+                />
+              ) : tab.type === "selection-side-chat" ? (
+                <SelectionSideChatPane
+                  tab={tab}
+                  focused={tabVisible && selected}
+                  onOpenBrowserUrl={(url) => inOwner(() => onOpenBrowserUrl(url))}
+                  onOpenCodeViewer={(source) => inOwner(() => onOpenCodeViewer(source))}
+                  onOpenFileLink={
+                    onOpenFileLink ? (request) => inOwner(() => onOpenFileLink(request)) : undefined
+                  }
+                  onUnavailable={onCloseTab}
+                />
+              ) : tab.type === "plan-detail" ? (
+                <PlanDetailSidePane
+                  tab={tab}
+                  onOpenBrowserUrl={(url) => inOwner(() => onOpenBrowserUrl(url))}
+                  onOpenCodeViewer={(source) => inOwner(() => onOpenCodeViewer(source))}
+                  onOpenFileLink={
+                    onOpenFileLink ? (request) => inOwner(() => onOpenFileLink(request)) : undefined
+                  }
+                />
+              ) : tab.type === "workflow-run" ? (
+                <WorkflowRunSidePane
+                  tab={tab}
+                  {...(onOpenWorkflowActorSession === undefined
+                    ? {}
+                    : { onOpenWorkflowActorSession })}
+                  {...(onOpenWorkflowArtifact === undefined ? {} : { onOpenWorkflowArtifact })}
+                  {...(onOpenWorkflowRun === undefined ? {} : { onOpenWorkflowRun })}
+                  {...(onOpenWorkflowWorkspace === undefined ? {} : { onOpenWorkflowWorkspace })}
+                />
+              ) : tab.type === "workflow-directory" ? (
+                // 类型分支必须先收窄，回调缺席在**分支内部**处理：把
+                // `&& onOpenWorkflowRun` 写进条件会让这个 tab 类型继续留在后面
+                // 那些分支的联合里（browser 分支于是拿它去读 residency）。
+                onOpenWorkflowRun ? (
+                  <WorkflowRunDirectorySidePane
+                    tab={tab}
+                    onOpenWorkflowRun={(request) => inOwner(() => onOpenWorkflowRun(request))}
+                  />
+                ) : null
+              ) : tab.type === "workflow-actor-session" ? (
+                <WorkflowActorSessionSidePane
+                  tab={tab}
+                  focused={tabVisible && selected}
+                  onOpenBrowserUrl={(url) => inOwner(() => onOpenBrowserUrl(url))}
+                  onOpenCodeViewer={(source) => inOwner(() => onOpenCodeViewer(source))}
+                  onOpenFileLink={
+                    onOpenFileLink ? (request) => inOwner(() => onOpenFileLink(request)) : undefined
+                  }
+                  // 可选导航能力缺席时不能包装成必有函数，否则类型失真且点击会调用 undefined。
+                  onOpenWorkflowRun={
+                    onOpenWorkflowRun
+                      ? (request) => inOwner(() => onOpenWorkflowRun(request))
+                      : undefined
+                  }
+                />
+              ) : tab.type === "workflow-workspace" ? (
+                <WorkflowWorkspaceSidePane
+                  tab={tab}
+                  focused={tabVisible && selected}
+                  onOpenCodeViewer={(source) => inOwner(() => onOpenCodeViewer(source))}
+                />
+              ) : tab.type === "workflow-artifact" ? (
+                // 「在工作区显示」复用 Git 面板那条文件树 reveal（同一个宿主回调），
+                // 不新造第二条定位路径。
+                <WorkflowArtifactSidePane
+                  tab={tab}
+                  onOpenBrowserUrl={(url) => inOwner(() => onOpenBrowserUrl(url))}
+                  {...(onRevealGitFileInTree === undefined
+                    ? {}
+                    : { onRevealFileInTree: onRevealGitFileInTree })}
+                />
+              ) : tab.type === "code-viewer" ? (
+                <PreviewPane
+                  markdownSelectionTarget={{ sessionId: activeTaskId, workspaceKey }}
+                  source={tab.source}
+                  onClose={() => {
+                    if (detached) void onCloseTab(tab.id);
+                    else onCloseCodeViewer();
+                  }}
+                  workspacePath={workspaceAbsPath}
+                  onOpenBrowserUrl={(url) => inOwner(() => onOpenBrowserUrl(url))}
+                  onOpenCodeViewer={(source) => inOwner(() => onOpenCodeViewer(source))}
+                  // inactive/窄条/resize 中的 code preview 不应继续让
+                  // @pierre/diffs 的千行 Shadow DOM 参与布局；这里只裁剪 body，保留 tab/source/file state。
+                  renderHeavyContent={shouldRenderPreviewPaneHeavyContent({
+                    isActiveTab: selected,
+                    // video/audio 原生全屏会触发 resize，resize settling
+                    // 期间必须保持当前媒体节点挂载，否则浏览器会立即退出全屏。
+                    isMediaPreview:
+                      tab.source.type === "media" ||
+                      (tab.source.type === "file" && inferMediaPreview(tab.source.path) !== null),
+                    isResizeSettling: isWindowResizeSettling,
+                    isSidePaneVisible: tabVisible,
+                    visibleInlineSizePx: detached ? null : sidePaneVisibleInlineSizePx,
+                  })}
+                />
+              ) : tab.type === "git" ? (
+                <SidePaneGitState
+                  detached={detached}
+                  owner={owner}
+                  executionPath={workspaceAbsPath}
+                  executionIdentity={workspaceIdentity}
+                  gitState={gitState}
+                  selectedSourceId={activeGitSourceId}
+                  onSelectSource={onSelectGitSource}
+                  onRefresh={onRefreshGit}
+                >
+                  {({
+                    gitState: paneGitState,
+                    selectedSourceId: paneSource,
+                    onSelectSource: selectPaneSource,
+                    onRefresh: refreshPane,
+                  }) => (
+                    <GitReviewSidePane
+                      workspaceKey={workspaceKey}
+                      sessionId={owner.sessionId}
+                      workspacePath={workspaceAbsPath}
+                      workspaceIdentity={workspaceIdentity}
+                      workspaceRemoteSessionId={workspaceRemoteSessionId}
+                      visible={tabVisible && selected}
+                      view={tab.view ?? "changes"}
+                      onRefresh={refreshPane}
+                      onSelectView={
+                        onSelectGitTabView
+                          ? (view) => {
+                              onSelectGitTabView(tab.id, view);
+                              toolWindows.refreshSurfaces();
+                            }
+                          : undefined
+                      }
+                    >
+                      <GitPane
+                        workspacePath={workspaceAbsPath}
+                        workspaceIdentity={workspaceIdentity}
+                        workspaceRemoteSessionId={workspaceRemoteSessionId}
+                        gitState={paneGitState}
+                        isDesktop={isDesktop}
+                        selectedSourceId={paneSource}
+                        fileChangeFindActiveIndex={fileChangeFindActiveIndex}
+                        fileChangeFindNavigationRequestId={fileChangeFindNavigationRequestId}
+                        fileChangeFindQuery={fileChangeFindQuery}
+                        onFileChangeFindMatchCountChange={onFileChangeFindMatchCountChange}
+                        onSelectSource={selectPaneSource}
+                        onClose={() => {
+                          if (detached) void onCloseTab(tab.id);
+                          else onCloseGit();
+                        }}
+                        onRefresh={refreshPane}
+                        onRevealFileInTree={
+                          onRevealGitFileInTree
+                            ? (request) => inOwner(() => onRevealGitFileInTree(request))
+                            : undefined
+                        }
+                      />
+                    </GitReviewSidePane>
+                  )}
+                </SidePaneGitState>
+              ) : tab.type === "treemapping" ? (
+                <TreemappingPane
+                  activeTaskId={activeTaskId}
+                  workspacePath={workspaceAbsPath}
+                  workspaceIdentity={workspaceIdentity}
+                  source={tab.source ?? { kind: "current" }}
+                />
+              ) : tab.type === "whiteboard" ? (
+                <WhiteboardPane
+                  workspacePath={workspaceAbsPath}
+                  workspaceIdentity={workspaceIdentity}
+                  boardId={tab.boardId}
+                />
+              ) : tab.type === "model-trajectory" ? (
+                <ModelTrajectoryPane
+                  taskId={tab.taskId}
+                  title={tab.title}
+                  workspacePath={workspaceAbsPath}
+                  workspaceIdentity={workspaceIdentity}
+                  onClose={() => onCloseTab(tab.id)}
+                />
+              ) : tab.type === "developer-tools" ? (
+                <ServiceProvider services={services}>
+                  <DeveloperToolsPane
+                    workspacePath={workspaceAbsPath}
+                    workspaceIdentity={workspaceIdentity}
+                    taskId={activeTaskId}
+                    enabled={tabVisible && selected}
+                  />
+                </ServiceProvider>
+              ) : tab.type === "terminal" ? (
+                <SidePaneTerminalPane
+                  services={services}
+                  sessionId={tab.id}
+                  workspaceKey={workspaceKey}
+                  // 默认 cwd 是原项目；由 Host 按本 tab 会话选择 checkout，不借活动 task 的目录。
+                  cwd={
+                    terminalExecutionScope &&
+                    (!tab.cwd || tab.cwd === terminalExecutionScope.workspacePath)
+                      ? undefined
+                      : (tab.cwd ?? workspaceAbsPath)
+                  }
+                  executionScope={
+                    terminalExecutionScope
+                      ? {
+                          ...terminalExecutionScope,
+                          sessionId: tab.ownerTaskId ?? undefined,
+                          remoteSessionId:
+                            tab.remoteSessionId ?? terminalExecutionScope.remoteSessionId,
+                          // 隐藏旧 tab 仍归其创建会话，不能把当前 task 的 expected binding 套给它。
+                          executionBindingId:
+                            tab.ownerTaskId === terminalExecutionScope.sessionId
+                              ? terminalExecutionScope.executionBindingId
+                              : undefined,
+                          environmentRef:
+                            tab.ownerTaskId === terminalExecutionScope.sessionId
+                              ? terminalExecutionScope.environmentRef
+                              : undefined,
+                        }
+                      : {
+                          workspacePath: tab.cwd ?? workspaceAbsPath,
+                          workspaceIdentity,
+                          sessionId: tab.ownerTaskId ?? undefined,
+                          remoteSessionId: tab.remoteSessionId ?? workspaceRemoteSessionId,
+                        }
+                  }
+                  isVisible={tabVisible && selected}
+                  isWindowsDesktop={isWindowsDesktop}
+                  onOpenBrowserUrl={(url) => inOwner(() => onOpenBrowserUrl(url))}
+                />
+              ) : (
+                <HumanBrowserView
+                  browserKey={tab.id}
+                  workspaceKey={tab.workspaceKey ?? workspaceKey}
+                  agentOpened={tab.agentOpened}
+                  deferEmptyGuest
+                  isResidencyRestore={tab.residency === "restoring"}
+                  isVisible={tabVisible && (detached || isBrowserOpen) && selected}
+                  isSelected={selected}
+                  isCurrentTask={tab.ownerTaskId === sidePaneOwnerId}
+                  // restoring 只挂载不会提交 document 的 bootstrap URL，
+                  // 由 main 独占 pageState/URL 恢复事务。
+                  initialUrl={
+                    tab.residency === "restoring"
+                      ? undefined
+                      : (browserRestoreUrls[tab.id] ?? tab.initialUrl)
+                  }
+                  faviconUrl={tab.faviconUrl}
+                  workspacePath={workspaceAbsPath}
+                  workspaceIdentity={workspaceIdentity}
+                  remoteSessionId={tab.remoteSessionId ?? workspaceRemoteSessionId}
+                  residencyGeneration={tab.residencyGeneration}
+                  sessionId={tab.ownerTaskId ?? "unscoped"}
+                  onUrlChange={(url) => onBrowserUrlChange(tab.id, url)}
+                  onPageMetadataChange={(metadata) => onBrowserPageMetadataChange(tab.id, metadata)}
+                  navigationRequest={
+                    browserNavigationRequest && browserNavigationRequest.targetTabId === tab.id
+                      ? {
+                          id: browserNavigationRequest.id,
+                          url: browserNavigationRequest.url,
+                        }
+                      : null
+                  }
+                  onNavigationRequestHandled={onBrowserNavigationRequestHandled}
+                />
+              )}
+            </TabsContent>
+          );
+        };
+        return (
+          <SidePaneTabSurface
+            key={resourceKey}
+            id={resourceKey}
+            tabId={tab.id}
+            title={getSidePaneTabTitle(tab, intl.formatMessage)}
+            selected={
+              selected || (screenshotSurfaceTab?.id === tab.id && isScreenshotSurfaceActive)
+            }
+            owner={owner}
+            windows={toolWindows}
+            onClose={() => onCloseTab(tab.id)}
+          >
+            <ServiceProvider services={services}>
+              <ScopedErrorBoundary scope="side-pane-tab">{content()}</ScopedErrorBoundary>
+            </ServiceProvider>
+          </SidePaneTabSurface>
+        );
+      };
+      nextSurfaces.set(resourceKey, { owner, detached, render, element: render(tab, detached) });
+    });
+  // 只保留被 native window 持有的呈现树；业务标签仍读取 useAppPanels 的原 workspace 事实。
+  for (const [key, cached] of surfaceCache.current) {
+    if (!nextSurfaces.has(key) && toolWindows.isDetached(key)) {
+      const tabId = cached.element.props.tabId;
+      const tab = tabId ? getSidePaneTab?.(toolWindowWorkspaceKey(cached.owner), tabId) : undefined;
+      nextSurfaces.set(key, tab ? { ...cached, element: cached.render(tab, true) } : cached);
+    }
+  }
+  surfaceCache.current = nextSurfaces;
+  const renderedSurfaces = [...nextSurfaces].map(([key, cached]) =>
+    cloneElement(cached.element, {
+      key,
+      windows: toolWindows,
+      currentScopeKey,
+      dockTarget: toolWindowWorkspaceKey(cached.owner) === workspaceKey ? dockSlot : null,
+    }),
+  );
   const panelContent = (
     <div
+      {...toolWindows.dropProps}
       aria-hidden={!isVisible}
       data-workspace-side-frame="true"
       className={cn(
@@ -1019,22 +1515,40 @@ export function AnimatedSidePanePanel({
                     tabs={visibleTabs}
                     activeTabId={visibleActiveTabId}
                     onActivate={onActivateTab}
-                    onOpenGit={
-                      isOfficeMode
-                        ? undefined
-                        : () =>
-                            useCommitReviewNavigationStore
-                              .getState()
-                              .paneNavigation[
-                                commitReviewNavigationKey(
-                                  workspaceKey,
-                                  undefined,
-                                  activeTaskId ?? "",
-                                )
-                              ]?.selectView("changes")
+                    onToolDragEnd={
+                      toolWindows.available
+                        ? (id, event) => {
+                            const rect = panelElementRef.current?.getBoundingClientRect();
+                            if (!rect || (!event.screenX && !event.screenY)) return;
+                            if (
+                              event.clientX < rect.left - 24 ||
+                              event.clientX > rect.right + 24 ||
+                              event.clientY < rect.top - 24 ||
+                              event.clientY > rect.bottom + 24
+                            ) {
+                              void toolWindows.detach(windowKey(id), {
+                                left: event.screenX - 100,
+                                top: event.screenY - 20,
+                              });
+                            }
+                          }
+                        : undefined
                     }
                   />
                   <div className="flex shrink-0 items-center">
+                    {toolWindows.available && visibleActiveTabId ? (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={intl.formatMessage({ id: "sidePane.detachWindow" })}
+                        title={intl.formatMessage({ id: "sidePane.detachWindow" })}
+                        onClick={() => {
+                          void toolWindows.detach(windowKey(visibleActiveTabId));
+                        }}
+                      >
+                        <ExternalLinkIcon className="size-4" />
+                      </Button>
+                    ) : null}
                     {sidePaneTabOverview}
                     {addTabMenu}
                     {closeSidePaneButton}
@@ -1047,7 +1561,8 @@ export function AnimatedSidePanePanel({
                     // 独立面板将标签栏移至窗口顶部，需补充窗口拖拽区域；标签和按钮仍处理自身交互。
                     isDesktop &&
                       "[app-region:drag] [&_button]:[app-region:no-drag] [&_[data-side-pane-tab-id]]:[app-region:no-drag]",
-                    visibleActiveTabId === "git" && "hidden",
+                    visibleTabs.find((tab) => tab.id === visibleActiveTabId)?.type === "git" &&
+                      "hidden",
                   )}
                 >
                   <div className="flex items-center justify-start flex-1 min-w-0">
@@ -1154,294 +1669,7 @@ export function AnimatedSidePanePanel({
                 </TabsList>
 
                 <div className="relative min-h-0 flex-1 isolate">
-                  {tabs.map((tab) => {
-                    if (
-                      (tab.type === "browser" || tab.type === "browser-use") &&
-                      !shouldMountBrowserTabGuest(tab)
-                    ) {
-                      return <SuspendedBrowserSidePaneContent key={tab.id} tab={tab} />;
-                    }
-                    if (tab.type === "browser-use") {
-                      return (
-                        <BrowserUseSidePaneContent
-                          key={tab.id}
-                          tab={tab}
-                          isPanelVisible={isVisible}
-                          isSelected={tab.id === visibleActiveTabId}
-                          isCurrentTask={tab.sessionId === sidePaneOwnerId}
-                          screenshotSurfaceRequest={
-                            screenshotSurfaceTab?.id === tab.id ? screenshotSurfaceRequest : null
-                          }
-                          // restoring guest 的完整 history 由 main 在 did-attach 后写入；
-                          // renderer 同时消费 initialUrl 会抢先提交导航，使 Chromium 拒绝 restore。
-                          initialUrl={
-                            tab.residency === "restoring" ? undefined : browserRestoreUrls[tab.id]
-                          }
-                          workspacePath={workspaceAbsPath}
-                          workspaceIdentity={workspaceIdentity}
-                          residencyGeneration={tab.residencyGeneration}
-                          onUrlChange={(url) => onBrowserUrlChange(tab.id, url)}
-                          onPageMetadataChange={(metadata) =>
-                            onBrowserPageMetadataChange(tab.id, metadata)
-                          }
-                        />
-                      );
-                    }
-                    return (
-                      <TabsContent
-                        key={tab.id}
-                        value={tab.id}
-                        forceMount
-                        className="relative z-10 h-full min-h-0 bg-background data-[state=inactive]:hidden"
-                      >
-                        {tab.type === "bash-output" ? (
-                          <BackgroundBashOutputSidePane
-                            tab={tab}
-                            visible={isVisible && tab.id === visibleActiveTabId}
-                            onOpenCodeViewer={onOpenCodeViewer}
-                          />
-                        ) : tab.type === "subagent-session" ? (
-                          <SubagentSessionSidePane
-                            tab={tab}
-                            focused={isVisible && tab.id === visibleActiveTabId}
-                            onOpenBrowserUrl={onOpenBrowserUrl}
-                            onOpenCodeViewer={onOpenCodeViewer}
-                            onOpenFileLink={onOpenFileLink}
-                            onOpenSubagentSession={onOpenSubagentSession}
-                            onOpenBackgroundBash={onOpenBackgroundBash}
-                          />
-                        ) : tab.type === "subagent-directory" ? (
-                          <SubagentDirectorySidePane
-                            tab={tab}
-                            onOpenSubagentSession={onOpenSubagentSession}
-                          />
-                        ) : tab.type === "selection-side-chat" ? (
-                          <SelectionSideChatPane
-                            tab={tab}
-                            focused={isVisible && tab.id === visibleActiveTabId}
-                            onOpenBrowserUrl={onOpenBrowserUrl}
-                            onOpenCodeViewer={onOpenCodeViewer}
-                            onOpenFileLink={onOpenFileLink}
-                            onUnavailable={onCloseTab}
-                          />
-                        ) : tab.type === "plan-detail" ? (
-                          <PlanDetailSidePane
-                            tab={tab}
-                            onOpenBrowserUrl={onOpenBrowserUrl}
-                            onOpenCodeViewer={onOpenCodeViewer}
-                            onOpenFileLink={onOpenFileLink}
-                          />
-                        ) : tab.type === "workflow-run" ? (
-                          <WorkflowRunSidePane
-                            tab={tab}
-                            {...(onOpenWorkflowActorSession === undefined
-                              ? {}
-                              : { onOpenWorkflowActorSession })}
-                            {...(onOpenWorkflowArtifact === undefined
-                              ? {}
-                              : { onOpenWorkflowArtifact })}
-                            {...(onOpenWorkflowRun === undefined ? {} : { onOpenWorkflowRun })}
-                            {...(onOpenWorkflowWorkspace === undefined
-                              ? {}
-                              : { onOpenWorkflowWorkspace })}
-                          />
-                        ) : tab.type === "workflow-directory" ? (
-                          // 类型分支必须先收窄，回调缺席在**分支内部**处理：把
-                          // `&& onOpenWorkflowRun` 写进条件会让这个 tab 类型继续留在后面
-                          // 那些分支的联合里（browser 分支于是拿它去读 residency）。
-                          onOpenWorkflowRun ? (
-                            <WorkflowRunDirectorySidePane
-                              tab={tab}
-                              onOpenWorkflowRun={onOpenWorkflowRun}
-                            />
-                          ) : null
-                        ) : tab.type === "workflow-actor-session" ? (
-                          <WorkflowActorSessionSidePane
-                            tab={tab}
-                            focused={isVisible && tab.id === visibleActiveTabId}
-                            onOpenBrowserUrl={onOpenBrowserUrl}
-                            onOpenCodeViewer={onOpenCodeViewer}
-                            onOpenFileLink={onOpenFileLink}
-                            onOpenWorkflowRun={onOpenWorkflowRun}
-                          />
-                        ) : tab.type === "workflow-workspace" ? (
-                          <WorkflowWorkspaceSidePane
-                            tab={tab}
-                            focused={isVisible && tab.id === visibleActiveTabId}
-                            onOpenCodeViewer={onOpenCodeViewer}
-                          />
-                        ) : tab.type === "workflow-artifact" ? (
-                          // 「在工作区显示」复用 Git 面板那条文件树 reveal（同一个宿主回调），
-                          // 不新造第二条定位路径。
-                          <WorkflowArtifactSidePane
-                            tab={tab}
-                            onOpenBrowserUrl={onOpenBrowserUrl}
-                            {...(onRevealGitFileInTree === undefined
-                              ? {}
-                              : { onRevealFileInTree: onRevealGitFileInTree })}
-                          />
-                        ) : tab.type === "code-viewer" ? (
-                          <PreviewPane
-                            markdownSelectionTarget={{ sessionId: activeTaskId, workspaceKey }}
-                            source={tab.source}
-                            onClose={onCloseCodeViewer}
-                            workspacePath={workspaceAbsPath}
-                            onOpenBrowserUrl={onOpenBrowserUrl}
-                            onOpenCodeViewer={onOpenCodeViewer}
-                            // inactive/窄条/resize 中的 code preview 不应继续让
-                            // @pierre/diffs 的千行 Shadow DOM 参与布局；这里只裁剪 body，保留 tab/source/file state。
-                            renderHeavyContent={shouldRenderPreviewPaneHeavyContent({
-                              isActiveTab: tab.id === visibleActiveTabId,
-                              // video/audio 原生全屏会触发 resize，resize settling
-                              // 期间必须保持当前媒体节点挂载，否则浏览器会立即退出全屏。
-                              isMediaPreview:
-                                tab.source.type === "media" ||
-                                (tab.source.type === "file" &&
-                                  inferMediaPreview(tab.source.path) !== null),
-                              isResizeSettling: isWindowResizeSettling,
-                              isSidePaneVisible: isVisible,
-                              visibleInlineSizePx: sidePaneVisibleInlineSizePx,
-                            })}
-                          />
-                        ) : tab.type === "git" ? (
-                          <GitReviewSidePane
-                            workspaceKey={workspaceKey}
-                            sessionId={activeTaskId}
-                            workspacePath={workspaceAbsPath}
-                            workspaceIdentity={workspaceIdentity}
-                            workspaceRemoteSessionId={workspaceRemoteSessionId}
-                            visible={isVisible && tab.id === visibleActiveTabId}
-                            view={tab.view ?? "changes"}
-                            onRefresh={onRefreshGit}
-                          >
-                            <GitPane
-                              workspacePath={workspaceAbsPath}
-                              workspaceIdentity={workspaceIdentity}
-                              workspaceRemoteSessionId={workspaceRemoteSessionId}
-                              gitState={gitState}
-                              isDesktop={isDesktop}
-                              selectedSourceId={activeGitSourceId}
-                              fileChangeFindActiveIndex={fileChangeFindActiveIndex}
-                              fileChangeFindNavigationRequestId={fileChangeFindNavigationRequestId}
-                              fileChangeFindQuery={fileChangeFindQuery}
-                              onFileChangeFindMatchCountChange={onFileChangeFindMatchCountChange}
-                              onSelectSource={onSelectGitSource}
-                              onClose={onCloseGit}
-                              onRefresh={onRefreshGit}
-                              onRevealFileInTree={onRevealGitFileInTree}
-                            />
-                          </GitReviewSidePane>
-                        ) : tab.type === "treemapping" ? (
-                          <TreemappingPane
-                            activeTaskId={activeTaskId}
-                            workspacePath={workspaceAbsPath}
-                            workspaceIdentity={workspaceIdentity}
-                            source={tab.source ?? { kind: "current" }}
-                          />
-                        ) : tab.type === "whiteboard" ? (
-                          <WhiteboardPane
-                            workspacePath={workspaceAbsPath}
-                            workspaceIdentity={workspaceIdentity}
-                            boardId={tab.boardId}
-                          />
-                        ) : tab.type === "model-trajectory" ? (
-                          <ModelTrajectoryPane
-                            taskId={tab.taskId}
-                            title={tab.title}
-                            workspacePath={workspaceAbsPath}
-                            workspaceIdentity={workspaceIdentity}
-                            onClose={() => onCloseTab(tab.id)}
-                          />
-                        ) : tab.type === "developer-tools" ? (
-                          <ServiceProvider services={services}>
-                            <DeveloperToolsPane
-                              workspacePath={workspaceAbsPath}
-                              workspaceIdentity={workspaceIdentity}
-                              taskId={activeTaskId}
-                              enabled={isVisible && tab.id === visibleActiveTabId}
-                            />
-                          </ServiceProvider>
-                        ) : tab.type === "terminal" ? (
-                          <SidePaneTerminalPane
-                            services={services}
-                            sessionId={tab.id}
-                            workspaceKey={workspaceKey}
-                            // 默认 cwd 是原项目；由 Host 按本 tab 会话选择 checkout，不借活动 task 的目录。
-                            cwd={
-                              terminalExecutionScope &&
-                              (!tab.cwd || tab.cwd === terminalExecutionScope.workspacePath)
-                                ? undefined
-                                : (tab.cwd ?? workspaceAbsPath)
-                            }
-                            executionScope={
-                              terminalExecutionScope
-                                ? {
-                                    ...terminalExecutionScope,
-                                    sessionId: tab.ownerTaskId ?? undefined,
-                                    remoteSessionId:
-                                      tab.remoteSessionId ?? terminalExecutionScope.remoteSessionId,
-                                    // 隐藏旧 tab 仍归其创建会话，不能把当前 task 的 expected binding 套给它。
-                                    executionBindingId:
-                                      tab.ownerTaskId === terminalExecutionScope.sessionId
-                                        ? terminalExecutionScope.executionBindingId
-                                        : undefined,
-                                    environmentRef:
-                                      tab.ownerTaskId === terminalExecutionScope.sessionId
-                                        ? terminalExecutionScope.environmentRef
-                                        : undefined,
-                                  }
-                                : {
-                                    workspacePath: tab.cwd ?? workspaceAbsPath,
-                                    workspaceIdentity,
-                                    sessionId: tab.ownerTaskId ?? undefined,
-                                    remoteSessionId:
-                                      tab.remoteSessionId ?? workspaceRemoteSessionId,
-                                  }
-                            }
-                            isVisible={isVisible && tab.id === visibleActiveTabId}
-                            isWindowsDesktop={isWindowsDesktop}
-                            onOpenBrowserUrl={onOpenBrowserUrl}
-                          />
-                        ) : (
-                          <HumanBrowserView
-                            browserKey={tab.id}
-                            agentOpened={tab.agentOpened}
-                            deferEmptyGuest
-                            isResidencyRestore={tab.residency === "restoring"}
-                            isVisible={isVisible && isBrowserOpen && tab.id === visibleActiveTabId}
-                            isSelected={tab.id === visibleActiveTabId}
-                            isCurrentTask={tab.ownerTaskId === sidePaneOwnerId}
-                            // restoring 只挂载不会提交 document 的 bootstrap URL，
-                            // 由 main 独占 pageState/URL 恢复事务。
-                            initialUrl={
-                              tab.residency === "restoring"
-                                ? undefined
-                                : (browserRestoreUrls[tab.id] ?? tab.initialUrl)
-                            }
-                            faviconUrl={tab.faviconUrl}
-                            workspacePath={workspaceAbsPath}
-                            workspaceIdentity={workspaceIdentity}
-                            remoteSessionId={tab.remoteSessionId ?? workspaceRemoteSessionId}
-                            residencyGeneration={tab.residencyGeneration}
-                            sessionId={tab.ownerTaskId ?? "unscoped"}
-                            onUrlChange={(url) => onBrowserUrlChange(tab.id, url)}
-                            onPageMetadataChange={(metadata) =>
-                              onBrowserPageMetadataChange(tab.id, metadata)
-                            }
-                            navigationRequest={
-                              browserNavigationRequest?.targetTabId === tab.id
-                                ? {
-                                    id: browserNavigationRequest.id,
-                                    url: browserNavigationRequest.url,
-                                  }
-                                : null
-                            }
-                            onNavigationRequestHandled={onBrowserNavigationRequestHandled}
-                          />
-                        )}
-                      </TabsContent>
-                    );
-                  })}
+                  <div ref={setDockSlot} className="h-full min-h-0" data-side-pane-dock-slot="" />
                 </div>
               </Tabs>
             </div>
@@ -1452,6 +1680,20 @@ export function AnimatedSidePanePanel({
       </ScopedErrorBoundary>
     </div>
   );
+
+  const dockDropTarget =
+    toolWindows.dockDragOwner !== null ? (
+      <div
+        data-testid="side-pane-window-dock-target"
+        {...toolWindows.dropProps}
+        className="fixed inset-y-12 right-1 z-50 flex w-64 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-brand bg-accent p-4 text-center text-ui-base text-foreground shadow-md"
+      >
+        <span className="font-medium">{intl.formatMessage({ id: "sidePane.dockDropHint" })}</span>
+        <span className="w-full break-words text-ui-sm text-foreground-subtle">
+          {toolWindows.dockDragOwner}
+        </span>
+      </div>
+    ) : null;
 
   if (!panelLayout.useResizablePanel) {
     return (
@@ -1471,6 +1713,8 @@ export function AnimatedSidePanePanel({
         >
           {panelContent}
         </div>
+        {renderedSurfaces}
+        {dockDropTarget}
       </>
     );
   }
@@ -1531,6 +1775,8 @@ export function AnimatedSidePanePanel({
           {panelContent}
         </WorkspacePanelDrawer>
       </ResizablePanel>
+      {renderedSurfaces}
+      {dockDropTarget}
     </>
   );
 }

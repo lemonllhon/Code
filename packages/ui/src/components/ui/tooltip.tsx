@@ -1,4 +1,5 @@
-"use client";
+import { useOwnerDocument } from "./owner-document.js";
+("use client");
 
 import * as React from "react";
 import { Tooltip as TooltipPrimitive } from "radix-ui";
@@ -33,7 +34,7 @@ function TooltipContent({
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
   return (
-    <TooltipPrimitive.Portal>
+    <TooltipPrimitive.Portal container={useOwnerDocument()?.body}>
       <TooltipPrimitive.Content
         data-slot="tooltip-content"
         sideOffset={sideOffset}

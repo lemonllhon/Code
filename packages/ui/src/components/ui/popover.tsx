@@ -1,4 +1,5 @@
-"use client";
+import { useOwnerDocument } from "./owner-document.js";
+("use client");
 
 import * as React from "react";
 import { Popover as PopoverPrimitive } from "radix-ui";
@@ -20,7 +21,7 @@ function PopoverContent({
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
   return (
-    <PopoverPrimitive.Portal>
+    <PopoverPrimitive.Portal container={useOwnerDocument()?.body}>
       <PopoverPrimitive.Content
         data-slot="popover-content"
         align={align}

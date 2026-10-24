@@ -112,6 +112,7 @@ export type DesktopPreloadBridge = Required<
       | "captureWindowScreenshot"
       | "browserViewAttachGuest"
       | "browserViewDetachGuest"
+      | "onBrowserViewGuestAttached"
       | "browserViewCloseTab"
       | "browserViewReportResidency"
       | "browserViewSuspendReady"
@@ -137,6 +138,8 @@ export type DesktopPreloadBridge = Required<
       | "getSystemUsername"
     >
   > & {
+    /** 工具窗口 native handle 的释放；Main 按发送方窗口验证所有权。 */
+    closeToolWindow(id: string): void;
     /** renderer 日志交由 Main 统一落盘；不作为 UI 业务接口。 */
     log(level: "info" | "warn" | "error", args: unknown[]): void;
     syncTelemetryContext(context: TelemetryRendererContext): void;

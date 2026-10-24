@@ -1,3 +1,4 @@
+import { openDesktopToolWindow } from "./desktopToolWindow.js";
 import { recordArmsCustomEventForE2E } from "@lcode/ui";
 import {
   DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL,
@@ -22,6 +23,7 @@ export function createDesktopPlatform(options: {
   isLocalDevelopmentRuntime: boolean;
 }): IPlatformService {
   return {
+    openToolWindow: openDesktopToolWindow,
     canSelectFilePath: true,
     previewStartupAnimation,
     getBuiltinWallpaperUrl,

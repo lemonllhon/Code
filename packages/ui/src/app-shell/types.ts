@@ -290,7 +290,15 @@ export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackS
   handleCloseGit: () => void;
   handleActivateSidePaneTab: (tabId: string) => void;
   handleReorderSidePaneTab: (activeTabId: string, overTabId: string) => void;
-  handleCloseSidePaneTab: (tabId: string) => void;
+  handleCloseSidePaneTab: (tabId: string) => void | Promise<boolean>;
+  handleSelectGitTabView?: (
+    tabId: string,
+    view: import("@/store/commitReviewNavigationStore.js").GitWorkbenchView,
+  ) => void;
+  getSidePaneTab?: (
+    workspaceKey: string,
+    tabId: string,
+  ) => import("@/lib/workspaceSidePane.js").WorkspaceSidePaneTab | undefined;
   handleCloseOtherSidePaneTabs: (tabId: string) => void;
   handleCloseAllSidePaneTabs: () => void;
   handleReopenClosedSidePaneTab: (tabId: string) => void;

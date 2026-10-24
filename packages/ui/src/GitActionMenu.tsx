@@ -42,6 +42,7 @@ import { GitFailureAction } from "@/git-action-menu/GitFailureAction.js";
 import { publicationFailureContext } from "@/git-action-menu/gitFailureDraft.js";
 import { GitCommitReviewPane } from "@/git-action-menu/GitCommitReviewPane.js";
 import { ReviewPanePortal } from "@/git-action-menu/ReviewPanePortal.js";
+import { RetainedGitActionMenu } from "@/git-action-menu/RetainedGitActionMenu.js";
 import { GitPublicationScope } from "@/git-action-menu/GitPublicationPortal.js";
 import {
   getCommitDialogFiles,
@@ -114,7 +115,20 @@ interface GitActionMenuProps {
   triggerLayout?: "header" | "status-row";
 }
 
-export function GitActionMenu({
+export function GitActionMenu(props: GitActionMenuProps) {
+  const scope = commitReviewNavigationKey(
+    props.originWorkspacePath ?? props.workspacePath,
+    props.originWorkspaceIdentity ?? props.workspaceIdentity,
+    props.executionSessionId ?? "",
+  );
+  return (
+    <RetainedGitActionMenu scope={scope}>
+      <GitActionMenuController {...props} />
+    </RetainedGitActionMenu>
+  );
+}
+
+function GitActionMenuController({
   workspacePath,
   workspaceIdentity,
   workspaceRemoteSessionId,
@@ -130,7 +144,7 @@ export function GitActionMenu({
   dialogScopeKey,
   manualCommitMessageRequest = null,
   onManualCommitMessageSettled,
-  onRefreshGit,
+  onRefreshGit: onSourceRefreshGit,
   className,
   triggerIconOnly = false,
   triggerLayout = "header",
@@ -156,6 +170,12 @@ export function GitActionMenu({
     originWorkspaceIdentity ?? workspaceIdentity,
     executionSessionId ?? "",
   );
+  const onRefreshGit = useCallback(() => {
+    // 独立审核结算时刷新原插槽，不能触发主窗口当前其他会话的刷新回调。
+    const host = useCommitReviewNavigationStore.getState().paneHosts[paneScope];
+    if (host?.onRefresh && host.element.ownerDocument !== document) host.onRefresh();
+    else onSourceRefreshGit();
+  }, [onSourceRefreshGit, paneScope]);
   const publicationVisible = useCommitReviewNavigationStore(
     (state) => state.publicationHosts[paneScope]?.visible ?? false,
   );

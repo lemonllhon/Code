@@ -2028,8 +2028,13 @@ app.whenReady().then(async () => {
       });
     },
     browserViewResidencyHandlers: {
-      detachBrowserGuest: (key, webContentsId, windowId) =>
-        browserGuestManager.detachGuestBeforeReplacement(key, webContentsId, windowId),
+      detachBrowserGuest: (key, webContentsId, windowId, preservePageState) =>
+        browserGuestManager.detachGuestBeforeReplacement(
+          key,
+          webContentsId,
+          windowId,
+          preservePageState,
+        ),
       closeBrowserTab: (payload) => browserGuestManager.closeTabFromRenderer(payload),
       reportBrowserTabResidency: (payload) => browserGuestManager.reportResidency(payload),
       acknowledgeBrowserTabSuspend: (payload) => browserGuestManager.acknowledgeSuspend(payload),
