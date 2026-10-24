@@ -299,13 +299,13 @@
     "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
     "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
     "importRevision": "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a",
-    "provenance": "Base runtime module snapshots and exact package versions are recorded in provider-auth/vendor/manifest.json; the generated worker embeds these verified source snapshots. The ZCode 0.1.24 package override and additional Qoder and Zen Free notices are registered separately.",
+    "provenance": "Base runtime module snapshots and exact package versions are recorded in provider-auth/vendor/manifest.json; the generated worker embeds these verified source snapshots. The six per-package overrides and additional Qoder and Zen Free notices are registered separately.",
     "roots": [
       "packages/provider-node/src/provider-auth/vendor",
       "packages/provider-node/src/provider-auth/plugins/zcode-local.mjs",
       "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
     ],
-    "scope": "Base vendored provider plugin sources other than the separately recorded ZCode package override, their generated bundle portions, and the site-scoped ZCode credential-format adaptation only; local worker transport and compatibility implementations are not wholly attributed to upstream.",
+    "scope": "Base vendored provider plugin sources other than the separately recorded six package overrides, their generated bundle portions, and the site-scoped ZCode credential-format adaptation only; local worker transport and compatibility implementations are not wholly attributed to upstream.",
     "license": "MIT"
   },
   {
@@ -360,11 +360,11 @@
   },
   {
     "id": "CLIProxyAPI portions retained by Magpie Qoder plugin",
-    "referenceRevision": "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a",
-    "source": "https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/packages/qoder/LICENSE-CLIProxyAPI",
+    "referenceRevision": "421117ef7504bfd62de44c95924fbabb53a03e47",
+    "source": "https://raw.githubusercontent.com/magpie-community/plugins/421117ef7504bfd62de44c95924fbabb53a03e47/packages/qoder/LICENSE-CLIProxyAPI",
     "file": "packages/provider-node/src/provider-auth/vendor/qoder/LICENSE-CLIProxyAPI",
-    "sha256": "93df585e5fa07ead6d47a3ab2dbdf0255782a39fe830022c0274a70394223cc8",
-    "importRevision": "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a",
+    "sha256": "879792e89cf1bdd6a8d446033ec87e30496f97dcafc4656dc53f641509b346a6",
+    "importRevision": "421117ef7504bfd62de44c95924fbabb53a03e47",
     "provenance": "Additional upstream notice copied from the pinned plugins repository. This reference identifies that notice snapshot; it does not assert the original CLIProxyAPI import revision.",
     "roots": ["packages/provider-node/src/provider-auth/vendor/qoder"],
     "scope": "CLIProxyAPI-derived portions of the vendored Qoder plugin only; original notice text is preserved including its original copyright date spelling.",
@@ -463,6 +463,103 @@
       "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
     ],
     "scope": "Upstream-derived protocol behavior and regression scenarios only; process ownership, common refusal classification and Host/worker integration are local work.",
+    "license": "MIT"
+  },
+  {
+    "id": "Magpie commandcode authorization plugin 0.1.15",
+    "referenceRevision": "652f06dc4d5bea1472be05eaa4fe1381c03bf109",
+    "importRevision": "652f06dc4d5bea1472be05eaa4fe1381c03bf109",
+    "source": "https://raw.githubusercontent.com/magpie-community/plugins/652f06dc4d5bea1472be05eaa4fe1381c03bf109/LICENSE",
+    "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
+    "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
+    "provenance": "Exact upstream package bytes, version and SHA-256 are recorded in provider-auth/vendor/manifest.json. Local task/session identity, Host credential CAS and single inference dispatch boundaries are applied only to the verified build copy in vendor-current-provider-patch.mjs.",
+    "roots": [
+      "packages/provider-node/src/provider-auth/vendor/commandcode",
+      "packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs",
+      "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
+    ],
+    "scope": "This package and its generated worker portions only; Host ownership and local compatibility glue retain local provenance.",
+    "license": "MIT"
+  },
+  {
+    "id": "Magpie grok authorization plugin 0.2.1",
+    "referenceRevision": "92d555769b5d5b14282ad053d94fb12318930310",
+    "importRevision": "92d555769b5d5b14282ad053d94fb12318930310",
+    "source": "https://raw.githubusercontent.com/magpie-community/plugins/92d555769b5d5b14282ad053d94fb12318930310/LICENSE",
+    "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
+    "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
+    "provenance": "Exact upstream package bytes, version and SHA-256 are recorded in provider-auth/vendor/manifest.json. Local task/session identity, Host credential CAS and single inference dispatch boundaries are applied only to the verified build copy in vendor-current-provider-patch.mjs.",
+    "roots": [
+      "packages/provider-node/src/provider-auth/vendor/grok",
+      "packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs",
+      "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
+    ],
+    "scope": "This package and its generated worker portions only; Host ownership and local compatibility glue retain local provenance.",
+    "license": "MIT"
+  },
+  {
+    "id": "Magpie qoder authorization plugin 0.2.31",
+    "referenceRevision": "421117ef7504bfd62de44c95924fbabb53a03e47",
+    "importRevision": "421117ef7504bfd62de44c95924fbabb53a03e47",
+    "source": "https://raw.githubusercontent.com/magpie-community/plugins/421117ef7504bfd62de44c95924fbabb53a03e47/LICENSE",
+    "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
+    "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
+    "provenance": "Exact upstream package bytes, version and SHA-256 are recorded in provider-auth/vendor/manifest.json. Local task/session identity, Host credential CAS and single inference dispatch boundaries are applied only to the verified build copy in vendor-current-provider-patch.mjs.",
+    "roots": [
+      "packages/provider-node/src/provider-auth/vendor/qoder",
+      "packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs",
+      "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
+    ],
+    "scope": "This package and its generated worker portions only; Host ownership and local compatibility glue retain local provenance.",
+    "license": "MIT"
+  },
+  {
+    "id": "Magpie trae authorization plugin 0.2.20",
+    "referenceRevision": "8e479f11710394d80d4729c2542de9904829ef76",
+    "importRevision": "8e479f11710394d80d4729c2542de9904829ef76",
+    "source": "https://raw.githubusercontent.com/magpie-community/plugins/8e479f11710394d80d4729c2542de9904829ef76/LICENSE",
+    "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
+    "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
+    "provenance": "Exact upstream package bytes, version and SHA-256 are recorded in provider-auth/vendor/manifest.json. Local task/session identity, Host credential CAS and single inference dispatch boundaries are applied only to the verified build copy in vendor-current-provider-patch.mjs.",
+    "roots": [
+      "packages/provider-node/src/provider-auth/vendor/trae",
+      "packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs",
+      "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
+    ],
+    "scope": "This package and its generated worker portions only; Host ownership and local compatibility glue retain local provenance.",
+    "license": "MIT"
+  },
+  {
+    "id": "Magpie workbuddy authorization plugin 0.1.31",
+    "referenceRevision": "f6588420892a0f2820720db7519b0da60981d7c9",
+    "importRevision": "f6588420892a0f2820720db7519b0da60981d7c9",
+    "source": "https://raw.githubusercontent.com/magpie-community/plugins/f6588420892a0f2820720db7519b0da60981d7c9/LICENSE",
+    "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
+    "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
+    "provenance": "Exact upstream package bytes, version and SHA-256 are recorded in provider-auth/vendor/manifest.json. Local task/session identity, Host credential CAS and single inference dispatch boundaries are applied only to the verified build copy in vendor-current-provider-patch.mjs.",
+    "roots": [
+      "packages/provider-node/src/provider-auth/vendor/workbuddy",
+      "packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs",
+      "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
+    ],
+    "scope": "This package and its generated worker portions only; Host ownership and local compatibility glue retain local provenance.",
+    "license": "MIT"
+  },
+  {
+    "id": "Magpie provider compatibility review 2026-10-24",
+    "referenceRevision": "dd1e8822d916f8aeb085db4db93fc3d79e2263ed",
+    "importRevision": "dd1e8822d916f8aeb085db4db93fc3d79e2263ed",
+    "source": "https://raw.githubusercontent.com/yetone/magpie/dd1e8822d916f8aeb085db4db93fc3d79e2263ed/LICENSE",
+    "file": "packages/provider-node/src/provider-auth/native/LICENSE.magpie",
+    "sha256": "79d2c8444715d4bc453ec4f8a0aaf2051a4c1ee5ac08f5bd2e5848aef87c7572",
+    "provenance": "Bounded adaptations of Antigravity disabled model filtering, Codex historical item status stripping and explicit numeric-offset monthly quota reset rules. Result-sensitive loop warnings and usage aliases are independently implemented in existing Runtime and Settings/query owners; no Magpie gateway or storage implementation is imported.",
+    "roots": [
+      "packages/provider-node/src/provider-auth/native/google-models.ts",
+      "packages/provider-node/src/provider-auth/native/openai-request.ts",
+      "packages/provider/src/quota-reset.ts",
+      "packages/provider-node/src/monthly-quota.ts"
+    ],
+    "scope": "Upstream-derived protocol rules only, with local validation, response ownership and cooldown integration.",
     "license": "MIT"
   }
 ]

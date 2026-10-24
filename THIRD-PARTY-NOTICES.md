@@ -2480,7 +2480,7 @@ The original import revisions of copied components are not recorded in the curre
 
 - Magpie provider cross-platform compatibility backports (MIT): packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-qoder-session-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-devin-empty-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-backports-20261022.test.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/7ee60f825387455db26157ade2740a0f4ddbf3ee/LICENSE. Original import revision: 7ee60f825387455db26157ade2740a0f4ddbf3ee.
 
-- CLIProxyAPI portions retained by Magpie Qoder plugin (MIT): packages/provider-node/src/provider-auth/vendor/qoder. License reference: https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/packages/qoder/LICENSE-CLIProxyAPI. Original import revision: 5d5d86e2251169e0f5c0fd7a884957ac2dbe184a.
+- CLIProxyAPI portions retained by Magpie Qoder plugin (MIT): packages/provider-node/src/provider-auth/vendor/qoder. License reference: https://raw.githubusercontent.com/magpie-community/plugins/421117ef7504bfd62de44c95924fbabb53a03e47/packages/qoder/LICENSE-CLIProxyAPI. Original import revision: 421117ef7504bfd62de44c95924fbabb53a03e47.
 
 - Magpie Zen Free plugin original notice (MIT): packages/provider-node/src/provider-auth/vendor/zen-free. License reference: https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/packages/zen-free/LICENSE. Original import revision: 5d5d86e2251169e0f5c0fd7a884957ac2dbe184a.
 
@@ -2491,6 +2491,18 @@ The original import revisions of copied components are not recorded in the curre
 - Magpie account check-in protocol rules (MIT): packages/provider-node/src/provider-auth/plugins/checkin.mjs. License reference: https://raw.githubusercontent.com/yetone/magpie/707fbb249df755423d3b2b77c6f001dd376d75c4/LICENSE. Original import revision: 707fbb249df755423d3b2b77c6f001dd376d75c4.
 
 - Magpie provider protocol follow-up adaptations (MIT): packages/provider-node/src/provider-auth/plugins/vendor-followup-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-minimax-checkin-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-followup.test.mjs, packages/provider-node/src/provider-auth/plugins/vendor-stream-followup.test.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/1b06308fad9386171c25f377d3ff8fcc4d4f3757/LICENSE. Original import revision: 1b06308fad9386171c25f377d3ff8fcc4d4f3757.
+
+- Magpie commandcode authorization plugin 0.1.15 (MIT): packages/provider-node/src/provider-auth/vendor/commandcode, packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/652f06dc4d5bea1472be05eaa4fe1381c03bf109/LICENSE. Original import revision: 652f06dc4d5bea1472be05eaa4fe1381c03bf109.
+
+- Magpie grok authorization plugin 0.2.1 (MIT): packages/provider-node/src/provider-auth/vendor/grok, packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/92d555769b5d5b14282ad053d94fb12318930310/LICENSE. Original import revision: 92d555769b5d5b14282ad053d94fb12318930310.
+
+- Magpie qoder authorization plugin 0.2.31 (MIT): packages/provider-node/src/provider-auth/vendor/qoder, packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/421117ef7504bfd62de44c95924fbabb53a03e47/LICENSE. Original import revision: 421117ef7504bfd62de44c95924fbabb53a03e47.
+
+- Magpie trae authorization plugin 0.2.20 (MIT): packages/provider-node/src/provider-auth/vendor/trae, packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/8e479f11710394d80d4729c2542de9904829ef76/LICENSE. Original import revision: 8e479f11710394d80d4729c2542de9904829ef76.
+
+- Magpie workbuddy authorization plugin 0.1.31 (MIT): packages/provider-node/src/provider-auth/vendor/workbuddy, packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/f6588420892a0f2820720db7519b0da60981d7c9/LICENSE. Original import revision: f6588420892a0f2820720db7519b0da60981d7c9.
+
+- Magpie provider compatibility review 2026-10-24 (MIT): packages/provider-node/src/provider-auth/native/google-models.ts, packages/provider-node/src/provider-auth/native/openai-request.ts, packages/provider/src/quota-reset.ts, packages/provider-node/src/monthly-quota.ts. License reference: https://raw.githubusercontent.com/yetone/magpie/dd1e8822d916f8aeb085db4db93fc3d79e2263ed/LICENSE. Original import revision: dd1e8822d916f8aeb085db4db93fc3d79e2263ed.
 
 Fig autocomplete source carries the repository's MIT license; the generated registry records npm @withfig/autocomplete@2.692.3 metadata as ISC. The original source MIT notice is retained below.
 
@@ -40094,6 +40106,8 @@ SOFTWARE.
 
 - Magpie account check-in protocol rules: https://raw.githubusercontent.com/yetone/magpie/707fbb249df755423d3b2b77c6f001dd376d75c4/LICENSE
 
+- Magpie provider compatibility review 2026-10-24: https://raw.githubusercontent.com/yetone/magpie/dd1e8822d916f8aeb085db4db93fc3d79e2263ed/LICENSE
+
 
 
 ````text
@@ -40133,6 +40147,16 @@ SOFTWARE.
 
 - Magpie provider protocol follow-up adaptations: https://raw.githubusercontent.com/magpie-community/plugins/1b06308fad9386171c25f377d3ff8fcc4d4f3757/LICENSE
 
+- Magpie commandcode authorization plugin 0.1.15: https://raw.githubusercontent.com/magpie-community/plugins/652f06dc4d5bea1472be05eaa4fe1381c03bf109/LICENSE
+
+- Magpie grok authorization plugin 0.2.1: https://raw.githubusercontent.com/magpie-community/plugins/92d555769b5d5b14282ad053d94fb12318930310/LICENSE
+
+- Magpie qoder authorization plugin 0.2.31: https://raw.githubusercontent.com/magpie-community/plugins/421117ef7504bfd62de44c95924fbabb53a03e47/LICENSE
+
+- Magpie trae authorization plugin 0.2.20: https://raw.githubusercontent.com/magpie-community/plugins/8e479f11710394d80d4729c2542de9904829ef76/LICENSE
+
+- Magpie workbuddy authorization plugin 0.1.31: https://raw.githubusercontent.com/magpie-community/plugins/f6588420892a0f2820720db7519b0da60981d7c9/LICENSE
+
 
 
 ````text
@@ -40160,9 +40184,9 @@ SOFTWARE.
 
 ````
 
-### Notice 93df585e5fa07ead6d47a3ab2dbdf0255782a39fe830022c0274a70394223cc8
+### Notice 879792e89cf1bdd6a8d446033ec87e30496f97dcafc4656dc53f641509b346a6
 
-- CLIProxyAPI portions retained by Magpie Qoder plugin: https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/packages/qoder/LICENSE-CLIProxyAPI
+- CLIProxyAPI portions retained by Magpie Qoder plugin: https://raw.githubusercontent.com/magpie-community/plugins/421117ef7504bfd62de44c95924fbabb53a03e47/packages/qoder/LICENSE-CLIProxyAPI
 
 
 

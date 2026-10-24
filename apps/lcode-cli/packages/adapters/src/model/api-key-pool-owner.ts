@@ -325,7 +325,7 @@ export class ApiKeyPool {
           rateObserved = true;
           const hint = readRateLimitHint(headers);
           if (hint.scope !== "key") {
-            this.shared.extend(hint.delayMs);
+            this.shared.extend(hint.delayMs, hint.resetAt);
             return;
           }
           rejected = true;

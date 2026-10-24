@@ -30,7 +30,7 @@ export function prepareResponses(incoming: Json, channel: OpenAIChannel, instruc
     typeof body.input === "string"
       ? [{ type: "message", role: "user", content: [{ type: "input_text", text: body.input }] }]
       : list(body.input).map((item) => {
-          const value = record(item);
+          const value = { ...record(item) };
           return value.role === "system" ? { ...value, role: "developer" } : value;
         });
   const ownInstructions = text(body.instructions);
@@ -134,8 +134,10 @@ function codexInput(input: Json[]): Json[] {
     .map((item) => {
       const type = text(item.type),
         id = text(item.call_id).trim();
-      if (["function_call_output", "custom_tool_call_output"].includes(type) && !id) return item;
       delete item.id;
+      // 回放的完成状态属于上次响应，ChatGPT 会拒绝把它当作新输入；不修改原始历史。
+      delete item.status;
+      if (["function_call_output", "custom_tool_call_output"].includes(type) && !id) return item;
       if (
         Object.values(outputs).includes(type) &&
         calls.get(id) !== type &&

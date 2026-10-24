@@ -251,7 +251,9 @@ export class GoogleModels {
       .flatMap((sort) => list(record(sort).groups).flatMap((group) => list(record(group).modelIds)))
       .map(text);
     const entries = Object.entries(record(raw.models)).filter(
-      ([id]) =>
+      ([id, value]) =>
+        // 厂商明确禁用的模型不可展示；否则选择后只会得到 404。
+        record(value).disabled !== true &&
         !id.startsWith("chat_") &&
         !id.startsWith("tab_") &&
         !["gemini-2.5-pro", "gemini-2.5-flash-thinking"].includes(id),
@@ -261,7 +263,7 @@ export class GoogleModels {
         (order.includes(a) ? order.indexOf(a) : Infinity) -
         (order.includes(b) ? order.indexOf(b) : Infinity),
     );
-    if (!entries.length) {
+    if (!entries.length && !Object.keys(record(raw.models)).length) {
       this.loaded = true;
       this.fellBack = true;
       return agFallback.map(([id, name]) => ({

@@ -8,6 +8,11 @@ import { fileURLToPath } from "node:url";
 // Explicit maintenance command; never runs while a user signs in.
 const revision = "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a";
 const overrides = {
+  commandcode: { revision: "652f06dc4d5bea1472be05eaa4fe1381c03bf109", version: "0.1.15" },
+  grok: { revision: "92d555769b5d5b14282ad053d94fb12318930310", version: "0.2.1" },
+  qoder: { revision: "421117ef7504bfd62de44c95924fbabb53a03e47", version: "0.2.31" },
+  trae: { revision: "8e479f11710394d80d4729c2542de9904829ef76", version: "0.2.20" },
+  workbuddy: { revision: "f6588420892a0f2820720db7519b0da60981d7c9", version: "0.1.31" },
   zcode: { revision: "d1b65007ffd3e271fd1e4e95afc2b6965fc48538", version: "0.1.24" },
 };
 const names = [

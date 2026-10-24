@@ -53,6 +53,7 @@ for (const status of [401, 403, 502])
           message: "Qoder is busy for fixture; try again in 13s",
           retryAfter: 13,
           signIn: "",
+          queue: { modelKey: "fixture", retryAfterSeconds: 12.2 },
         },
       );
     assert.equal(m.failure(401, JSON.stringify({ code: "105", message: inner })).status, 401);

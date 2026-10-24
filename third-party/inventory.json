@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "inputHashEncoding": "UTF-8 with CRLF normalized to LF; notice and source snapshot hashes remain byte-exact",
   "scope": "Production dependency union across current workspace projects, copied source/assets, native search tools and the bundled mise backend; not a per-installer SBOM or a certification of all licensing obligations.",
-  "noticesSha256": "3fd9b2971c27011931a2c3ca0730be8da1619a68e6a1fdaf78ae028bb1af22d8",
+  "noticesSha256": "16f34ab6544d0d29d75a0a51a1e29e6d782d385e8878208c6c91d15c6dfeaa05",
   "inputs": {
     ".agents/skills/agent-browser/references/authentication.md": "03776b640f377e030c419aa5ad53ec4de5babe69dc37b495d432cd318727ca03",
     ".agents/skills/agent-browser/references/commands.md": "532584b4c03bdbd47acde121edadbffd83a8f3a020f7750f923c6dd789302604",
@@ -1406,7 +1406,9 @@
     "packages/lcode-server-cli/package.json": "9d824802017245a14e355315d5e659a572e7a94fcd540ca9437c189df8614b85",
     "packages/model-option-map/package.json": "a9f720efdb353f556d01ea866bb15ac0201c155fb305a4246e6a323384770aba",
     "packages/provider-node/package.json": "16445de5c44c5578a511e89a9f4284e20aa8e1045d1621500825295d6049edd2",
+    "packages/provider-node/src/monthly-quota.ts": "8ebcb29b7f2e3472b0f23051cfa35509591b02c4bd735b8626b482c6a134ded5",
     "packages/provider-node/src/provider-auth/native.ts": "f3cc90c02acc138f06bc55da3560e3b95fe5e5d19a29c8e0bf057bf263d194db",
+    "packages/provider-node/src/provider-auth/native/absorption-20261024.test.ts": "097f5214dbe35b6fc92a15f8b938107fc8d1657c1a91973e383277b4ce094858",
     "packages/provider-node/src/provider-auth/native/account-refresh.test.ts": "2f77ffc4c332802cff0b7dbb762c52fd0fdd95e8ff053f72cf23612ca72db67d",
     "packages/provider-node/src/provider-auth/native/account-refresh.ts": "891962c85ce0002ffa8d73c8dbe3b5b1bd1a65f157c0b949bc93af8adae9bc30",
     "packages/provider-node/src/provider-auth/native/authorization-diagnostics.test.ts": "b6543ff731946e9091d7a738a66d9a7957ba5ae284fe22480c35451efed70372",
@@ -1447,7 +1449,7 @@
     "packages/provider-node/src/provider-auth/native/copilot-version.test.ts": "f467bf65a112df45f4d50abd97d9428c5e03c8e321b40a7a11adc24f71823e26",
     "packages/provider-node/src/provider-auth/native/copilot.ts": "3597a85e0c9866bb7aaa6bc0d2db89036aa0d49885fdf12231837aada9cc6fda",
     "packages/provider-node/src/provider-auth/native/google-capabilities.ts": "2a2704048ca2dca9a07b6eeecf8e94699bc8699f6fe74f98d1036c3bcdbf2edc",
-    "packages/provider-node/src/provider-auth/native/google-models.ts": "3ef4bdd923a2870f9e9b71ea45b0a7f6ebee70f873794cffd3bb424eb8a22525",
+    "packages/provider-node/src/provider-auth/native/google-models.ts": "583f3121de6885345634b170eae49871df47edb5b517c91b23fb693ee13ae249",
     "packages/provider-node/src/provider-auth/native/google-quota-error.test.ts": "079caf80e39beb94b59002243b70de2cf787671b45ebd8773a98c9507c4a2d4d",
     "packages/provider-node/src/provider-auth/native/google-quota-error.ts": "b626fa93c0c943c44612dbc0ed2b42ec478e86d5166dc36d8ea9aad3975884f4",
     "packages/provider-node/src/provider-auth/native/google-refresh.test.ts": "a6dedc6bbc96e52168dff5b1a538d89526d79cf77e74e791c8b1da87c92cf875",
@@ -1467,7 +1469,7 @@
     "packages/provider-node/src/provider-auth/native/native.test.ts": "69da852e05bc64c58bb99e6e91c4827b0206bf18ba07389390ba8d7dee73d915",
     "packages/provider-node/src/provider-auth/native/openai-refresh.test.ts": "5b4728072c946342e6b1e8932ad6647131d89dff7877e62b33654e60036891d4",
     "packages/provider-node/src/provider-auth/native/openai-refresh.ts": "383d8bd20a3804fb58dde29120d634642e6e60577a491f8a7f109d65bfdab772",
-    "packages/provider-node/src/provider-auth/native/openai-request.ts": "5dc5bd9f5841b0b5b1648b486edfce54dfaf0ea65849d6ffbfb7f1c2e537e218",
+    "packages/provider-node/src/provider-auth/native/openai-request.ts": "e2cf760712d3dbeb12628ae3d80b778b786b7c2d21e7542b34c681d8c511d0e8",
     "packages/provider-node/src/provider-auth/native/openai.ts": "e157952ab47b860d3ef67f7c2b7e4063078e0316dffb1dffdfea81020fba3ffd",
     "packages/provider-node/src/provider-auth/native/parity.test.ts": "f89b80b4b3c778fd0c50ce16acb17453e0c94eecbef4c867693b9f2ae235b487",
     "packages/provider-node/src/provider-auth/native/quota-http.test.ts": "ed55595a17bc3497a6dc34d2587be35bb25f594b3210fbaaad60f6e25ec66ea5",
@@ -1479,35 +1481,36 @@
     "packages/provider-node/src/provider-auth/plugins/checkin.mjs": "1783c3b8c05d84d592724d185e1a14c639698753d12c6503ad4eec71b5cd25e9",
     "packages/provider-node/src/provider-auth/plugins/factory-import.mjs": "5c9ed1cce9ab4e3538b21996e7d17df002964e3bacc64ba868f01153f564652d",
     "packages/provider-node/src/provider-auth/plugins/method-details.mjs": "81af1536b6f35061208824323f09956dd3409ca9d850b3f3c7e30b1bfdcd31e5",
-    "packages/provider-node/src/provider-auth/plugins/vendor-backports-20261022.test.mjs": "e2eb0e820c3d7e9e111dda951a2415ad04b35cea9e11f464890124725b2f86e6",
-    "packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs": "1568382088138c81466e0268ffaf54b1f565676cdfcf203484dc52dc063e5be4",
+    "packages/provider-node/src/provider-auth/plugins/vendor-backports-20261022.test.mjs": "3303c330466673eca54fca8ac086ee879e54ba8fba740f11931763d3b831428e",
+    "packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs": "b4132dcb8a115e641e8c969e40a98cfc43a8f59b417bd88ea627e62513cbe655",
+    "packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs": "3eb2ac0af6b14e6d9483e1c4b7dd9d45ce85235b24e476eb8a65e7f8078ad2e9",
     "packages/provider-node/src/provider-auth/plugins/vendor-devin-empty-patch.mjs": "301619e9b74a36447b292a506bc26b54549cd5f93cc345b4e2eeee400d0cc774",
     "packages/provider-node/src/provider-auth/plugins/vendor-devin-images-patch.mjs": "785df4afc54a923a7fece9ef3d5ece8de3b4743a60fe3bb94a0147c6c7c21e1a",
     "packages/provider-node/src/provider-auth/plugins/vendor-followup-patch.mjs": "2322ece0cd613641537fb5b28640131e39db84f757277dc5f115922f361d27c6",
     "packages/provider-node/src/provider-auth/plugins/vendor-followup.test.mjs": "842b9089954acc35891b75b7013a5f81a8b12f7b4f8451d9ea93006d51e69ca7",
     "packages/provider-node/src/provider-auth/plugins/vendor-minimax-checkin-patch.mjs": "4982ddd60cba4e0b6a115683a02eb0fe87084f99610f01b7486266f984710478",
-    "packages/provider-node/src/provider-auth/plugins/vendor-qoder-session-patch.mjs": "2dcabd2257631fac9a70ccc2fa861297600056a5964463fc70b548d8bb94d650",
+    "packages/provider-node/src/provider-auth/plugins/vendor-qoder-session-patch.mjs": "0e4611f053a86c74ded5d0393a8732925b018b35b77f82493532ee17af00f306",
     "packages/provider-node/src/provider-auth/plugins/vendor-stream-followup.test.mjs": "50b901d64cfd53a4d149c875b65235b5ba86de8dbf1a119b2d747363a78cf3c3",
     "packages/provider-node/src/provider-auth/plugins/vendor-zed-organization-patch.mjs": "4d1a276d9b59fe872a20cc1fe9cd9446f842819252b5063df0d3b9a28b755af4",
-    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "d73f47882327f11f58838aaf0727d868f134c34af8836ebfe152326461134b2c",
+    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "2555f2494d26e435dcd6816e3e217dab7a1089be0659c0e5393ce9f3e0990897",
     "packages/provider-node/src/provider-auth/plugins/zcode-local.mjs": "c8b91d4414eed9c9edd0e227a06141d0c75bb1601abc5cef177be01ca21952e4",
     "packages/provider-node/src/provider-auth/vendor/cline/index.mjs.source": "17d11f1c35c4201152478a183961d03431ac795c7bc4be44189825f2d3e84272",
-    "packages/provider-node/src/provider-auth/vendor/commandcode/index.mjs.source": "54b6112ce2a93d645fa9f87327109bdffd42c8088b010b9194fa5fefb56fb549",
+    "packages/provider-node/src/provider-auth/vendor/commandcode/index.mjs.source": "49dee48cb00f14c54f6ae233a931156f20eeb5bd7125f4c8d5debbf05bea826b",
     "packages/provider-node/src/provider-auth/vendor/cursor/index.mjs.source": "5f49425c23951e9810b7bf8b6a7e453e38e59110c4f29477c0c808ac2a098028",
     "packages/provider-node/src/provider-auth/vendor/devin/index.mjs.source": "93a84a78d1dd2090c6475f04f2faa3f8769fa69ff690bc6cc12c1a0a319d58b9",
     "packages/provider-node/src/provider-auth/vendor/factory/anthropic-tools.mjs.source": "126ce93ce459b5a0f83788eba07b6df179528251d15ed905d7c68230f0531e44",
     "packages/provider-node/src/provider-auth/vendor/factory/index.mjs.source": "68e7a21dc067d6f4383e14ec97305fd182252cf6708bc377d6387b040c6fd70a",
-    "packages/provider-node/src/provider-auth/vendor/grok/index.mjs.source": "4501575cf0ef8667b89c39f0d237e0095ba31b89e28b9a8530583b3dd8682f36",
+    "packages/provider-node/src/provider-auth/vendor/grok/index.mjs.source": "7d92205acc2d29446edde89b16e456bb3bbbee8befa594e58202936a09020025",
     "packages/provider-node/src/provider-auth/vendor/kiro/index.mjs.source": "b7ca94bfa1510cc0c06f516eb2558bbfde7a7aab7c3639fec2a335535c588b33",
     "packages/provider-node/src/provider-auth/vendor/LICENSE": "5e8730b694ba31696dd68d693f8bf5e2c75f7e40fd5f6fbc3f067cf9490b24fb",
-    "packages/provider-node/src/provider-auth/vendor/manifest.json": "b151c0ccff9d6e1e081ee2acfecb2f23fbef8860f9483c3e9a66d55fd9b1798c",
+    "packages/provider-node/src/provider-auth/vendor/manifest.json": "aabee826e51a5062a7a7b7ae05d02891e2ec31e3eadf333082685e074f002155",
     "packages/provider-node/src/provider-auth/vendor/mimo/index.mjs.source": "89aa0ffcf608e68b897fabdaef7f56da2bed360b526aa2c0cb4b45e11db40908",
     "packages/provider-node/src/provider-auth/vendor/minimax/index.mjs.source": "d071779007b8507d307a0e011fac8a469bb9bc61eba451efc6da3957505b2016",
-    "packages/provider-node/src/provider-auth/vendor/qoder/index.mjs.source": "604c3e2b34f764f5a92f2a63a2555c583498f7b572b347de8e95b6ac2409075c",
+    "packages/provider-node/src/provider-auth/vendor/qoder/index.mjs.source": "13f71f584cdbf6e01a13b3e7c6642f1b79a33cd943c5d5da60d2704f99c71063",
     "packages/provider-node/src/provider-auth/vendor/qoder/LICENSE-CLIProxyAPI": "879792e89cf1bdd6a8d446033ec87e30496f97dcafc4656dc53f641509b346a6",
-    "packages/provider-node/src/provider-auth/vendor/README.md": "f00284dd56e4a5a5c61a6b23cb7d83187eb1232a891290ea1e4cd5306b0ba104",
-    "packages/provider-node/src/provider-auth/vendor/trae/index.mjs.source": "1927b58cdfe315c5f13721728d3bd8d2cb615fd990d6ef626c124578ac7fd5d2",
-    "packages/provider-node/src/provider-auth/vendor/workbuddy/index.mjs.source": "9ca75031d6c173bc90ac5124f542906478c96efbe6253f57c5cd7767aa753585",
+    "packages/provider-node/src/provider-auth/vendor/README.md": "9d27ab96e8cb782f995c0f87caedd3fa2fb0c89e49b3c263bedde0e4f116321e",
+    "packages/provider-node/src/provider-auth/vendor/trae/index.mjs.source": "fb328f78af200df1bae99ce4a0299c1f0bec9e7fdf833d762ce27a83f332d2c0",
+    "packages/provider-node/src/provider-auth/vendor/workbuddy/index.mjs.source": "c25a2176ef8b9d491e83716642dddfadf1d9b5a41b365f7fe6b1ecc97a06c511",
     "packages/provider-node/src/provider-auth/vendor/zcode/index.mjs.source": "b8b3f2e0858f1d4bac005adbc9fe9368511002c9d6a1f8956c5b2d6449204a17",
     "packages/provider-node/src/provider-auth/vendor/zcode/prompt.mjs.source": "d33385ed84db77b7fc9fec59c9779d8dc4663be678fc3f6eef884d026d5df2ca",
     "packages/provider-node/src/provider-auth/vendor/zed/index.mjs.source": "9e658f561db6b2c5cf14848c355555cb982f9851c164d5a60d31988a3467f489",
@@ -1518,6 +1521,7 @@
     "packages/provider-node/src/provider-auth/vendor/zen-free/stream.mjs.source": "d55af1d15b7f1481c4ab3df65b79e25020dcdfbbe26d9751d1ccdbbdd52c107f",
     "packages/provider-node/src/provider-auth/vendor/zen-free/tool-response.mjs.source": "cc5fa25a0ee3ee7b4e645176e1ae4d50a6c11f0c218b23310505aa0cc6f4c58a",
     "packages/provider/package.json": "1d3b6fd8141a349633feaa3faff6005d0af9757a29fd99959c42419951e52c52",
+    "packages/provider/src/quota-reset.ts": "a366e5450c9c7bb489be7103e1adbffc481982242e4b8b90b6034ab2f94bdb4f",
     "packages/provider/src/tool-schema.ts": "c4a6075ef10c4d5ee1679efe0ab1cd02dba9e6f6780c5b2017ed665f616477a2",
     "packages/rpc/examples/01-basic-ipc.ts": "bb4423c1642918846010f9307262c379536ca9541d79df6ebba120b5cf792f3e",
     "packages/rpc/examples/02-proxy-channel.ts": "66dda9aec12cd46da8a56560cb765a3de590917bbc40f329185e6fd05a388fff",
@@ -1606,7 +1610,7 @@
     "packages/ui/src/components/ai-elements/toolbar.tsx": "aa52a585ca7fd4e26357a037f8109abc31b0579eae4c553bc05b5f6ed32731f2",
     "packages/ui/src/components/ui/accordion.tsx": "4a72f846da91bdeac1dbba849572132b98c8b96f0b03e611f46d0f3e41791947",
     "packages/ui/src/components/ui/alert-dialog-layering.test.ts": "142a27fa7e29fc221bcb293ee12a49481412a3d711ce2996744ca2a573f01c6d",
-    "packages/ui/src/components/ui/alert-dialog.tsx": "1d1f42eaef458c41b32cc04566ed90521976b1f5ae9205b576659e3d5060d37e",
+    "packages/ui/src/components/ui/alert-dialog.tsx": "4b9f75787bd5480a66e71e43a9ad5227542f844072c5d69e48fcc5ca438702a2",
     "packages/ui/src/components/ui/alert.tsx": "5f29338fc9b767994b39849edeac71ee91dc1fd4a875252b40c5cf9001b1c0a7",
     "packages/ui/src/components/ui/avatar.tsx": "5d87a3860936de1795099bc995ca64b2d5a9179caa74385b4e5de5fd3ee59725",
     "packages/ui/src/components/ui/badge.tsx": "afb0012489e63fca096e064f0cb2fcab7f78e258359a82ce959c69acaa91aa13",
@@ -1618,22 +1622,23 @@
     "packages/ui/src/components/ui/code-viewer.tsx": "a6350e6bf637aa5e32a3d059a40de5fdd2313e614e3b969bf73c94088a62e325",
     "packages/ui/src/components/ui/collapsible.tsx": "e00f7ad26cc4c168f8c6b20e6078512807ddca05e375e47b6c9dbbd50fcbef52",
     "packages/ui/src/components/ui/command.tsx": "7c754bc80704163ce505d08d961a5a4b3e57107e7d53ea319483a896d448cbdb",
-    "packages/ui/src/components/ui/context-menu.tsx": "9ce43fa2f504b3d2c34c9746f4517a73b6d2a8e6c76023900f2466200ff0d5de",
-    "packages/ui/src/components/ui/dialog.tsx": "4f322e807430e97d4458a377d82f081cf63f0bfb4aad7af1ffdc6bfb4a40bca7",
+    "packages/ui/src/components/ui/context-menu.tsx": "823d2a220ae361d7c90464177f828d8b91c53fd6b110312542d005951ba535e0",
+    "packages/ui/src/components/ui/dialog.tsx": "5b624d5dcc8bc2c9b32a538a520d4d7acbc1de828bdd63958797bfbbe41e5493",
     "packages/ui/src/components/ui/diff-viewer.tsx": "dcfa8e3222c730bf6a0461d0dd42f2d8c41e3f2e2bfecf566fa1b40833a63561",
-    "packages/ui/src/components/ui/dropdown-menu.tsx": "644bd9ac0b8788920ed01589d729638e45fd4a8e21f5ef9a2b8b675bcb079b10",
+    "packages/ui/src/components/ui/dropdown-menu.tsx": "46641020d4318f23883546cfdaa0645ec2ec79cf16d6693be7f7a7917ff5eb90",
     "packages/ui/src/components/ui/flip-metric-value.tsx": "ce2d6cf063003e1023191b0fa4e3eb9b365e04a14eb0d498b897326600bf4071",
     "packages/ui/src/components/ui/GlmMonochromeIcon.tsx": "1a1db9e6b61e49c524cfffb1d5d323a23c5d7f62ffb1cbc7d480da41ed73061d",
     "packages/ui/src/components/ui/highlighted-lightweight-diff-preview.tsx": "9f15ead11e59986d8ef072074118e3192f5d7dc27968dbb76f88d5998d2103ba",
-    "packages/ui/src/components/ui/hover-card.tsx": "28e49fb55a3fd4f5bfc5d61f336854304bc92c5a7098305b208274913b226f3d",
+    "packages/ui/src/components/ui/hover-card.tsx": "e0ad7c76efc923d0a9f59257054c5b40cf494ab9d8005e27ed84f0b5e168fba1",
     "packages/ui/src/components/ui/input-group.tsx": "fe6c3288aeb35c1924601ce8c1ff11c4f710f1087bb32daa836f5dc850429505",
     "packages/ui/src/components/ui/input.tsx": "828e3ed2a362644c357484e753bbb204317d8b9f3ac8b6ff01f6d0388884a59c",
     "packages/ui/src/components/ui/kbd.tsx": "a7fabb33892c759337ae5c936d3b62f27fb2356a5a6340dbff8bfbac6f0a359f",
     "packages/ui/src/components/ui/label.tsx": "717bd1167a7c8c136abfe0b3e23e8cfcb38abbe51b04c74d6d01ba1ea0b53fa5",
     "packages/ui/src/components/ui/LCodeAboutLogo.tsx": "916563e770789e91a39f3010740f88c46bd3e09cbeb8a245553147b3ce97e46e",
     "packages/ui/src/components/ui/lightweight-diff-preview.tsx": "54aeef56cde6fe0683c9fb255f0391e9e4fe01952da0820297c36dc0a7525425",
+    "packages/ui/src/components/ui/owner-document.tsx": "09fac3af1895cb578ff2dab657c00eb169cf65785cb8c04572a6632491989800",
     "packages/ui/src/components/ui/pdf-viewer.tsx": "73db21c33a697a0c896059b23c645c2699ad4cb2fd57912297b73025b6bd9561",
-    "packages/ui/src/components/ui/popover.tsx": "d4b85beb13363c9079d895864383dc3fa7f3141164e6f1d5a2ad4d4ba383ecd6",
+    "packages/ui/src/components/ui/popover.tsx": "68ff547faf4c87e5d978471ded1bf33e9c2b78c08252561a8160e308779ba685",
     "packages/ui/src/components/ui/pptx-preview-viewer.tsx": "a5e9e16e321af171a6fa59fd6d1b197efcdc3ecae520cf9c65be795f497ee471",
     "packages/ui/src/components/ui/pptx-selection-action-bar.tsx": "6e7187b7f527e4a97df117cc0df85d2dd8f4408d7415aec2e4907db39a331efd",
     "packages/ui/src/components/ui/progress.tsx": "ba88ffa75ad78eaa23519c7af84e11679ca2b8e4508c57759d769462811c0ec5",
@@ -1641,7 +1646,7 @@
     "packages/ui/src/components/ui/resizable.tsx": "83425c34fb76c35276e6dbf8d7ad0ee860b4536ba9d4cfd8e8a60aec3b7cabc4",
     "packages/ui/src/components/ui/scroll-area.tsx": "83999d597a4a417aea402e833884826539b9aa1bd1ec966aa2f6dab9a97afb3c",
     "packages/ui/src/components/ui/scroll-fade-viewport.tsx": "50e5984232b6a7d59e872aab4ebb36ae837e2865e3a770adbc234b61c2531da1",
-    "packages/ui/src/components/ui/select.tsx": "77ebb7e077ef1ea7747d4d3de0d4196c999029d6e05cb82c87bf2f39ac83718d",
+    "packages/ui/src/components/ui/select.tsx": "b43b96f148130af15f34a2b8077105a95035d2cdd470890150c2486b5002db8b",
     "packages/ui/src/components/ui/separator.tsx": "31ade0b9a0eca6689226c94d479352416ef076859980a976422a8af17879dee2",
     "packages/ui/src/components/ui/spinner.tsx": "1b5bfd868b51bb40104ebc2fd4b6485d586a087a5dfee49655cc406d462d2b6a",
     "packages/ui/src/components/ui/switch.tsx": "35ea68670fbadd83f9a8fbf8dc8853abde0d7b4c911dabfd40ee00fdc0f80c13",
@@ -1649,7 +1654,7 @@
     "packages/ui/src/components/ui/textarea.tsx": "aa135667c2b7912da3f087930543d4142920eb53d8a4e304848c3dcca103d037",
     "packages/ui/src/components/ui/ThemeSwatch.tsx": "78903a21a1c14e53c52b0cd162bca77a839f90142a210c772c1bc5848bedc8fb",
     "packages/ui/src/components/ui/toast.tsx": "f943c4e20390137ea0cc02ab35a6694558695482886bb8d5bde507e40689ddb1",
-    "packages/ui/src/components/ui/tooltip.tsx": "302dde4dfbb1d4ef86b17319fd0fa0fb8be8f2f83ea66c08ff5cfe4309a3d295",
+    "packages/ui/src/components/ui/tooltip.tsx": "f41b2ae7f78a1defc012a947cf02e8e0901708adcfe16b3689c5d6ef194fe6f7",
     "packages/ui/src/components/ui/usePdfZoomOverlay.ts": "c8c91b003ce2fded32c7a2369dc6eac43aa4b9dc9c830a0f5ceccb21d366b610",
     "packages/ui/src/lib/builtinSkillI18n.ts": "0a177a74855a0b4fa344bc633bfbf4dcc4b14d577f3c73b931cf279f74df7485",
     "packages/ui/src/styles.css": "e10be3373da24b7850e632fb926c5373158eb47f3fde0f48ff35d70278789243",
@@ -2813,7 +2818,7 @@
     "scripts/license-texts/Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     "scripts/native-search-tools-config.mjs": "a060f816ae023eab43a0409a8a81f20582a4ad101e391ae948ffb44956ede05e",
     "scripts/remote-native-search-tools-config.mjs": "95a525ddbaf4aeddb8ff03d841a86fad42af82c7a02a16afd6caba1171cd854a",
-    "third-party/copied-components.json": "eaf0b8b4e2c31a2b04865bd0ad207ee0aa6cfc53b900feb1f68b90a0bcbdf018",
+    "third-party/copied-components.json": "92b0417a9635edf6279e3f5a35709f6d23733dfd356f677dfce4c38847a5698e",
     "third-party/embedded-components.json": "9586ccca15897f56d4ca1d703dffe9e02880fedd766c1dff93f7ac1f52ea891a",
     "third-party/mise/LICENSE.txt": "4d22d6f9222adef0a45ef895bfdd6f71d6394b1784b1001a4bebb4298b8ddc69",
     "third-party/mise/sources.json": "813e101f64ef00dfd0a2b6813513849ea6be8acb84a8b8d6ce2d20ac49aed1ea",
@@ -19559,7 +19564,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/alert-dialog.tsx",
-          "sha256": "91592d5827a330a50c8d09a69ebb77dfa9f01adead22e673d7b6a2a116634a74"
+          "sha256": "c01fb398843ed26b77c25447e19f72118716e4694f8b3d2f099a17b9c2d71905"
         },
         {
           "file": "packages/ui/src/components/ui/alert.tsx",
@@ -19607,11 +19612,11 @@
         },
         {
           "file": "packages/ui/src/components/ui/context-menu.tsx",
-          "sha256": "3ef3af3ebf34b3ce66b120ed8c584097c6b59d0edd05be01e4d395d45e267360"
+          "sha256": "dc43e12117085c28f9251f736672f72510b7e28f2874af1f0549b49094de4a05"
         },
         {
           "file": "packages/ui/src/components/ui/dialog.tsx",
-          "sha256": "4f322e807430e97d4458a377d82f081cf63f0bfb4aad7af1ffdc6bfb4a40bca7"
+          "sha256": "5b624d5dcc8bc2c9b32a538a520d4d7acbc1de828bdd63958797bfbbe41e5493"
         },
         {
           "file": "packages/ui/src/components/ui/diff-viewer.tsx",
@@ -19619,7 +19624,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/dropdown-menu.tsx",
-          "sha256": "1134e3ecd5851e33167f0438a8406dccd96cb99983115830dd766fab9d002813"
+          "sha256": "c255a46f75aa617fb5eedd3eede1041e86c30768519fd139ae7243e566a10a6e"
         },
         {
           "file": "packages/ui/src/components/ui/flip-metric-value.tsx",
@@ -19631,7 +19636,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/hover-card.tsx",
-          "sha256": "5bc09e9b38ce0855e926888bd8fb36abf4cbc1a480ec59bb350c9d7b3832a0e4"
+          "sha256": "7fb9a797bd08d889e25d14fde0987fef4c6290144094b3a8f49dda67b673ca28"
         },
         {
           "file": "packages/ui/src/components/ui/input-group.tsx",
@@ -19654,12 +19659,16 @@
           "sha256": "ccdab411700b3db7013f9c86df5e2ff1259d7fba25f2563a5cc0060293950a8b"
         },
         {
+          "file": "packages/ui/src/components/ui/owner-document.tsx",
+          "sha256": "09fac3af1895cb578ff2dab657c00eb169cf65785cb8c04572a6632491989800"
+        },
+        {
           "file": "packages/ui/src/components/ui/pdf-viewer.tsx",
           "sha256": "73db21c33a697a0c896059b23c645c2699ad4cb2fd57912297b73025b6bd9561"
         },
         {
           "file": "packages/ui/src/components/ui/popover.tsx",
-          "sha256": "725c163965892cc70100232c6fcb8561f0080fc7753b9ead516e383b30861385"
+          "sha256": "32df46bd314ac93665880d1ef790c4f1f7397b0923af07a1d7b8ea9f6038f9a9"
         },
         {
           "file": "packages/ui/src/components/ui/pptx-preview-viewer.tsx",
@@ -19687,7 +19696,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/select.tsx",
-          "sha256": "bb3051ceab123a7feb709c4bbe82903f7e39b5245126dda12d2385160b589f5e"
+          "sha256": "0a558c321b20cd5caffeba9e9c242b1841191558e371e09c18dac1fbde8cbeb3"
         },
         {
           "file": "packages/ui/src/components/ui/separator.tsx",
@@ -19715,7 +19724,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/tooltip.tsx",
-          "sha256": "6e70d5ce42e00ac0b3dcd3c310887f96be8fa0e2958519ebd49bd91038dfcc34"
+          "sha256": "1512ea87c80db57ebfaf79def97e5e534acf5aec36f9681f6ca3731994a15452"
         },
         {
           "file": "packages/ui/src/components/ui/usePdfZoomOverlay.ts",
@@ -30402,6 +30411,10 @@
           "sha256": "8a0f80346012e6b72e30361d359c29b2995f8055d4fc731add560a7b1658b0f7"
         },
         {
+          "file": "packages/provider-node/src/provider-auth/native/absorption-20261024.test.ts",
+          "sha256": "097f5214dbe35b6fc92a15f8b938107fc8d1657c1a91973e383277b4ce094858"
+        },
+        {
           "file": "packages/provider-node/src/provider-auth/native/account-refresh.test.ts",
           "sha256": "2f77ffc4c332802cff0b7dbb762c52fd0fdd95e8ff053f72cf23612ca72db67d"
         },
@@ -30563,7 +30576,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/google-models.ts",
-          "sha256": "20c9736947180330d7a5d4dd2435b958e4f64ec38b6da2aab911c6fbaa0ae167"
+          "sha256": "583f3121de6885345634b170eae49871df47edb5b517c91b23fb693ee13ae249"
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/google-quota-error.test.ts",
@@ -30639,7 +30652,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/openai-request.ts",
-          "sha256": "999edd6bb053b826172390ac3326688352dd60b5e46f3524f1f4938707573017"
+          "sha256": "e2cf760712d3dbeb12628ae3d80b778b786b7c2d21e7542b34c681d8c511d0e8"
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/openai.ts",
@@ -30687,7 +30700,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "d73f47882327f11f58838aaf0727d868f134c34af8836ebfe152326461134b2c"
+          "sha256": "2555f2494d26e435dcd6816e3e217dab7a1089be0659c0e5393ce9f3e0990897"
         }
       ]
     },
@@ -30698,13 +30711,13 @@
       "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
       "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
       "importRevision": "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a",
-      "provenance": "Base runtime module snapshots and exact package versions are recorded in provider-auth/vendor/manifest.json; the generated worker embeds these verified source snapshots. The ZCode 0.1.24 package override and additional Qoder and Zen Free notices are registered separately.",
+      "provenance": "Base runtime module snapshots and exact package versions are recorded in provider-auth/vendor/manifest.json; the generated worker embeds these verified source snapshots. The six per-package overrides and additional Qoder and Zen Free notices are registered separately.",
       "roots": [
         "packages/provider-node/src/provider-auth/vendor",
         "packages/provider-node/src/provider-auth/plugins/zcode-local.mjs",
         "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
       ],
-      "scope": "Base vendored provider plugin sources other than the separately recorded ZCode package override, their generated bundle portions, and the site-scoped ZCode credential-format adaptation only; local worker transport and compatibility implementations are not wholly attributed to upstream.",
+      "scope": "Base vendored provider plugin sources other than the separately recorded six package overrides, their generated bundle portions, and the site-scoped ZCode credential-format adaptation only; local worker transport and compatibility implementations are not wholly attributed to upstream.",
       "license": "MIT",
       "files": [
         {
@@ -30713,7 +30726,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/README.md",
-          "sha256": "f00284dd56e4a5a5c61a6b23cb7d83187eb1232a891290ea1e4cd5306b0ba104"
+          "sha256": "9d27ab96e8cb782f995c0f87caedd3fa2fb0c89e49b3c263bedde0e4f116321e"
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/cline/index.mjs.source",
@@ -30721,7 +30734,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/commandcode/index.mjs.source",
-          "sha256": "00706b706b77c1c94e5f048965374203437742c7c0bc6fa646a5d806843fa164"
+          "sha256": "49dee48cb00f14c54f6ae233a931156f20eeb5bd7125f4c8d5debbf05bea826b"
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/cursor/index.mjs.source",
@@ -30741,7 +30754,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/grok/index.mjs.source",
-          "sha256": "eeb688f2f807f5b6f87e0aefd80c3522d2725dc21e219f8e0270b1bb4a75704a"
+          "sha256": "7d92205acc2d29446edde89b16e456bb3bbbee8befa594e58202936a09020025"
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/kiro/index.mjs.source",
@@ -30749,7 +30762,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/manifest.json",
-          "sha256": "b151c0ccff9d6e1e081ee2acfecb2f23fbef8860f9483c3e9a66d55fd9b1798c"
+          "sha256": "aabee826e51a5062a7a7b7ae05d02891e2ec31e3eadf333082685e074f002155"
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/mimo/index.mjs.source",
@@ -30761,19 +30774,19 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/qoder/LICENSE-CLIProxyAPI",
-          "sha256": "93df585e5fa07ead6d47a3ab2dbdf0255782a39fe830022c0274a70394223cc8"
+          "sha256": "879792e89cf1bdd6a8d446033ec87e30496f97dcafc4656dc53f641509b346a6"
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/qoder/index.mjs.source",
-          "sha256": "6c864d99cbe6921c566be80da1007ce8e4fb67aff5c34eedf6a526a5fc7b75fe"
+          "sha256": "13f71f584cdbf6e01a13b3e7c6642f1b79a33cd943c5d5da60d2704f99c71063"
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/trae/index.mjs.source",
-          "sha256": "95e0eb8eeabbf81c704fb4b5c55a8fecf2c54f17f76766a31161f9995901eaf8"
+          "sha256": "fb328f78af200df1bae99ce4a0299c1f0bec9e7fdf833d762ce27a83f332d2c0"
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/workbuddy/index.mjs.source",
-          "sha256": "2c39577e6abd11ede94e29d517457008668705a1329a5c43491858666a10e6c8"
+          "sha256": "c25a2176ef8b9d491e83716642dddfadf1d9b5a41b365f7fe6b1ecc97a06c511"
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/zcode/index.mjs.source",
@@ -30817,7 +30830,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "d73f47882327f11f58838aaf0727d868f134c34af8836ebfe152326461134b2c"
+          "sha256": "2555f2494d26e435dcd6816e3e217dab7a1089be0659c0e5393ce9f3e0990897"
         }
       ]
     },
@@ -30846,7 +30859,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "d73f47882327f11f58838aaf0727d868f134c34af8836ebfe152326461134b2c"
+          "sha256": "2555f2494d26e435dcd6816e3e217dab7a1089be0659c0e5393ce9f3e0990897"
         }
       ]
     },
@@ -30869,7 +30882,7 @@
       "files": [
         {
           "file": "packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs",
-          "sha256": "1568382088138c81466e0268ffaf54b1f565676cdfcf203484dc52dc063e5be4"
+          "sha256": "b4132dcb8a115e641e8c969e40a98cfc43a8f59b417bd88ea627e62513cbe655"
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/vendor-devin-images-patch.mjs",
@@ -30881,7 +30894,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "d73f47882327f11f58838aaf0727d868f134c34af8836ebfe152326461134b2c"
+          "sha256": "2555f2494d26e435dcd6816e3e217dab7a1089be0659c0e5393ce9f3e0990897"
         }
       ]
     },
@@ -30905,11 +30918,11 @@
       "files": [
         {
           "file": "packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs",
-          "sha256": "1568382088138c81466e0268ffaf54b1f565676cdfcf203484dc52dc063e5be4"
+          "sha256": "b4132dcb8a115e641e8c969e40a98cfc43a8f59b417bd88ea627e62513cbe655"
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/vendor-qoder-session-patch.mjs",
-          "sha256": "2dcabd2257631fac9a70ccc2fa861297600056a5964463fc70b548d8bb94d650"
+          "sha256": "0e4611f053a86c74ded5d0393a8732925b018b35b77f82493532ee17af00f306"
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/vendor-devin-empty-patch.mjs",
@@ -30917,21 +30930,21 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/vendor-backports-20261022.test.mjs",
-          "sha256": "e2eb0e820c3d7e9e111dda951a2415ad04b35cea9e11f464890124725b2f86e6"
+          "sha256": "3303c330466673eca54fca8ac086ee879e54ba8fba740f11931763d3b831428e"
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "d73f47882327f11f58838aaf0727d868f134c34af8836ebfe152326461134b2c"
+          "sha256": "2555f2494d26e435dcd6816e3e217dab7a1089be0659c0e5393ce9f3e0990897"
         }
       ]
     },
     {
       "id": "CLIProxyAPI portions retained by Magpie Qoder plugin",
-      "referenceRevision": "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a",
-      "source": "https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/packages/qoder/LICENSE-CLIProxyAPI",
+      "referenceRevision": "421117ef7504bfd62de44c95924fbabb53a03e47",
+      "source": "https://raw.githubusercontent.com/magpie-community/plugins/421117ef7504bfd62de44c95924fbabb53a03e47/packages/qoder/LICENSE-CLIProxyAPI",
       "file": "packages/provider-node/src/provider-auth/vendor/qoder/LICENSE-CLIProxyAPI",
-      "sha256": "93df585e5fa07ead6d47a3ab2dbdf0255782a39fe830022c0274a70394223cc8",
-      "importRevision": "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a",
+      "sha256": "879792e89cf1bdd6a8d446033ec87e30496f97dcafc4656dc53f641509b346a6",
+      "importRevision": "421117ef7504bfd62de44c95924fbabb53a03e47",
       "provenance": "Additional upstream notice copied from the pinned plugins repository. This reference identifies that notice snapshot; it does not assert the original CLIProxyAPI import revision.",
       "roots": [
         "packages/provider-node/src/provider-auth/vendor/qoder"
@@ -30941,11 +30954,11 @@
       "files": [
         {
           "file": "packages/provider-node/src/provider-auth/vendor/qoder/LICENSE-CLIProxyAPI",
-          "sha256": "93df585e5fa07ead6d47a3ab2dbdf0255782a39fe830022c0274a70394223cc8"
+          "sha256": "879792e89cf1bdd6a8d446033ec87e30496f97dcafc4656dc53f641509b346a6"
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/qoder/index.mjs.source",
-          "sha256": "6c864d99cbe6921c566be80da1007ce8e4fb67aff5c34eedf6a526a5fc7b75fe"
+          "sha256": "13f71f584cdbf6e01a13b3e7c6642f1b79a33cd943c5d5da60d2704f99c71063"
         }
       ]
     },
@@ -31198,7 +31211,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs",
-          "sha256": "1568382088138c81466e0268ffaf54b1f565676cdfcf203484dc52dc063e5be4"
+          "sha256": "b4132dcb8a115e641e8c969e40a98cfc43a8f59b417bd88ea627e62513cbe655"
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/vendor-followup.test.mjs",
@@ -31210,7 +31223,196 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "d73f47882327f11f58838aaf0727d868f134c34af8836ebfe152326461134b2c"
+          "sha256": "2555f2494d26e435dcd6816e3e217dab7a1089be0659c0e5393ce9f3e0990897"
+        }
+      ]
+    },
+    {
+      "id": "Magpie commandcode authorization plugin 0.1.15",
+      "referenceRevision": "652f06dc4d5bea1472be05eaa4fe1381c03bf109",
+      "importRevision": "652f06dc4d5bea1472be05eaa4fe1381c03bf109",
+      "source": "https://raw.githubusercontent.com/magpie-community/plugins/652f06dc4d5bea1472be05eaa4fe1381c03bf109/LICENSE",
+      "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
+      "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
+      "provenance": "Exact upstream package bytes, version and SHA-256 are recorded in provider-auth/vendor/manifest.json. Local task/session identity, Host credential CAS and single inference dispatch boundaries are applied only to the verified build copy in vendor-current-provider-patch.mjs.",
+      "roots": [
+        "packages/provider-node/src/provider-auth/vendor/commandcode",
+        "packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs",
+        "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
+      ],
+      "scope": "This package and its generated worker portions only; Host ownership and local compatibility glue retain local provenance.",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "packages/provider-node/src/provider-auth/vendor/commandcode/index.mjs.source",
+          "sha256": "49dee48cb00f14c54f6ae233a931156f20eeb5bd7125f4c8d5debbf05bea826b"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs",
+          "sha256": "3eb2ac0af6b14e6d9483e1c4b7dd9d45ce85235b24e476eb8a65e7f8078ad2e9"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
+          "sha256": "2555f2494d26e435dcd6816e3e217dab7a1089be0659c0e5393ce9f3e0990897"
+        }
+      ]
+    },
+    {
+      "id": "Magpie grok authorization plugin 0.2.1",
+      "referenceRevision": "92d555769b5d5b14282ad053d94fb12318930310",
+      "importRevision": "92d555769b5d5b14282ad053d94fb12318930310",
+      "source": "https://raw.githubusercontent.com/magpie-community/plugins/92d555769b5d5b14282ad053d94fb12318930310/LICENSE",
+      "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
+      "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
+      "provenance": "Exact upstream package bytes, version and SHA-256 are recorded in provider-auth/vendor/manifest.json. Local task/session identity, Host credential CAS and single inference dispatch boundaries are applied only to the verified build copy in vendor-current-provider-patch.mjs.",
+      "roots": [
+        "packages/provider-node/src/provider-auth/vendor/grok",
+        "packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs",
+        "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
+      ],
+      "scope": "This package and its generated worker portions only; Host ownership and local compatibility glue retain local provenance.",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "packages/provider-node/src/provider-auth/vendor/grok/index.mjs.source",
+          "sha256": "7d92205acc2d29446edde89b16e456bb3bbbee8befa594e58202936a09020025"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs",
+          "sha256": "3eb2ac0af6b14e6d9483e1c4b7dd9d45ce85235b24e476eb8a65e7f8078ad2e9"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
+          "sha256": "2555f2494d26e435dcd6816e3e217dab7a1089be0659c0e5393ce9f3e0990897"
+        }
+      ]
+    },
+    {
+      "id": "Magpie qoder authorization plugin 0.2.31",
+      "referenceRevision": "421117ef7504bfd62de44c95924fbabb53a03e47",
+      "importRevision": "421117ef7504bfd62de44c95924fbabb53a03e47",
+      "source": "https://raw.githubusercontent.com/magpie-community/plugins/421117ef7504bfd62de44c95924fbabb53a03e47/LICENSE",
+      "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
+      "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
+      "provenance": "Exact upstream package bytes, version and SHA-256 are recorded in provider-auth/vendor/manifest.json. Local task/session identity, Host credential CAS and single inference dispatch boundaries are applied only to the verified build copy in vendor-current-provider-patch.mjs.",
+      "roots": [
+        "packages/provider-node/src/provider-auth/vendor/qoder",
+        "packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs",
+        "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
+      ],
+      "scope": "This package and its generated worker portions only; Host ownership and local compatibility glue retain local provenance.",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "packages/provider-node/src/provider-auth/vendor/qoder/LICENSE-CLIProxyAPI",
+          "sha256": "879792e89cf1bdd6a8d446033ec87e30496f97dcafc4656dc53f641509b346a6"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/vendor/qoder/index.mjs.source",
+          "sha256": "13f71f584cdbf6e01a13b3e7c6642f1b79a33cd943c5d5da60d2704f99c71063"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs",
+          "sha256": "3eb2ac0af6b14e6d9483e1c4b7dd9d45ce85235b24e476eb8a65e7f8078ad2e9"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
+          "sha256": "2555f2494d26e435dcd6816e3e217dab7a1089be0659c0e5393ce9f3e0990897"
+        }
+      ]
+    },
+    {
+      "id": "Magpie trae authorization plugin 0.2.20",
+      "referenceRevision": "8e479f11710394d80d4729c2542de9904829ef76",
+      "importRevision": "8e479f11710394d80d4729c2542de9904829ef76",
+      "source": "https://raw.githubusercontent.com/magpie-community/plugins/8e479f11710394d80d4729c2542de9904829ef76/LICENSE",
+      "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
+      "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
+      "provenance": "Exact upstream package bytes, version and SHA-256 are recorded in provider-auth/vendor/manifest.json. Local task/session identity, Host credential CAS and single inference dispatch boundaries are applied only to the verified build copy in vendor-current-provider-patch.mjs.",
+      "roots": [
+        "packages/provider-node/src/provider-auth/vendor/trae",
+        "packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs",
+        "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
+      ],
+      "scope": "This package and its generated worker portions only; Host ownership and local compatibility glue retain local provenance.",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "packages/provider-node/src/provider-auth/vendor/trae/index.mjs.source",
+          "sha256": "fb328f78af200df1bae99ce4a0299c1f0bec9e7fdf833d762ce27a83f332d2c0"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs",
+          "sha256": "3eb2ac0af6b14e6d9483e1c4b7dd9d45ce85235b24e476eb8a65e7f8078ad2e9"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
+          "sha256": "2555f2494d26e435dcd6816e3e217dab7a1089be0659c0e5393ce9f3e0990897"
+        }
+      ]
+    },
+    {
+      "id": "Magpie workbuddy authorization plugin 0.1.31",
+      "referenceRevision": "f6588420892a0f2820720db7519b0da60981d7c9",
+      "importRevision": "f6588420892a0f2820720db7519b0da60981d7c9",
+      "source": "https://raw.githubusercontent.com/magpie-community/plugins/f6588420892a0f2820720db7519b0da60981d7c9/LICENSE",
+      "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
+      "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
+      "provenance": "Exact upstream package bytes, version and SHA-256 are recorded in provider-auth/vendor/manifest.json. Local task/session identity, Host credential CAS and single inference dispatch boundaries are applied only to the verified build copy in vendor-current-provider-patch.mjs.",
+      "roots": [
+        "packages/provider-node/src/provider-auth/vendor/workbuddy",
+        "packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs",
+        "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
+      ],
+      "scope": "This package and its generated worker portions only; Host ownership and local compatibility glue retain local provenance.",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "packages/provider-node/src/provider-auth/vendor/workbuddy/index.mjs.source",
+          "sha256": "c25a2176ef8b9d491e83716642dddfadf1d9b5a41b365f7fe6b1ecc97a06c511"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/plugins/vendor-current-provider-patch.mjs",
+          "sha256": "3eb2ac0af6b14e6d9483e1c4b7dd9d45ce85235b24e476eb8a65e7f8078ad2e9"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
+          "sha256": "2555f2494d26e435dcd6816e3e217dab7a1089be0659c0e5393ce9f3e0990897"
+        }
+      ]
+    },
+    {
+      "id": "Magpie provider compatibility review 2026-10-24",
+      "referenceRevision": "dd1e8822d916f8aeb085db4db93fc3d79e2263ed",
+      "importRevision": "dd1e8822d916f8aeb085db4db93fc3d79e2263ed",
+      "source": "https://raw.githubusercontent.com/yetone/magpie/dd1e8822d916f8aeb085db4db93fc3d79e2263ed/LICENSE",
+      "file": "packages/provider-node/src/provider-auth/native/LICENSE.magpie",
+      "sha256": "79d2c8444715d4bc453ec4f8a0aaf2051a4c1ee5ac08f5bd2e5848aef87c7572",
+      "provenance": "Bounded adaptations of Antigravity disabled model filtering, Codex historical item status stripping and explicit numeric-offset monthly quota reset rules. Result-sensitive loop warnings and usage aliases are independently implemented in existing Runtime and Settings/query owners; no Magpie gateway or storage implementation is imported.",
+      "roots": [
+        "packages/provider-node/src/provider-auth/native/google-models.ts",
+        "packages/provider-node/src/provider-auth/native/openai-request.ts",
+        "packages/provider/src/quota-reset.ts",
+        "packages/provider-node/src/monthly-quota.ts"
+      ],
+      "scope": "Upstream-derived protocol rules only, with local validation, response ownership and cooldown integration.",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "packages/provider-node/src/provider-auth/native/google-models.ts",
+          "sha256": "583f3121de6885345634b170eae49871df47edb5b517c91b23fb693ee13ae249"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/native/openai-request.ts",
+          "sha256": "e2cf760712d3dbeb12628ae3d80b778b786b7c2d21e7542b34c681d8c511d0e8"
+        },
+        {
+          "file": "packages/provider/src/quota-reset.ts",
+          "sha256": "a366e5450c9c7bb489be7103e1adbffc481982242e4b8b90b6034ab2f94bdb4f"
+        },
+        {
+          "file": "packages/provider-node/src/monthly-quota.ts",
+          "sha256": "8ebcb29b7f2e3472b0f23051cfa35509591b02c4bd735b8626b482c6a134ded5"
         }
       ]
     }

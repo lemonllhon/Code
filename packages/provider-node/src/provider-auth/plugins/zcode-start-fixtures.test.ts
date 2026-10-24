@@ -62,7 +62,7 @@ function grant(channel: string, state: Record<string, unknown> = {}) {
   };
 }
 
-test("only ZCode advances to the recorded 0.1.24 source", async () => {
+test("ZCode 0.1.24 remains pinned alongside the five reviewed provider upgrades", async () => {
   const manifest = JSON.parse(
     await readFile(new URL("../vendor/manifest.json", import.meta.url), "utf8"),
   );
@@ -70,7 +70,13 @@ test("only ZCode advances to the recorded 0.1.24 source", async () => {
   assert.equal(zcode.version, "0.1.24");
   assert.equal(zcode.revision, "d1b65007ffd3e271fd1e4e95afc2b6965fc48538");
   assert.equal(manifest.revision, "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a");
-  assert.equal(manifest.packages.filter((p: { revision?: string }) => p.revision).length, 1);
+  assert.deepEqual(
+    manifest.packages
+      .filter((p: { revision?: string }) => p.revision)
+      .map((p: { directory: string }) => p.directory)
+      .sort(),
+    ["commandcode", "grok", "qoder", "trae", "workbuddy", "zcode"],
+  );
 });
 
 for (const channel of ["zai", "bigmodel"]) {

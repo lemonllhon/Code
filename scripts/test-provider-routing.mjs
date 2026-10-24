@@ -6,7 +6,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const groups = [
   [
     "packages/provider/test",
-    /^(?:routing-.*|model-membership.*|model-interaction-protocol|provider-api-keys|provider-network|rate-limit)\.test\.ts$/u,
+    /^(?:routing-.*|model-membership.*|model-interaction-protocol|provider-api-keys|provider-network|rate-limit|quota-reset)\.test\.ts$/u,
   ],
   [
     "packages/services/src/model-provider",
@@ -17,7 +17,7 @@ const groups = [
   ["packages/ui/src/settings/model-provider-section", /^providerApiKey(?:s|Import)\.test\.ts$/u],
   [
     "packages/provider-node/src/provider-auth/native",
-    /^(?:routing-single-attempt|copilot-auto.*|copilot-manual|google-refresh)\.test\.ts$/u,
+    /^(?:routing-single-attempt|copilot-auto.*|copilot-manual|google-refresh|absorption-20261024)\.test\.ts$/u,
   ],
   [
     "packages/services/src/lcode-agent",

@@ -1,6 +1,9 @@
+import { MAX_MONTHLY_QUOTA_DELAY_MS } from "./quota-reset.js";
+
 export interface RateLimitHint {
   readonly scope: "key" | "model" | "pool" | "provider" | "shared";
   readonly delayMs: number;
+  readonly resetAt?: number;
 }
 export const MAX_RATE_LIMIT_DELAY_MS = 86_400_000;
 
@@ -23,6 +26,13 @@ export function readRateLimitHint(
   wallNow = Date.now(),
 ): RateLimitHint {
   const scope = readRateLimitScope(headers) ?? "provider";
+  const resetAt = Number(headers.get("x-lcode-quota-reset-at"));
+  if (
+    Number.isFinite(resetAt) &&
+    resetAt > wallNow &&
+    resetAt - wallNow <= MAX_MONTHLY_QUOTA_DELAY_MS
+  )
+    return { scope, delayMs: resetAt - wallNow, resetAt };
   const milliseconds = nonNegative(headers.get("retry-after-ms"));
   const retryAfter = headers.get("retry-after")?.trim();
   const seconds = nonNegative(retryAfter ?? null);
@@ -54,11 +64,14 @@ export class RateLimitWindow {
   remainingMs(): number {
     return Math.max(0, this.deadline - this.now());
   }
-  extend(delayMs: number): void {
-    this.deadline = Math.max(
-      this.deadline,
-      this.now() + Math.min(MAX_RATE_LIMIT_DELAY_MS, Math.max(0, delayMs)),
-    );
+  extend(delayMs: number, resetAt?: number): void {
+    const limit =
+      resetAt !== undefined &&
+      resetAt > Date.now() &&
+      resetAt - Date.now() <= MAX_MONTHLY_QUOTA_DELAY_MS
+        ? MAX_MONTHLY_QUOTA_DELAY_MS
+        : MAX_RATE_LIMIT_DELAY_MS;
+    this.deadline = Math.max(this.deadline, this.now() + Math.min(limit, Math.max(0, delayMs)));
   }
   async wait(signal?: AbortSignal): Promise<void> {
     const combined = signal ? AbortSignal.any([signal, this.signal]) : this.signal;
@@ -85,10 +98,14 @@ export async function waitForRateLimitDelay(delayMs: number, signal: AbortSignal
       cleanup();
       reject(signal.reason);
     };
-    const timer = setTimeout(() => {
-      cleanup();
-      resolve();
-    }, Math.ceil(delayMs));
+    const timer = setTimeout(
+      () => {
+        cleanup();
+        resolve();
+        // 月度窗口可能超过 Node 单次 timer 上限；由 owner 循环重新检查剩余时间。
+      },
+      Math.min(2_147_483_647, Math.ceil(delayMs)),
+    );
     signal.addEventListener("abort", abort, { once: true });
     if (signal.aborted) abort();
   });

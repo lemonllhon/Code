@@ -276,6 +276,7 @@ async function call(message, scope) {
     model,
     request: r,
     requestSessionKey: message.requestSessionKey,
+    requestTurnKey: message.requestTurnKey,
     signal: scope.controller.signal,
     singleAttempt: scope.singleAttempt,
   });

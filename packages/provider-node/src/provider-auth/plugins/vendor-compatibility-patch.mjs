@@ -9,9 +9,12 @@ import {
   patchDevinCompression,
 } from "./vendor-followup-patch.mjs";
 import { patchMiniMaxCheckin } from "./vendor-minimax-checkin-patch.mjs";
+import { patchCurrentProvider } from "./vendor-current-provider-patch.mjs";
 
 /** 来源为 plugins 5b68df0；原始 vendor 字节和其他供应商策略保持不变。 */
 export function applyProviderCompatibility(path, source) {
+  const current = patchCurrentProvider(path, source.replaceAll("\r\n", "\n"));
+  if (current !== undefined) return current;
   const known = new Set([
     "workbuddy/index.mjs",
     "factory/index.mjs",

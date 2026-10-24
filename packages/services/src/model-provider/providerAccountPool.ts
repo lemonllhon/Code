@@ -99,6 +99,7 @@ export async function executeProviderAccountPool<T extends PoolAccount>(
           }),
           {
             ...host.context(account, signal),
+            requestTurnKey: invocation?.turnId,
             // 复用已校验的路由身份；仅 session ID 会把同名远程会话或复制的工作区缓存串联。
             requestSessionKey: invocation
               ? JSON.stringify([

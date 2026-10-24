@@ -58,6 +58,8 @@ export interface AuthDriverContext {
    * @example { ...accountContext, requestSessionKey: JSON.stringify([workspaceKey, remoteSessionId, sessionId]) }
    */
   readonly requestSessionKey?: string;
+  /** Host 已冻结的 turn 事实，仅用于供应商任务关联，不参与凭据身份。 */
+  readonly requestTurnKey?: string;
   read(): Promise<AuthGrant | null>;
   /** Replaces the current grant; Host rejects writes after the account/attempt generation changes. */
   write(grant: AuthGrant): Promise<void>;

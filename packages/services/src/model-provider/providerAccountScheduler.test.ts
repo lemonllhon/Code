@@ -53,6 +53,47 @@ const request = () =>
     body: '{"model":"model"}',
   });
 
+test("OAuth monthly cooldown retains the exact future reset beyond 24 hours", async () => {
+  let now = Date.now();
+  const resetAt = now + 9 * 86400000;
+  const scheduler = new ProviderAccountScheduler(
+    async () => ({ version: 1, strategy: "reliable-first" }),
+    { peek: () => undefined },
+    { now: () => now },
+  );
+  try {
+    const first = await scheduler.reserve(
+      "fixture",
+      routes,
+      request(),
+      invocation("monthly-first"),
+    );
+    first!.lease.dispatch();
+    first!.finish(
+      routes[0]!.account,
+      new Response("monthly", {
+        status: 429,
+        headers: { "x-lcode-quota-reset-at": String(resetAt) },
+      }),
+    );
+    now += 2 * 86400000;
+    await assert.rejects(
+      scheduler.reserve("fixture", routes, request(), invocation("monthly-second")),
+      /route-cooling/,
+    );
+    now = resetAt + 1;
+    const recovered = await scheduler.reserve(
+      "fixture",
+      routes,
+      request(),
+      invocation("monthly-probe"),
+    );
+    recovered!.lease.cancel();
+  } finally {
+    scheduler.dispose();
+  }
+});
+
 test("original quota cache projects short and weekly windows as an intersection", async () => {
   const scheduler = owner((id) => [window("short", id === "a" ? 0 : 20), window("weekly", 90)]);
   const selected = await scheduler.reserve("fixture", routes, request(), invocation("one"));

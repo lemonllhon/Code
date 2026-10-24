@@ -3,7 +3,7 @@ import { replacePinned, replacePinnedRegion } from "./vendor-source-patch.mjs";
 /** 借鉴 plugins 7ee60f8；只投影请求，不能把未知结果配给已有明确 ID 的调用。
  * 单独处理孤立结果仍会留下悬空调用，因此在同一轮次投影中结算两侧，不伪造执行结果。
  */
-export function patchQoderSession(source) {
+export function patchQoderMessages(source) {
   source = replacePinnedRegion(
     source,
     "function qoderMessages(msgs) {",
@@ -89,6 +89,11 @@ export function patchQoderSession(source) {
 
 `,
   );
+  return source;
+}
+
+export function patchQoderSession(source) {
+  source = patchQoderMessages(source);
   // 没有明确会话事实时不按提示词猜身份；同内容的新会话必须隔离。
   source = replacePinned(
     source,

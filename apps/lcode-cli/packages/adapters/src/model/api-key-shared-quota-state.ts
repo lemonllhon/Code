@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { apiKeyQuotaSnapshotSchema, providerRoutingPolicySchema } from "@lcode/shared";
-import { RoutingError, RoutingRecovery, routingDemand } from "@lcode/provider";
+import {
+  RoutingError,
+  RoutingRecovery,
+  routingDemand,
+  MAX_MONTHLY_QUOTA_DELAY_MS,
+  MAX_RATE_LIMIT_DELAY_MS,
+} from "@lcode/provider";
 const amount = z.number().finite().nonnegative();
 const identifier = z.string().min(1).max(256);
 const counts = z.record(z.string(), amount);
@@ -126,12 +132,25 @@ export function parseSharedQuotaState(input: unknown): SharedQuotaState {
     };
   return sharedQuotaStateSchema.parse(input);
 }
-export const sharedFeedbackSchema = z.strictObject({
-  outcome: z.enum(["success", "failed", "cancelled", "unknown"]).optional(),
-  statusCode: z.number().int().min(400).max(599).optional(),
-  retryAfterMs: amount.max(86400000).optional(),
-  rateLimitScope: z.enum(["key", "model", "pool", "provider", "shared"]).optional(),
-});
+export const sharedFeedbackSchema = z
+  .strictObject({
+    outcome: z.enum(["success", "failed", "cancelled", "unknown"]).optional(),
+    statusCode: z.number().int().min(400).max(599).optional(),
+    retryAfterMs: amount.max(MAX_MONTHLY_QUOTA_DELAY_MS).optional(),
+    quotaResetAt: amount.optional(),
+    rateLimitScope: z.enum(["key", "model", "pool", "provider", "shared"]).optional(),
+  })
+  .superRefine((feedback, ctx) => {
+    if ((feedback.retryAfterMs ?? 0) <= MAX_RATE_LIMIT_DELAY_MS) return;
+    const remaining = (feedback.quotaResetAt ?? 0) - Date.now();
+    if (
+      feedback.statusCode !== 429 ||
+      remaining <= 0 ||
+      remaining > MAX_MONTHLY_QUOTA_DELAY_MS ||
+      Math.abs(remaining - feedback.retryAfterMs!) > 60000
+    )
+      ctx.addIssue({ code: "custom", message: "Long cooldown requires an explicit monthly reset" });
+  });
 export function sharedRecovery(state: SharedQuotaState) {
   return new RoutingRecovery(
     state.recovery,

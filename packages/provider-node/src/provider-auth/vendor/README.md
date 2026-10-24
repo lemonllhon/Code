@@ -2,13 +2,15 @@
 
 Runtime sources are copied verbatim from the commit and package versions in `manifest.json`. SHA-256 records cover every transitive module. `LICENSE` and package-specific `LICENSE*` files retain upstream attribution; the worker generator also embeds all notices in its distributable source.
 
-ZCode alone is pinned to `@magpie-community/opencode-zcode-auth` 0.1.24 at
+ZCode is pinned to `@magpie-community/opencode-zcode-auth` 0.1.24 at
 `d1b65007ffd3e271fd1e4e95afc2b6965fc48538`, recorded in that package's `revision`.
 It fixes Start Plan 405/3012 refusals by merging caller system instructions into
-the third system block and using the current request-header allowlist. The other
-14 packages retain the manifest's base revision and existing hashes. The original
-base snapshot retains its historical CRLF bytes; the ZCode override uses Git blob
-bytes without newline conversion.
+the third system block and using the current request-header allowlist.
+The 2026-10-24 absorption additionally pins Command Code 0.1.15, Grok 0.2.1,
+Qoder 0.2.31, Trae 0.2.20 and WorkBuddy 0.1.31. Their exact revisions and hashes
+are recorded per package in the manifest. The remaining nine packages retain
+the base revision. Base files retain their historical CRLF bytes; overrides use
+Git blob bytes without newline conversion.
 
 The worker includes the locally adapted Google protocol helper from `native/google-wire.ts`, so its generated notice also retains `native/LICENSE.magpie`; see `native/README.md` for its pinned magpie source and adaptation scope. The vendor snapshot, package-specific notices, generated worker, and native adaptation are registered in `third-party/copied-components.json` for the complete Desktop/CLI distribution notices. The Qoder notice preserves the CLIProxyAPI attribution carried by the pinned plugin revision without claiming an unknown original CLIProxyAPI import commit.
 

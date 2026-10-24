@@ -140,7 +140,8 @@ export class ApiKeySharedQuotaClient {
             const feedback = {
               outcome: "failed" as const,
               statusCode: status,
-              retryAfterMs: Math.min(86400000, hint.delayMs),
+              retryAfterMs: hint.delayMs,
+              ...(hint.resetAt === undefined ? {} : { quotaResetAt: hint.resetAt }),
               rateLimitScope: status === 429 ? hint.scope : readRateLimitScope(headers),
             };
             enqueue(() => this.coordinator.usage(handle, {}, undefined, feedback));

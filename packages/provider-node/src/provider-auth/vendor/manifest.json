@@ -17,12 +17,13 @@
     {
       "directory": "commandcode",
       "name": "@magpie-community/opencode-commandcode-auth",
-      "version": "0.1.12",
+      "version": "0.1.15",
+      "revision": "652f06dc4d5bea1472be05eaa4fe1381c03bf109",
       "license": "MIT",
       "files": [
         {
           "file": "index.mjs.source",
-          "sha256": "00706b706b77c1c94e5f048965374203437742c7c0bc6fa646a5d806843fa164"
+          "sha256": "49dee48cb00f14c54f6ae233a931156f20eeb5bd7125f4c8d5debbf05bea826b"
         }
       ]
     },
@@ -69,12 +70,13 @@
     {
       "directory": "grok",
       "name": "@magpie-community/opencode-grok-auth",
-      "version": "0.1.15",
+      "version": "0.2.1",
+      "revision": "92d555769b5d5b14282ad053d94fb12318930310",
       "license": "MIT",
       "files": [
         {
           "file": "index.mjs.source",
-          "sha256": "eeb688f2f807f5b6f87e0aefd80c3522d2725dc21e219f8e0270b1bb4a75704a"
+          "sha256": "7d92205acc2d29446edde89b16e456bb3bbbee8befa594e58202936a09020025"
         }
       ]
     },
@@ -117,36 +119,39 @@
     {
       "directory": "qoder",
       "name": "@magpie-community/opencode-qoder-auth",
-      "version": "0.2.16",
+      "version": "0.2.31",
+      "revision": "421117ef7504bfd62de44c95924fbabb53a03e47",
       "license": "MIT",
       "files": [
         {
           "file": "index.mjs.source",
-          "sha256": "6c864d99cbe6921c566be80da1007ce8e4fb67aff5c34eedf6a526a5fc7b75fe"
+          "sha256": "13f71f584cdbf6e01a13b3e7c6642f1b79a33cd943c5d5da60d2704f99c71063"
         }
       ]
     },
     {
       "directory": "trae",
       "name": "@magpie-community/opencode-trae-auth",
-      "version": "0.2.13",
+      "version": "0.2.20",
+      "revision": "8e479f11710394d80d4729c2542de9904829ef76",
       "license": "MIT",
       "files": [
         {
           "file": "index.mjs.source",
-          "sha256": "95e0eb8eeabbf81c704fb4b5c55a8fecf2c54f17f76766a31161f9995901eaf8"
+          "sha256": "fb328f78af200df1bae99ce4a0299c1f0bec9e7fdf833d762ce27a83f332d2c0"
         }
       ]
     },
     {
       "directory": "workbuddy",
       "name": "@magpie-community/opencode-workbuddy-auth",
-      "version": "0.1.22",
+      "version": "0.1.31",
+      "revision": "f6588420892a0f2820720db7519b0da60981d7c9",
       "license": "MIT",
       "files": [
         {
           "file": "index.mjs.source",
-          "sha256": "2c39577e6abd11ede94e29d517457008668705a1329a5c43491858666a10e6c8"
+          "sha256": "c25a2176ef8b9d491e83716642dddfadf1d9b5a41b365f7fe6b1ecc97a06c511"
         }
       ]
     },

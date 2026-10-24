@@ -104,6 +104,7 @@ export class PluginWorkerTransport {
             body,
           },
           requestSessionKey: context?.requestSessionKey,
+          requestTurnKey: context?.requestTurnKey,
         },
         context,
         request.signal,

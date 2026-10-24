@@ -92,7 +92,9 @@ test("Qoder cache is explicit-session scoped, request IDs change, and inputs sta
     );
   assert.equal(a.session_id, b.session_id);
   assert.notEqual(a.request_id, b.request_id);
-  assert.equal(a.request_set_id, a.request_id);
+  assert.notEqual(a.request_set_id, a.request_id);
+  assert.equal(a.request_set_id, a.business.id);
+  assert.notEqual(a.request_set_id, b.request_set_id, "a new user input creates a new task");
   assert.notEqual(
     a.session_id,
     m.qoderBody({ ...input, prompt_cache_key: "fixture-session-b" }, model).session_id,

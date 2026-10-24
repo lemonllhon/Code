@@ -1,10 +1,12 @@
 import { readContentRefusalCode } from "@lcode/provider";
+import { normalizeMonthlyQuotaResponse } from "./monthly-quota.js";
 
 /** 结构化内容拒绝在账号状态更新前统一投影为请求错误；原始状态与 body 保留。 */
 export async function normalizeContentRefusalResponse(
   response: Response,
   channel?: string,
 ): Promise<Response> {
+  if (response.status === 429) return normalizeMonthlyQuotaResponse(response);
   if (
     response.status !== 403 ||
     (channel === "factory" && response.headers.get("x-factory-upstream-error"))

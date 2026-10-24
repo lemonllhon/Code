@@ -62,6 +62,8 @@ export interface SharedQuotaFeedback {
   outcome?: "success" | "failed" | "cancelled" | "unknown";
   statusCode?: number;
   retryAfterMs?: number;
+  /** 已归一化月度额度的绝对截止事实；缺省仍受普通限流上限约束。 */
+  quotaResetAt?: number;
   rateLimitScope?: "key" | "model" | "pool" | "provider" | "shared";
 }
 export interface SharedQuotaCoordinator {

@@ -4,7 +4,7 @@
 
 ZCode is individually pinned to `d1b65007ffd3e271fd1e4e95afc2b6965fc48538` (MIT),
 the npm 0.1.24 release. Its original sources and hashes are in `../vendor/manifest.json`;
-all other plugin pins and local compatibility patches remain unchanged.
+the other package overrides from the subsequent absorption are recorded below.
 Start Plan requests now have exactly three system blocks with caller instructions
 in the third block, current ZCode attribution, and a clean header allowlist.
 `catalog.mjs` moves the new team browser method to the end to keep existing local
@@ -40,7 +40,32 @@ The upstream-derived files listed above, as well as the generated worker, belong
 to the copied component inventory. Regenerate the bundle with
 `node scripts/build-auth-plugin-worker.mjs`, then regenerate and verify notices.
 
-Account check-in protocol rules in `checkin.mjs` follow Magpie `707fbb249df755423d3b2b77c6f001dd376d75c4`, MIT (recorded in `third-party/copied-components.json`). Billing and promotion facts remain operation-scoped read-only projections. The fixed-plugin base is `5d5d86e2251169e0f5c0fd7a884957ac2dbe184a`, with the ZCode package override recorded above; the earlier revision cited for `zcode-local.mjs` records that separate adaptation's source.
+Account check-in protocol rules in `checkin.mjs` follow Magpie `707fbb249df755423d3b2b77c6f001dd376d75c4`, MIT (recorded in `third-party/copied-components.json`). Billing and promotion facts remain operation-scoped read-only projections. The fixed-plugin base is `5d5d86e2251169e0f5c0fd7a884957ac2dbe184a`, with six package overrides; the earlier revision cited for `zcode-local.mjs` records that separate adaptation's source.
+
+## Provider absorption (2026-10-24)
+
+Five further immutable package overrides follow their npm release revisions:
+
+| Package | Version | Revision |
+| --- | --- | --- |
+| Command Code | 0.1.15 | `652f06dc4d5bea1472be05eaa4fe1381c03bf109` |
+| Grok | 0.2.1 | `92d555769b5d5b14282ad053d94fb12318930310` |
+| Qoder | 0.2.31 | `421117ef7504bfd62de44c95924fbabb53a03e47` |
+| Trae | 0.2.20 | `8e479f11710394d80d4729c2542de9904829ef76` |
+| WorkBuddy | 0.1.31 | `f6588420892a0f2820720db7519b0da60981d7c9` |
+
+`vendor-current-provider-patch.mjs` supersedes the old patches for these five
+packages, retaining conservative Qoder tool pairing, Host session/turn identity
+and the existing single inference dispatch allowance. Trae and Command Code now
+use the upstream fixes directly. WorkBuddy/Grok may renew credentials after 401,
+but return the original response for Runner admission instead of silently sending
+another inference. Qoder's queued response also returns immediately to Runner.
+Earlier sections below describe the historical base patches; they are not applied
+again to these overridden packages. Cache usage patches remain active.
+
+See `specs/provider-absorption-2026-10-24.md` for the related native protocol,
+quota, result-sensitive warnings and usage alias ownership rules. Provenance and
+the additional Qoder notice are recorded in `third-party/copied-components.json`.
 
 ## Bounded compatibility backports (2026-10-20)
 

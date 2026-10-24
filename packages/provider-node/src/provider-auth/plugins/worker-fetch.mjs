@@ -1,5 +1,6 @@
 import { geminiRequest, codeAssistResponse } from "../native/google-wire.ts";
 import { prepareToolSchemas } from "../native/tool-schema.ts";
+import { createHash } from "node:crypto";
 
 export async function fetchPluginModel({
   channel,
@@ -9,6 +10,7 @@ export async function fetchPluginModel({
   model,
   request: r,
   requestSessionKey,
+  requestTurnKey,
   signal,
   singleAttempt,
 }) {
@@ -17,6 +19,8 @@ export async function fetchPluginModel({
     if (!headers.has(key)) headers.set(key, value);
   let body = r.body ? new TextDecoder().decode(r.body) : undefined;
   let payload = body ? JSON.parse(body) : {};
+  // 内部任务关联只能来自 Host 上下文，不能信任请求 JSON 中同名字段。
+  if (channel === "qoder" || channel === "qoder-cn") delete payload.__lcode_task_key;
   const addresses = [loader.baseURL, provider.api, model?.api?.url, model?.provider?.api].filter(
     Boolean,
   );
@@ -46,13 +50,22 @@ export async function fetchPluginModel({
   // 使用 Host 原会话事实，不能按首条提示词把不同 workspace/session 合成同一厂商会话。
   if ((channel === "qoder" || channel === "qoder-cn") && requestSessionKey?.trim()) {
     payload.prompt_cache_key = requestSessionKey;
+    if (requestTurnKey?.trim())
+      payload.__lcode_task_key = createHash("sha256")
+        .update(JSON.stringify([requestSessionKey, requestTurnKey]))
+        .digest("hex");
     body = JSON.stringify(payload);
   }
-  if (sessionID && hooks["chat.headers"]) {
+  const scopedChannel = ["qoder", "qoder-cn", "trae-cn", "trae-global"].includes(channel);
+  const providerSession =
+    scopedChannel && requestSessionKey?.trim()
+      ? createHash("sha256").update(requestSessionKey).digest("hex")
+      : sessionID;
+  if (providerSession && hooks["chat.headers"]) {
     const output = { headers: {} };
     await hooks["chat.headers"](
       {
-        sessionID,
+        sessionID: providerSession,
         model: { ...model, id: payload.model, providerID: provider.id },
         provider: { info: provider, source: "custom", options: loader },
       },
@@ -77,7 +90,13 @@ export async function fetchPluginModel({
   const request = new Request(target, { method: r.method, headers, body, signal });
   let response;
   try {
-    response = await loader.fetch(request, { method: r.method, headers, body, signal });
+    response = await loader.fetch(request, {
+      method: r.method,
+      headers,
+      body,
+      signal,
+      routingSingleAttempt: !!singleAttempt,
+    });
   } catch (error) {
     if (!singleAttempt?.violated) throw error;
     response = singleAttempt.failure();
