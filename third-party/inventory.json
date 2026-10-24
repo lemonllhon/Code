@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "inputHashEncoding": "UTF-8 with CRLF normalized to LF; notice and source snapshot hashes remain byte-exact",
   "scope": "Production dependency union across current workspace projects, copied source/assets, native search tools and the bundled mise backend; not a per-installer SBOM or a certification of all licensing obligations.",
-  "noticesSha256": "f307a481e5e6c27241634bc12a901135860aaede640bad480e7ae14682b8b7f5",
+  "noticesSha256": "3fd9b2971c27011931a2c3ca0730be8da1619a68e6a1fdaf78ae028bb1af22d8",
   "inputs": {
     ".agents/skills/agent-browser/references/authentication.md": "03776b640f377e030c419aa5ad53ec4de5babe69dc37b495d432cd318727ca03",
     ".agents/skills/agent-browser/references/commands.md": "532584b4c03bdbd47acde121edadbffd83a8f3a020f7750f923c6dd789302604",
@@ -1489,7 +1489,7 @@
     "packages/provider-node/src/provider-auth/plugins/vendor-qoder-session-patch.mjs": "2dcabd2257631fac9a70ccc2fa861297600056a5964463fc70b548d8bb94d650",
     "packages/provider-node/src/provider-auth/plugins/vendor-stream-followup.test.mjs": "50b901d64cfd53a4d149c875b65235b5ba86de8dbf1a119b2d747363a78cf3c3",
     "packages/provider-node/src/provider-auth/plugins/vendor-zed-organization-patch.mjs": "4d1a276d9b59fe872a20cc1fe9cd9446f842819252b5063df0d3b9a28b755af4",
-    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "3605e5c8d450e80e5d595d3f3ed5ee97b057872cbe4e77441a4825c54ba59fd3",
+    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "d73f47882327f11f58838aaf0727d868f134c34af8836ebfe152326461134b2c",
     "packages/provider-node/src/provider-auth/plugins/zcode-local.mjs": "c8b91d4414eed9c9edd0e227a06141d0c75bb1601abc5cef177be01ca21952e4",
     "packages/provider-node/src/provider-auth/vendor/cline/index.mjs.source": "17d11f1c35c4201152478a183961d03431ac795c7bc4be44189825f2d3e84272",
     "packages/provider-node/src/provider-auth/vendor/commandcode/index.mjs.source": "54b6112ce2a93d645fa9f87327109bdffd42c8088b010b9194fa5fefb56fb549",
@@ -1500,15 +1500,15 @@
     "packages/provider-node/src/provider-auth/vendor/grok/index.mjs.source": "4501575cf0ef8667b89c39f0d237e0095ba31b89e28b9a8530583b3dd8682f36",
     "packages/provider-node/src/provider-auth/vendor/kiro/index.mjs.source": "b7ca94bfa1510cc0c06f516eb2558bbfde7a7aab7c3639fec2a335535c588b33",
     "packages/provider-node/src/provider-auth/vendor/LICENSE": "5e8730b694ba31696dd68d693f8bf5e2c75f7e40fd5f6fbc3f067cf9490b24fb",
-    "packages/provider-node/src/provider-auth/vendor/manifest.json": "2c41ac232b3b3c1f823227cba6ef75d6ef38bb6eba16b98456177653f6b0f9a2",
+    "packages/provider-node/src/provider-auth/vendor/manifest.json": "b151c0ccff9d6e1e081ee2acfecb2f23fbef8860f9483c3e9a66d55fd9b1798c",
     "packages/provider-node/src/provider-auth/vendor/mimo/index.mjs.source": "89aa0ffcf608e68b897fabdaef7f56da2bed360b526aa2c0cb4b45e11db40908",
     "packages/provider-node/src/provider-auth/vendor/minimax/index.mjs.source": "d071779007b8507d307a0e011fac8a469bb9bc61eba451efc6da3957505b2016",
     "packages/provider-node/src/provider-auth/vendor/qoder/index.mjs.source": "604c3e2b34f764f5a92f2a63a2555c583498f7b572b347de8e95b6ac2409075c",
     "packages/provider-node/src/provider-auth/vendor/qoder/LICENSE-CLIProxyAPI": "879792e89cf1bdd6a8d446033ec87e30496f97dcafc4656dc53f641509b346a6",
-    "packages/provider-node/src/provider-auth/vendor/README.md": "b769a0462a60fbdc626e90070b4696d241185c19d7e1d6ac2e629f8d3f49084d",
+    "packages/provider-node/src/provider-auth/vendor/README.md": "f00284dd56e4a5a5c61a6b23cb7d83187eb1232a891290ea1e4cd5306b0ba104",
     "packages/provider-node/src/provider-auth/vendor/trae/index.mjs.source": "1927b58cdfe315c5f13721728d3bd8d2cb615fd990d6ef626c124578ac7fd5d2",
     "packages/provider-node/src/provider-auth/vendor/workbuddy/index.mjs.source": "9ca75031d6c173bc90ac5124f542906478c96efbe6253f57c5cd7767aa753585",
-    "packages/provider-node/src/provider-auth/vendor/zcode/index.mjs.source": "d57dd1ce2378994404a53b481310a75d4583c9711bfea4c73690f13c312ed6c2",
+    "packages/provider-node/src/provider-auth/vendor/zcode/index.mjs.source": "b8b3f2e0858f1d4bac005adbc9fe9368511002c9d6a1f8956c5b2d6449204a17",
     "packages/provider-node/src/provider-auth/vendor/zcode/prompt.mjs.source": "d33385ed84db77b7fc9fec59c9779d8dc4663be678fc3f6eef884d026d5df2ca",
     "packages/provider-node/src/provider-auth/vendor/zed/index.mjs.source": "9e658f561db6b2c5cf14848c355555cb982f9851c164d5a60d31988a3467f489",
     "packages/provider-node/src/provider-auth/vendor/zen-free/index.mjs.source": "6adb7ddc2634f97447abaf78d2f121e280cbf51fe19d33a261d48b90c0d7432f",
@@ -2813,7 +2813,7 @@
     "scripts/license-texts/Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     "scripts/native-search-tools-config.mjs": "a060f816ae023eab43a0409a8a81f20582a4ad101e391ae948ffb44956ede05e",
     "scripts/remote-native-search-tools-config.mjs": "95a525ddbaf4aeddb8ff03d841a86fad42af82c7a02a16afd6caba1171cd854a",
-    "third-party/copied-components.json": "80a5526f0e0d26e2deafe0bacf2e56220857f4733d2594586e5cdf3769a88dde",
+    "third-party/copied-components.json": "eaf0b8b4e2c31a2b04865bd0ad207ee0aa6cfc53b900feb1f68b90a0bcbdf018",
     "third-party/embedded-components.json": "9586ccca15897f56d4ca1d703dffe9e02880fedd766c1dff93f7ac1f52ea891a",
     "third-party/mise/LICENSE.txt": "4d22d6f9222adef0a45ef895bfdd6f71d6394b1784b1001a4bebb4298b8ddc69",
     "third-party/mise/sources.json": "813e101f64ef00dfd0a2b6813513849ea6be8acb84a8b8d6ce2d20ac49aed1ea",
@@ -30687,7 +30687,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "3605e5c8d450e80e5d595d3f3ed5ee97b057872cbe4e77441a4825c54ba59fd3"
+          "sha256": "d73f47882327f11f58838aaf0727d868f134c34af8836ebfe152326461134b2c"
         }
       ]
     },
@@ -30698,13 +30698,13 @@
       "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
       "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
       "importRevision": "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a",
-      "provenance": "Runtime module snapshots and exact package versions are recorded in provider-auth/vendor/manifest.json; the generated worker embeds these verified source snapshots. Additional Qoder and Zen Free notices are registered separately.",
+      "provenance": "Base runtime module snapshots and exact package versions are recorded in provider-auth/vendor/manifest.json; the generated worker embeds these verified source snapshots. The ZCode 0.1.24 package override and additional Qoder and Zen Free notices are registered separately.",
       "roots": [
         "packages/provider-node/src/provider-auth/vendor",
         "packages/provider-node/src/provider-auth/plugins/zcode-local.mjs",
         "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
       ],
-      "scope": "Vendored provider plugin source, its generated bundle portions, and the site-scoped ZCode credential-format adaptation only; local worker transport and compatibility implementations are not wholly attributed to upstream.",
+      "scope": "Base vendored provider plugin sources other than the separately recorded ZCode package override, their generated bundle portions, and the site-scoped ZCode credential-format adaptation only; local worker transport and compatibility implementations are not wholly attributed to upstream.",
       "license": "MIT",
       "files": [
         {
@@ -30713,7 +30713,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/README.md",
-          "sha256": "b769a0462a60fbdc626e90070b4696d241185c19d7e1d6ac2e629f8d3f49084d"
+          "sha256": "f00284dd56e4a5a5c61a6b23cb7d83187eb1232a891290ea1e4cd5306b0ba104"
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/cline/index.mjs.source",
@@ -30749,7 +30749,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/manifest.json",
-          "sha256": "2c41ac232b3b3c1f823227cba6ef75d6ef38bb6eba16b98456177653f6b0f9a2"
+          "sha256": "b151c0ccff9d6e1e081ee2acfecb2f23fbef8860f9483c3e9a66d55fd9b1798c"
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/mimo/index.mjs.source",
@@ -30777,11 +30777,11 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/zcode/index.mjs.source",
-          "sha256": "0fba1858b8868a80f8ae2aefb3a6796d0f5f9b4b2cb2342c0214be49317a2905"
+          "sha256": "b8b3f2e0858f1d4bac005adbc9fe9368511002c9d6a1f8956c5b2d6449204a17"
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/zcode/prompt.mjs.source",
-          "sha256": "e390759214834737f41ea52fb9725d64f140faae4cc31b5881975ceda7b43a98"
+          "sha256": "d33385ed84db77b7fc9fec59c9779d8dc4663be678fc3f6eef884d026d5df2ca"
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/zed/index.mjs.source",
@@ -30817,7 +30817,36 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "3605e5c8d450e80e5d595d3f3ed5ee97b057872cbe4e77441a4825c54ba59fd3"
+          "sha256": "d73f47882327f11f58838aaf0727d868f134c34af8836ebfe152326461134b2c"
+        }
+      ]
+    },
+    {
+      "id": "Magpie ZCode authorization plugin 0.1.24",
+      "referenceRevision": "d1b65007ffd3e271fd1e4e95afc2b6965fc48538",
+      "importRevision": "d1b65007ffd3e271fd1e4e95afc2b6965fc48538",
+      "source": "https://raw.githubusercontent.com/magpie-community/plugins/d1b65007ffd3e271fd1e4e95afc2b6965fc48538/LICENSE",
+      "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
+      "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
+      "provenance": "Exact upstream packages/zcode runtime modules at the npm 0.1.24 gitHead. Per-module SHA-256 and package revision are recorded in provider-auth/vendor/manifest.json; the worker verifies and embeds them. The retained vendor LICENSE has the same MIT notice and historical CRLF bytes.",
+      "roots": [
+        "packages/provider-node/src/provider-auth/vendor/zcode",
+        "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
+      ],
+      "scope": "ZCode 0.1.24 authorization, plan selection, model requests, quota and Start Plan system/header compatibility, including its generated worker portions. Host account ownership and stable method-ID projection are local integration.",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "packages/provider-node/src/provider-auth/vendor/zcode/index.mjs.source",
+          "sha256": "b8b3f2e0858f1d4bac005adbc9fe9368511002c9d6a1f8956c5b2d6449204a17"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/vendor/zcode/prompt.mjs.source",
+          "sha256": "d33385ed84db77b7fc9fec59c9779d8dc4663be678fc3f6eef884d026d5df2ca"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
+          "sha256": "d73f47882327f11f58838aaf0727d868f134c34af8836ebfe152326461134b2c"
         }
       ]
     },
@@ -30852,7 +30881,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "3605e5c8d450e80e5d595d3f3ed5ee97b057872cbe4e77441a4825c54ba59fd3"
+          "sha256": "d73f47882327f11f58838aaf0727d868f134c34af8836ebfe152326461134b2c"
         }
       ]
     },
@@ -30892,7 +30921,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "3605e5c8d450e80e5d595d3f3ed5ee97b057872cbe4e77441a4825c54ba59fd3"
+          "sha256": "d73f47882327f11f58838aaf0727d868f134c34af8836ebfe152326461134b2c"
         }
       ]
     },
@@ -31181,7 +31210,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "3605e5c8d450e80e5d595d3f3ed5ee97b057872cbe4e77441a4825c54ba59fd3"
+          "sha256": "d73f47882327f11f58838aaf0727d868f134c34af8836ebfe152326461134b2c"
         }
       ]
     }

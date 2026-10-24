@@ -2474,6 +2474,8 @@ The original import revisions of copied components are not recorded in the curre
 
 - Magpie community fixed provider plugins (MIT): packages/provider-node/src/provider-auth/vendor, packages/provider-node/src/provider-auth/plugins/zcode-local.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/LICENSE. Original import revision: 5d5d86e2251169e0f5c0fd7a884957ac2dbe184a.
 
+- Magpie ZCode authorization plugin 0.1.24 (MIT): packages/provider-node/src/provider-auth/vendor/zcode, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/d1b65007ffd3e271fd1e4e95afc2b6965fc48538/LICENSE. Original import revision: d1b65007ffd3e271fd1e4e95afc2b6965fc48538.
+
 - Magpie provider compatibility backports (MIT): packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-devin-images-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-zed-organization-patch.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/5b68df0057501d67b3eda711800ad57254634a58/LICENSE. Original import revision: 5b68df0057501d67b3eda711800ad57254634a58.
 
 - Magpie provider cross-platform compatibility backports (MIT): packages/provider-node/src/provider-auth/plugins/vendor-compatibility-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-qoder-session-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-devin-empty-patch.mjs, packages/provider-node/src/provider-auth/plugins/vendor-backports-20261022.test.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/7ee60f825387455db26157ade2740a0f4ddbf3ee/LICENSE. Original import revision: 7ee60f825387455db26157ade2740a0f4ddbf3ee.
@@ -40122,6 +40124,8 @@ SOFTWARE.
 ### Notice bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679
 
 - Magpie community fixed provider plugins: https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/LICENSE
+
+- Magpie ZCode authorization plugin 0.1.24: https://raw.githubusercontent.com/magpie-community/plugins/d1b65007ffd3e271fd1e4e95afc2b6965fc48538/LICENSE
 
 - Magpie provider compatibility backports: https://raw.githubusercontent.com/magpie-community/plugins/5b68df0057501d67b3eda711800ad57254634a58/LICENSE
 

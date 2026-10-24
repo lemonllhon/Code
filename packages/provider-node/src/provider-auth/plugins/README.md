@@ -1,5 +1,17 @@
 # Fixed provider compatibility
 
+## ZCode 0.1.24 (2026-10-24)
+
+ZCode is individually pinned to `d1b65007ffd3e271fd1e4e95afc2b6965fc48538` (MIT),
+the npm 0.1.24 release. Its original sources and hashes are in `../vendor/manifest.json`;
+all other plugin pins and local compatibility patches remain unchanged.
+Start Plan requests now have exactly three system blocks with caller instructions
+in the third block, current ZCode attribution, and a clean header allowlist.
+`catalog.mjs` moves the new team browser method to the end to keep existing local
+and API method IDs (`2` and `3`) stable; the new method is `4`.
+See `specs/zcode-auth-plugin-0.1.24.md` and `zcode-start-fixtures.test.ts` for the
+owner boundaries, failure semantics and generated-worker regression coverage.
+
 The worker bundles the pinned modules recorded in `../vendor/manifest.json`. It is
 isolated per authorization attempt/account. Renderer input cannot select a module,
 read a local path, provide credential callbacks, or access the fixture transport.
@@ -28,11 +40,11 @@ The upstream-derived files listed above, as well as the generated worker, belong
 to the copied component inventory. Regenerate the bundle with
 `node scripts/build-auth-plugin-worker.mjs`, then regenerate and verify notices.
 
-Account check-in protocol rules in `checkin.mjs` follow Magpie `707fbb249df755423d3b2b77c6f001dd376d75c4`, MIT (recorded in `third-party/copied-components.json`). Billing and promotion facts remain operation-scoped read-only projections. The fixed plugins are updated to `5d5d86e2251169e0f5c0fd7a884957ac2dbe184a`; the earlier revision cited for `zcode-local.mjs` above records that separate adaptation's source.
+Account check-in protocol rules in `checkin.mjs` follow Magpie `707fbb249df755423d3b2b77c6f001dd376d75c4`, MIT (recorded in `third-party/copied-components.json`). Billing and promotion facts remain operation-scoped read-only projections. The fixed-plugin base is `5d5d86e2251169e0f5c0fd7a884957ac2dbe184a`, with the ZCode package override recorded above; the earlier revision cited for `zcode-local.mjs` records that separate adaptation's source.
 
 ## Bounded compatibility backports (2026-10-20)
 
-The immutable vendor snapshot remains at `5d5d86e`. After verifying its hashes,
+The base vendor snapshot remains at `5d5d86e` (ZCode's override is recorded above). After verifying its hashes,
 the worker generator applies `vendor-compatibility-patch.mjs` and the Devin/Zed
 patch helpers to its in-memory copy. Exact source matches fail closed on drift.
 The adapted protocol behavior comes from community plugins

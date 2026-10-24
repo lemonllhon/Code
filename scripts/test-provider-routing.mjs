@@ -27,7 +27,7 @@ const groups = [
   ["packages/services/src/plugins", /^pluginManagementService\.test\.ts$/u],
   [
     "packages/provider-node/src/provider-auth/plugins",
-    /^(?:authorization-progress|single-attempt.*|backport-(?:.*-)?fixtures|transport-(?:children|close))\.test\.ts$/u,
+    /^(?:authorization-progress|single-attempt.*|backport-(?:.*-)?fixtures|zcode-start-fixtures|transport-(?:children|close))\.test\.ts$/u,
   ],
   ["packages/provider-node/src", /^process-tree\.test\.ts$/u],
   [

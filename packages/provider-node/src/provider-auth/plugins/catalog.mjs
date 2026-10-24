@@ -17,6 +17,14 @@ import { ZCodeAuthPlugin, _internal as zcodeInternal } from "../vendor/zcode/ind
 import { ZedAuthPlugin } from "../vendor/zed/index.mjs.source";
 import { ZenFreePlugin } from "../vendor/zen-free/index.mjs.source";
 
+async function zcodePlugin(options) {
+  const hooks = await ZCodeAuthPlugin(options);
+  // 修复：0.1.24 插入团队入口后本机/API 编号后移；保留旧编号，避免本机检测误走团队登录。
+  const [team] = hooks.auth.methods.splice(2, 1);
+  hooks.auth.methods.push(team);
+  return hooks;
+}
+
 export const plugins = {
   cline: ClinePlugin,
   "commandcode-plan": CommandCodePlugin,
@@ -34,8 +42,8 @@ export const plugins = {
   "trae-global": TraeGlobalAuthPlugin,
   workbuddy: WorkBuddyAuthPlugin,
   "workbuddy-ai": WorkBuddyAIAuthPlugin,
-  bigmodel: ZCodeAuthPlugin,
-  zai: ZCodeAuthPlugin,
+  bigmodel: zcodePlugin,
+  zai: zcodePlugin,
   zed: ZedAuthPlugin,
   "opencode-zen-free": ZenFreePlugin,
 };

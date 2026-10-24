@@ -153,16 +153,17 @@
     {
       "directory": "zcode",
       "name": "@magpie-community/opencode-zcode-auth",
-      "version": "0.1.18",
+      "version": "0.1.24",
+      "revision": "d1b65007ffd3e271fd1e4e95afc2b6965fc48538",
       "license": "MIT",
       "files": [
         {
           "file": "index.mjs.source",
-          "sha256": "0fba1858b8868a80f8ae2aefb3a6796d0f5f9b4b2cb2342c0214be49317a2905"
+          "sha256": "b8b3f2e0858f1d4bac005adbc9fe9368511002c9d6a1f8956c5b2d6449204a17"
         },
         {
           "file": "prompt.mjs.source",
-          "sha256": "e390759214834737f41ea52fb9725d64f140faae4cc31b5881975ceda7b43a98"
+          "sha256": "d33385ed84db77b7fc9fec59c9779d8dc4663be678fc3f6eef884d026d5df2ca"
         }
       ]
     },

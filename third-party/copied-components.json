@@ -299,13 +299,28 @@
     "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
     "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
     "importRevision": "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a",
-    "provenance": "Runtime module snapshots and exact package versions are recorded in provider-auth/vendor/manifest.json; the generated worker embeds these verified source snapshots. Additional Qoder and Zen Free notices are registered separately.",
+    "provenance": "Base runtime module snapshots and exact package versions are recorded in provider-auth/vendor/manifest.json; the generated worker embeds these verified source snapshots. The ZCode 0.1.24 package override and additional Qoder and Zen Free notices are registered separately.",
     "roots": [
       "packages/provider-node/src/provider-auth/vendor",
       "packages/provider-node/src/provider-auth/plugins/zcode-local.mjs",
       "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
     ],
-    "scope": "Vendored provider plugin source, its generated bundle portions, and the site-scoped ZCode credential-format adaptation only; local worker transport and compatibility implementations are not wholly attributed to upstream.",
+    "scope": "Base vendored provider plugin sources other than the separately recorded ZCode package override, their generated bundle portions, and the site-scoped ZCode credential-format adaptation only; local worker transport and compatibility implementations are not wholly attributed to upstream.",
+    "license": "MIT"
+  },
+  {
+    "id": "Magpie ZCode authorization plugin 0.1.24",
+    "referenceRevision": "d1b65007ffd3e271fd1e4e95afc2b6965fc48538",
+    "importRevision": "d1b65007ffd3e271fd1e4e95afc2b6965fc48538",
+    "source": "https://raw.githubusercontent.com/magpie-community/plugins/d1b65007ffd3e271fd1e4e95afc2b6965fc48538/LICENSE",
+    "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
+    "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
+    "provenance": "Exact upstream packages/zcode runtime modules at the npm 0.1.24 gitHead. Per-module SHA-256 and package revision are recorded in provider-auth/vendor/manifest.json; the worker verifies and embeds them. The retained vendor LICENSE has the same MIT notice and historical CRLF bytes.",
+    "roots": [
+      "packages/provider-node/src/provider-auth/vendor/zcode",
+      "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
+    ],
+    "scope": "ZCode 0.1.24 authorization, plan selection, model requests, quota and Start Plan system/header compatibility, including its generated worker portions. Host account ownership and stable method-ID projection are local integration.",
     "license": "MIT"
   },
   {
