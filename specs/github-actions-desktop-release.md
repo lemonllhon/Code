@@ -2,6 +2,17 @@
 
 ## 产品规则
 
+### v3.20.9 桌面优化收尾与依赖清理发行（2026-10-23）
+
+- 根 `package.json` 的桌面版本由 `3.20.8` 更新为 `3.20.9`。
+- 发行包含 `v3.20.8` 之后的全部 18 个提交：`fc7438ef` 的桌面优化收尾与遗留特性清理（含依赖图收缩：`pnpm-lock.yaml` 大幅缩减、`npm-overrides.json` 清除过时条目、`release-review-baseline.json` 材料缺口减少）、`c57c2c67` 的 ZCode 插件升级至 0.1.24、`87cdb07d` 的文件失效合并不阻塞事件接收、`c76de99e`/`c7d22949`/`7f2b7a4c` 的混合项目重启恢复、双源图标与原生准入放行、`28564e74` 的终端消费背压与 Windows PTY 回收、以及 `747e7939`/`74abcc70`/`abee40be`/`d14382ea`/`f31b1806`/`baee21f1`/`41895bb1`/`7a40e997`/`ad94b90d`/`7cd31c7a` 等桌面与 UI 资源生命周期优化及其验证记录。v3.20.8 已发布，新版本必须包含其后的源码，不能复用同一提交或仅改版本号。
+- 本轮依赖图实际变化：库存输入由 3021 降至 3020（遗留生产依赖移除），`third-party/npm-overrides.json` 与 `release-review-baseline.json` 内容减少。发行提交重新生成库存后应只同步根 manifest 摘要；若生成结果出现其他漂移，先停下核对再提交。
+- `worker-source.ts` 生成产物在提交内已与库存哈希一致（`d73f4788`），发行提交不改动它。
+- 新建附注 tag `v3.20.9`，只推送该 tag 至 `code` remote 对应的 `lemonllhon/Code`（fetch/push 均使用 lemonllhon 账号），不推送 `L-GO` 分支；不移动或覆盖既有 tag。
+- 发行输入以提交对象为准：`node scripts/verify-release-inputs.mjs --source=HEAD` 必须覆盖全部库存输入，本地工作区哈希不作为依据（Windows `core.autocrlf` 会改变工作区字节）。
+- cfworker-remote 在桌面构建开始后，以 `LCODE_ENV=production pnpm build:mobile-web` 重新装配 `public`，提交信息记录源码提交 SHA；`public/site` 的发行目录由 Worker 实时代理 GitHub Release，不固化版本号。该仓库 fetch/push 均使用 lemon-casino 账号。
+- 验收远端 tag 解引用后的 SHA 等于该 tag 指向的提交、Actions 在 `lemon-casino/LemonCode` 完成六平台构建与公开 Release，cfworker-remote 的 `public` 与主仓库构建产物一致。
+
 ### v3.20.8 Codex 响应保留与项目路由收口发行（2026-10-23）
 
 - 根 `package.json` 的桌面版本由 `3.20.7` 更新为 `3.20.8`，库存只同步该 manifest 的输入摘要；依赖图、锁文件与许可证材料不变。
