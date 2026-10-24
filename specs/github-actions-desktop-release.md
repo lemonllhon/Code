@@ -2,6 +2,25 @@
 
 ## 产品规则
 
+### 远程资源部署夹具与能力契约同步（2026-10-24）
+
+- `v3.21.0` 的 Actions `40067794972` 在 `Remote workspace runtimes` 的 `pnpm test:remote-assets` 失败，39 项中 38 项通过。完整内置部署夹具手写的 Agent 内容只有 `project/native`、`project/routeNative`，缺少已加入生产部署校验的 `lcode_protocol.project_native.independent`；本地定向测试已复现相同错误。
+- `scripts/remote-runtime-download.test.mjs` 的成功部署夹具通过既有 `serverRequire` 和 `@lcode/server/remote/remoteBundleCapabilityCheck.js` 公开子路径读取 `PROJECT_NATIVE_AGENT_MARKERS`，将完整标记写入假 Agent。能力要求仍由服务端校验模块唯一维护，临时资源由当前测试创建并清理，不增加运行时状态或写入路径。
+- 夹具继续通过真实归档、SHA、内置源、cache 和隔离 SSH backend 执行部署；生产安装后能力检查通过才写成功 marker。保留 `serverBundleDeployCheck.test.ts` 中缺少独立调度能力的旧 Agent 被拒绝的反例，不放宽校验或跳过测试。
+- 验证顺序：已有失败场景复现 → 补齐夹具 → 同一场景通过 → 完整 `pnpm test:remote-assets`（含旧 Agent 反例）→ 根 `pnpm typecheck` / `pnpm lint`、changed 架构与改动文件格式检查。只有本地验证通过后提交修复；既有 tag 仍指向原提交，本轮不移动 tag 或触发发布。
+- 本轮本地验证：原失败定向场景 1/1、完整远程资源测试 39/39 通过；根 typecheck、lint 和改动文件格式检查通过，架构 baseline 0、新增 0。仅修改非 managed 测试脚本和此规格，测试脚本净增 4 行；未修改生产模块或执行远端发行。
+
+```mermaid
+sequenceDiagram
+  participant Fixture as 隔离部署夹具
+  participant Contract as 服务端能力契约
+  participant Deploy as 既有部署流程
+  Fixture->>Contract: 读取 PROJECT_NATIVE_AGENT_MARKERS
+  Fixture->>Fixture: 写入假 Agent 并重新归档、计算 SHA
+  Fixture->>Deploy: 从内置源安装完整资源
+  Deploy->>Deploy: 检查能力后写入成功 marker
+```
+
 ### v3.21.0 工具窗口与用量别名发行（2026-10-24）
 
 - 根 `package.json` 的桌面版本由 `3.20.9` 更新为 `3.21.0`（次版本号提升）。

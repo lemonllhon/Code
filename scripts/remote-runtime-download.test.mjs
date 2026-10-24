@@ -36,6 +36,9 @@ const { REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS } = await import(
   pathToFileURL(serverRequire.resolve("@lcode/server/remote/lcodeAgentOfficialPluginAssets.js"))
     .href
 );
+const { PROJECT_NATIVE_AGENT_MARKERS } = await import(
+  pathToFileURL(serverRequire.resolve("@lcode/server/remote/remoteBundleCapabilityCheck.js")).href
+);
 const { LCODE_VERSION, remoteAssetDirsSchema } = await import(
   pathToFileURL(serverRequire.resolve("@lcode/shared")).href
 );
@@ -150,7 +153,8 @@ test("bundled source survives startup validation and deploys to a fixture SSH ho
       "respondProjectNative",
     ].join("\n"),
   );
-  await writeFile(join(sources("glm"), "lcode.cjs"), "project/native\nproject/routeNative\n");
+  // 中文依据：新增独立调度校验后手写夹具遗漏能力标记，成功场景应复用生产能力契约。
+  await writeFile(join(sources("glm"), "lcode.cjs"), PROJECT_NATIVE_AGENT_MARKERS.join("\n"));
   await writeFile(
     join(sources("node-runtime"), "node"),
     `#!/bin/sh\nexec '${process.execPath.replaceAll("\\", "/")}' "$@"\n`,
