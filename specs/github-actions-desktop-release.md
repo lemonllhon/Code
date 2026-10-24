@@ -12,7 +12,7 @@
 - 事件顺序：安装依赖 → 公共发行契约检查 → CLI 依赖构建并类型检查 → 远控/远程供应商测试 → 根类型与 Lint、CLI Lint、架构检查 → 原打包/发布链。这里不修改原桌面持续链路/手机恢复链路、owner/lease、身份键、业务协议或资源所有者。
 - 验收按 CI 顺序执行 CLI typecheck、`pnpm test:remote-control`、`pnpm test:remote-providers`、根 `pnpm typecheck` / `pnpm lint` 与架构检查。保留并行本地改动；不移动既有 tag，不把本地验证写成远端六平台已成功。
 - 本轮验证：CLI `typecheck --force` 的 27 个任务全部成功、0 缓存；Turbo dry run 确认 Core/Adapters 的 build 依赖包含 Contracts 与 dynamic-workflow；远控 200/200、远程供应商 16/16、依赖安全 11/11；发行回归 175 通过、1 项按平台跳过。根与 CLI lint 成功（CLI 保留既有 warning），完整架构检查 baseline 0、新增 0。
-- 本机根 `pnpm typecheck` 当前未通过：并行未提交的 `AnimatedSidePanePanel.tsx` 在三处传递可选 scoped side-tab 回调时出现 TS2322；本次仅修改工作流、发行回归与此规格（+63/-1，净增 62 行），未覆盖或提交该侧栏工作。修复需由包含新提交的后续发行 tag 使用；旧 `v3.20.9` 运行仍绑定旧提交。
+- CI 修复初次验证时，未提交的 `AnimatedSidePanePanel.tsx` 曾有三处 scoped side-tab 回调类型错误；后续保持必填子代理回调、保留可选 workflow 回调的缺席状态后，根 `pnpm typecheck` 已通过。CI 修复提交仅修改工作流、发行回归与此规格（+63/-1，净增 62 行），侧栏修复保留在现有侧栏改动中。修复需由包含新提交的后续发行 tag 使用；旧 `v3.20.9` 运行仍绑定旧提交。
 
 ### v3.20.9 桌面优化收尾与依赖清理发行（2026-10-23）
 
